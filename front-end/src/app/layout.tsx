@@ -1,19 +1,19 @@
-'use client';
+"use client";
 
-import ThemeRegistry from '../components/ThemeRegistry'
+import { SessionProvider } from "next-auth/react";
+import ThemeRegistry from "../components/ThemeRegistry";
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <ThemeRegistry>
-          {children}
-        </ThemeRegistry>
+        <SessionProvider>
+          <ThemeRegistry>
+            {children}
+          </ThemeRegistry>
+        </SessionProvider>
       </body>
     </html>
-  )
+
+  );
 }
