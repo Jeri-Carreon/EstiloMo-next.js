@@ -13,8 +13,15 @@ import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
 import Tooltip from '@mui/material/Tooltip';
 import MenuItem from '@mui/material/MenuItem';
+import Link from 'next/link';
 
-const pages = ['Home', 'About Us', 'Our Services', 'Contact Us', 'Reviews'];
+const pages = [
+  { label: 'Home', path: '/' },
+  { label: 'About Us', path: '/aboutUs' },
+  { label: 'Our Services', path: '/ourServices' },
+  { label: 'Contact Us', path: '/contactUs' },
+  { label: 'Reviews', path: '/reviews' }
+];
 const settings = ['Edit Profile', 'My Appointments', 'My Reviews', 'Loyalty Card','Logout'];
 
 function ResponsiveAppBar() {
@@ -98,20 +105,12 @@ function ResponsiveAppBar() {
             >
               {pages.map((page) => (
                 <MenuItem
-                  key={page}
+                  key={page.label}
+                  component={Link}
+                  href={page.path}
                   onClick={handleCloseNavMenu}
-                  sx={{
-                    borderBottom: '2px solid transparent',
-                    '&:hover': {
-                      borderBottomColor: '#FBBC05',
-                      backgroundColor: 'transparent',
-                      '& .MuiTypography-root': {
-                        color: '#FBBC05',
-                      },
-                    },
-                  }}
                 >
-                  <Typography sx={{ textAlign: 'center' }}>{page}</Typography>
+                  <Typography textAlign="center">{page.label}</Typography>
                 </MenuItem>
               ))}
             </Menu>
@@ -127,25 +126,25 @@ function ResponsiveAppBar() {
             {/* Pages */}
             <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
                 {pages.map((page) => (
-                <Button
-                    key={page}
-                    onClick={handleCloseNavMenu}
-                    sx={{ 
-                      my: 2, 
-                      mx: 2,
-                      color: 'white',
-                      borderBottom: '2px solid transparent',
-                      backgroundColor: 'transparent',
-                      '&:hover': {
-                        color: '#FBBC05',
-                        borderBottomColor: '#FBBC05',
-                        backgroundColor: 'transparent',
-                      },
-                    }}
-                >
-                    {page}
-                </Button>
-                ))}
+              <Button
+                key={page.label}
+                component={Link}
+                href={page.path}
+                sx={{ 
+                  my: 2, 
+                  mx: 2,
+                  color: 'white',
+                  borderBottom: '2px solid transparent',
+                  '&:hover': {
+                    color: '#FBBC05',
+                    borderBottomColor: '#FBBC05',
+                    backgroundColor: 'transparent',
+                  },
+                }}
+              >
+                {page.label}
+              </Button>
+            ))}
             </Box>
 
             {/* Avatar */}

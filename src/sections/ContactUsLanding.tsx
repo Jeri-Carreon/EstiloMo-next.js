@@ -34,6 +34,17 @@ export default function BasicGrid() {
         paddingTop: 5,
         mt: 8,}}>
       <Grid container spacing={0}>
+        <Grid size={{ xs: 12, md: 12 }}>
+          <Item>
+            <h1 style={{ 
+              color: '#000000',
+              textAlign: 'left',
+              fontSize: '4rem',
+              margin: 0,
+            }}>Contact Us!
+            </h1>
+          </Item>
+        </Grid>
         <Grid size={{ xs: 12, md: 6 }}>
           <Item>
             <h1 style={{ 

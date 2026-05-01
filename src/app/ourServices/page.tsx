@@ -1,5 +1,5 @@
 import Navbar from '@/components/Navbar';
-import AboutUs from '@/sections/AboutUs';
+import OurServices from '@/sections/OurServices';
 import Footer from '@/components/Footer';
 
 
@@ -7,7 +7,7 @@ function App() {
   return (
     <>
       <Navbar />
-      <AboutUs />
+      <OurServices />
       <Footer />
     </>
   );
