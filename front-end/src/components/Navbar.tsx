@@ -47,18 +47,20 @@ function ResponsiveAppBar() {
     <AppBar position="static" color="primary" sx={{ width: '100%' }}>
       <Container maxWidth="xl">
         <Toolbar disableGutters>
+          <Link href="/">
             <Box
             component="img"
             src="/images/logo.jpg"
             alt="Logo"
             sx={{
-                height: 80,
+                height: 100,
                 display: { xs: 'none', md: 'flex' },
                 mr: 2,
                 padding: 2, //To make the logo look better, adjust as needed
+                cursor: 'pointer', // Makes it clear that the logo is clickable
             }}
             />
-
+          </Link>
           <Typography
             variant="h6"
             noWrap
@@ -110,7 +112,7 @@ function ResponsiveAppBar() {
                   href={page.path}
                   onClick={handleCloseNavMenu}
                 >
-                  <Typography textAlign="center">{page.label}</Typography>
+                  <Typography textalign="center">{page.label}</Typography>
                 </MenuItem>
               ))}
             </Menu>

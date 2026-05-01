@@ -95,7 +95,6 @@ export default function BasicGrid() {
             <Box
                 component="form"
                 sx={{ '& > :not(style)': { m: 1, width: '100%' } }}
-                Validate
                 autoComplete="off"
                 >
                     // Add database, Input Validation, and Form Handling Logic Here

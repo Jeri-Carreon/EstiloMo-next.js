@@ -15,8 +15,6 @@ function App() {
       <AboutUsLanding />
       <ContactUs />
       <Footer />
-
-
     </>
   );
 }
