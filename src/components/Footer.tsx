@@ -27,137 +27,130 @@ export default function BasicGrid() {
         backgroundColor: '#0a0707',
         paddingTop: 5,}}>
       <Grid container spacing={3}>
+        <Grid size={{ xs: 12, md: 4 }} sx={{background: '#0a0707'}}>
+          <Item sx={{background: '#0a0707'}}>
+            <Grid container spacing={2} sx={{background: '#0a0707'}}>
+                <Grid size={{ xs: 12, md: 6 }} sx={{background: '#0a0707'}}>
+                    <Box
+                        component="img"
+                        src="/images/logo.jpg"
+                        alt="About Us"
+                        sx={{
+                            width: '90%',
+                            height: 'auto',
+                            maxHeight: '80vh',
+                            objectFit: 'contain',
+                            display: 'block',
+                        }}
+                        />
+                    </Grid>
+              <Grid size={{ xs: 12, md: 6 }}
+                    sx={{
+                        display: 'flex',
+                        JustifyContent: 'center',
+                        alignItems: 'center',
+                        minHeight: '100%',
+                        background: '#0a0707',
+                    }}>
+                <h1 style={{
+                  color: '#ffffff',
+                  textAlign: 'left',
+                  fontSize: '1.8rem',
+                }}>The Barbs Bro
+                </h1>
+              </Grid>
+            </Grid>
+          </Item>
+        </Grid>
         <Grid size={{ xs: 12, md: 4 }}>
-          <Item>
+          <Item
+          sx={{
+            width: '100%',
+            padding: 5,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'left',
+            alignItems: 'left',
+            backgroundColor: '#0a0707',
+            borderLeft: '1px solid #ffffff',
+            borderRight: '1px solid #ffffff',
+          }}>
             <h1 style={{ 
-              color: '#000000',
+              color: '#ffffff',
               textAlign: 'left',
-              fontSize: '3rem',
-            }}>About Us
+              fontSize: '1.5rem',
+              marginTop: 10,
+            }}>Contact Info
             </h1>
-            <h2 style={{
-              color: '#000000',
-              textAlign: 'justify',
+            <h3 style={{ 
+              color: '#ffffff',
+              textAlign: 'left',
               fontSize: '1.5rem',
-              textIndent: '3em',
+              marginTop: 0,
             }}>
-              Founded in July 2022, The Barbs Bro is a neighborhood barbershop built on skill, consistency, 
-              and straight-up quality service. You’ll find us at Unit F, Saranay Homes, Congressional Road 
-              corner Malapitan Road, Caloocan City—serving men who take their hair seriously.
-            </h2>
-            <h2 style={{
-              color: '#000000',
-              textAlign: 'justify',
-              fontSize: '1.5rem',
-              textIndent: '3em',
-            }}>
-              Owned and managed by Mr. Carlo Glenn Yoldi, The Barbs Bro runs with a tight team: one receptionist 
-              keeping appointments in check and four experienced barbers handling the daily grind. From clean, 
-              classic cuts to bold hair color and bleaching treatments, we make sure every client walks out looking sharp and confident.
-              </h2>
+              Unit F, Saranay Homes, Congressional Rd. cor Malapitan Rd. Caloocan
+            </h3>
+            <Box sx={{ display: 'flex', justifyContent: 'left', }}> 
+                <a href="https://www.facebook.com/thebarbsbro" target="_blank" rel="noopener noreferrer">
+                    <img src="/facebook.svg" alt="Facebook" style={{ width: 40, height: 40, marginRight: 20 }} />
+                </a>
+                <a href="https://www.tiktok.com/@thebarbsbro" target="_blank" rel="noopener noreferrer">
+                    <img src="/tiktok.svg" alt="TikTok" style={{ width: 40, height: 40, marginRight: 20 }} />
+                </a>
+                <a href="https://www.instagram.com/thebarbsbro/" target="_blank" rel="noopener noreferrer">
+                    <img src="/instagram.svg" alt="Instagram" style={{ width: 40, height: 40 }} />
+                </a>
+            </Box>
           </Item>
         </Grid>
         <Grid size={{ xs: 12, md: 4 }}>
           <Item
           sx={{
             width: '100%',
-            padding: 0,
+            padding: 5,
             display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
+            flexDirection: 'column',
+            justifyContent: 'left',
+            alignItems: 'left',
+            backgroundColor: '#0a0707',
           }}>
-            <Box
-              component="img"
-              src="/images/AboutUs1.jpg"
-              alt="About Us"
-              sx={{
-                width: '100%',
-                height: 'auto',
-                maxHeight: '90vh',
-                objectFit: 'contain',
-                display: 'block',
-              }}
-            />
-          </Item>
-        </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Item
-          sx={{
-            width: '100%',
-            padding: 0,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}>
-            <Box
-              component="img"
-              src="/images/AboutUs2.jpg"
-              alt="Barbershop"
-              sx={{
-                width: '100%',
-                height: 'auto',
-                maxHeight: '70vh',
-                objectFit: 'contain',
-                display: 'block',
-              }}
-            />
-          </Item>
-        </Grid>
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Item>
-            <h2 style={{
-              color: '#000000',
-              textAlign: 'justify',
+            <h1 style={{ 
+              color: '#ffffff',
+              textAlign: 'left',
               fontSize: '1.5rem',
-              textIndent: '3em',
-            }}>
-                        What started as a hole in the wall business with just 3 barber chairs and a cramped working 
-                        area, slowly gained traction and popularity within the community. 
-            </h2>
-            <h2 style={{
-              color: '#000000',
-              textAlign: 'justify',
+              margin: '4px 0 0 0',
+            }}>Operating Hours
+            </h1>
+            <h3 style={{ 
+              color: '#ffffff',
+              textAlign: 'left',
               fontSize: '1.5rem',
-              textIndent: '3em',
-            }}>
-              Through the dedication and skills of our barbers the business continued to grow, and on October 7, 
-              2024, The Barbs Bro relocated to a bigger space just above the old barbershop, following a relocation 
-              to better serve its customers and improve the overall shop experience.
-              </h2>
-              <h2 style={{
-              color: '#000000',
-              textAlign: 'justify',
+              margin: '4px 0 0 0',
+            }}>Monday - Sunday
+            </h3>
+            <h3 style={{ 
+              color: '#ffffff',
+              textAlign: 'left',
               fontSize: '1.5rem',
-              textIndent: '3em',
-            }}>
-              At The Barbs Bro, it’s simple: good cuts, solid service, no shortcuts.
-              </h2>
-          </Item>
-        </Grid>
-        <Grid size={{ xs: 12, md: 12 }}>
-          <Item
-          sx={{
-            width: '100%',
-            padding: 0,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}>
-            <Box
-              component="img"
-              src="/images/AboutUs3.jpg"
-              alt="About Us"
-              sx={{
-                width: '100%',
-                height: 'auto',
-                maxHeight: '80vh',
-                objectFit: 'contain',
-                display: 'block',
-              }}
-            />
+              margin: '4px 0 0 0',
+            }}>10:00 AM - 8:00 PM
+            </h3>
           </Item>
         </Grid>
 
+        <Grid size={{ xs: 12, md: 12 }} sx={{background: '#0a0707'}}>
+          <Item sx={{background: '#0a0707'}}>
+            <h1 style={{ 
+              color: '#ffffff',
+              textAlign: 'center',
+              fontSize: '1.3rem',
+              margin: 0,
+              padding: '10px 0',
+              borderTop: '0.5px solid #ffffff',
+            }}>Copyright © 2024 The Barbs Bro. All rights reserved.
+            </h1>
+          </Item>
+        </Grid>
       </Grid>
     </Box>
     </Container>
