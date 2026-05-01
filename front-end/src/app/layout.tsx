@@ -1,10 +1,6 @@
-import type { Metadata } from 'next'
-import ThemeRegistry from '../components/ThemeRegistry'
+'use client';
 
-export const metadata: Metadata = {
-  title: 'Estilomo1',
-  description: 'Barbershop website',
-}
+import ThemeRegistry from '../components/ThemeRegistry'
 
 export default function RootLayout({
   children,
