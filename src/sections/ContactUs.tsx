@@ -98,7 +98,7 @@ export default function BasicGrid() {
                 Validate
                 autoComplete="off"
                 >
-                    // Add Input Validation and Form Handling Logic Here
+                    // Add database, Input Validation, and Form Handling Logic Here
                 <TextField id="outlined-basic" label="Enter Your Name" variant="outlined" />
                 <TextField id="outlined-basic" label="Enter Your Email" variant="outlined" />
                 <TextField id="outlined-basic" label="Enter Your Message" variant="outlined" multiline rows={4} />

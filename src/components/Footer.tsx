@@ -20,17 +20,17 @@ const Item = styled(Paper)(({ theme }) => ({
 
 export default function BasicGrid() {
   return (
-    <Container maxWidth="100%" sx={{ backgroundColor: '#0a0707', padding: 0, mt: 8 }}> 
+    <Container maxWidth="100%" sx={{ backgroundColor: '#000', padding: 0, mt: 8 }}> 
       <Box 
       sx={{ 
         flexGrow: 1,
-        backgroundColor: '#0a0707',
+        backgroundColor: '#000',
         paddingTop: 5,}}>
       <Grid container spacing={3}>
-        <Grid size={{ xs: 12, md: 4 }} sx={{background: '#0a0707'}}>
-          <Item sx={{background: '#0a0707'}}>
-            <Grid container spacing={2} sx={{background: '#0a0707'}}>
-                <Grid size={{ xs: 12, md: 6 }} sx={{background: '#0a0707'}}>
+        <Grid size={{ xs: 12, md: 4 }} sx={{background: '#000'}}>
+          <Item sx={{background: '#000'}}>
+            <Grid container spacing={2} sx={{background: '#000'}}>
+                <Grid size={{ xs: 12, md: 6 }} sx={{background: '#000'}}>
                     <Box
                         component="img"
                         src="/images/logo.jpg"
@@ -50,7 +50,7 @@ export default function BasicGrid() {
                         JustifyContent: 'center',
                         alignItems: 'center',
                         minHeight: '100%',
-                        background: '#0a0707',
+                        background: '#000',
                     }}>
                 <h1 style={{
                   color: '#ffffff',
@@ -71,7 +71,7 @@ export default function BasicGrid() {
             flexDirection: 'column',
             justifyContent: 'left',
             alignItems: 'left',
-            backgroundColor: '#0a0707',
+            backgroundColor: '#000',
             borderLeft: '1px solid #ffffff',
             borderRight: '1px solid #ffffff',
           }}>
@@ -112,7 +112,7 @@ export default function BasicGrid() {
             flexDirection: 'column',
             justifyContent: 'left',
             alignItems: 'left',
-            backgroundColor: '#0a0707',
+            backgroundColor: '#000',
           }}>
             <h1 style={{ 
               color: '#ffffff',
@@ -138,8 +138,8 @@ export default function BasicGrid() {
           </Item>
         </Grid>
 
-        <Grid size={{ xs: 12, md: 12 }} sx={{background: '#0a0707'}}>
-          <Item sx={{background: '#0a0707'}}>
+        <Grid size={{ xs: 12, md: 12 }} sx={{background: '#000'}}>
+          <Item sx={{background: '#000'}}>
             <h1 style={{ 
               color: '#ffffff',
               textAlign: 'center',
