@@ -1,23 +1,10 @@
-// TEMP mock DB (replace with Prisma later)
+import { PrismaClient } from "@prisma/client";
 
-type User = {
-  id: string;
-  email: string;
-  password: string;
-  role: string;
-};
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-const users: User[] = [];
+export const db =
+  globalForPrisma.prisma ||
+  new PrismaClient();
 
-export const db = {
-  user: {
-    async findUnique({ where }: any) {
-      return users.find(u => u.email === where.email);
-    },
-    async create({ data }: any) {
-      const newUser = { id: crypto.randomUUID(), ...data };
-      users.push(newUser);
-      return newUser;
-    }
-  }
-};
+if (process.env.NODE_ENV !== "production")
+  globalForPrisma.prisma = db;

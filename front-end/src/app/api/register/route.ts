@@ -10,7 +10,7 @@ export async function POST(req: Request) {
     data: {
       email,
       password: hashedPassword,
-      role: "customer",
+      role: "customer"
     },
   });
 
