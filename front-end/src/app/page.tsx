@@ -4,6 +4,7 @@ import OurServices from '@/sections/OurServices';
 import AboutUsLanding from '@/sections/AboutUs';
 import ContactUs from '@/sections/ContactUsLanding';
 import Footer from '@/components/Footer';
+import ChatbotFloatingButton from '@/components/ChatbotFloatingButton';
 
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
       <AboutUsLanding />
       <ContactUs />
       <Footer />
+      <ChatbotFloatingButton />
     </>
   );
 }
