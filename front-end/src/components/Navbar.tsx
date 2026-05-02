@@ -135,8 +135,21 @@ export default function Navbar() {
                     open={Boolean(anchorElUser)}
                     onClose={handleCloseUserMenu}
                   >
-                    <MenuItem component={Link} href="/dashboard">
-                      Dashboard
+
+                    <MenuItem component={Link} href="/editProfile">
+                      Edit Profile
+                    </MenuItem>
+
+                    <MenuItem component={Link} href="/editProfile">
+                      My Appointments
+                    </MenuItem>
+
+                    <MenuItem component={Link} href="/editProfile">
+                      My Reviews
+                    </MenuItem>
+
+                    <MenuItem component={Link} href="/editProfile">
+                      Loyalty Card
                     </MenuItem>
 
                     <MenuItem
@@ -144,6 +157,7 @@ export default function Navbar() {
                         signOut();
                         handleCloseUserMenu();
                       }}
+                      sx={{color:'#ff0000'}}
                     >
                       Logout
                     </MenuItem>
