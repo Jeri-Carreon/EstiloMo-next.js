@@ -51,11 +51,12 @@ export default function BasicGrid() {
                         alignItems: 'center',
                         minHeight: '100%',
                         background: '#000',
+                        padding: 2,
                     }}>
                 <h1 style={{
                   color: '#ffffff',
                   textAlign: 'left',
-                  fontSize: '1.8rem',
+                  fontSize: '2rem',
                 }}>The Barbs Bro
                 </h1>
               </Grid>
@@ -66,7 +67,9 @@ export default function BasicGrid() {
           <Item
           sx={{
             width: '100%',
-            padding: 5,
+            paddingTop: 3,
+            paddingLeft: 15,
+            paddingRight: 15,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'left',
@@ -78,14 +81,14 @@ export default function BasicGrid() {
             <h1 style={{ 
               color: '#ffffff',
               textAlign: 'left',
-              fontSize: '1.5rem',
-              marginTop: 10,
+              fontSize: '1.8rem',
+              marginTop: 0,
             }}>Contact Info
             </h1>
             <h3 style={{ 
               color: '#ffffff',
               textAlign: 'left',
-              fontSize: '1.5rem',
+              fontSize: '1.8rem',
               marginTop: 0,
             }}>
               Unit F, Saranay Homes, Congressional Rd. cor Malapitan Rd. Caloocan
@@ -95,7 +98,7 @@ export default function BasicGrid() {
                     <img src="/facebook.svg" alt="Facebook" style={{ width: 40, height: 40, marginRight: 20 }} />
                 </a>
                 <a href="https://www.tiktok.com/@thebarbsbro" target="_blank" rel="noopener noreferrer">
-                    <img src="/tiktok.svg" alt="TikTok" style={{ width: 40, height: 40, marginRight: 20 }} />
+                    <img src="/tiktok.svg" alt="TikTok" style={{ width: 42, height: 42, marginRight: 20 }} />
                 </a>
                 <a href="https://www.instagram.com/thebarbsbro/" target="_blank" rel="noopener noreferrer">
                     <img src="/instagram.svg" alt="Instagram" style={{ width: 40, height: 40 }} />
@@ -107,7 +110,9 @@ export default function BasicGrid() {
           <Item
           sx={{
             width: '100%',
-            padding: 5,
+            paddingTop: 3,
+            paddingLeft: 15,
+            paddingRight: 15,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'left',
@@ -117,21 +122,21 @@ export default function BasicGrid() {
             <h1 style={{ 
               color: '#ffffff',
               textAlign: 'left',
-              fontSize: '1.5rem',
-              margin: '4px 0 0 0',
+              fontSize: '1.8rem',
+              margin: '0 0 0 0',
             }}>Operating Hours
             </h1>
             <h3 style={{ 
               color: '#ffffff',
               textAlign: 'left',
-              fontSize: '1.5rem',
+              fontSize: '1.6rem',
               margin: '4px 0 0 0',
             }}>Monday - Sunday
             </h3>
             <h3 style={{ 
               color: '#ffffff',
               textAlign: 'left',
-              fontSize: '1.5rem',
+              fontSize: '1.6rem',
               margin: '4px 0 0 0',
             }}>10:00 AM - 8:00 PM
             </h3>
