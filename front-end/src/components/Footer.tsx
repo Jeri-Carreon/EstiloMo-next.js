@@ -20,7 +20,7 @@ const Item = styled(Paper)(({ theme }) => ({
 
 export default function BasicGrid() {
   return (
-    <Container maxWidth="100%" sx={{ backgroundColor: '#000', padding: 0, mt: 8 }}> 
+    <Container maxWidth={false} sx={{ width: '100%', backgroundColor: '#000', padding: 0, mt: 8 }}> 
       <Box 
       sx={{ 
         flexGrow: 1,

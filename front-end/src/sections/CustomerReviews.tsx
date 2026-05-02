@@ -33,8 +33,7 @@ export default function ReviewsPage() {
       <Typography
         variant="h4"
         align="center"
-        fontWeight="bold"
-        mb={10}
+        sx={{ fontWeight: 'bold', mb: 10 }}
       >
         Customer Reviews
       </Typography>
@@ -62,16 +61,16 @@ export default function ReviewsPage() {
             }}
           >
             {/* Name + Avatar */}
-            <Stack direction="row" spacing={1.5} alignItems="center" mb={1}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1 }}>
               <Avatar sx={{ width: 32, height: 32 }}>
                 {review.name[0]}
               </Avatar>
-              <Typography fontWeight="bold">{review.name}</Typography>
+              <Typography sx={{ fontWeight: 'bold' }}>{review.name}</Typography>
             </Stack>
 
             {/* Rating */}
-            <Stack direction="row" spacing={1} alignItems="center" mb={0.5}>
-              <Typography fontWeight="medium">Rating:</Typography>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
+              <Typography sx={{ fontWeight: 'medium' }}>Rating:</Typography>
               <Rating value={review.rating} readOnly size="small" />
             </Stack>
 
@@ -79,12 +78,12 @@ export default function ReviewsPage() {
             <Typography variant="body2" color="text.secondary">
               Reviewed on {review.date}
             </Typography>
-            <Typography variant="body2" color="text.secondary" mb={1.5}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
               Barber: {review.barber} | Service: {review.service}
             </Typography>
 
             {/* Comment */}
-            <Typography variant="body2" lineHeight={1.5}>
+            <Typography variant="body2" sx={{ lineHeight: 1.5 }}>
               {review.comment}
             </Typography>
           </Box>
