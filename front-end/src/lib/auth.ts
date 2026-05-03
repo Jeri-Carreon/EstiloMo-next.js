@@ -52,7 +52,6 @@ export const authOptions = {
       });
     }
 
-<<<<<<< Updated upstream
     throw new Error("INVALID");
   }
   
@@ -67,14 +66,6 @@ export const authOptions = {
 
   return user;
 }
-=======
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-        };
-      },
->>>>>>> Stashed changes
     }),
   ],
 
