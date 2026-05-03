@@ -64,7 +64,12 @@ export const authOptions = {
     },
   });
 
-  return user;
+  return {
+    id: user.id,
+    email: user.email,
+    name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+    mobileNumber: user.mobileNumber,
+  };
 }
     }),
   ],
@@ -75,6 +80,7 @@ export const authOptions = {
         token.id = user.id;
         token.name = user.name;
         token.email = user.email;
+        token.mobileNumber = user.mobileNumber;
       }
       return token;
     },
@@ -83,6 +89,7 @@ export const authOptions = {
         session.user.id = token.id as string;
         session.user.name = token.name as string;
         session.user.email = token.email as string;
+        session.user.mobileNumber = token.mobileNumber as string;
       }
       return session;
     },

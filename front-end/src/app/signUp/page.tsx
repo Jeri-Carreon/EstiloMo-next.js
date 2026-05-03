@@ -74,7 +74,8 @@ export default function SignupPage() {
   }); 
 
   if (!res.ok) {
-    alert("Registration failed");
+    const data = await res.json();
+    alert(data.error || "Registration failed");
     return;
   }
 
