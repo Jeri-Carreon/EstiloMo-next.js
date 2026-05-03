@@ -143,38 +143,37 @@ export default function LoginPage() {
           />
         </FormControl>  
 
-<Box
-  sx={{
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    width: "100%",
-  }}
->
-  <FormControlLabel
-    sx={{ m: 0 }}
-    control={
-      <Checkbox
-        checked={rememberMe}
-        onChange={(e) => setRememberMe(e.target.checked)}
-      />
-    }
-    label="Remember me"
-  />
-
-  <Button
-    variant="text"
+  <Box
     sx={{
-      textTransform: "none",
-      fontSize: "0.9rem",
-      color: "#555",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      width: "100%",
     }}
-    href="/forgot-password"
   >
-    Forgot password?
-  </Button>
-</Box>
+    <FormControlLabel
+      sx={{ m: 0 }}
+      control={
+        <Checkbox
+          checked={rememberMe}
+          onChange={(e) => setRememberMe(e.target.checked)}
+        />
+      }
+      label="Remember me"
+    />
 
+    <Button
+      variant="text"
+      sx={{
+        textTransform: "none",
+        fontSize: "0.9rem",
+        color: "#555",
+      }}
+      href="/forgot-password"
+    >
+      Forgot password?
+    </Button>
+      </Box>
         <Button variant="contained" type="submit" 
           sx={{
             maxWidth: '100%', 

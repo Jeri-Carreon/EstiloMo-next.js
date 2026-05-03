@@ -50,7 +50,12 @@ export default function ForgotPasswordPage() {
           textAlign: "center",
         }}
       >
-        <h2>Forgot Password</h2>
+        <h1 style={{
+          color: "#000",
+          fontSize: "2.5rem",
+        }}>
+          Forgot Password
+        </h1>
 
         <Box
           component="form"
@@ -59,20 +64,33 @@ export default function ForgotPasswordPage() {
             display: "flex",
             flexDirection: "column",
             gap: 2,
-            mt: 2,
           }}
         >
           <TextField
-            label="Enter your email"
+            label={
+            <>
+            Enter Your Email <span style={{ color: 'red' }}>*</span>
+            </>
+            }
             variant="outlined"
-            value={email}
             onChange={(e) => setEmail(e.target.value)}
             fullWidth
           />
 
-          <Button type="submit" variant="contained">
-            Send Reset Link
-          </Button>
+          <Button variant="contained" type="submit" 
+          sx={{
+            maxWidth: '100%', 
+            borderRadius: 10,
+            fontSize: '1.2rem',
+            textTransform: 'none',
+            color: 'black',
+            backgroundColor: '#D9D9D9',
+            '&:hover': {
+              backgroundColor: '#FBBC05',
+            },
+            }}>
+          Send Reset Link
+        </Button>
         </Box>
       </Paper>
     </Box>
