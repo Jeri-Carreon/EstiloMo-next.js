@@ -52,6 +52,7 @@ export const authOptions = {
       });
     }
 
+<<<<<<< Updated upstream
     throw new Error("INVALID");
   }
   
@@ -66,8 +67,35 @@ export const authOptions = {
 
   return user;
 }
+=======
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+        };
+      },
+>>>>>>> Stashed changes
     }),
   ],
+
+  callbacks: {
+    async jwt({ token, user }: { token: any; user?: any }) {
+      if (user) {
+        token.id = user.id;
+        token.name = user.name;
+        token.email = user.email;
+      }
+      return token;
+    },
+    async session({ session, token }: { session: any; token: any }) {
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.name = token.name as string;
+        session.user.email = token.email as string;
+      }
+      return session;
+    },
+  },
 
   session: {
     strategy: "jwt" as const,
