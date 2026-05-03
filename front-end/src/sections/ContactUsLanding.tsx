@@ -7,6 +7,7 @@ import Grid from '@mui/material/Grid';
 import Container from '@mui/material/Container';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
+import { useState } from 'react'; // react state hook
 /*import FacebookIcon from './facebook.svg';
 import TikTokIcon from './tiktok.svg';
 import InstagramIcon from './instagram.svg';
@@ -24,7 +25,22 @@ const Item = styled(Paper)(({ theme }) => ({
   boxShadow: 'none',
 }));
 
-export default function BasicGrid() {
+export default function ContactUsLanding() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await fetch("/api/contact", {
+      method: "POST",
+      headers: {"Content-Type": "application/json",},
+      body: JSON.stringify({ name, email, message }),
+    });
+
+    alert("Message sent!");
+  }
+
   return (
     <Container>
       <Box 
@@ -96,11 +112,26 @@ export default function BasicGrid() {
                 component="form"
                 sx={{ '& > :not(style)': { m: 1, width: '100%' } }}
                 autoComplete="off"
+                onSubmit={handleSubmit}
                 >
-                    // Add database, Input Validation, and Form Handling Logic Here
-                <TextField id="outlined-basic" label="Enter Your Name" variant="outlined" />
-                <TextField id="outlined-basic" label="Enter Your Email" variant="outlined" />
-                <TextField id="outlined-basic" label="Enter Your Message" variant="outlined" multiline rows={4} />
+                    {/* Add database, Input Validation, and Form Handling Logic Here */}
+                
+                <TextField  
+                label="Enter Your Name" 
+                variant="outlined"
+                onChange={(e) => setName(e.target.value)} 
+                />
+                <TextField  
+                label="Enter Your Email" 
+                variant="outlined"
+                onChange={(e) => setEmail(e.target.value)} 
+                />
+                <TextField  
+                label="Enter Your Message" 
+                variant="outlined" 
+                multiline rows={4} 
+                onChange={(e) => setMessage(e.target.value)}
+                />
 
                 <Box sx={{ display: 'flex', justifyContent: 'left', mt: 1 }}>
                     <Button variant="contained" color="secondary" size="large" sx={{
@@ -116,9 +147,9 @@ export default function BasicGrid() {
                         '&:hover': {
                                 backgroundColor: 'accent.main',
                                 },
-                    }}>
-                        Submit
-                    </Button>
+                    }}
+                    type='submit'
+                    >Submit</Button>
                 </Box>
   
             </Box>

@@ -6,7 +6,6 @@ import ContactUs from '@/sections/ContactUsLanding';
 import Footer from '@/components/Footer';
 import ChatbotFloatingButton from '@/components/ChatbotFloatingButton';
 
-
 function App() {
   return (
     <>
