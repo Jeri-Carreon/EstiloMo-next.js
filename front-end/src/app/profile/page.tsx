@@ -92,6 +92,7 @@ export default function ProfilePage() {
         body: JSON.stringify({
           firstName,
           lastName,
+          email,
           mobileNumber,
         }),
       });
@@ -112,6 +113,7 @@ export default function ProfilePage() {
         mobileNumber: user.mobileNumber || "",
       });
       setFullName(`${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "User");
+      setEmail(user.email || "");
       setSuccess("Profile updated successfully!");
       setIsEditing(false);
       setLoading(false);
@@ -124,6 +126,7 @@ export default function ProfilePage() {
   const handleCancel = () => {
     setFirstName(savedProfile.firstName);
     setLastName(savedProfile.lastName);
+    setEmail(savedProfile.email);
     setMobileNumber(savedProfile.mobileNumber);
     setError("");
     setIsEditing(false);
@@ -222,17 +225,15 @@ export default function ProfilePage() {
                     onChange={(e) => setFirstName(e.target.value)}
                     variant="outlined"
                     disabled={!isEditing}
-                    inputprops={{
-                      sx: {
-                        color: "#000",
-                        "& .MuiOutlinedInput-input": {
-                          color: "#000",
-                        },
-                      },
-                    }}
                     sx={{
                       "& .MuiOutlinedInput-root": {
                         backgroundColor: isEditing ? "#fff" : "#e8e8e8",
+                      },
+                      "& .MuiOutlinedInput-input": {
+                        color: "#000",
+                      },
+                      "& .MuiInputBase-input": {
+                        color: "#000",
                       },
                     }}
                   />
@@ -248,17 +249,15 @@ export default function ProfilePage() {
                     onChange={(e) => setLastName(e.target.value)}
                     variant="outlined"
                     disabled={!isEditing}
-                    inputprops={{
-                      sx: {
-                        color: "#000",
-                        "& .MuiOutlinedInput-input": {
-                          color: "#000",
-                        },
-                      },
-                    }}
                     sx={{
                       "& .MuiOutlinedInput-root": {
                         backgroundColor: isEditing ? "#fff" : "#e8e8e8",
+                      },
+                      "& .MuiOutlinedInput-input": {
+                        color: "#000",
+                      },
+                      "& .MuiInputBase-input": {
+                        color: "#000",
                       },
                     }}
                   />
@@ -275,17 +274,15 @@ export default function ProfilePage() {
                     onChange={(e) => setMobileNumber(e.target.value)}
                     variant="outlined"
                     disabled={!isEditing}
-                    inputprops={{
-                      sx: {
-                        color: "#000",
-                        "& .MuiOutlinedInput-input": {
-                          color: "#000",
-                        },
-                      },
-                    }}
                     sx={{
                       "& .MuiOutlinedInput-root": {
                         backgroundColor: isEditing ? "#fff" : "#e8e8e8",
+                      },
+                      "& .MuiOutlinedInput-input": {
+                        color: "#000",
+                      },
+                      "& .MuiInputBase-input": {
+                        color: "#000",
                       },
                     }}
                   />
@@ -293,27 +290,26 @@ export default function ProfilePage() {
 
                 <Box>
                   <Box sx={{ fontSize: 14, fontWeight: 600, mb: 2, color: "#333" }}>
-                    My email Address
+                    Email Address
                   </Box>
-                  <Box
+                  <TextField
+                    fullWidth
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    variant="outlined"
+                    disabled={!isEditing}
                     sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 2,
-                      mb: 2,
-                      p: 2,
-                      backgroundColor: "#f5f5f5",
-                      borderRadius: 1,
+                      "& .MuiOutlinedInput-root": {
+                        backgroundColor: isEditing ? "#fff" : "#e8e8e8",
+                      },
+                      "& .MuiOutlinedInput-input": {
+                        color: "#000",
+                      },
+                      "& .MuiInputBase-input": {
+                        color: "#000",
+                      },
                     }}
-                  >
-                    <Box sx={{ fontSize: 12, color: "#666" }}>✓</Box>
-                    <Box sx={{ fontSize: 13, color: "#333", fontWeight: 500 }}>
-                      {email}
-                    </Box>
-                  </Box>
-                  <Box sx={{ fontSize: 12, color: "#999", mb: 2 }}>
-                    Verified
-                  </Box>
+                  />
                 </Box>
 
                 {isEditing && (
