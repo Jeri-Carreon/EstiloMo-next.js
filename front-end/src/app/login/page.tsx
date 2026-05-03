@@ -189,6 +189,18 @@ export default function LoginPage() {
             }}>
           Login
         </Button>
+
+        <Button
+          variant="text"
+          sx={{
+            textTransform: "none",
+            fontSize: "0.9rem",
+            color: "#555",
+          }}
+          href="/signUp"
+        >
+          Don't Have An Account Yet?
+        </Button>
       </Box>
     </Paper>
   </Box>
