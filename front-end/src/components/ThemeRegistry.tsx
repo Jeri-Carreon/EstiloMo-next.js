@@ -1,7 +1,10 @@
 'use client';
 
+import { CacheProvider } from '@emotion/react';
+import createCache from '@emotion/cache';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import { ReactNode } from 'react';
 
 const theme = createTheme({
   palette: {
@@ -14,15 +17,23 @@ const theme = createTheme({
   },
 });
 
+// Create Emotion cache for MUI
+const emotionCache = createCache({
+  key: 'mui-style',
+  prepend: true,
+});
+
 export default function ThemeRegistry({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      {children}
-    </ThemeProvider>
+    <CacheProvider value={emotionCache}>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        {children}
+      </ThemeProvider>
+    </CacheProvider>
   );
 }

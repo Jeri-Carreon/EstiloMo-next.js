@@ -1,19 +1,24 @@
-"use client";
-
-import { SessionProvider } from "next-auth/react";
+import type { Metadata } from "next";
 import ThemeRegistry from "../components/ThemeRegistry";
+import Providers from "./providers";
 
-export default function Providers({ children }: { children: React.ReactNode }) {
+export const metadata: Metadata = {
+  title: "The Barbs Bro",
+  description: "Professional barbershop services",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body>
-        <SessionProvider>
-          <ThemeRegistry>
-            {children}
-          </ThemeRegistry>
-        </SessionProvider>
+        <Providers>
+          <ThemeRegistry>{children}</ThemeRegistry>
+        </Providers>
       </body>
     </html>
-
   );
 }

@@ -139,19 +139,19 @@ export default function Navbar() {
                     onClose={handleCloseUserMenu}
                   >
 
-                    <MenuItem component={Link} href="/editProfile">
+                    <MenuItem component={Link} href="/profile">
                       Edit Profile
                     </MenuItem>
 
-                    <MenuItem component={Link} href="/editProfile">
+                    <MenuItem component={Link} href="/profile">
                       My Appointments
                     </MenuItem>
 
-                    <MenuItem component={Link} href="/editProfile">
+                    <MenuItem component={Link} href="/profile">
                       My Reviews
                     </MenuItem>
 
-                    <MenuItem component={Link} href="/editProfile">
+                    <MenuItem component={Link} href="/profile">
                       Loyalty Card
                     </MenuItem>
 
