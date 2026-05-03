@@ -16,6 +16,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Link from "next/link";
 
 import { useSession, signOut } from "next-auth/react";
+import page from "@/app/signUp/page";
 
 const pages = [
   { label: "Home", path: "/" },
@@ -48,7 +49,7 @@ export default function Navbar() {
     <AppBar position="static" color="primary">
       <Container maxWidth="xl">
         <Toolbar disableGutters>
-          {/* LOGO */}
+          {/* Logo */}
           <Link href="/">
             <Box
               component="img"
@@ -97,21 +98,22 @@ export default function Navbar() {
             }}
           >
 
-            {/* DESKTOP PAGES */}
+            {/* NavBar Option/Pages */}
             <Box sx={{ display: { xs: "none", md: "flex" } }}>
               {pages.map((page) => (
                 <Button
                   key={page.label}
                   component={Link}
                   href={page.path}
-                  sx={{ color: "white", mx: 1 }}
+                  sx={{ color: "white", mx: 1, "&:hover": { borderBottom: "1px solid #FBBC05" } }}
                 >
                   {page.label}
                 </Button>
               ))}
             </Box>
 
-            {/* AUTH SECTION */}
+            {/* Sign In Button */
+            /* Has ternary operator, if user is authenticated, show avatar and menu instead */}
             <Box sx={{ ml: 2 }}>
               {!session ? (
                 <Button
@@ -124,7 +126,7 @@ export default function Navbar() {
                 </Button>
               ) : (
                 <>
-                  <Tooltip title="Open settings">
+                  <Tooltip title="Open User Menu">
                     <IconButton onClick={handleOpenUserMenu}>
                       <Avatar />
                     </IconButton>
@@ -167,6 +169,29 @@ export default function Navbar() {
             </Box>
 
           </Box>
+
+          {/* Mobile Hamburger Menu */}
+          <Menu
+            id="menu-appbar"
+            anchorEl={anchorElNav}
+            anchorOrigin={{
+              vertical: 'top',
+              horizontal: 'left',
+            }}
+            keepMounted
+            transformOrigin={{
+              vertical: 'top',
+              horizontal: 'left',
+            }}
+            open={Boolean(anchorElNav)}
+            onClose={handleCloseNavMenu}
+          >
+            {pages.map((page) => (
+              <MenuItem key={page.label} onClick={handleCloseNavMenu} component={Link} href={page.path}>
+                <Typography sx={{ textAlign: 'center' }}>{page.label}</Typography>
+              </MenuItem>
+            ))}
+          </Menu>
         </Toolbar>
       </Container>
     </AppBar>

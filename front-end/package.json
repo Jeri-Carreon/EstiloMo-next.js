@@ -13,10 +13,8 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^9.0.0",
     "@mui/material": "^9.0.0",
-    
-    "@prisma/client": "^6.19.3",
     "@panva/hkdf": "^1.2.1",
-    
+    "@prisma/client": "^6.19.3",
     "bcrypt": "^6.0.0",
     "jose": "^6.2.3",
     "next": "16.2.4",
