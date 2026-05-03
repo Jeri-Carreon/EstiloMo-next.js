@@ -12,13 +12,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const { firstName, lastName, mobileNumber } = await req.json();
+    const { firstName, lastName, email, mobileNumber } = await req.json();
 
     const updatedUser = await db.user.update({
       where: { id: session.user.id as string },
       data: {
         firstName: firstName || undefined,
         lastName: lastName || undefined,
+        email: email || undefined,
         mobileNumber: mobileNumber || undefined,
       },
     });
