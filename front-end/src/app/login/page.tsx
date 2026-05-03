@@ -37,6 +37,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
 
   const handleTogglePassword = () => {
     setShowPassword((prev) => !prev);
@@ -47,15 +48,29 @@ export default function LoginPage() {
   const handleLogin = async (e) => {
     e.preventDefault(); // prevent the default form submission behavior
     
-    await signIn("credentials", {
+    setErrorMsg(""); //clear any previous error
+
+    const res = await signIn("credentials", {
       email,
       password,
-      redirect: true,
+      redirect: false,
       callbackUrl: "/",
       remember: rememberMe, // pass the rememberMe state to the signIn function
     });
+    
+    if (res?.error) {
+      if (res.error === "LOCKED") {
+        setErrorMsg("You have been locked out. Try again after 1 minute.")
+      } else {
+        setErrorMsg("Invalid email or password");
+      }
+      return;
+    }
+    
+    window.location.href = "/"; // 👈 manually redirect on success
   };
 
+  
   return (
   <Box // outside container for the whole page
     sx={{
@@ -104,7 +119,11 @@ export default function LoginPage() {
           onChange={(e) => setEmail(e.target.value)}
           fullWidth
         />
-
+        {errorMsg && (
+          <p style={{ color: "red", margin: "4px 0 0 0", fontSize: "0.9rem" }}>
+            {errorMsg}
+          </p>
+        )}
         <FormControl fullWidth variant="outlined">
           <InputLabel>
             Enter Your Password <span style={{ color: "red" }}>*</span>
@@ -124,15 +143,37 @@ export default function LoginPage() {
           />
         </FormControl>  
 
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-            />
-          }
-          label="Remember me"
-        />
+<Box
+  sx={{
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+  }}
+>
+  <FormControlLabel
+    sx={{ m: 0 }}
+    control={
+      <Checkbox
+        checked={rememberMe}
+        onChange={(e) => setRememberMe(e.target.checked)}
+      />
+    }
+    label="Remember me"
+  />
+
+  <Button
+    variant="text"
+    sx={{
+      textTransform: "none",
+      fontSize: "0.9rem",
+      color: "#555",
+    }}
+    href="/forgot-password"
+  >
+    Forgot password?
+  </Button>
+</Box>
 
         <Button variant="contained" type="submit" 
           sx={{

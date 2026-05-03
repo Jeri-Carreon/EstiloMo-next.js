@@ -21,15 +21,51 @@ export const authOptions = {
 
         if (!user) return null;
 
+        // Checks if user account locked
+        if (user.lockedUntil && user.lockedUntil > new Date()) {
+          throw new Error("LOCKED");
+        }
+
         const isValid = await bcrypt.compare(
           credentials.password as string,
           user.password
         );
 
-        if (!isValid) return null;
+        if (!isValid) {
+          const attempts = user.loginAttempts + 1;
+  
+    // locks user account after 5 tries
+    if (attempts >= 5) {
+      await db.user.update({
+        where: { email: user.email },
+        data: {
+          loginAttempts: 0,
+          lockedUntil: new Date(Date.now() + 1 * 60 * 1000), // 15 min lock
+        },
+      });
+    } else {
+      await db.user.update({
+        where: { email: user.email },
+        data: {
+          loginAttempts: attempts,
+        },
+      });
+    }
 
-        return user;
-      },
+    throw new Error("INVALID");
+  }
+  
+  // resets after successful login
+  await db.user.update({
+    where: { email: user.email },
+    data: {
+      loginAttempts: 0,
+      lockedUntil: null,
+    },
+  });
+
+  return user;
+}
     }),
   ],
 
@@ -44,3 +80,4 @@ export const authOptions = {
 export const auth = () => getServerSession(authOptions);
 
 export default NextAuth(authOptions);
+
