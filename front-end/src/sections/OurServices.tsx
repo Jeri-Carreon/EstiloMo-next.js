@@ -126,7 +126,9 @@ export default function ServicesSection() {
                 '&:hover': {
                         backgroundColor: 'accent.main',
                         },
-            }}>
+            }}
+            href="/appointment"
+            >
                 Book An Appointment!
             </Button>  
         </Box>
