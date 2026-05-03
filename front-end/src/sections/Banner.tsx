@@ -51,17 +51,23 @@ export default function Banner() {
             '&:hover': {
                       backgroundColor: 'accent.main',
                     },
-          }}>
+            
+          }}
+          href="/appointment"
+          >
             Book An Appointment!
           </Button>          
-          <Button variant="contained" color="secondary" size="large" sx={{ 
+          <Button variant="contained" color="secondary" size="large" 
+          sx={{ 
             fontSize: '1.1rem', 
             borderRadius: 10,
             width: '80%', 
             textTransform: 'none',
             '&:hover': {
-                      backgroundColor: 'accent.main',
-                    }, }}>
+            backgroundColor: 'accent.main',}, 
+          }}
+          href="/download"
+          >
             Download Our App
           </Button>
         </Stack>
