@@ -113,9 +113,7 @@ export default function ContactUsLanding() {
                 sx={{ '& > :not(style)': { m: 1, width: '100%' } }}
                 autoComplete="off"
                 onSubmit={handleSubmit}
-                >
-                    {/* Add database, Input Validation, and Form Handling Logic Here */}
-                
+                >                
                 <TextField  
                 label="Enter Your Name" 
                 variant="outlined"
