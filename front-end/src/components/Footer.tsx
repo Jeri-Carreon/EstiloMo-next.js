@@ -57,6 +57,8 @@ export default function BasicGrid() {
                   color: '#ffffff',
                   textAlign: 'left',
                   fontSize: '2rem',
+                  paddingLeft: 10,
+                  paddingRight: 10,
                 }}>The Barbs Bro
                 </h1>
               </Grid>
@@ -68,8 +70,8 @@ export default function BasicGrid() {
           sx={{
             width: '100%',
             paddingTop: 3,
-            paddingLeft: 15,
-            paddingRight: 15,
+            paddingLeft: 5,
+            paddingRight: 5,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'left',
@@ -111,8 +113,8 @@ export default function BasicGrid() {
           sx={{
             width: '100%',
             paddingTop: 3,
-            paddingLeft: 15,
-            paddingRight: 15,
+            paddingLeft: 5,
+            paddingRight: 5,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'left',
