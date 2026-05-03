@@ -183,7 +183,7 @@ export default function Navbar() {
                       My Appointments
                     </MenuItem>
 
-                    <MenuItem component={Link} href="/profile">
+                    <MenuItem component={Link} href="/myReviews">
                       My Reviews
                     </MenuItem>
 
