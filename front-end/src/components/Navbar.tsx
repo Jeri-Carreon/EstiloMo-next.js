@@ -15,6 +15,7 @@ import Tooltip from "@mui/material/Tooltip";
 import MenuItem from "@mui/material/MenuItem";
 import Link from "next/link";
 
+import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import page from "@/app/signUp/page";
 
@@ -28,6 +29,7 @@ const pages = [
 
 export default function Navbar() {
   const { data: session } = useSession();
+  const pathname = usePathname();
 
   const [anchorElNav, setAnchorElNav] =
     React.useState<null | HTMLElement>(null);
@@ -64,30 +66,56 @@ export default function Navbar() {
               }}
             />
           </Link>
+          {/*Desktop View of "The Barbs Bro" */}
+          <Box
+            sx={{
+              position: "absolute",
+              left: "50%",
+              transform: "translateX(-50%)",
+              display: { xs: "flex", md: "none" },
+            }}
+          >
+            <Typography
+              variant="h6"
+              noWrap
+              component={Link}
+              href="/"
+              sx={{
+                fontFamily: "monospace",
+                fontWeight: 700,
+                color: "inherit",
+                textDecoration: "none",
+              }}
+            >
+              The Barbs Bro
+            </Typography>
+          </Box>
+          
+          {/*Mobile View of "The Barbs Bro" */}
           <Typography
             variant="h6"
             noWrap
-            component="a"
+            component={Link}
             href="/"
             sx={{
               mr: 2,
-              display: { xs: 'none', md: 'flex' },
-              fontFamily: 'monospace',
+              display: { xs: "none", md: "flex" },
+              fontFamily: "monospace",
               fontWeight: 700,
-              color: 'inherit',
-              textDecoration: 'none',
+              color: "inherit",
+              textDecoration: "none",
             }}
-            
           >
             The Barbs Bro
           </Typography>
 
           {/* LEFT MOBILE MENU (unchanged) */}
-          <Box sx={{ display: { xs: "flex", md: "none" } }}>
+          <Box sx={{ display: { xs: "flex", md: "none" }} }>
             <IconButton onClick={handleOpenNavMenu} color="inherit">
               <MenuIcon />
             </IconButton>
           </Box>
+
 
           {/* 🔥 RIGHT SIDE CONTAINER (PAGES + AUTH) */}
           <Box
@@ -101,16 +129,24 @@ export default function Navbar() {
 
             {/* NavBar Option/Pages */}
             <Box sx={{ display: { xs: "none", md: "flex" } }}>
-              {pages.map((page) => (
-                <Button
-                  key={page.label}
-                  component={Link}
-                  href={page.path}
-                  sx={{ color: "white", mx: 1, "&:hover": { borderBottom: "1px solid #FBBC05" } }}
-                >
-                  {page.label}
-                </Button>
-              ))}
+              {pages.map((page) => {
+                  const isActive = pathname === page.path;
+                  
+                  return(
+                    <Button
+                      key={page.label}
+                      component={Link}
+                      href={page.path}
+                      sx={{ 
+                        color: "white", 
+                        mx: 1, 
+                        borderBottom: isActive ? "2px solid #FBBC05" : "2px solid transparent",
+                        "&:hover": { borderBottom: "1px solid #FBBC05" } }}
+                    >
+                      {page.label}
+                    </Button>
+                  );
+                })}
             </Box>
 
             {/* Sign In Button */
