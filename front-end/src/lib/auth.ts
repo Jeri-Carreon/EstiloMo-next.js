@@ -1,8 +1,9 @@
-import NextAuth from "next-auth";
+import NextAuth, { getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
 import { db } from "./db";
 
+//Authentication code and configuration for NextAuth.js, including a credentials provider that checks user credentials against a database and returns a session if valid.
 export const authOptions = {
   providers: [
     CredentialsProvider({
@@ -33,10 +34,12 @@ export const authOptions = {
   ],
 
   session: {
-    strategy: "jwt",
+    strategy: "jwt" as const,
   },
 
   secret: process.env.NEXTAUTH_SECRET,
 };
+
+export const auth = () => getServerSession(authOptions);
 
 export default NextAuth(authOptions);
