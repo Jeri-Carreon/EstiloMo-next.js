@@ -7,7 +7,7 @@ import Grid from '@mui/material/Grid';
 import Container from '@mui/material/Container';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
-import { useState } from 'react';
+import { FormEvent, useState } from 'react';
 /*import FacebookIcon from './facebook.svg';
 import TikTokIcon from './tiktok.svg';
 import InstagramIcon from './instagram.svg';
@@ -30,7 +30,7 @@ export default function ContactUs() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     await fetch("/api/contact", {
       method: "POST",
