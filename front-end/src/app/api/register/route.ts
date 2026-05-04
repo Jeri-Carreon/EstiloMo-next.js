@@ -27,7 +27,7 @@ export async function POST(req: Request) {
         password: hashedPassword,
         email,
         mobileNumber,
-        role: "customer"
+        role: "CUSTOMER"
       },
     });
 

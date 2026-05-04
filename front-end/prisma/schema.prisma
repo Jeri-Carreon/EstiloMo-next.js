@@ -26,6 +26,13 @@ model Account {
   @@index([userId])
 }
 
+enum Role {
+  CUSTOMER
+  OWNER
+  RECEPTIONIST
+  BARBER
+}
+
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
@@ -44,7 +51,7 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   password      String
-  role          String    @default("customer")
+  role          Role    @default(CUSTOMER)
   lockedUntil   DateTime?
   loginAttempts Int       @default(0)
   firstName     String?

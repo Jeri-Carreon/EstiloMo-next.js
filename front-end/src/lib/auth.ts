@@ -71,6 +71,7 @@ export const authOptions = {
     email,
     name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
     mobileNumber: user.mobileNumber,
+    role: user.role
   };
 }
     }),
@@ -83,6 +84,7 @@ export const authOptions = {
         token.name = user.name;
         token.email = user.email;
         token.mobileNumber = user.mobileNumber;
+        token.role = user.role;
       }
       return token;
     },
@@ -92,6 +94,7 @@ export const authOptions = {
         session.user.name = token.name as string;
         session.user.email = token.email as string;
         session.user.mobileNumber = token.mobileNumber as string;
+        session.user.role = token.role as string;
       }
       return session;
     },

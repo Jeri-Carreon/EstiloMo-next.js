@@ -42,6 +42,9 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import SecurityIcon from '@mui/icons-material/Security';
 import Avatar from '@mui/material/Avatar';
 import Pagination from '@mui/material/Pagination';
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 interface Customer {
   id: string;
@@ -82,10 +85,22 @@ export default function CustomersPage() {
   const currentRole = (session?.user as { role?: string })?.role || 'Customer';
   const currentInitial = currentName.charAt(0).toUpperCase();
 
+  // checks if user role is OWNER or RECEPTIONIST
+  if (
+    !session?.user?.email || 
+    !["OWNER","RECEPTIONIST"].includes(session.user.role)
+    ){
+      redirect("/unauthorized");
+    }
+
   useEffect(() => {
     const loadCustomers = async () => {
       try {
         const res = await fetch('/api/customers');
+
+        if (res.status === 403) {
+          window.location.href = "/unauthorized";
+        }
         const data = await res.json();
 
         if (!res.ok) {
