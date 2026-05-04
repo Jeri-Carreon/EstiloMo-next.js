@@ -191,10 +191,6 @@ export default function Navbar() {
                       Loyalty Card
                     </MenuItem>
 
-                    <MenuItem component={Link} href="/customers">
-                      Customers
-                    </MenuItem>
-
                     <MenuItem
                       onClick={() => {
                         signOut();
