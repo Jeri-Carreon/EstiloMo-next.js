@@ -19,7 +19,7 @@ import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 
 import { signIn } from "next-auth/react";
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 
 const Item = styled(Paper)(({ theme }) => ({
   backgroundColor: '#fff',
@@ -51,7 +51,7 @@ export default function SignupPage() {
     setShowConfirmPassword((prev) => !prev);
   };
 
-  const handleRegister = async (e) => { // async = makes the function wait for a response from server by using await keyword
+  const handleRegister = async (e: FormEvent<HTMLFormElement>) => { // async = makes the function wait for a response from server by using await keyword
     e.preventDefault();
 
     if(password !== confirmPassword) {
