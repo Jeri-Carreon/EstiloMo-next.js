@@ -20,6 +20,8 @@ export const authOptions = {
         });
 
         if (!user) return null;
+        if (!user.email) return null;
+        const email = user.email;
 
         // Checks if user account locked
         if (user.lockedUntil && user.lockedUntil > new Date()) {
@@ -37,7 +39,7 @@ export const authOptions = {
     // locks user account after 5 tries
     if (attempts >= 5) {
       await db.user.update({
-        where: { email: user.email },
+        where: { email },
         data: {
           loginAttempts: 0,
           lockedUntil: new Date(Date.now() + 1 * 60 * 1000), // 15 min lock
@@ -45,7 +47,7 @@ export const authOptions = {
       });
     } else {
       await db.user.update({
-        where: { email: user.email },
+        where: { email },
         data: {
           loginAttempts: attempts,
         },
@@ -57,7 +59,7 @@ export const authOptions = {
   
   // resets after successful login
   await db.user.update({
-    where: { email: user.email },
+    where: { email },
     data: {
       loginAttempts: 0,
       lockedUntil: null,
@@ -66,7 +68,7 @@ export const authOptions = {
 
   return {
     id: user.id,
-    email: user.email,
+    email,
     name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
     mobileNumber: user.mobileNumber,
   };
