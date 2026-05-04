@@ -14,14 +14,17 @@ import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
-import { FormEvent, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function ResetPasswordPage() {
-  const searchParams = useSearchParams(); // useSearchParams gets token from URL
   const router = useRouter();
+  const [token, setToken] = useState<string | null>(null);
 
-  const token = searchParams.get("token");
+  useEffect(() => {
+    const params = new URL(window.location.href).searchParams;
+    setToken(params.get("token"));
+  }, []);
 
   const [password, setPassword] = useState("");  // useState stores new password
   const [confirmPassword, setConfirmPassword] = useState("")
