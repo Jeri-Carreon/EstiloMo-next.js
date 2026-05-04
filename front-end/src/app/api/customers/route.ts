@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { redirect } from "next/navigation"
 import { db } from "@/lib/db";
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
+  if (
+    !session?.user?.email || 
+    !["OWNER","RECEPTIONIST"].includes(session.user.role)
+    ){
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403}
+      );
+    }
 
   try {
     const users = await db.user.findMany({
