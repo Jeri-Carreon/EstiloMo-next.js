@@ -14,7 +14,7 @@ import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
 export default function ResetPasswordPage() {
@@ -36,7 +36,7 @@ export default function ResetPasswordPage() {
     setShowConfirmPassword((prev) => !prev);
   };
 
-  const handleReset = async (e) => { // handleReset send token and new password
+  const handleReset = async (e: FormEvent<HTMLFormElement>) => { // handleReset send token and new password
     e.preventDefault();
 
     if (!token) {
