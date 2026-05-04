@@ -19,7 +19,7 @@ import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 
 import { signIn } from "next-auth/react";
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 
 const Item = styled(Paper)(({ theme }) => ({
   backgroundColor: '#fff',
@@ -45,7 +45,7 @@ export default function LoginPage() {
 
   const [rememberMe, setRememberMe] = useState(false);
 
-  const handleLogin = async (e) => {
+  const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault(); // prevent the default form submission behavior
     
     setErrorMsg(""); //clear any previous error
