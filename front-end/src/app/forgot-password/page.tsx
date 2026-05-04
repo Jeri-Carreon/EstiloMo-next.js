@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
 import TextField from "@mui/material/TextField";
@@ -9,7 +9,7 @@ import Button from "@mui/material/Button";
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
 
-  const handleForgotPassword = async (e) => {
+  const handleForgotPassword = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     const res = await fetch("/api/forgot-password", {
