@@ -70,7 +70,7 @@ export const authOptions = {
     id: user.id,
     email,
     name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
-    mobileNumber: user.mobileNumber,
+    mobileNumber: user.mobileNumber || "",
     role: user.role
   };
 }
