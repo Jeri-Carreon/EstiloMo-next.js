@@ -17,6 +17,12 @@ import Button from "@mui/material/Button";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+//Modals/Dialog Box
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+
 export default function ResetPasswordPage() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
@@ -32,6 +38,9 @@ export default function ResetPasswordPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  //Modal
+  const [open, setOpen] = useState(false);
+  
   const handleTogglePassword = () => {
     setShowPassword((prev) => !prev);
   };
@@ -73,7 +82,7 @@ export default function ResetPasswordPage() {
     } else {
       alert("Invalid or expired token");
 
-      window.location.href = "/login"
+      router.push("/login");
     }
   };
 

@@ -10,7 +10,6 @@ import OutlinedInput from "@mui/material/OutlinedInput";
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 
-import InputAdornment  from '@mui/material/InputAdornment';
 import IconButton from "@mui/material/IconButton";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
@@ -20,6 +19,7 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 
 import { signIn } from "next-auth/react";
 import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 
 const Item = styled(Paper)(({ theme }) => ({
   backgroundColor: '#fff',
@@ -39,6 +39,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
+  const router = useRouter();
+  
   const handleTogglePassword = () => {
     setShowPassword((prev) => !prev);
   };
@@ -67,7 +69,7 @@ export default function LoginPage() {
       return;
     }
     
-    window.location.href = "/"; // 👈 manually redirect on success
+    router.push("/");// 👈 manually redirect on success
   };
 
   
@@ -133,13 +135,6 @@ export default function LoginPage() {
             type={showPassword ? "text" : "password"}
             onChange={(e) => setPassword(e.target.value)}
             label="Enter Your Password"
-            endAdornment={
-              <InputAdornment position="end">
-                <IconButton onClick={handleTogglePassword} edge="end">
-                  {showPassword ? <VisibilityOff /> : <Visibility />}
-                </IconButton>
-              </InputAdornment>
-            }
           />
         </FormControl>  
 
@@ -168,8 +163,9 @@ export default function LoginPage() {
         textTransform: "none",
         fontSize: "0.9rem",
         color: "#555",
+        backgroundColor: "transparent"
       }}
-      href="/forgot-password"
+      onClick={() => router.push("/forgot-password")}
     >
       Forgot password?
     </Button>
@@ -195,8 +191,9 @@ export default function LoginPage() {
             textTransform: "none",
             fontSize: "0.9rem",
             color: "#555",
+            backgroundColor: "transparent"
           }}
-          href="/signUp"
+          onClick={() => router.push("/signUp")}
         >
           Don't Have An Account Yet?
         </Button>

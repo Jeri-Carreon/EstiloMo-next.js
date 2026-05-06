@@ -6,8 +6,22 @@ import Paper from "@mui/material/Paper";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 
+//Modals/Dialog Box
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import CloseIcon from "@mui/icons-material/Close";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
+
+import { useRouter } from "next/navigation";
+
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
+  const [openSuccess, setOpenSuccess] = useState(false);
+  const [openError, setOpenError] = useState(false);
+  const router = useRouter();
 
   const handleForgotPassword = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -23,9 +37,11 @@ export default function ForgotPasswordPage() {
     const data = await res.json();
 
     if (data.ok) {
-      alert("If this email exists, a reset link has been sent.");
+      {/*alert("If this email exists, a reset link has been sent.");*/}
+      setOpenSuccess(true)
     } else {
-      alert("Something went wrong.");
+      {/*alert("Something went wrong.");*/}
+      setOpenError(true)
     }
   };
 
@@ -90,6 +106,45 @@ export default function ForgotPasswordPage() {
             },
             }}>
           Send Reset Link
+
+          {/*MODALS */}
+          <Dialog open={openSuccess} onClose={() => setOpenSuccess(false)}>
+          {/*<IconButton onClick={() => setOpenSuccess(false)}
+          sx={{ position: "absolute", right: 8, top: 8}}
+          >
+            <CloseIcon />
+          </IconButton>*/}
+            <DialogContent 
+              sx={{
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 1,
+                mt: 5
+              }}
+              >
+              <CheckCircleIcon sx={{ fontSize: 70, color: "green"}} />
+            </DialogContent>
+            
+          <DialogTitle sx={{ textAlign: "center", position: "relative"}}>Success</DialogTitle>
+          
+            <DialogContent>
+              User created successfully!
+            </DialogContent>
+
+            <DialogActions sx={{ justifyContent: "center"}}>
+              <Button sx={{ backgroundColor: "black", color: "white", '&:hover': {
+                backgroundColor: '#FBBC05',
+              },}}
+                onClick={() => {
+                  setOpenSuccess(false);
+                  router.push("/login");
+                }}>If this email exists, a reset link has been sent
+              </Button>
+            </DialogActions>
+          </Dialog>
+
         </Button>
         </Box>
       </Paper>
