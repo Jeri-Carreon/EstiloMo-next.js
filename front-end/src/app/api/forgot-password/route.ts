@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     },
   });
 
-  // TODO: send email with link
+  // CHANGE THIS TO PROPER DOMAIN
   const resetLink = `http://localhost:3000/reset-password?token=${token}`;
 
   await resend.emails.send({
