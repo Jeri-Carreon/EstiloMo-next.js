@@ -40,10 +40,6 @@ export default function LoginPage() {
   const [errorMsg, setErrorMsg] = useState("");
 
   const router = useRouter();
-  
-  const handleTogglePassword = () => {
-    setShowPassword((prev) => !prev);
-  };
 
   const [rememberMe, setRememberMe] = useState(false);
 

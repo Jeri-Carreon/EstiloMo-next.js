@@ -1,41 +1,110 @@
-import bcrypt from "bcrypt"; //used for hashing passwords before storing them in the database
-import { db } from "@/lib/db"; //used for database operations, allows use of db.user.create
+import bcrypt from "bcrypt";
+import crypto from "crypto";
+import { db } from "@/lib/db";
+import { Resend } from "resend";
 
-{/*This function runs when a POST request is sent to /api/register */}
-export async function POST(req: Request) { 
+const resend = new Resend(process.env.RESEND_API_KEY!);
+
+export async function POST(req: Request) {
   try {
-    const { firstName, lastName, email, password, mobileNumber } = await req.json();
+    let { firstName, lastName, email, password, mobileNumber } =
+      await req.json();
 
-    // Check if user already exists
+    if (!firstName || !lastName || !email || !password || !mobileNumber) {
+      return Response.json(
+        { ok: false, error: "Missing fields" },
+        { status: 400 }
+      );
+    }
+
+    firstName = firstName.trim();
+    lastName = lastName.trim();
+    email = email.toLowerCase().trim();
+    mobileNumber = mobileNumber.trim();
+
     const existingUser = await db.user.findUnique({
       where: { email },
     });
 
     if (existingUser) {
       return Response.json(
-        { error: "Email already registered" },
+        { ok: false, error: "Email already registered" },
         { status: 400 }
       );
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10); //hashes password, 10 = number of salt rounds, higher is more secure but slower
+    // Password Strength
+    const strongPassword =
+      password.length >= 8 &&
+      /[a-zA-Z]/.test(password) &&
+      /[0-9]/.test(password) &&
+      /[!@#$%^&*(),.?":{}|<>]/.test(password);
 
-    const user = await db.user.create({ //this saves the user to the database using Prisma create method
+    if (!strongPassword) {
+      return Response.json(
+        { ok: false, error: "Weak password" },
+        { status: 400 }
+      );
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await db.user.create({
       data: {
         firstName,
         lastName,
-        password: hashedPassword,
         email,
+        password: hashedPassword,
         mobileNumber,
-        role: "CUSTOMER"
+        role: "CUSTOMER",
+        emailVerified: false,
       },
     });
 
-    return Response.json({ user });
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
+
+    await db.verificationToken.create({
+      data: {
+        email,
+        token: hashedToken,
+        expires: new Date(Date.now() + 1000 * 60 * 30), // 30 mins
+      },
+    });
+
+    // Creates verification link
+    const verifyLink = `${process.env.NEXT_PUBLIC_APP_URL}/verify-email?token=${rawToken}`;
+
+    await resend.emails.send({
+    from: "The Barbs Bro Support <onboarding@resend.dev>",
+    to: email,
+    subject: "Verify your email",
+
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <h2>Welcome to The Barbs Bro</h2>
+
+        <p>Hi ${user.firstName},</p>
+
+        <p>Please verify your email by clicking the link below:</p>
+
+        <p> ${verifyLink} </p>
+
+        <p>
+          This link will expire in 30 minutes.
+        </p>
+      </div>
+    `,
+  });
+
+    const { password: _, ...safeUser } = user;
+
+    return Response.json({ok: true, message: "Verification email sent", user: safeUser,});
   } catch (error) {
     console.error("Registration error:", error);
+
     return Response.json(
-      { error: "Registration failed" },
+      { ok: false, error: "Registration failed" },
       { status: 500 }
     );
   }

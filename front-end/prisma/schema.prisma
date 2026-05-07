@@ -46,7 +46,7 @@ model Session {
 model User {
   id            String    @id @default(cuid())
   email         String?   @unique
-  emailVerified DateTime?
+  emailVerified Boolean   @default(false)
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -70,11 +70,10 @@ model PasswordResetToken {
 }
 
 model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
 }
 
 model ContactUsMessages {

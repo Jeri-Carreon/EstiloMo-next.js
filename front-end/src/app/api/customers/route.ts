@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   
+  {/*
   if (
     !session?.user?.email || 
     !["OWNER","RECEPTIONIST"].includes(session.user.role)
@@ -15,7 +16,9 @@ export async function GET(req: Request) {
         { error: "Forbidden" },
         { status: 403}
       );
-    }
+    }  
+    */}
+  
 
   try {
     const users = await db.user.findMany({
