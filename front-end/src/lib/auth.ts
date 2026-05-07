@@ -1,7 +1,9 @@
 import NextAuth, { getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
+
 import { db } from "./db";
+import { loginRateLimiter } from "./rateLimiter";
 
 //Authentication code and configuration for NextAuth.js, including a credentials provider that checks user credentials against a database and returns a session if valid.
 export const authOptions = {
@@ -12,7 +14,7 @@ export const authOptions = {
         email: {},
         password: {},
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
 
         const user = await db.user.findUnique({
