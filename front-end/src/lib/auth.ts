@@ -1,7 +1,9 @@
 import NextAuth, { getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
+
 import { db } from "./db";
+import { loginRateLimiter } from "./rateLimiter";
 
 //Authentication code and configuration for NextAuth.js, including a credentials provider that checks user credentials against a database and returns a session if valid.
 export const authOptions = {
@@ -12,7 +14,7 @@ export const authOptions = {
         email: {},
         password: {},
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
 
         const user = await db.user.findUnique({
@@ -20,6 +22,8 @@ export const authOptions = {
         });
 
         if (!user) return null;
+        if (!user.email) return null;
+        const email = user.email;
 
         // Checks if user account locked
         if (user.lockedUntil && user.lockedUntil > new Date()) {
@@ -37,7 +41,7 @@ export const authOptions = {
     // locks user account after 5 tries
     if (attempts >= 5) {
       await db.user.update({
-        where: { email: user.email },
+        where: { email },
         data: {
           loginAttempts: 0,
           lockedUntil: new Date(Date.now() + 1 * 60 * 1000), // 15 min lock
@@ -45,7 +49,7 @@ export const authOptions = {
       });
     } else {
       await db.user.update({
-        where: { email: user.email },
+        where: { email },
         data: {
           loginAttempts: attempts,
         },
@@ -57,7 +61,7 @@ export const authOptions = {
   
   // resets after successful login
   await db.user.update({
-    where: { email: user.email },
+    where: { email },
     data: {
       loginAttempts: 0,
       lockedUntil: null,
@@ -66,9 +70,10 @@ export const authOptions = {
 
   return {
     id: user.id,
-    email: user.email,
+    email,
     name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
-    mobileNumber: user.mobileNumber,
+    mobileNumber: user.mobileNumber || "",
+    role: user.role
   };
 }
     }),
@@ -81,6 +86,7 @@ export const authOptions = {
         token.name = user.name;
         token.email = user.email;
         token.mobileNumber = user.mobileNumber;
+        token.role = user.role;
       }
       return token;
     },
@@ -90,6 +96,7 @@ export const authOptions = {
         session.user.name = token.name as string;
         session.user.email = token.email as string;
         session.user.mobileNumber = token.mobileNumber as string;
+        session.user.role = token.role as string;
       }
       return session;
     },
