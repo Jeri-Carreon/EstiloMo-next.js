@@ -7,15 +7,20 @@ import OutlinedInput from "@mui/material/OutlinedInput";
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 
-import InputAdornment  from '@mui/material/InputAdornment';
-import IconButton from "@mui/material/IconButton";
-import Visibility from "@mui/icons-material/Visibility";
-import VisibilityOff from "@mui/icons-material/VisibilityOff";
-
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+
+//Modals/Dialog Box
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import CloseIcon from "@mui/icons-material/Close";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
+import IconButton from "@mui/material/IconButton";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -32,31 +37,32 @@ export default function ResetPasswordPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const handleTogglePassword = () => {
-    setShowPassword((prev) => !prev);
-  };
-  const handleToggleConfirmPassword = () => {
-    setShowConfirmPassword((prev) => !prev);
-  };
+  //Modal
+  const [openInvReset, setOpenInvReset] = useState(false);
+  const [openNoInput, setOpenNoInput] = useState(false);
+  const [openDiffPass, setOpenDiffPass] = useState(false);
+  const [openSuccess, setOpenSuccess] = useState(false);
+
 
   const handleReset = async (e: FormEvent<HTMLFormElement>) => { // handleReset send token and new password
     e.preventDefault();
 
     if (!token) {
-      alert("Invalid reset link");
+      setOpenInvReset(true)
       return;
     }
     
-    if(password !== confirmPassword) {
-      alert("Passwords Do Not Match");
+    if(!password.trim() || !confirmPassword.trim()) {
+      setOpenNoInput(true)
       return;
     }
 
-    if (!password || !confirmPassword) {
-      alert("Please fill in both fields");
+    if (password !== confirmPassword) {
+      setOpenDiffPass(true)
       return;
     }
 
+  try {
     const res = await fetch("/api/reset-password", {
       method: "POST",
       headers: {
@@ -67,15 +73,22 @@ export default function ResetPasswordPage() {
 
     const data = await res.json();
 
-    if (data.ok) {
-      alert("Password updated!");
-      router.push("/login"); // router.push = redirects user to url assigned"
-    } else {
-      alert("Invalid or expired token");
+    console.log("API RESPONSE:", data);
 
-      window.location.href = "/login"
+    if (data.ok) {
+      setOpenSuccess(true)
+      setTimeout(() => {
+        router.push("/login"); // router.push = redirects user to url assigned"
+      }, 5000); //5 seconds to redirect
+      
+    } else {
+      setOpenInvReset(true)
     }
-  };
+  } catch (error) {
+    console.error(error);
+    setOpenInvReset(true);
+  }
+};
 
   return (
     <Box
@@ -122,13 +135,6 @@ export default function ResetPasswordPage() {
               type={showPassword ? "text" : "password"}
               onChange={(e) => setPassword(e.target.value)}
               label="Enter New Password"
-              endAdornment={
-                <InputAdornment position="end">
-                  <IconButton onClick={handleTogglePassword} edge="end">
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              }
             />
           </FormControl>  
 
@@ -141,13 +147,6 @@ export default function ResetPasswordPage() {
             type={showConfirmPassword ? "text" : "password"}
             onChange={(e) => setConfirmPassword(e.target.value)}
             label="Confirm New Password"
-            endAdornment={
-              <InputAdornment position="end">
-                <IconButton onClick={handleToggleConfirmPassword} edge="end">
-                  {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                </IconButton>
-              </InputAdornment>
-            }
           />
         </FormControl>  
 
@@ -165,8 +164,110 @@ export default function ResetPasswordPage() {
               }}>
             Reset Password
           </Button>
+
           </Box>
       </Paper>
+      {/*Modals*/}
+      {/*Invalid Reset Link */}
+      <Dialog open={openInvReset} onClose={() => setOpenInvReset(false)}>
+          <IconButton onClick={() => setOpenInvReset(false)}
+          sx={{ position: "absolute", right: 8, top: 8}}
+          >
+            <CloseIcon />
+          </IconButton>
+            <DialogContent 
+              sx={{
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 1,
+                mt: 3
+              }}
+              >
+              <ErrorIcon sx={{ fontSize: 70, color: "red"}} />
+              Invalid Reset Link
+
+              <DialogActions sx={{ justifyContent: "center"}}>
+                <Button sx={{ backgroundColor: "black", color: "white", '&:hover': {
+                  backgroundColor: '#FBBC05',
+                },}}
+                  onClick={() => {
+                    setOpenInvReset(false);
+                    router.push("/forgot-password");
+                  }}>Please Request New Reset Link
+                </Button>
+              </DialogActions>
+              
+            </DialogContent>
+      </Dialog>
+
+      {/*No Input*/}
+      <Dialog open={openNoInput} onClose={() => setOpenNoInput(false)}>
+          <IconButton onClick={() => setOpenNoInput(false)}
+          sx={{ position: "absolute", right: 8, top: 8}}
+          >
+            <CloseIcon />
+          </IconButton>
+            <DialogContent 
+              sx={{
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 1,
+                mt: 3
+              }}
+              >
+              <ErrorIcon sx={{ fontSize: 70, color: "red"}} />
+              Please Fill in both fields
+            </DialogContent>
+      </Dialog>
+
+      {/*Different Passwords */}
+      <Dialog open={openDiffPass} onClose={() => setOpenDiffPass(false)}>
+          <IconButton onClick={() => setOpenDiffPass(false)}
+          sx={{ position: "absolute", right: 8, top: 8}}
+          >
+            <CloseIcon />
+          </IconButton>
+            <DialogContent 
+              sx={{
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 1,
+                mt: 3
+              }}
+              >
+              <ErrorIcon sx={{ fontSize: 70, color: "red"}} />
+              Passwords do not match
+            </DialogContent>
+      </Dialog>
+
+            {/*Success*/}
+      <Dialog open={openSuccess} onClose={() => setOpenSuccess(false)}>
+          {/*<IconButton onClick={() => setOpenSuccess(false)}
+          sx={{ position: "absolute", right: 8, top: 8}}
+          >
+            <CloseIcon />
+          </IconButton>*/}
+            <DialogContent 
+              sx={{
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 1,
+                mt: 3
+              }}
+              >
+              <CheckCircleIcon sx={{ fontSize: 70, color: "green"}} />
+              <DialogTitle sx={{ textAlign: "center", position: "relative"}}>Password Updated!</DialogTitle>
+              You will be redirected to login page
+            </DialogContent>
+      </Dialog>
     </Box>
   );
 }
