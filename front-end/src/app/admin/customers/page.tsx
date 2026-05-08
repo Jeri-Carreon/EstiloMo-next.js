@@ -44,7 +44,7 @@ import Avatar from '@mui/material/Avatar';
 import Pagination from '@mui/material/Pagination';
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 interface Customer {
   id: string;
@@ -73,7 +73,7 @@ const menuItems = [
 ];
 
 export default function CustomersPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -85,21 +85,29 @@ export default function CustomersPage() {
   const currentRole = (session?.user as { role?: string })?.role || 'Customer';
   const currentInitial = currentName.charAt(0).toUpperCase();
 
-  // checks if user role is OWNER or RECEPTIONIST
-  if (
-    !session?.user?.email || 
-    !["OWNER","RECEPTIONIST"].includes(session.user.role)
-    ){
-      redirect("/unauthorized");
-    }
+  const router = useRouter();
+
+  
 
   useEffect(() => {
+    if (status === "loading") return; // waits for status to go from loading to finished before deciding the role check logic below
+    
+    const role = (session?.user as { role?: string })?.role;
+    // checks if user role is OWNER or RECEPTIONIST
+    if (
+      !session?.user?.email || 
+      !["OWNER","RECEPTIONIST"].includes(role || "")
+      ){
+        router.push("/unauthorized");
+        return;
+      }
+
     const loadCustomers = async () => {
       try {
         const res = await fetch('/api/customers');
 
         if (res.status === 403) {
-          window.location.href = "/unauthorized";
+          router.push("/unauthorized");
         }
         const data = await res.json();
 
@@ -118,7 +126,7 @@ export default function CustomersPage() {
     };
 
     loadCustomers();
-  }, []);
+  }, [session, status, router]); // session array = re-run useEffect whenever one of these changes
 
   const filteredCustomers = customers.filter((customer) =>
     customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -154,88 +162,9 @@ export default function CustomersPage() {
   };
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: '#1a1a1a' }}>
-      {/* LEFT SIDEBAR */}
-      <Box
-        sx={{
-          width: 200,
-          backgroundColor: '#000',
-          color: '#fff',
-          p: 2,
-          overflowY: 'auto',
-        }}
-      >
-        {/* USER PROFILE */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3, pb: 2, borderBottom: '1px solid #333' }}>
-          <Avatar sx={{ width: 40, height: 40, backgroundColor: '#666' }}>{currentInitial}</Avatar>
-          <Box>
-            <Typography sx={{ fontSize: 14, fontWeight: 700 }}>{currentName}</Typography>
-            <Typography sx={{ fontSize: 12, color: '#999', textTransform: 'capitalize' }}>{currentRole}</Typography>
-          </Box>
-        </Box>
-
-        {/* LOGOUT BUTTON */}
-        <Button
-          variant="contained"
-          size="small"
-          sx={{
-            width: '100%',
-            mb: 3,
-            backgroundColor: '#333',
-            color: '#fff',
-            textTransform: 'none',
-            '&:hover': { backgroundColor: '#444' },
-          }}
-        >
-          Logout
-        </Button>
-
-        {/* MENU ITEMS */}
-        <List sx={{ p: 0 }}>
-          {menuItems.map((item) => {
-            const IconComponent = item.icon;
-            return (
-              <ListItem
-                key={item.label}
-                sx={{
-                  mb: 1,
-                  px: 2,
-                  py: 1.5,
-                  borderRadius: 1,
-                  cursor: 'pointer',
-                  backgroundColor: item.active ? '#ffc107' : 'transparent',
-                  color: item.active ? '#000' : '#fff',
-                  '&:hover': {
-                    backgroundColor: item.active ? '#ffc107' : '#333',
-                  },
-                }}
-              >
-                <ListItemIcon
-                  sx={{
-                    minWidth: 40,
-                    color: item.active ? '#000' : '#fff',
-                  }}
-                >
-                  <IconComponent fontSize="small" />
-                </ListItemIcon>
-                <ListItemText
-                  primary={item.label}
-                  sx={{
-                    '& .MuiListItemText-primary': {
-                      fontSize: 14,
-                      fontWeight: item.active ? 700 : 500,
-                    },
-                  }}
-                />
-              </ListItem>
-            );
-          })}
-        </List>
-      </Box>
-
-      {/* MAIN CONTENT */}
       <Box sx={{ flex: 1, p: 4, backgroundColor: '#fff' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4 }}>
+          {/*}
           <Button
             component={Link}
             href="/"
@@ -244,7 +173,8 @@ export default function CustomersPage() {
           >
             Back to home
           </Button>
-          <Typography variant="h4" sx={{ mb: 0, fontWeight: 700 }}>
+          */}
+          <Typography variant="h3" sx={{ mb: 0, fontWeight: 700 }}>
             Customers
           </Typography>
           <Box sx={{ width: 112 }} />
@@ -366,6 +296,5 @@ export default function CustomersPage() {
           </>
         )}
       </Box>
-    </Box>
   );
 }
