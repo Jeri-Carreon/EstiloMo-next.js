@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import Box from '@mui/material/Box';
@@ -24,6 +25,14 @@ import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
+
+
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import CloseIcon from "@mui/icons-material/Close";
+
 import SearchIcon from '@mui/icons-material/Search';
 import TuneIcon from '@mui/icons-material/Tune';
 import AddIcon from '@mui/icons-material/Add';
@@ -57,21 +66,6 @@ interface Customer {
   createdAt: string;
 }
 
-const menuItems = [
-  { label: 'Dashboard', icon: DashboardIcon },
-  { label: 'Customers', icon: GroupIcon, active: true },
-  { label: 'Services', icon: BuildIcon },
-  { label: 'Barbers', icon: PersonIcon },
-  { label: 'Appointments', icon: EventIcon },
-  { label: 'Sales', icon: MonetizationOnIcon },
-  { label: 'Customer Reviews', icon: StarIcon },
-  { label: 'Loyalty Card', icon: CardGiftcardIcon },
-  { label: 'Reports', icon: DescriptionIcon },
-  { label: 'User Management', icon: AdminPanelSettingsIcon },
-  { label: 'Chatbot', icon: SmartToyIcon },
-  { label: 'Security Logs', icon: SecurityIcon },
-];
-
 export default function CustomersPage() {
   const { data: session, status } = useSession();
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -81,9 +75,83 @@ export default function CustomersPage() {
   const [page, setPage] = useState(1);
   const itemsPerPage = 5;
 
-  const currentName = session?.user?.name || session?.user?.email || 'Customer';
-  const currentRole = (session?.user as { role?: string })?.role || 'Customer';
-  const currentInitial = currentName.charAt(0).toUpperCase();
+  // Add Modal
+  const [openAdd, setOpenAdd] = useState(false);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [mobileNumber, setMobileNumber] = useState("");
+
+  // Delete Modal
+  const [openDel, setOpenDel] = useState(false);
+  
+  // Edit Modal
+  const [openEdit, setOpenEdit] = useState(false);
+  
+  const [selectedCustomer, setSelectedCustomer ] = useState<Customer | null>(null);
+
+ const handleDeleteCustomer = async () => {
+  if (!selectedCustomer?.id) {
+    console.log("No selected customer");
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/customers/${selectedCustomer.id}`, {
+      method: "DELETE",
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Delete failed");
+      return;
+    }
+
+    setCustomers((prev) =>
+      prev.filter((c) => c.id !== selectedCustomer.id)
+    );
+
+    setOpenDel(false);
+    setSelectedCustomer(null);
+  } catch (err) {
+    console.error(err);
+    alert("Something went wrong deleting customer");
+  }
+};
+
+  const handleCreateCustomer = async () => {
+    const res = await fetch("/api/admin/create-customer", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        firstName,
+        lastName,
+        email,
+        mobileNumber,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Failed to create customer");
+      return;
+    }
+
+    alert("Customer created!");
+
+    setOpenAdd(false);
+
+    setFirstName("");
+    setLastName("");
+    setEmail("");
+    setMobileNumber("");
+
+    location.reload();
+  };
 
   const router = useRouter();
 
@@ -93,6 +161,7 @@ export default function CustomersPage() {
     if (status === "loading") return; // waits for status to go from loading to finished before deciding the role check logic below
     
     const role = (session?.user as { role?: string })?.role;
+    
     // checks if user role is OWNER or RECEPTIONIST
     if (
       !session?.user?.email || 
@@ -211,6 +280,7 @@ export default function CustomersPage() {
           <Button
             startIcon={<AddIcon />}
             variant="contained"
+            onClick={() => setOpenAdd(true)}
             sx={{ textTransform: 'none' }}
           >
             Add
@@ -258,10 +328,19 @@ export default function CustomersPage() {
                       <TableCell>{customer.totalAppointments}</TableCell>
                       <TableCell>₱ {customer.totalSpent}</TableCell>
                       <TableCell>
-                        <IconButton size="small" color="error">
+                        <IconButton 
+                          size="small" 
+                          color="error" 
+                          onClick={() => {
+                            setSelectedCustomer(customer);
+                            setOpenDel(true); 
+                            }}>
                           <DeleteIcon fontSize="small" />
                         </IconButton>
-                        <IconButton size="small" color="primary">
+                        <IconButton 
+                          size="small" 
+                          color="primary"
+                          onClick={() => setOpenEdit(true)}>
                           <EditIcon fontSize="small" />
                         </IconButton>
                       </TableCell>
@@ -295,6 +374,82 @@ export default function CustomersPage() {
             </Box>
           </>
         )}
+        <Dialog open={openAdd} onClose={() => setOpenAdd(false)} maxWidth="sm" fullWidth>
+
+          <DialogTitle>
+            Add Customer
+          </DialogTitle>
+
+          <DialogContent
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              mt: 1,
+            }}
+          >
+            <TextField
+              label="First Name"
+              fullWidth
+              onChange={(e) => setFirstName(e.target.value)}
+            />
+
+            <TextField
+              label="Last Name"
+              fullWidth
+              onChange={(e) => setLastName(e.target.value)}
+            />
+
+            <TextField
+              label="Email"
+              fullWidth
+              onChange={(e) => setEmail(e.target.value)}
+            />
+
+            <TextField
+              label="Mobile Number"
+              fullWidth
+              onChange={(e) => setMobileNumber(e.target.value)}
+            />
+          </DialogContent>
+
+          <DialogActions>
+            <Button onClick={() => setOpenAdd(false)}>
+              Cancel
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={handleCreateCustomer}
+            >
+              Create Customer
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+      {/*Delete*/}
+      <Dialog open={openDel} onClose={() => setOpenDel(false)}>
+        <DialogTitle>Delete Customer</DialogTitle>
+
+        <DialogContent>
+          Are you sure you want to delete{" "}
+          <b>{selectedCustomer?.name}</b>?
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={() => setOpenDel(false)}>
+            Cancel
+          </Button>
+
+          <Button
+            color="error"
+            variant="contained"
+            onClick={handleDeleteCustomer}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
       </Box>
   );
 }

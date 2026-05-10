@@ -19,6 +19,7 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 
 import { signIn } from "next-auth/react";
 import { FormEvent, useState } from "react";
+import { getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 const Item = styled(Paper)(({ theme }) => ({
@@ -64,8 +65,15 @@ export default function LoginPage() {
       }
       return;
     }
-    
-    router.push("/");// 👈 manually redirect on success
+
+    const session = await getSession();
+
+    const role = session?.user?.role;
+
+    if (role !== "CUSTOMER") {
+      router.push("/admin")
+    } else
+      router.push("/");// manually redirect on success
   };
 
   
