@@ -25,19 +25,22 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import SecurityIcon from '@mui/icons-material/Security';
 
+import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
+
 const menuItems = [
-  { label: 'Dashboard', icon: DashboardIcon, path: '/admin/dashboard' },
-  { label: 'Customers', icon: GroupIcon, path: '/admin/customers' },
-  { label: 'Services', icon: BuildIcon, path: '/admin/services' },
-  { label: 'Barbers', icon: PersonIcon, path: '/admin/barbers' },
-  { label: 'Appointments', icon: EventIcon, path: '/admin/appointments' },
-  { label: 'Sales', icon: MonetizationOnIcon, path: '/admin/sales' },
-  { label: 'Customer Reviews', icon: StarIcon, path: '/admin/reviews' },
-  { label: 'Loyalty Card', icon: CardGiftcardIcon, path: '/admin/loyalty' },
-  { label: 'Reports', icon: DescriptionIcon, path: '/admin/reports' },
-  { label: 'User Management', icon: AdminPanelSettingsIcon, path: '/admin/users' },
-  { label: 'Chatbot', icon: SmartToyIcon, path: '/admin/chatbot' },
-  { label: 'Security Logs', icon: SecurityIcon, path: '/admin/security' },
+  { label: 'Dashboard', icon: DashboardIcon, path: '/admin/dashboard', roles: ["OWNER"] },
+  { label: 'Customers', icon: GroupIcon, path: '/admin/customers', roles: ["OWNER", "RECEPTIONIST"] },
+  { label: 'Services', icon: BuildIcon, path: '/admin/services', roles: ["OWNER"] },
+  { label: 'Barbers', icon: PersonIcon, path: '/admin/barbers', roles: ["OWNER", "RECEPTIONIST", "BARBER"] },
+  { label: 'Appointments', icon: EventIcon, path: '/admin/appointments', roles: ["OWNER", "RECEPTIONIST"] },
+  { label: 'Sales', icon: MonetizationOnIcon, path: '/admin/sales', roles: ["OWNER", "RECEPTIONIST"] },
+  { label: 'Customer Reviews', icon: StarIcon, path: '/admin/reviews', roles: ["OWNER"] },
+  { label: 'Loyalty Card', icon: CardGiftcardIcon, path: '/admin/loyalty', roles: ["OWNER", "RECEPTIONIST"] },
+  { label: 'Reports', icon: DescriptionIcon, path: '/admin/reports', roles: ["OWNER"] },
+  { label: 'User Management', icon: AdminPanelSettingsIcon, path: '/admin/user-management', roles: ["OWNER"] },
+  { label: 'Chatbot', icon: SmartToyIcon, path: '/admin/chatbot', roles: ["OWNER"] },
+  { label: 'Security Logs', icon: SecurityIcon, path: '/admin/security', roles: ["OWNER"] },
 ];
 
 type SidebarProps = {
@@ -48,6 +51,13 @@ type SidebarProps = {
 export default function Sidebar({ currentName, currentRole }: SidebarProps) {
   const pathname = usePathname();
   const currentInitial = currentName?.charAt(0)?.toUpperCase() || 'U';
+
+  const router = useRouter();
+
+  // ROLE FILTERING
+  const filteredMenu = menuItems.filter((item) =>
+    item.roles ? item.roles.includes(currentRole) : false
+  );
 
   return (
     <Box
@@ -88,6 +98,9 @@ export default function Sidebar({ currentName, currentRole }: SidebarProps) {
       <Button
         variant="contained"
         size="small"
+        onClick={() => {
+          signOut({ callbackUrl: "/" });
+        }}
         sx={{
           width: '100%',
           mb: 3,
@@ -102,7 +115,7 @@ export default function Sidebar({ currentName, currentRole }: SidebarProps) {
 
       {/* MENU */}
       <List sx={{ p: 0 }}>
-        {menuItems.map((item) => {
+        {filteredMenu.map((item) => {
           const Icon = item.icon;
           const isActive = pathname?.startsWith(item.path);
 

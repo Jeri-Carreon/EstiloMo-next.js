@@ -33,6 +33,7 @@ export default function BasicGrid() {
               color: '#000000',
               textAlign: 'left',
               fontSize: '3rem',
+              fontFamily: 'var(--font-nunito-sans)',
             }}>About Us
             </h1>
             <h2 style={{
@@ -40,6 +41,7 @@ export default function BasicGrid() {
               textAlign: 'justify',
               fontSize: '1.5rem',
               textIndent: '3em',
+              fontFamily: 'var(--font-nunito-sans)',
             }}>
               Founded in July 2022, The Barbs Bro is a neighborhood barbershop built on skill, consistency, 
               and straight-up quality service. You’ll find us at Unit F, Saranay Homes, Congressional Road 
@@ -50,6 +52,7 @@ export default function BasicGrid() {
               textAlign: 'justify',
               fontSize: '1.5rem',
               textIndent: '3em',
+              fontFamily: 'var(--font-nunito-sans)',
             }}>
               Owned and managed by Mr. Carlo Glenn Yoldi, The Barbs Bro runs with a tight team: one receptionist 
               keeping appointments in check and four experienced barbers handling the daily grind. From clean, 
@@ -110,6 +113,7 @@ export default function BasicGrid() {
               textAlign: 'justify',
               fontSize: '1.5rem',
               textIndent: '3em',
+              fontFamily: 'var(--font-nunito-sans)',
             }}>
                         What started as a hole in the wall business with just 3 barber chairs and a cramped working 
                         area, slowly gained traction and popularity within the community. 
@@ -119,6 +123,7 @@ export default function BasicGrid() {
               textAlign: 'justify',
               fontSize: '1.5rem',
               textIndent: '3em',
+              fontFamily: 'var(--font-nunito-sans)',
             }}>
               Through the dedication and skills of our barbers the business continued to grow, and on October 7, 
               2024, The Barbs Bro relocated to a bigger space just above the old barbershop, following a relocation 
@@ -129,6 +134,7 @@ export default function BasicGrid() {
               textAlign: 'justify',
               fontSize: '1.5rem',
               textIndent: '3em',
+              fontFamily: 'var(--font-nunito-sans)',
             }}>
               At The Barbs Bro, it’s simple: good cuts, solid service, no shortcuts.
               </h2>

@@ -21,31 +21,48 @@ export async function GET(req: Request) {
   
 
   try {
-    const users = await db.user.findMany({
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        mobileNumber: true,
-        role: true,
-        createdAt: true,
+    const customers = await db.customer.findMany({
+      include: {
+        user: true,
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: {
+        user: {
+          createdAt: "desc",
+        }
+      }
     });
 
-    const customers = users.map((user) => ({
-      id: user.id,
-      type: user.role || "Regular",
-      name: [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "Unknown",
-      contactNumber: user.mobileNumber || "N/A",
-      email: user.email || "N/A",
+    const result = customers.map((customer) => ({
+      id: customer.id,
+      type: customer.customerType || "CASUAL",
+      name: 
+        [customer.firstName, customer.lastName]
+        .filter(Boolean)
+        .join(" ") ||  
+        
+        [customer.user?.firstName, customer.user?.lastName]
+        .filter(Boolean)
+        .join(" ") ||  
+
+        customer.email ||
+        customer.user?.email || 
+        "Unknown",
+
+      contactNumber: 
+        customer.mobileNumber ||
+        customer.user?.mobileNumber || "N/A",
+
+      email: 
+        customer.email ||
+        customer.user?.email || "N/A",
+
       totalAppointments: 0,
       totalSpent: 0,
-      createdAt: user.createdAt,
+      
+      createdAt: customer.createdAt,
     }));
 
-    return NextResponse.json({ customers });
+    return NextResponse.json({ customers: result });
   } catch (error) {
     return NextResponse.json(
       { error: "Failed to fetch customers" },

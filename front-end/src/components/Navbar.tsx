@@ -100,7 +100,7 @@ export default function Navbar() {
             sx={{
               mr: 2,
               display: { xs: "none", md: "flex" },
-              fontFamily: "monospace",
+              fontFamily: 'var(--font-nunito-sans)',
               fontWeight: 700,
               color: "inherit",
               textDecoration: "none",

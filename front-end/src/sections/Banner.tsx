@@ -20,11 +20,11 @@ export default function Banner() {
       }}
     >
       <Container maxWidth="lg">
-        <Typography variant="h1" sx={{ fontWeight: 'bold' }}>
+        <Typography variant="h1" sx={{ fontWeight: 'bold', fontFamily: 'var(--font-nunito-sans)', }}>
           The Barbs Bro
         </Typography>
 
-        <Typography variant="h5" sx={{ mt: 5 }}>
+        <Typography variant="h5" sx={{ mt: 5, fontFamily: 'var(--font-nunito-sans)', }}>
           Sharp Cuts. Solid Confidence. We provide quality and affordable haircuts and services. The Barbs Bro. Undeniable excellence.
         </Typography>
 
@@ -51,6 +51,7 @@ export default function Banner() {
             '&:hover': {
                       backgroundColor: 'accent.main',
                     },
+            fontFamily: 'var(--font-nunito-sans)',
             
           }}
           href="/appointment"
@@ -65,6 +66,7 @@ export default function Banner() {
             textTransform: 'none',
             '&:hover': {
             backgroundColor: 'accent.main',}, 
+            fontFamily: 'var(--font-nunito-sans)',
           }}
           href="/download"
           >
