@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
-    // 🔐 AUTH CHECK
+    // AUTH CHECK
     const session = await getServerSession(authOptions);
 
     if (
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 📥 REQUEST BODY
+    // REQUEST BODY
     let {
       firstName,
       lastName,
@@ -27,13 +27,12 @@ export async function POST(req: Request) {
       mobileNumber,
     } = await req.json();
 
-    // 🧹 CLEAN INPUTS
     firstName = firstName?.trim();
     lastName = lastName?.trim();
     email = email?.trim().toLowerCase();
     mobileNumber = mobileNumber?.trim();
 
-    // ✅ VALIDATION
+    // VALIDATION
     if (!firstName || !lastName || !mobileNumber) {
       return NextResponse.json(
         { ok: false, error: "Missing required fields" },
@@ -41,7 +40,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 🚀 TRANSACTION
+    // TRANSACTION
     const customer = await db.$transaction(async (tx) => {
 
       // Create customer

@@ -87,7 +87,11 @@ export default function CustomersPage() {
   
   // Edit Modal
   const [openEdit, setOpenEdit] = useState(false);
-  
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editMobileNumber, setEditMobileNumber] = useState("");
+
   const [selectedCustomer, setSelectedCustomer ] = useState<Customer | null>(null);
 
  const handleDeleteCustomer = async () => {
@@ -151,6 +155,57 @@ export default function CustomersPage() {
     setMobileNumber("");
 
     location.reload();
+  };
+
+  const handleUpdateCustomer = async () => {
+  if (!selectedCustomer) return;
+
+  try {
+      const res = await fetch(
+        `/api/customers/${selectedCustomer.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            firstName: editFirstName,
+            lastName: editLastName,
+            email: editEmail,
+            mobileNumber: editMobileNumber,
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "Failed to update customer");
+        return;
+      }
+
+      setCustomers((prev) =>
+        prev.map((c) =>
+          c.id === selectedCustomer.id
+            ? {
+                ...c,
+                name: `${editFirstName} ${editLastName}`,
+                email: editEmail,
+                contactNumber: editMobileNumber,
+              }
+            : c
+        )
+      );
+
+      alert("Customer updated successfully");
+
+      setOpenEdit(false);
+      setSelectedCustomer(null);
+
+    } catch (error) {
+      console.error(error);
+      alert("Something went wrong");
+    }
   };
 
   const router = useRouter();
@@ -337,10 +392,23 @@ export default function CustomersPage() {
                             }}>
                           <DeleteIcon fontSize="small" />
                         </IconButton>
-                        <IconButton 
-                          size="small" 
+                        <IconButton
+                          size="small"
                           color="primary"
-                          onClick={() => setOpenEdit(true)}>
+                          onClick={() => {
+                            setSelectedCustomer(customer);
+
+                            const names = customer.name.split(" ");
+
+                            setEditFirstName(names[0] || "");
+                            setEditLastName(names.slice(1).join(" ") || "");
+
+                            setEditEmail(customer.email || "");
+                            setEditMobileNumber(customer.contactNumber || "");
+
+                            setOpenEdit(true);
+                          }}
+                        >
                           <EditIcon fontSize="small" />
                         </IconButton>
                       </TableCell>
@@ -423,6 +491,71 @@ export default function CustomersPage() {
               onClick={handleCreateCustomer}
             >
               Create Customer
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+      <Dialog open={openEdit} onClose={() => setOpenEdit(false)} maxWidth="sm" fullWidth>
+
+          <DialogTitle>
+            Edit Customer
+          </DialogTitle>
+
+          <DialogContent
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              mt: 1,
+            }}
+          >
+            <TextField
+              label="First Name"
+              fullWidth
+              value={editFirstName}
+              onChange={(e) =>
+                setEditFirstName(e.target.value)
+              }
+            />
+
+            <TextField
+              label="Last Name"
+              fullWidth
+              value={editLastName}
+              onChange={(e) =>
+                setEditLastName(e.target.value)
+              }
+            />
+
+            <TextField
+              label="Email"
+              fullWidth
+              value={editEmail}
+              onChange={(e) =>
+                setEditEmail(e.target.value)
+              }
+            />
+
+            <TextField
+              label="Mobile Number"
+              fullWidth
+              value={editMobileNumber}
+              onChange={(e) =>
+                setEditMobileNumber(e.target.value)
+              }
+            />
+          </DialogContent>
+
+          <DialogActions>
+            <Button onClick={() => setOpenEdit(false)}>
+              Cancel
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={handleUpdateCustomer}
+            >
+              Save Changes
             </Button>
           </DialogActions>
         </Dialog>
