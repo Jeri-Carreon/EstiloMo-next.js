@@ -58,6 +58,8 @@ model User {
   accounts      Account[] @relation("accounts")
   sessions      Session[]
 
+  reviews       Review[]
+
   customer      Customer?
 }
 
@@ -90,9 +92,8 @@ model Customer {
   user          User? @relation(fields: [userId], references: [id])
 
   appointments  Appointment[]
-  reviews       Review[]
   loyaltyCards  LoyaltyCard[]
-
+  
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -126,8 +127,8 @@ model Review {
   comment   String?
   createdAt DateTime @default(now())
 
-  customerId    String?
-  customer      Customer?    @relation(fields: [customerId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("Review")
 }
@@ -155,6 +156,6 @@ model LoyaltyCard {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
-  customerId    String?
-  customer      Customer?    @relation(fields: [customerId], references: [id])
+  customerId  String
+  customer    Customer    @relation(fields: [customerId], references: [id])
 }
