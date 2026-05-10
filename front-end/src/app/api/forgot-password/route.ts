@@ -26,8 +26,8 @@ export async function POST(req: Request) {
     },
   });
 
-  // TODO: send email with link
-  const resetLink = `http://localhost:3000/reset-password?token=${token}`;
+  // CHANGE THIS TO PROPER DOMAIN
+  const resetLink = `estilo-mo-next-js-git-staging-jeri-carreons-projects.vercel.app/reset-password?token=${token}`;
 
   await resend.emails.send({
     from: "The Barbs Bro Support <onboarding@resend.dev>",

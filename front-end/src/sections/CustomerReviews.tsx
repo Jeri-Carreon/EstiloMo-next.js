@@ -102,7 +102,7 @@ export default function ReviewsPage() {
       <Typography
         variant="h4"
         align="center"
-        sx={{ fontWeight: 800, mb: 5 }}
+        sx={{ fontWeight: 800, mb: 5, fontFamily: 'var(--font-nunito-sans)', }}
       >
         Customer Reviews
       </Typography>
@@ -130,7 +130,7 @@ export default function ReviewsPage() {
           label="Filter by rating"
           value={ratingFilter}
           onChange={(e) => setRatingFilter(e.target.value)}
-          sx={{ minWidth: 180 }}
+          sx={{ minWidth: 180, fontFamily: 'var(--font-nunito-sans)', }}
         >
           <MenuItem value="all">All Ratings</MenuItem>
           <MenuItem value="5">5 - Excellent</MenuItem>
@@ -151,15 +151,15 @@ export default function ReviewsPage() {
         }}
       >
         {loading ? (
-          <Typography align="center" sx={{ fontSize: 18 }}>
+          <Typography align="center" sx={{ fontSize: 18, fontFamily: 'var(--font-nunito-sans)', }}>
             Loading reviews...
           </Typography>
         ) : error ? (
-          <Typography align="center" color="error" sx={{ fontSize: 18 }}>
+          <Typography align="center" color="error" sx={{ fontSize: 18, fontFamily: 'var(--font-nunito-sans)', }}>
             {error}
           </Typography>
         ) : filteredReviews.length === 0 ? (
-          <Typography align="center" sx={{ fontSize: 18 }}>
+          <Typography align="center" sx={{ fontSize: 18, fontFamily: 'var(--font-nunito-sans)', }}>
             No reviews found.
           </Typography>
         ) : (
@@ -188,14 +188,14 @@ export default function ReviewsPage() {
                     {reviewer.charAt(0).toUpperCase()}
                   </Avatar>
 
-                  <Typography sx={{ fontWeight: 700, fontSize: 18 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: 18, fontFamily: 'var(--font-nunito-sans)', }}>
                     {reviewer}
                   </Typography>
                 </Stack>
 
                 {/* RATING */}
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1 }}>
-                  <Typography sx={{ fontWeight: 600, fontSize: 17 }}>
+                  <Typography sx={{ fontWeight: 600, fontSize: 17, fontFamily: 'var(--font-nunito-sans)', }}>
                     Rating:
                   </Typography>
 
@@ -205,6 +205,7 @@ export default function ReviewsPage() {
                     sx={{
                       fontWeight: 700,
                       fontSize: 15,
+                      fontFamily: 'var(--font-nunito-sans)',
                       color:
                         review.rating <= 2
                           ? 'error.main'
@@ -219,16 +220,16 @@ export default function ReviewsPage() {
                 </Stack>
 
                 {/* META */}
-                <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>
+                <Typography sx={{ fontSize: 14, fontFamily: 'var(--font-nunito-sans)',color: 'text.secondary' }}>
                   Reviewed on {new Date(review.createdAt).toLocaleDateString()}
                 </Typography>
 
-                <Typography sx={{ fontSize: 14, color: 'text.secondary', mb: 2 }}>
+                <Typography sx={{ fontSize: 14, fontFamily: 'var(--font-nunito-sans)', color: 'text.secondary', mb: 2 }}>
                   Service: {review.service}
                 </Typography>
 
                 {/* COMMENT */}
-                <Typography sx={{ fontSize: 16, lineHeight: 1.7 }}>
+                <Typography sx={{ fontSize: 16, fontFamily: 'var(--font-nunito-sans)', lineHeight: 1.7 }}>
                   {review.comment}
                 </Typography>
               </Box>

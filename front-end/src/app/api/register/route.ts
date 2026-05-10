@@ -61,6 +61,13 @@ export async function POST(req: Request) {
       },
     });
 
+    await db.customer.create({
+      data: {
+        userId: user.id,
+        customerType: "CASUAL"
+      }
+    })
+
     const rawToken = crypto.randomBytes(32).toString("hex");
     const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
 

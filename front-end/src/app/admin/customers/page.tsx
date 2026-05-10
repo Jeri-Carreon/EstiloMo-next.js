@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import Box from '@mui/material/Box';
@@ -24,6 +25,14 @@ import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
+
+
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import CloseIcon from "@mui/icons-material/Close";
+
 import SearchIcon from '@mui/icons-material/Search';
 import TuneIcon from '@mui/icons-material/Tune';
 import AddIcon from '@mui/icons-material/Add';
@@ -44,7 +53,7 @@ import Avatar from '@mui/material/Avatar';
 import Pagination from '@mui/material/Pagination';
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 interface Customer {
   id: string;
@@ -57,23 +66,8 @@ interface Customer {
   createdAt: string;
 }
 
-const menuItems = [
-  { label: 'Dashboard', icon: DashboardIcon },
-  { label: 'Customers', icon: GroupIcon, active: true },
-  { label: 'Services', icon: BuildIcon },
-  { label: 'Barbers', icon: PersonIcon },
-  { label: 'Appointments', icon: EventIcon },
-  { label: 'Sales', icon: MonetizationOnIcon },
-  { label: 'Customer Reviews', icon: StarIcon },
-  { label: 'Loyalty Card', icon: CardGiftcardIcon },
-  { label: 'Reports', icon: DescriptionIcon },
-  { label: 'User Management', icon: AdminPanelSettingsIcon },
-  { label: 'Chatbot', icon: SmartToyIcon },
-  { label: 'Security Logs', icon: SecurityIcon },
-];
-
 export default function CustomersPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -81,25 +75,163 @@ export default function CustomersPage() {
   const [page, setPage] = useState(1);
   const itemsPerPage = 5;
 
-  const currentName = session?.user?.name || session?.user?.email || 'Customer';
-  const currentRole = (session?.user as { role?: string })?.role || 'Customer';
-  const currentInitial = currentName.charAt(0).toUpperCase();
+  // Add Modal
+  const [openAdd, setOpenAdd] = useState(false);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [mobileNumber, setMobileNumber] = useState("");
 
-  // checks if user role is OWNER or RECEPTIONIST
-  if (
-    !session?.user?.email || 
-    !["OWNER","RECEPTIONIST"].includes(session.user.role)
-    ){
-      redirect("/unauthorized");
+  // Delete Modal
+  const [openDel, setOpenDel] = useState(false);
+  
+  // Edit Modal
+  const [openEdit, setOpenEdit] = useState(false);
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editMobileNumber, setEditMobileNumber] = useState("");
+
+  const [selectedCustomer, setSelectedCustomer ] = useState<Customer | null>(null);
+
+ const handleDeleteCustomer = async () => {
+  if (!selectedCustomer?.id) {
+    console.log("No selected customer");
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/customers/${selectedCustomer.id}`, {
+      method: "DELETE",
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Delete failed");
+      return;
     }
 
+    setCustomers((prev) =>
+      prev.filter((c) => c.id !== selectedCustomer.id)
+    );
+
+    setOpenDel(false);
+    setSelectedCustomer(null);
+  } catch (err) {
+    console.error(err);
+    alert("Something went wrong deleting customer");
+  }
+};
+
+  const handleCreateCustomer = async () => {
+    const res = await fetch("/api/admin/create-customer", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        firstName,
+        lastName,
+        email,
+        mobileNumber,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Failed to create customer");
+      return;
+    }
+
+    alert("Customer created!");
+
+    setOpenAdd(false);
+
+    setFirstName("");
+    setLastName("");
+    setEmail("");
+    setMobileNumber("");
+
+    location.reload();
+  };
+
+  const handleUpdateCustomer = async () => {
+  if (!selectedCustomer) return;
+
+  try {
+      const res = await fetch(
+        `/api/customers/${selectedCustomer.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            firstName: editFirstName,
+            lastName: editLastName,
+            email: editEmail,
+            mobileNumber: editMobileNumber,
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "Failed to update customer");
+        return;
+      }
+
+      setCustomers((prev) =>
+        prev.map((c) =>
+          c.id === selectedCustomer.id
+            ? {
+                ...c,
+                name: `${editFirstName} ${editLastName}`,
+                email: editEmail,
+                contactNumber: editMobileNumber,
+              }
+            : c
+        )
+      );
+
+      alert("Customer updated successfully");
+
+      setOpenEdit(false);
+      setSelectedCustomer(null);
+
+    } catch (error) {
+      console.error(error);
+      alert("Something went wrong");
+    }
+  };
+
+  const router = useRouter();
+
+  
+
   useEffect(() => {
+    if (status === "loading") return; // waits for status to go from loading to finished before deciding the role check logic below
+    
+    const role = (session?.user as { role?: string })?.role;
+    
+    // checks if user role is OWNER or RECEPTIONIST
+    if (
+      !session?.user?.email || 
+      !["OWNER","RECEPTIONIST"].includes(role || "")
+      ){
+        router.push("/unauthorized");
+        return;
+      }
+
     const loadCustomers = async () => {
       try {
         const res = await fetch('/api/customers');
 
         if (res.status === 403) {
-          window.location.href = "/unauthorized";
+          router.push("/unauthorized");
         }
         const data = await res.json();
 
@@ -118,7 +250,7 @@ export default function CustomersPage() {
     };
 
     loadCustomers();
-  }, []);
+  }, [session, status, router]); // session array = re-run useEffect whenever one of these changes
 
   const filteredCustomers = customers.filter((customer) =>
     customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -154,88 +286,9 @@ export default function CustomersPage() {
   };
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: '#1a1a1a' }}>
-      {/* LEFT SIDEBAR */}
-      <Box
-        sx={{
-          width: 200,
-          backgroundColor: '#000',
-          color: '#fff',
-          p: 2,
-          overflowY: 'auto',
-        }}
-      >
-        {/* USER PROFILE */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3, pb: 2, borderBottom: '1px solid #333' }}>
-          <Avatar sx={{ width: 40, height: 40, backgroundColor: '#666' }}>{currentInitial}</Avatar>
-          <Box>
-            <Typography sx={{ fontSize: 14, fontWeight: 700 }}>{currentName}</Typography>
-            <Typography sx={{ fontSize: 12, color: '#999', textTransform: 'capitalize' }}>{currentRole}</Typography>
-          </Box>
-        </Box>
-
-        {/* LOGOUT BUTTON */}
-        <Button
-          variant="contained"
-          size="small"
-          sx={{
-            width: '100%',
-            mb: 3,
-            backgroundColor: '#333',
-            color: '#fff',
-            textTransform: 'none',
-            '&:hover': { backgroundColor: '#444' },
-          }}
-        >
-          Logout
-        </Button>
-
-        {/* MENU ITEMS */}
-        <List sx={{ p: 0 }}>
-          {menuItems.map((item) => {
-            const IconComponent = item.icon;
-            return (
-              <ListItem
-                key={item.label}
-                sx={{
-                  mb: 1,
-                  px: 2,
-                  py: 1.5,
-                  borderRadius: 1,
-                  cursor: 'pointer',
-                  backgroundColor: item.active ? '#ffc107' : 'transparent',
-                  color: item.active ? '#000' : '#fff',
-                  '&:hover': {
-                    backgroundColor: item.active ? '#ffc107' : '#333',
-                  },
-                }}
-              >
-                <ListItemIcon
-                  sx={{
-                    minWidth: 40,
-                    color: item.active ? '#000' : '#fff',
-                  }}
-                >
-                  <IconComponent fontSize="small" />
-                </ListItemIcon>
-                <ListItemText
-                  primary={item.label}
-                  sx={{
-                    '& .MuiListItemText-primary': {
-                      fontSize: 14,
-                      fontWeight: item.active ? 700 : 500,
-                    },
-                  }}
-                />
-              </ListItem>
-            );
-          })}
-        </List>
-      </Box>
-
-      {/* MAIN CONTENT */}
       <Box sx={{ flex: 1, p: 4, backgroundColor: '#fff' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4 }}>
+          {/*}
           <Button
             component={Link}
             href="/"
@@ -244,7 +297,8 @@ export default function CustomersPage() {
           >
             Back to home
           </Button>
-          <Typography variant="h4" sx={{ mb: 0, fontWeight: 700 }}>
+          */}
+          <Typography variant="h3" sx={{ mb: 0, fontWeight: 700 }}>
             Customers
           </Typography>
           <Box sx={{ width: 112 }} />
@@ -281,6 +335,7 @@ export default function CustomersPage() {
           <Button
             startIcon={<AddIcon />}
             variant="contained"
+            onClick={() => setOpenAdd(true)}
             sx={{ textTransform: 'none' }}
           >
             Add
@@ -328,10 +383,32 @@ export default function CustomersPage() {
                       <TableCell>{customer.totalAppointments}</TableCell>
                       <TableCell>₱ {customer.totalSpent}</TableCell>
                       <TableCell>
-                        <IconButton size="small" color="error">
+                        <IconButton 
+                          size="small" 
+                          color="error" 
+                          onClick={() => {
+                            setSelectedCustomer(customer);
+                            setOpenDel(true); 
+                            }}>
                           <DeleteIcon fontSize="small" />
                         </IconButton>
-                        <IconButton size="small" color="primary">
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => {
+                            setSelectedCustomer(customer);
+
+                            const names = customer.name.split(" ");
+
+                            setEditFirstName(names[0] || "");
+                            setEditLastName(names.slice(1).join(" ") || "");
+
+                            setEditEmail(customer.email || "");
+                            setEditMobileNumber(customer.contactNumber || "");
+
+                            setOpenEdit(true);
+                          }}
+                        >
                           <EditIcon fontSize="small" />
                         </IconButton>
                       </TableCell>
@@ -365,7 +442,147 @@ export default function CustomersPage() {
             </Box>
           </>
         )}
+        <Dialog open={openAdd} onClose={() => setOpenAdd(false)} maxWidth="sm" fullWidth>
+
+          <DialogTitle>
+            Add Customer
+          </DialogTitle>
+
+          <DialogContent
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              mt: 1,
+            }}
+          >
+            <TextField
+              label="First Name"
+              fullWidth
+              onChange={(e) => setFirstName(e.target.value)}
+            />
+
+            <TextField
+              label="Last Name"
+              fullWidth
+              onChange={(e) => setLastName(e.target.value)}
+            />
+
+            <TextField
+              label="Email"
+              fullWidth
+              onChange={(e) => setEmail(e.target.value)}
+            />
+
+            <TextField
+              label="Mobile Number"
+              fullWidth
+              onChange={(e) => setMobileNumber(e.target.value)}
+            />
+          </DialogContent>
+
+          <DialogActions>
+            <Button onClick={() => setOpenAdd(false)}>
+              Cancel
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={handleCreateCustomer}
+            >
+              Create Customer
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+      <Dialog open={openEdit} onClose={() => setOpenEdit(false)} maxWidth="sm" fullWidth>
+
+          <DialogTitle>
+            Edit Customer
+          </DialogTitle>
+
+          <DialogContent
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              mt: 1,
+            }}
+          >
+            <TextField
+              label="First Name"
+              fullWidth
+              value={editFirstName}
+              onChange={(e) =>
+                setEditFirstName(e.target.value)
+              }
+            />
+
+            <TextField
+              label="Last Name"
+              fullWidth
+              value={editLastName}
+              onChange={(e) =>
+                setEditLastName(e.target.value)
+              }
+            />
+
+            <TextField
+              label="Email"
+              fullWidth
+              value={editEmail}
+              onChange={(e) =>
+                setEditEmail(e.target.value)
+              }
+            />
+
+            <TextField
+              label="Mobile Number"
+              fullWidth
+              value={editMobileNumber}
+              onChange={(e) =>
+                setEditMobileNumber(e.target.value)
+              }
+            />
+          </DialogContent>
+
+          <DialogActions>
+            <Button onClick={() => setOpenEdit(false)}>
+              Cancel
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={handleUpdateCustomer}
+            >
+              Save Changes
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+      {/*Delete*/}
+      <Dialog open={openDel} onClose={() => setOpenDel(false)}>
+        <DialogTitle>Delete Customer</DialogTitle>
+
+        <DialogContent>
+          Are you sure you want to delete{" "}
+          <b>{selectedCustomer?.name}</b>?
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={() => setOpenDel(false)}>
+            Cancel
+          </Button>
+
+          <Button
+            color="error"
+            variant="contained"
+            onClick={handleDeleteCustomer}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
       </Box>
-    </Box>
   );
 }

@@ -26,13 +26,6 @@ model Account {
   @@index([userId])
 }
 
-enum Role {
-  CUSTOMER
-  OWNER
-  RECEPTIONIST
-  BARBER
-}
-
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
@@ -48,18 +41,61 @@ model User {
   email         String?   @unique
   emailVerified Boolean   @default(false)
   image         String?
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
   password      String
   role          Role    @default(CUSTOMER)
+
   lockedUntil   DateTime?
   loginAttempts Int       @default(0)
+
   firstName     String?
   lastName      String?
   mobileNumber  String?
+
   accounts      Account[] @relation("accounts")
   sessions      Session[]
+
   reviews       Review[]
+
+  customer      Customer?
+}
+
+enum Role {
+  CUSTOMER
+  OWNER
+  RECEPTIONIST
+  BARBER
+}
+
+enum CustomerType {
+  CASUAL
+  REGULAR
+}
+
+model Customer {
+  id            String   @id @default(cuid())
+
+  firstName     String?
+  lastName      String?
+  email         String?
+  mobileNumber  String?
+
+  customerType  CustomerType @default(CASUAL)
+
+  loyaltyPoints Int @default(0)
+
+  // Optional link to login account
+  userId        String? @unique
+  user          User? @relation(fields: [userId], references: [id])
+
+  appointments  Appointment[]
+  loyaltyCards  LoyaltyCard[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model PasswordResetToken {
@@ -91,8 +127,35 @@ model Review {
   comment   String?
   createdAt DateTime @default(now())
 
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("Review")
+}
+
+model Appointment {
+  id          String   @id @default(cuid())
+  scheduledAt DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customerId    String?
+  customer      Customer?    @relation(fields: [customerId], references: [id])
+}
+
+enum Status {
+  ACTIVE
+  COMPLETED
+}
+
+model LoyaltyCard {
+  id          String   @id @default(cuid())
+  stars       Int      @default(0)
+  status      Status   @default(ACTIVE)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  customerId  String
+  customer    Customer    @relation(fields: [customerId], references: [id])
 }

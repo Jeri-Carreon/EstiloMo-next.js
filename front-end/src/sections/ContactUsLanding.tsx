@@ -56,6 +56,7 @@ export default function ContactUsLanding() {
               color: '#000000',
               textAlign: 'left',
               fontSize: '4rem',
+              fontFamily: 'var(--font-nunito-sans)',
               margin: 0,
             }}>Contact Us!
             </h1>
@@ -67,6 +68,7 @@ export default function ContactUsLanding() {
               color: '#000000',
               textAlign: 'left',
               fontSize: '3rem',
+              fontFamily: 'var(--font-nunito-sans)',
               marginTop: 20,
             }}>Location
             </h1>
@@ -74,6 +76,7 @@ export default function ContactUsLanding() {
               color: '#000000',
               textAlign: 'left',
               fontSize: '1.5rem',
+              fontFamily: 'var(--font-nunito-sans)',
               marginTop: 0,
             }}>
               Unit F, Saranay Homes, Congressional Rd. cor Malapitan Rd. Caloocan
@@ -82,6 +85,7 @@ export default function ContactUsLanding() {
               color: '#000000',
               textAlign: 'left',
               fontSize: '3rem',
+              fontFamily: 'var(--font-nunito-sans)',
               marginTop: 40,
             }}>Follow Us!
             </h1>
@@ -104,6 +108,7 @@ export default function ContactUsLanding() {
               color: '#000000',
               textAlign: 'left',
               fontSize: '3rem',
+              fontFamily: 'var(--font-nunito-sans)',
               margin: 0,
               marginTop: 20,
             }}>Contact Form
@@ -145,6 +150,7 @@ export default function ContactUsLanding() {
                         '&:hover': {
                                 backgroundColor: 'accent.main',
                                 },
+                        fontFamily: 'var(--font-nunito-sans)',
                     }}
                     type='submit'
                     >Submit</Button>

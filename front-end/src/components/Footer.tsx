@@ -30,7 +30,16 @@ export default function BasicGrid() {
         <Grid size={{ xs: 12, md: 4 }} sx={{background: '#000'}}>
           <Item sx={{background: '#000'}}>
             <Grid container spacing={2} sx={{background: '#000'}}>
-                <Grid size={{ xs: 12, md: 6 }} sx={{background: '#000'}}>
+
+                {/*Logo*/}
+                <Grid 
+                  size={{ xs: 12, md: 6 }} 
+                  sx={{ display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      textAlign: 'center'
+                
+                  }}>
                     <Box
                         component="img"
                         src="/images/logo.jpg"
@@ -43,11 +52,11 @@ export default function BasicGrid() {
                             display: 'block',
                         }}
                         />
-                    </Grid>
+                  </Grid>
               <Grid size={{ xs: 12, md: 6 }}
                     sx={{
                         display: 'flex',
-                        JustifyContent: 'center',
+                        justifyContent: 'center',
                         alignItems: 'center',
                         minHeight: '100%',
                         background: '#000',
@@ -57,6 +66,7 @@ export default function BasicGrid() {
                   color: '#ffffff',
                   textAlign: 'left',
                   fontSize: '2rem',
+                  fontFamily: 'var(--font-nunito-sans)',
                   paddingLeft: 10,
                   paddingRight: 10,
                 }}>The Barbs Bro
@@ -84,6 +94,7 @@ export default function BasicGrid() {
               color: '#ffffff',
               textAlign: 'left',
               fontSize: '1.8rem',
+              fontFamily: 'var(--font-nunito-sans)',
               marginTop: 0,
             }}>Contact Info
             </h1>
@@ -91,6 +102,7 @@ export default function BasicGrid() {
               color: '#ffffff',
               textAlign: 'left',
               fontSize: '1.8rem',
+              fontFamily: 'var(--font-nunito-sans)',
               marginTop: 0,
             }}>
               Unit F, Saranay Homes, Congressional Rd. cor Malapitan Rd. Caloocan
@@ -125,6 +137,7 @@ export default function BasicGrid() {
               color: '#ffffff',
               textAlign: 'left',
               fontSize: '1.8rem',
+              fontFamily: 'var(--font-nunito-sans)',
               margin: '0 0 0 0',
             }}>Operating Hours
             </h1>
@@ -132,6 +145,7 @@ export default function BasicGrid() {
               color: '#ffffff',
               textAlign: 'left',
               fontSize: '1.6rem',
+              fontFamily: 'var(--font-nunito-sans)',
               margin: '4px 0 0 0',
             }}>Monday - Sunday
             </h3>
@@ -139,6 +153,7 @@ export default function BasicGrid() {
               color: '#ffffff',
               textAlign: 'left',
               fontSize: '1.6rem',
+              fontFamily: 'var(--font-nunito-sans)',
               margin: '4px 0 0 0',
             }}>10:00 AM - 8:00 PM
             </h3>
@@ -150,7 +165,8 @@ export default function BasicGrid() {
             <h1 style={{ 
               color: '#ffffff',
               textAlign: 'center',
-              fontSize: '1.3rem',
+              fontSize: '1.2rem',
+              fontFamily: 'var(--font-nunito-sans)',
               margin: 0,
               padding: '10px 0',
               borderTop: '0.5px solid #ffffff',

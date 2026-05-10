@@ -78,7 +78,7 @@ export default function SignupPage() {
   const handleRegister = async (e: FormEvent<HTMLFormElement>) => { // async = makes the function wait for a response from server by using await keyword
     e.preventDefault();
     
-    if (!firstName || !lastName || !email || !password) {
+    if (!firstName || !lastName || !email || !password || !mobileNumber) {
       setOpenIncomFields(true)
       return;
     }

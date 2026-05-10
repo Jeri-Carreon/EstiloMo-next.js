@@ -122,7 +122,7 @@ export default function MyReviewsPage() {
     <>
       <Navbar />
       <Box sx={{ maxWidth: 980, mx: 'auto', px: 2, py: 6 }}>
-        <Typography variant="h4" sx={{ mb: 3, fontWeight: 700, textAlign: 'center' }}>
+        <Typography variant="h4" sx={{ mb: 3, fontWeight: 700, fontFamily: 'var(--font-nunito-sans)',textAlign: 'center' }}>
           My Reviews
         </Typography>
 
@@ -131,6 +131,7 @@ export default function MyReviewsPage() {
             variant="contained"
             onClick={() => setIsDialogOpen(true)}
             sx={{
+              fontFamily: 'var(--font-nunito-sans)',
               textTransform: 'none',
               borderRadius: 10,
               px: 4,
@@ -171,16 +172,16 @@ export default function MyReviewsPage() {
               textAlign: 'center',
             }}
           >
-            <Typography variant="h6" sx={{ mb: 1, fontWeight: 700 }}>
+            <Typography variant="h6" sx={{ fontFamily: 'var(--font-nunito-sans)', mb: 1, fontWeight: 700 }}>
               You don't have any reviews.
             </Typography>
-            <Typography sx={{ color: 'text.secondary' }}>
+            <Typography sx={{ fontFamily: 'var(--font-nunito-sans)', color: 'text.secondary' }}>
               Review one now!
             </Typography>
           </Box>
         ) : (
           <Box sx={{ mb: 4 }}>
-            <Typography sx={{ mb: 2, fontWeight: 600 }}>Your submitted reviews</Typography>
+            <Typography sx={{ fontFamily: 'var(--font-nunito-sans)', mb: 2, fontWeight: 600 }}>Your submitted reviews</Typography>
             {reviews.map((review) => (
               <Box
                 key={review.id}
@@ -192,8 +193,8 @@ export default function MyReviewsPage() {
                   backgroundColor: '#fff',
                 }}
               >
-                <Typography sx={{ fontWeight: 700 }}>{review.service}</Typography>
-                <Typography sx={{ color: 'text.secondary', mb: 1 }}>
+                <Typography sx={{ fontFamily: 'var(--font-nunito-sans)', fontWeight: 700 }}>{review.service}</Typography>
+                <Typography sx={{ color: 'text.secondary', fontFamily: 'var(--font-nunito-sans)', mb: 1 }}>
                   Reviewed on {new Date(review.createdAt).toLocaleDateString()}
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -202,17 +203,17 @@ export default function MyReviewsPage() {
                     {ratingLabels[review.rating.toFixed(1)]}
                   </Typography>
                 </Box>
-                <Typography sx={{ mt: 1 }}>{review.comment}</Typography>
+                <Typography sx={{ fontFamily: 'var(--font-nunito-sans)', mt: 1 }}>{review.comment}</Typography>
               </Box>
             ))}
           </Box>
         )}
 
         <Dialog open={isDialogOpen} onClose={() => setIsDialogOpen(false)} fullWidth maxWidth="sm">
-          <DialogTitle sx={{ fontWeight: 700 }}>Add a Review</DialogTitle>
+          <DialogTitle sx={{ fontFamily: 'var(--font-nunito-sans)', fontWeight: 700 }}>Add a Review</DialogTitle>
           <DialogContent>
             {error && (
-              <Typography color="error" sx={{ mb: 2 }}>
+              <Typography color="error" sx={{ fontFamily: 'var(--font-nunito-sans)', mb: 2 }}>
                 {error}
               </Typography>
             )}
@@ -235,7 +236,7 @@ export default function MyReviewsPage() {
 
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Typography sx={{ minWidth: 90 }}>Rating</Typography>
+                  <Typography sx={{ fontFamily: 'var(--font-nunito-sans)', minWidth: 90 }}>Rating</Typography>
                   <Rating
                     name="review-rating"
                     precision={0.5}
@@ -259,10 +260,10 @@ export default function MyReviewsPage() {
               />
 
               <DialogActions sx={{ px: 0, pb: 0, pt: 0 }}>
-                <Button onClick={() => setIsDialogOpen(false)} sx={{ textTransform: 'none' }}>
+                <Button onClick={() => setIsDialogOpen(false)} sx={{ fontFamily: 'var(--font-nunito-sans)', textTransform: 'none' }}>
                   Cancel
                 </Button>
-                <Button type="submit" variant="contained" sx={{ textTransform: 'none' }}>
+                <Button type="submit" variant="contained" sx={{ fontFamily: 'var(--font-nunito-sans)', textTransform: 'none' }}>
                   Submit Review
                 </Button>
               </DialogActions>

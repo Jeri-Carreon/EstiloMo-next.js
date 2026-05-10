@@ -87,7 +87,7 @@ export default function ServicesSection() {
   return (
     <Box sx={{ px: 8, py: 6, backgroundColor: "#fdfcfa" }}>
       
-      <Typography variant="h3" align="center" gutterBottom sx={{ mb: 4 }}>
+      <Typography variant="h3" align="center" gutterBottom sx={{ mb: 4, fontFamily: 'var(--font-nunito-sans)', }}>
         Our Services
       </Typography>
 
@@ -101,11 +101,11 @@ export default function ServicesSection() {
                 borderRadius: 2,
               }}
             >
-              <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+              <Typography variant="h6" sx={{ fontWeight: "bold", fontFamily: 'var(--font-nunito-sans)', }}>
                 {service.title} - {service.price}
               </Typography>
 
-              <Typography variant="body2" sx={{ mt: 1 }}>
+              <Typography variant="body2" sx={{ mt: 1, fontFamily: 'var(--font-nunito-sans)', }}>
                 - {service.description}
               </Typography>
             </Paper>
@@ -126,6 +126,7 @@ export default function ServicesSection() {
                 '&:hover': {
                         backgroundColor: 'accent.main',
                         },
+                fontFamily: 'var(--font-nunito-sans)',
             }}
             href="/appointment"
             >
