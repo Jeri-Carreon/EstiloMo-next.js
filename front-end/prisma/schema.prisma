@@ -80,7 +80,7 @@ model Customer {
 
   firstName     String?
   lastName      String?
-  email         String?
+  email         String?  @unique
   mobileNumber  String?
 
   customerType  CustomerType @default(CASUAL)

@@ -131,7 +131,7 @@ export default function CustomersPage() {
 };
 
   const handleReviewCustomer = () => {
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !mobileNumber.trim()) {
+    if (!firstName.trim() || !lastName.trim() || !mobileNumber.trim()) {
       alert("Please fill in all fields before continuing.");
       return;
     }
