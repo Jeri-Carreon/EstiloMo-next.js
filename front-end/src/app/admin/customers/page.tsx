@@ -77,6 +77,7 @@ export default function CustomersPage() {
 
   // Add Modal
   const [openAdd, setOpenAdd] = useState(false);
+  const [openAddConfirm, setOpenAddConfirm] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -87,6 +88,7 @@ export default function CustomersPage() {
   
   // Edit Modal
   const [openEdit, setOpenEdit] = useState(false);
+  const [openEditConfirm, setOpenEditConfirm] = useState(false);
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [editEmail, setEditEmail] = useState("");
@@ -95,17 +97,21 @@ export default function CustomersPage() {
   const [selectedCustomer, setSelectedCustomer ] = useState<Customer | null>(null);
 
  const handleDeleteCustomer = async () => {
-  if (!selectedCustomer?.id) {
-    console.log("No selected customer");
-    return;
-  }
+  if (!selectedCustomer?.id) return;
 
   try {
     const res = await fetch(`/api/customers/${selectedCustomer.id}`, {
       method: "DELETE",
     });
 
-    const data = await res.json();
+    const text = await res.text(); // 👈 safer than json()
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { error: text };
+    }
 
     if (!res.ok) {
       alert(data.error || "Delete failed");
@@ -123,6 +129,16 @@ export default function CustomersPage() {
     alert("Something went wrong deleting customer");
   }
 };
+
+  const handleReviewCustomer = () => {
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !mobileNumber.trim()) {
+      alert("Please fill in all fields before continuing.");
+      return;
+    }
+
+    setOpenAdd(false);
+    setOpenAddConfirm(true);
+  };
 
   const handleCreateCustomer = async () => {
     const res = await fetch("/api/admin/create-customer", {
@@ -147,8 +163,8 @@ export default function CustomersPage() {
 
     alert("Customer created!");
 
+    setOpenAddConfirm(false);
     setOpenAdd(false);
-
     setFirstName("");
     setLastName("");
     setEmail("");
@@ -200,6 +216,7 @@ export default function CustomersPage() {
       alert("Customer updated successfully");
 
       setOpenEdit(false);
+      setOpenEditConfirm(false);
       setSelectedCustomer(null);
 
     } catch (error) {
@@ -442,147 +459,408 @@ export default function CustomersPage() {
             </Box>
           </>
         )}
-        <Dialog open={openAdd} onClose={() => setOpenAdd(false)} maxWidth="sm" fullWidth>
 
-          <DialogTitle>
-            Add Customer
-          </DialogTitle>
+        {/*Add*/}
+        <Dialog
+          open={openAdd}
+          onClose={() => setOpenAdd(false)}
+          maxWidth="sm"
+          fullWidth
+          sx={{
+            '& .MuiPaper-root': {
+              borderRadius: 4,
+              bgcolor: '#f2f2f2',
+              overflow: 'visible',
+            },
+          }}
+        >
+          <Box sx={{ m: 2, bgcolor: '#fff', borderRadius: 4, p: 3, pb: 2, boxShadow: '0 10px 40px rgba(0,0,0,0.08)' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Add New Customer
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  Account Type: Casual
+                </Typography>
+              </Box>
+              <IconButton onClick={() => setOpenAdd(false)} size="small">
+                <CloseIcon />
+              </IconButton>
+            </Box>
 
-          <DialogContent
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-              mt: 1,
-            }}
-          >
-            <TextField
-              label="First Name"
-              fullWidth
-              onChange={(e) => setFirstName(e.target.value)}
-            />
+            <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <TextField
+                placeholder="Enter your first name"
+                label="First name *"
+                fullWidth
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+              />
 
-            <TextField
-              label="Last Name"
-              fullWidth
-              onChange={(e) => setLastName(e.target.value)}
-            />
+              <TextField
+                placeholder="Enter your last name"
+                label="Last name *"
+                fullWidth
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+              />
 
-            <TextField
-              label="Email"
-              fullWidth
-              onChange={(e) => setEmail(e.target.value)}
-            />
+              <TextField
+                placeholder="Enter mobile number"
+                label="Mobile Number *"
+                fullWidth
+                value={mobileNumber}
+                onChange={(e) => setMobileNumber(e.target.value)}
+                sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+              />
 
-            <TextField
-              label="Mobile Number"
-              fullWidth
-              onChange={(e) => setMobileNumber(e.target.value)}
-            />
-          </DialogContent>
+              <TextField
+                placeholder="Enter your email"
+                label="Email Address"
+                fullWidth
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+              />
+            </DialogContent>
 
-          <DialogActions>
-            <Button onClick={() => setOpenAdd(false)}>
-              Cancel
-            </Button>
-
-            <Button
-              variant="contained"
-              onClick={handleCreateCustomer}
-            >
-              Create Customer
-            </Button>
-          </DialogActions>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: 3, mb: 2 }}>
+              <Button
+                onClick={() => setOpenAdd(false)}
+                sx={{
+                  backgroundColor: '#6d6d6d',
+                  color: '#f7c948',
+                  textTransform: 'none',
+                  minWidth: 120,
+                  py: 1.25,
+                  ':hover': { backgroundColor: '#5a5a5a' },
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleReviewCustomer}
+                sx={{
+                  backgroundColor: '#000',
+                  color: '#fff',
+                  textTransform: 'none',
+                  minWidth: 120,
+                  py: 1.25,
+                  ':hover': { backgroundColor: '#111' },
+                }}
+              >
+                Add
+              </Button>
+            </Box>
+          </Box>
         </Dialog>
 
-      <Dialog open={openEdit} onClose={() => setOpenEdit(false)} maxWidth="sm" fullWidth>
+        <Dialog
+          open={openAddConfirm}
+          onClose={() => setOpenAddConfirm(false)}
+          maxWidth="sm"
+          fullWidth
+          sx={{
+            '& .MuiPaper-root': {
+              borderRadius: 4,
+              bgcolor: '#f2f2f2',
+              overflow: 'visible',
+            },
+          }}
+        >
+          <Box sx={{ m: 2, bgcolor: '#fff', borderRadius: 4, p: 3, pb: 2, boxShadow: '0 10px 40px rgba(0,0,0,0.08)' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Add New Customer
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  Account Type: Casual
+                </Typography>
+              </Box>
+              <IconButton onClick={() => setOpenAddConfirm(false)} size="small">
+                <CloseIcon />
+              </IconButton>
+            </Box>
 
-          <DialogTitle>
-            Edit Customer
-          </DialogTitle>
+            <DialogContent sx={{ p: 0 }}>
+              <Typography sx={{ mb: 2, color: '#333' }}>
+                Are you sure you want to Add New Customer?
+              </Typography>
+              <Typography sx={{ mb: 1, color: '#333' }}><strong>First Name:</strong> {firstName}</Typography>
+              <Typography sx={{ mb: 1, color: '#333' }}><strong>Last Name:</strong> {lastName}</Typography>
+              <Typography sx={{ mb: 1, color: '#333' }}><strong>Mobile Number:</strong> {mobileNumber}</Typography>
+              <Typography sx={{ mb: 1, color: '#333' }}><strong>Email Address:</strong> {email}</Typography>
+            </DialogContent>
 
-          <DialogContent
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-              mt: 1,
-            }}
-          >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: 4, mb: 2 }}>
+              <Button
+                onClick={() => {
+                  setOpenAddConfirm(false);
+                  setOpenAdd(true);
+                }}
+                sx={{
+                  backgroundColor: '#6d6d6d',
+                  color: '#f7c948',
+                  textTransform: 'none',
+                  minWidth: 120,
+                  py: 1.25,
+                  ':hover': { backgroundColor: '#5a5a5a' },
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleCreateCustomer}
+                sx={{
+                  backgroundColor: '#000',
+                  color: '#fff',
+                  textTransform: 'none',
+                  minWidth: 120,
+                  py: 1.25,
+                  ':hover': { backgroundColor: '#111' },
+                }}
+              >
+                Add
+              </Button>
+            </Box>
+          </Box>
+        </Dialog>
+      
+      {/*Edit*/}
+      <Dialog 
+        open={openEdit} 
+        onClose={() => setOpenEdit(false)} 
+        maxWidth="sm" fullWidth
+        sx={{
+          '& .MuiPaper-root': {
+            borderRadius: 4,
+            bgcolor: '#f2f2f2',
+            overflow: 'visible',
+          },
+        }}
+      >
+          <Box sx={{ m: 2, bgcolor: '#fff', borderRadius: 4, p: 3, pb: 2, boxShadow: '0 10px 40px rgba(0,0,0,0.08)' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Edit Customer
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  Account Type: Casual
+                </Typography>
+              </Box>
+              <IconButton onClick={() => setOpenEdit(false)} size="small">
+                <CloseIcon />
+              </IconButton>
+            </Box>
+
+          <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <TextField
               label="First Name"
               fullWidth
               value={editFirstName}
-              onChange={(e) =>
-                setEditFirstName(e.target.value)
-              }
+              onChange={(e) => setEditFirstName(e.target.value)}
+              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
 
             <TextField
               label="Last Name"
               fullWidth
               value={editLastName}
-              onChange={(e) =>
-                setEditLastName(e.target.value)
-              }
+              onChange={(e) => setEditLastName(e.target.value)}
+              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
 
             <TextField
               label="Email"
               fullWidth
               value={editEmail}
-              onChange={(e) =>
-                setEditEmail(e.target.value)
-              }
+              onChange={(e) => setEditEmail(e.target.value)}
+              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
 
             <TextField
               label="Mobile Number"
               fullWidth
               value={editMobileNumber}
-              onChange={(e) =>
-                setEditMobileNumber(e.target.value)
-              }
+              onChange={(e) => setEditMobileNumber(e.target.value)}
+              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
           </DialogContent>
 
-          <DialogActions>
-            <Button onClick={() => setOpenEdit(false)}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: 3, mb: 2 }}>
+            <Button
+              onClick={() => setOpenEdit(false)}
+              sx={{
+                backgroundColor: '#6d6d6d',
+                color: '#f7c948',
+                textTransform: 'none',
+                minWidth: 120,
+                py: 1.25,
+                ':hover': { backgroundColor: '#5a5a5a' },
+              }}
+            >
               Cancel
             </Button>
 
             <Button
               variant="contained"
-              onClick={handleUpdateCustomer}
+              onClick={() => {
+                setOpenEdit(false);
+                setOpenEditConfirm(true);
+              }}
+              sx={{
+                backgroundColor: '#000',
+                color: '#fff',
+                textTransform: 'none',
+                minWidth: 120,
+                py: 1.25,
+                ':hover': { backgroundColor: '#111' },
+              }}
             >
-              Save Changes
+              Edit
             </Button>
-          </DialogActions>
+          </Box>
+        </Box>
+      </Dialog>
+
+      <Dialog
+          open={openEditConfirm}
+          onClose={() => setOpenEditConfirm(false)}
+          maxWidth="sm"
+          fullWidth
+          sx={{
+            '& .MuiPaper-root': {
+              borderRadius: 4,
+              bgcolor: '#f2f2f2',
+              overflow: 'visible',
+            },
+          }}
+        >
+          <Box sx={{ m: 2, bgcolor: '#fff', borderRadius: 4, p: 3, pb: 2, boxShadow: '0 10px 40px rgba(0,0,0,0.08)' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Edit Customer Details
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  Account Type: Casual
+                </Typography>
+              </Box>
+              <IconButton onClick={() => setOpenEditConfirm(false)} size="small">
+                <CloseIcon />
+              </IconButton>
+            </Box>
+
+            <DialogContent sx={{ p: 0 }}>
+              <Typography sx={{ mb: 2, color: '#333' }}>
+                Are you sure you want to Modify Customer Details?
+              </Typography>
+              <Typography sx={{ mb: 1, color: '#333' }}><strong>First Name:</strong> {editFirstName}</Typography>
+              <Typography sx={{ mb: 1, color: '#333' }}><strong>Last Name:</strong> {editLastName}</Typography>
+              <Typography sx={{ mb: 1, color: '#333' }}><strong>Mobile Number:</strong> {editMobileNumber}</Typography>
+              <Typography sx={{ mb: 1, color: '#333' }}><strong>Email Address:</strong> {editEmail}</Typography>
+            </DialogContent>
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: 4, mb: 2 }}>
+              <Button
+                onClick={() => {
+                  setOpenEditConfirm(false);
+                  setOpenEdit(true);
+                }}
+                sx={{
+                  backgroundColor: '#6d6d6d',
+                  color: '#f7c948',
+                  textTransform: 'none',
+                  minWidth: 120,
+                  py: 1.25,
+                  ':hover': { backgroundColor: '#5a5a5a' },
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleUpdateCustomer}
+                sx={{
+                  backgroundColor: '#000',
+                  color: '#fff',
+                  textTransform: 'none',
+                  minWidth: 120,
+                  py: 1.25,
+                  ':hover': { backgroundColor: '#111' },
+                }}
+              >
+                Edit
+              </Button>
+            </Box>
+          </Box>
         </Dialog>
 
       {/*Delete*/}
-      <Dialog open={openDel} onClose={() => setOpenDel(false)}>
-        <DialogTitle>Delete Customer</DialogTitle>
+      <Dialog 
+        open={openDel} 
+        onClose={() => setOpenDel(false)}
+        sx={{
+          '& .MuiPaper-root': {
+            borderRadius: 4,
+            bgcolor: '#f2f2f2',
+            overflow: 'visible',
+          },
+        }}
+      >
 
-        <DialogContent>
+      <Box sx={{ m: 2, bgcolor: '#fff', borderRadius: 4, p: 3, pb: 2, width: 500, boxShadow: '0 10px 40px rgba(0,0,0,0.08)' }}>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          Delete Customer
+        </Typography>
+
+        <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
           Are you sure you want to delete{" "}
-          <b>{selectedCustomer?.name}</b>?
+          <b>ID: {selectedCustomer?.id}</b>
+          <b>{selectedCustomer?.name}</b>
         </DialogContent>
 
-        <DialogActions>
-          <Button onClick={() => setOpenDel(false)}>
-            Cancel
-          </Button>
-
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: 4, mb: 2 }}>
           <Button
-            color="error"
             variant="contained"
             onClick={handleDeleteCustomer}
+            sx={{
+              backgroundColor: '#000',
+              color: '#fff',
+              textTransform: 'none',
+              minWidth: 120,
+              py: 1.25,
+              ':hover': { backgroundColor: '#111' },
+            }}
           >
             Delete
           </Button>
-        </DialogActions>
-      </Dialog>
+              
+          <Button
+            onClick={() => {
+              setOpenDel(false);
+             }}
+            sx={{
+              backgroundColor: '#6d6d6d',
+              color: '#f7c948',
+              textTransform: 'none',
+              minWidth: 120,
+              py: 1.25,
+              ':hover': { backgroundColor: '#5a5a5a' },
+            }}
+          >
+            Cancel
+          </Button>
+        </Box>
       </Box>
+      </Dialog>
+    </Box>
   );
 }
