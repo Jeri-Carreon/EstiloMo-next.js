@@ -5,22 +5,20 @@ import { db } from "@/lib/db";
 
 export async function DELETE(
   req: Request,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (
-      !session?.user?.email ||
-      !["OWNER", "RECEPTIONIST"].includes((session.user as any).role)
-    ) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!params.id) {
+      return NextResponse.json(
+        { error: "Missing customer id" },
+        { status: 400 }
+      );
     }
 
-    const { id } = await context.params; // ✅ IMPORTANT FIX
-
     await db.customer.delete({
-      where: { id },
+      where: {
+        id: params.id,
+      },
     });
 
     return NextResponse.json({ ok: true });
