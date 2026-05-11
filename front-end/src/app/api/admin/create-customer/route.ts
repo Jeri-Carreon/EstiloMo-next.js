@@ -29,7 +29,7 @@ export async function POST(req: Request) {
 
     firstName = firstName?.trim();
     lastName = lastName?.trim();
-    email = email?.trim().toLowerCase();
+    email = email?.trim().toLowerCase() || null;
     mobileNumber = mobileNumber?.trim();
 
     // VALIDATION
@@ -48,10 +48,10 @@ export async function POST(req: Request) {
         data: {
           firstName,
           lastName,
-          email,
           mobileNumber,
 
           customerType: "CASUAL",
+          ...(email ? { email } : {}),
         },
       });
 

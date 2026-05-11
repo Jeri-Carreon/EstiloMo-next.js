@@ -80,7 +80,7 @@ model Customer {
 
   firstName     String?
   lastName      String?
-  email         String?
+  email         String?  @unique
   mobileNumber  String?
 
   customerType  CustomerType @default(CASUAL)
@@ -157,5 +157,5 @@ model LoyaltyCard {
   updatedAt   DateTime @updatedAt
   
   customerId  String
-  customer    Customer    @relation(fields: [customerId], references: [id])
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 }
