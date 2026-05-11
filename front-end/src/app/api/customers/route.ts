@@ -1,25 +1,9 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { redirect } from "next/navigation"
 import { db } from "@/lib/db";
 
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions);
-  
-  {/*
-  if (
-    !session?.user?.email || 
-    !["OWNER","RECEPTIONIST"].includes(session.user.role)
-    ){
-      return NextResponse.json(
-        { error: "Forbidden" },
-        { status: 403}
-      );
-    }  
-    */}
-  
-
   try {
     const customers = await db.customer.findMany({
       include: {
@@ -28,44 +12,66 @@ export async function GET(req: Request) {
       orderBy: {
         user: {
           createdAt: "desc",
-        }
-      }
+        },
+      },
     });
 
     const result = customers.map((customer) => ({
       id: customer.id,
       type: customer.customerType || "CASUAL",
-      name: 
-        [customer.firstName, customer.lastName]
-        .filter(Boolean)
-        .join(" ") ||  
-        
-        [customer.user?.firstName, customer.user?.lastName]
-        .filter(Boolean)
-        .join(" ") ||  
-
+      name:
+        [customer.firstName, customer.lastName].filter(Boolean).join(" ") ||
+        [customer.user?.firstName, customer.user?.lastName].filter(Boolean).join(" ") ||
         customer.email ||
-        customer.user?.email || 
+        customer.user?.email ||
         "Unknown",
 
-      contactNumber: 
-        customer.mobileNumber ||
-        customer.user?.mobileNumber || "N/A",
+      contactNumber:
+        customer.mobileNumber || customer.user?.mobileNumber || "N/A",
 
-      email: 
-        customer.email ||
-        customer.user?.email || "N/A",
+      email: customer.email || customer.user?.email || "N/A",
 
       totalAppointments: 0,
       totalSpent: 0,
-      
+
       createdAt: customer.createdAt,
     }));
 
     return NextResponse.json({ customers: result });
   } catch (error) {
+    console.error("GET CUSTOMERS ERROR:", error);
+
     return NextResponse.json(
       { error: "Failed to fetch customers" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    if (!params.id) {
+      return NextResponse.json(
+        { error: "Missing customer id" },
+        { status: 400 }
+      );
+    }
+
+    await db.customer.delete({
+      where: {
+        id: params.id,
+      },
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error(error);
+
+    return NextResponse.json(
+      { error: "Failed to delete customer" },
       { status: 500 }
     );
   }
