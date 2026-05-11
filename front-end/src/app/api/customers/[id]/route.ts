@@ -5,10 +5,26 @@ import { db } from "@/lib/db";
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!params.id) {
+    const session = await getServerSession(authOptions);
+
+    if (
+      !session?.user?.email ||
+      !["OWNER", "RECEPTIONIST"].includes(
+        (session.user as any).role
+      )
+    ) {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403 }
+      );
+    }
+
+    const { id } = await params;
+
+    if (!id) {
       return NextResponse.json(
         { error: "Missing customer id" },
         { status: 400 }
@@ -17,11 +33,12 @@ export async function DELETE(
 
     await db.customer.delete({
       where: {
-        id: params.id,
+        id,
       },
     });
 
     return NextResponse.json({ ok: true });
+
   } catch (error) {
     console.error(error);
 
