@@ -61,6 +61,8 @@ model User {
   reviews       Review[]
 
   customer      Customer?
+  
+  services       Service[]  @relation("StaffServices")
 }
 
 enum Role {
@@ -68,11 +70,6 @@ enum Role {
   OWNER
   RECEPTIONIST
   BARBER
-}
-
-enum CustomerType {
-  CASUAL
-  REGULAR
 }
 
 model Customer {
@@ -96,6 +93,11 @@ model Customer {
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+enum CustomerType {
+  CASUAL
+  REGULAR
 }
 
 model PasswordResetToken {
@@ -141,6 +143,9 @@ model Appointment {
 
   customerId    String?
   customer      Customer?    @relation(fields: [customerId], references: [id])
+
+  serviceId String
+  service   Service  @relation(fields: [serviceId], references: [id])
 }
 
 enum Status {
@@ -158,4 +163,52 @@ model LoyaltyCard {
   
   customerId  String
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+model Service {
+  id              String   @id @default(cuid())
+
+  // Basic Info
+  name            String
+  description     String?
+  category        ServiceCategory?
+
+  // Pricing & Duration
+  durationMinutes Int
+  price           Decimal  @db.Decimal(10, 2)
+
+  // Availability
+  isAvailable     Boolean  @default(true)
+
+  // Staff Assignment (many-to-many with User)
+  assignedStaff   User[]   @relation("StaffServices")
+
+  // Scheduling
+  bufferBefore    Int      @default(0)
+  bufferAfter     Int      @default(0)
+
+  // Customer Rules
+  requiresApproval Boolean  @default(false)
+  cancellationFee Decimal? @db.Decimal(10, 2)
+
+  // Analytics
+  totalBookings   Int      @default(0)
+  totalRevenue    Decimal  @default(0) @db.Decimal(12, 2)
+
+  // Status
+  isFeatured      Boolean  @default(false)
+
+  // Audit
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  appointments    Appointment[]
+}
+
+enum ServiceCategory {
+  SIGNATURE_HAIRCUT
+  KIDS_HAIRCUT
+  SHAVE
+  SCALP_MASSAGE
 }
