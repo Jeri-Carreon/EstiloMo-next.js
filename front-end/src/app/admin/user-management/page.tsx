@@ -52,6 +52,9 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("")
 
+  useEffect(() => {
+  console.log("users:", users);
+}, [users]);
   // Add
   const [openAdd, setOpenAdd] = useState(false);
 
@@ -61,6 +64,15 @@ export default function AdminPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState("RECEPTIONIST");
+
+  // Edit
+  const [openEdit, setOpenEdit] = useState(false);
+  const [openEditConfirm, setOpenEditConfirm] = useState(false);
+
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editMobileNumber, setEditMobileNumber] = useState("");
 
   const [openDel, setOpenDel] = useState(false);
   const [selectedUser, setSelectedUser ] = useState<User | null>(null);
@@ -94,12 +106,12 @@ export default function AdminPage() {
 
     const data = await res.json();
 
-    if (!res.ok) {
-      showStatusModal('Error', data.error || 'Failed to create user');
+    if (!data.user) {
+      showStatusModal("Error", "No user returned from server");
       return;
     }
 
-    setUsers((prev: any) => [...prev, data.user]); // adjust if you use different state name
+    setUsers((prev) => [...prev, data.user]); // adjust if you use different state name
 
     setOpenAdd(false);
 
@@ -111,10 +123,10 @@ export default function AdminPage() {
     setPassword('');
 
     showStatusModal('Success', 'User created successfully!');
-  } catch (error) {
+    } catch (error) {
     showStatusModal('Error', 'Something went wrong.');
-  }
-};
+    }
+  };
 
   const handleReviewUser = () => {
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !mobileNumber.trim() || !password.trim()) {
@@ -138,6 +150,54 @@ export default function AdminPage() {
     setPassword("");
   };
 
+  const handleUpdateUser = async () => {
+  if (!selectedUser) return;
+
+  try {
+    const res = await fetch(
+      `/api/admin/user-management/${selectedUser.id}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: editFirstName,
+          lastName: editLastName,
+          email: editEmail,
+          mobileNumber: editMobileNumber,
+        }),
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      showStatusModal("Error", data.error || "Failed to update user");
+      return;
+    }
+
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === selectedUser.id
+          ? {
+              ...u,
+              name: `${editFirstName} ${editLastName}`,
+              email: editEmail,
+              mobileNumber: editMobileNumber,
+            }
+          : u
+      )
+    );
+
+    setOpenEdit(false);
+    setOpenEditConfirm(false);
+    setSelectedUser(null);
+
+    showStatusModal("Success", "User updated successfully!");
+    } catch {
+      showStatusModal("Error", "Something went wrong");
+    } 
+  };
+
   const handleDeleteUser = async () => {
   if (!selectedUser?.id) return;
 
@@ -156,7 +216,7 @@ export default function AdminPage() {
     }
 
     if (!res.ok) {
-      alert(data.error || "Delete failed");
+      showStatusModal("Error", data.error || "Delete failed");
       return;
     }
 
@@ -166,10 +226,13 @@ export default function AdminPage() {
 
     setOpenDel(false);
     setSelectedUser(null);
-  } catch (err) {
-    console.error(err);
-    alert("Something went wrong deleting User");
-  }
+
+    // SUCCESS MODAL
+    showStatusModal("Success", "User deleted successfully!");
+    } catch (err) {
+      console.error(err);
+      showStatusModal("Error", "Something went wrong deleting user");
+    }
 };
 
   useEffect(() => {
@@ -329,7 +392,16 @@ export default function AdminPage() {
                         size="small"
                         color="primary"
                         onClick={() => {
-                          console.log("Edit", user.id);
+                        setSelectedUser(user);
+
+                        const names = (user.name ?? "").split(" ");
+
+                        setEditFirstName(names[0] || "");
+                        setEditLastName(names.slice(1).join(" ") || "");
+                        setEditEmail(user.email);
+                        setEditMobileNumber(user.mobileNumber);
+
+                        setOpenEdit(true);
                         }}
                       >
                         <EditIcon fontSize="small" />
@@ -475,6 +547,150 @@ export default function AdminPage() {
         </Box>
       </Dialog>
 
+      {/* Edit */}
+      <Dialog
+      open={openEdit}
+        onClose={() => setOpenEdit(false)}
+        maxWidth="sm"
+        fullWidth
+        sx={{
+          '& .MuiPaper-root': {
+            borderRadius: 4,
+            bgcolor: '#f2f2f2',
+            overflow: 'visible',
+          },
+        }}
+      >
+        <Box sx={{ m: 2, bgcolor: '#fff', borderRadius: 4, p: 3, pb: 2, boxShadow: '0 10px 40px rgba(0,0,0,0.08)' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Edit User Details
+            </Typography>
+            <IconButton onClick={() => setOpenEdit(false)} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          <DialogContent sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="First Name"
+              fullWidth
+              value={editFirstName}
+              onChange={(e) => setEditFirstName(e.target.value)}
+              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+            />
+            <TextField
+              label="Last Name"
+              fullWidth
+              value={editLastName}
+              onChange={(e) => setEditLastName(e.target.value)}
+              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+            />
+            <TextField
+              label="Email"
+              fullWidth
+              value={editEmail}
+              onChange={(e) => setEditEmail(e.target.value)}
+              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+            />
+            <TextField
+              label="Mobile Number"
+              fullWidth
+              value={editMobileNumber}
+              onChange={(e) => setEditMobileNumber(e.target.value)}
+              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+            />
+          </DialogContent>
+
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: 3, mb: 2 }}>
+            <Button
+              onClick={() => setOpenEdit(false)}
+              sx={{
+              backgroundColor: '#6d6d6d',
+                color: '#f7c948',
+                textTransform: 'none',
+                minWidth: 120,
+                py: 1.25,
+                ':hover': { backgroundColor: '#5a5a5a' },
+              }}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={() => {
+              setOpenEdit(false);
+              setOpenEditConfirm(true);
+            }}
+              sx={{
+                backgroundColor: '#000',
+                color: '#fff',
+                textTransform: 'none',
+                minWidth: 120,
+                py: 1.25,
+                ':hover': { backgroundColor: '#111' },
+              }}
+            >
+              Edit
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
+
+      {/* Edit Confirmation Modal */}
+      <Dialog
+        open={openEditConfirm}
+        onClose={() => setOpenEditConfirm(false)}
+        maxWidth="sm"
+        fullWidth
+        sx={{
+          '& .MuiPaper-root': {
+            borderRadius: 4,
+            bgcolor: '#f2f2f2',
+            overflow: 'visible',
+          },
+        }}
+      >
+        <Box sx={{ m: 2, bgcolor: '#fff', borderRadius: 4, p: 3, pb: 2, boxShadow: '0 10px 40px rgba(0,0,0,0.08)' }}>
+
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Edit User Details
+          </Typography>
+
+          <DialogContent sx={{ p: 0 }}>
+            Are you sure you want to update this user?
+          </DialogContent>
+
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
+            <Button onClick={() => {
+              setOpenEditConfirm(false);
+              setOpenEdit(true);
+            }} sx={{
+              backgroundColor: '#6d6d6d',
+              color: '#f7c948',
+              minWidth: 120,
+              py: 1.25,
+              ':hover': { backgroundColor: '#5a5a5a' },
+            }} 
+            >
+              Cancel
+            </Button>
+            <Button variant="contained" onClick={handleUpdateUser}
+            sx={{
+                  backgroundColor: '#000',
+                  color: '#fff',
+                  textTransform: 'none',
+                  minWidth: 120,
+                  py: 1.25,
+                  ':hover': { backgroundColor: '#111' },
+                }}>
+              Edit
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
+
       {/*Delete*/}
       <Dialog 
         open={openDel} 
@@ -495,7 +711,7 @@ export default function AdminPage() {
 
         <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
           Are you sure you want to delete{" "}
-          <b>ID: {selectedUser?.id}</b>
+          <b>ID: {selectedUser?.id}</b>{" "}
           <b>{selectedUser?.name}</b>
         </DialogContent>
 
