@@ -13,6 +13,7 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import TextField from '@mui/material/TextField';
 import Paper from "@mui/material/Paper";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
@@ -28,10 +29,17 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import CloseIcon from "@mui/icons-material/Close";
 
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
+import InputLabel from "@mui/material/InputLabel";
+import FormControl from "@mui/material/FormControl";
+
+
 interface User {
   id: string;
   name: string;
-  contactNumber: string;
+  mobileNumber: string;
+  email: string;
   role: string;
   createdAt: string;
 }
@@ -44,10 +52,91 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("")
 
-  const [openDel, setOpenDel] = useState(false);
+  // Add
   const [openAdd, setOpenAdd] = useState(false);
 
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState("RECEPTIONIST");
+
+  const [openDel, setOpenDel] = useState(false);
   const [selectedUser, setSelectedUser ] = useState<User | null>(null);
+
+    // Confirmation Modal
+  const [openStatusModal, setOpenStatusModal] = useState(false);
+  const [statusTitle, setStatusTitle] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
+  
+  const showStatusModal = (title: string, message: string) => {
+    setStatusTitle(title);
+    setStatusMessage(message);
+    setOpenStatusModal(true);
+  };
+  const handleCreateUser = async () => {
+  try {
+    const res = await fetch('/api/admin/create-user', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        mobileNumber: mobileNumber.trim(),
+        email: email.trim(),
+        password,
+        role,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      showStatusModal('Error', data.error || 'Failed to create user');
+      return;
+    }
+
+    setUsers((prev: any) => [...prev, data.user]); // adjust if you use different state name
+
+    setOpenAdd(false);
+
+    // reset fields
+    setFirstName('');
+    setLastName('');
+    setMobileNumber('');
+    setEmail('');
+    setPassword('');
+
+    showStatusModal('Success', 'User created successfully!');
+  } catch (error) {
+    showStatusModal('Error', 'Something went wrong.');
+  }
+};
+
+  const handleReviewUser = () => {
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !mobileNumber.trim() || !password.trim()) {
+      showStatusModal(
+        "Incomplete Fields",
+        "Please fill in all fields before continuing."
+    );
+      return;
+    }
+
+    setOpenAdd(false);
+    handleCreateUser();
+    resetForm();
+  };
+
+  const resetForm = () => {
+    setFirstName("");
+    setLastName("");
+    setMobileNumber("");
+    setEmail("");
+    setPassword("");
+  };
 
   const handleDeleteUser = async () => {
   if (!selectedUser?.id) return;
@@ -82,44 +171,6 @@ export default function AdminPage() {
     alert("Something went wrong deleting User");
   }
 };
-  {/* Add User Logic
-  const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    mobileNumber: "",
-    role: "RECEPTIONIST",
-  });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const res = await fetch("/api/admin/create-user", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-
-    const data = await res.json();
-
-    if (!data.ok) {
-      alert(data.error);
-      return;
-    }
-
-    alert("User created successfully!");
-
-    setForm({
-      firstName: "",
-      lastName: "",
-      email: "",
-      password: "",
-      mobileNumber: "",
-      role: "RECEPTIONIST",
-    });
-  };
-  */}
 
   useEffect(() => {
     if (status === "loading") return;
@@ -228,6 +279,7 @@ export default function AdminPage() {
                   <TableCell sx={{ fontWeight: 700 }}>ID</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Contact Number</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Email Address</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Role</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>
                     Date Added
@@ -248,32 +300,30 @@ export default function AdminPage() {
                       },
                     }}
                   >
-                    {/* ID */}
                     <TableCell>
                       {String(index + 1).padStart(3, "0")}
                     </TableCell>
 
-                    {/* NAME */}
                     <TableCell>
-                      {user.name}
+                      {[user.name]}
                     </TableCell>
 
-                    {/* Contact Number */}
                     <TableCell>
-                      {user.contactNumber}
+                      {user.mobileNumber}
                     </TableCell>
 
-                    {/* ROLE */}
+                    <TableCell>
+                      {user.email}
+                    </TableCell>
+
                     <TableCell sx={{ color: "#666" }}>
                       {user.role}
                     </TableCell>
 
-                    {/* DATE */}
                     <TableCell>
                       {new Date(user.createdAt).toLocaleDateString()}
                     </TableCell>
 
-                    {/* ACTIONS */}
                     <TableCell>
                       <IconButton
                         size="small"
@@ -303,6 +353,128 @@ export default function AdminPage() {
           </TableContainer>
         </>
       )}
+
+      {/*Add*/}
+      <Dialog
+        open={openAdd}
+        onClose={() => setOpenAdd(false)}
+        maxWidth="sm"
+        fullWidth
+        sx={{
+          '& .MuiPaper-root': {
+            borderRadius: 4,
+            bgcolor: '#f2f2f2',
+            overflow: 'visible',
+          },
+        }}
+      >
+        <Box sx={{ m: 2, bgcolor: '#fff', borderRadius: 4, p: 3, pb: 2, boxShadow: '0 10px 40px rgba(0,0,0,0.08)' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Add New User
+              </Typography>
+            </Box>
+            <IconButton onClick={() => setOpenAdd(false)} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          <DialogContent sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+            placeholder="Enter first name"
+            label="First name *"
+            fullWidth
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            sx={{
+              bgcolor: '#f6f6f6',
+              borderRadius: 2,
+            }}
+          />
+
+            <TextField
+              placeholder="Enter last name"
+              label="Last name *"
+              fullWidth
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+            />
+
+            <TextField
+              placeholder="Enter mobile number"
+              label="Mobile Number *"
+              fullWidth
+              value={mobileNumber}
+              onChange={(e) => setMobileNumber(e.target.value)}
+              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+            />
+
+            <TextField
+              placeholder="Enter email address"
+              label="Email Address"
+              fullWidth
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+            />
+
+            <TextField
+              placeholder="Enter password"
+              label="password"
+              type="password"
+              fullWidth
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+            />
+
+            <FormControl fullWidth sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}>
+              <InputLabel>Role *</InputLabel>
+              <Select
+                value={role}
+                label="Role *"
+                onChange={(e) => setRole(e.target.value)}
+              >
+                <MenuItem value="RECEPTIONIST">Receptionist</MenuItem>
+                <MenuItem value="BARBER">Barber</MenuItem>
+              </Select>
+            </FormControl>
+          </DialogContent>
+
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: 3, mb: 2 }}>
+            <Button
+              onClick={() => setOpenAdd(false)}
+              sx={{
+                backgroundColor: '#6d6d6d',
+                color: '#f7c948',
+                textTransform: 'none',
+                minWidth: 120,
+                py: 1.25,
+                ':hover': { backgroundColor: '#5a5a5a' },
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleReviewUser}
+              sx={{
+                backgroundColor: '#000',
+                color: '#fff',
+                textTransform: 'none',
+                minWidth: 120,
+                py: 1.25,
+                ':hover': { backgroundColor: '#111' },
+              }}
+            >
+              Add
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
+
       {/*Delete*/}
       <Dialog 
         open={openDel} 
@@ -318,7 +490,7 @@ export default function AdminPage() {
 
       <Box sx={{ m: 2, bgcolor: '#fff', borderRadius: 4, p: 3, pb: 2, width: 500, boxShadow: '0 10px 40px rgba(0,0,0,0.08)' }}>
         <Typography variant="h6" sx={{ fontWeight: 700 }}>
-          Delete Customer
+          Delete User
         </Typography>
 
         <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -360,6 +532,97 @@ export default function AdminPage() {
           </Button>
         </Box>
       </Box>
+      </Dialog>
+
+      {/* Status Modal */}
+      <Dialog
+        open={openStatusModal}
+        onClose={() => setOpenStatusModal(false)}
+        maxWidth="sm"
+        fullWidth
+        sx={{
+          '& .MuiPaper-root': {
+            borderRadius: 4,
+            bgcolor: '#f2f2f2',
+            overflow: 'visible',
+          },
+        }}
+      >
+        <Box
+          sx={{
+            m: 2,
+            bgcolor: '#fff',
+            borderRadius: 4,
+            p: 3,
+            pb: 2,
+            boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
+          }}
+        >
+          {/* HEADER */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              mb: 2,
+            }}
+          >
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                {statusTitle}
+              </Typography>
+
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 0.5 }}
+              >
+                User Management
+              </Typography>
+            </Box>
+
+            <IconButton
+              onClick={() => setOpenStatusModal(false)}
+              size="small"
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          {/* CONTENT */}
+          <DialogContent sx={{ p: 0 }}>
+            <Typography sx={{ mb: 1, color: '#333' }}>
+              {statusMessage}
+            </Typography>
+          </DialogContent>
+
+          {/* BUTTON */}
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              mt: 4,
+              mb: 2,
+            }}
+          >
+            <Button
+              variant="contained"
+            onClick={() => setOpenStatusModal(false)}
+              sx={{
+                backgroundColor: '#000',
+                color: '#fff',
+                textTransform: 'none',
+                minWidth: 120,
+                py: 1.25,
+                ':hover': {
+                  backgroundColor: '#111',
+                },
+              }}
+            >
+              OK
+            </Button>
+          </Box>
+        </Box>
       </Dialog>
     </Box>
   );

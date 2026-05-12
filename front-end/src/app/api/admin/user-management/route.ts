@@ -23,9 +23,12 @@ export async function GET(req: Request) {
         user.email ||
         "Unknown",
 
-      contactNumber:
+      mobileNumber:
         user.mobileNumber || "N/A",
 
+      email:
+        user.email,
+        
       role: user.role,
 
       createdAt: user.createdAt,
