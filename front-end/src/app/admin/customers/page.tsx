@@ -324,7 +324,7 @@ export default function CustomersPage() {
     link.download = 'customers.csv';
     link.click();
   };
-
+  
   return (
       <Box sx={{ flex: 1, p: 4, backgroundColor: '#fff' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4 }}>
@@ -512,15 +512,18 @@ export default function CustomersPage() {
               </IconButton>
             </Box>
 
-            <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <DialogContent sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
               <TextField
-                placeholder="Enter your first name"
-                label="First name *"
-                fullWidth
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
-              />
+              placeholder="Enter your first"
+              label="First name *"
+              fullWidth
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              sx={{
+                bgcolor: '#f6f6f6',
+                borderRadius: 2,
+              }}
+            />
 
               <TextField
                 placeholder="Enter your last name"
@@ -683,7 +686,7 @@ export default function CustomersPage() {
               </IconButton>
             </Box>
 
-          <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <DialogContent sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <TextField
               label="First Name"
               fullWidth

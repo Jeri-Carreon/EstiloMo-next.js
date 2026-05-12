@@ -1,36 +1,45 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db"; // adjust if different
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { db } from "@/lib/db";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const users = await db.user.findMany({
-      orderBy: { createdAt: "desc" },
+      where: {
+        role: {
+            in: ["OWNER", "RECEPTIONIST", "BARBER"]
+        },
+      },
+      orderBy: {
+          id: "asc",
+        },
     });
 
-    return NextResponse.json({ users });
+    const result = users.map((user) => ({
+      id: user.id,
+      name:
+        [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+        user.email ||
+        "Unknown",
+
+      mobileNumber:
+        user.mobileNumber || "N/A",
+
+      email:
+        user.email,
+        
+      role: user.role,
+
+      createdAt: user.createdAt,
+    }));
+
+    return NextResponse.json({ users: result });
   } catch (error) {
+    console.error("GET USERS ERROR:", error);
+
     return NextResponse.json(
       { error: "Failed to fetch users" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get("id");
-
-  if (!id) {
-    return NextResponse.json({ error: "Missing ID" }, { status: 400 });
-  }
-
-  try {
-    await db.user.delete({ where: { id } });
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to delete user" },
       { status: 500 }
     );
   }
