@@ -34,6 +34,7 @@ import MenuItem from "@mui/material/MenuItem";
 import InputLabel from "@mui/material/InputLabel";
 import FormControl from "@mui/material/FormControl";
 
+import Pagination from "@mui/material/Pagination";
 
 interface User {
   id: string;
@@ -52,6 +53,10 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("")
 
+  //pagination
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 5;
+
   useEffect(() => {
   console.log("users:", users);
 }, [users]);
@@ -63,7 +68,22 @@ export default function AdminPage() {
   const [mobileNumber, setMobileNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [openWeakPass, setOpenWeakPass] = useState(false);
   const [role, setRole] = useState("RECEPTIONIST");
+
+  const validatePassword = (password: string) => {
+  const minLength = /.{8,}/;
+  const hasNumber = /[0-9]/;
+  const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/;
+  const hasLetter = /[a-zA-Z]/;
+
+    return (
+      minLength.test(password) &&
+      hasNumber.test(password) &&
+      hasSpecial.test(password) &&
+      hasLetter.test(password)
+    );
+  }
 
   // Edit
   const [openEdit, setOpenEdit] = useState(false);
@@ -135,6 +155,11 @@ export default function AdminPage() {
         "Please fill in all fields before continuing."
     );
       return;
+    }
+
+    if (!validatePassword(password)) {
+    setOpenWeakPass(true);
+    return;
     }
 
     setOpenAdd(false);
@@ -277,6 +302,13 @@ export default function AdminPage() {
     loadUsers();
   }, [session, status, router]);
 
+  //pagination
+  const paginatedUsers = users.slice(
+    (page - 1) * itemsPerPage,
+    page * itemsPerPage
+  );
+
+  const totalPages = Math.ceil(users.length / itemsPerPage);
   return (
     <Box sx={{ flex: 1, p: 4, backgroundColor: "#fff" }}>
       {/* HEADER */}
@@ -354,7 +386,7 @@ export default function AdminPage() {
               </TableHead>
 
               <TableBody>
-                {users.map((user, index) => (
+                {paginatedUsers.map((user, index) => (
                   <TableRow
                     key={user.id}
                     sx={{
@@ -364,7 +396,7 @@ export default function AdminPage() {
                     }}
                   >
                     <TableCell>
-                      {String(index + 1).padStart(3, "0")}
+                      {String((page - 1) * itemsPerPage + index + 1).padStart(3, "0")}
                     </TableCell>
 
                     <TableCell>
@@ -423,6 +455,31 @@ export default function AdminPage() {
               </TableBody>
             </Table>
           </TableContainer>
+          {/* PAGINATION + FOOTER */}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              mt: 4,
+            }}
+          >
+            <Typography
+              sx={{
+                color: "text.secondary",
+                fontSize: 14,
+              }}
+            >
+              Showing 1 to {paginatedUsers.length} of {users.length} Entries
+            </Typography>
+
+            <Pagination
+              count={totalPages}
+              page={page}
+              onChange={(_, value) => setPage(value)}
+              size="small"
+            />
+          </Box>
         </>
       )}
 
@@ -824,6 +881,89 @@ export default function AdminPage() {
             <Button
               variant="contained"
             onClick={() => setOpenStatusModal(false)}
+              sx={{
+                backgroundColor: '#000',
+                color: '#fff',
+                textTransform: 'none',
+                minWidth: 120,
+                py: 1.25,
+                ':hover': {
+                  backgroundColor: '#111',
+                },
+              }}
+            >
+              OK
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
+
+      <Dialog
+        open={openWeakPass}
+        onClose={() => setOpenWeakPass(false)}
+        maxWidth="sm"
+        fullWidth
+        sx={{
+          '& .MuiPaper-root': {
+            borderRadius: 4,
+            bgcolor: '#f2f2f2',
+            overflow: 'visible',
+          },
+        }}
+      >
+        <Box
+          sx={{
+            m: 2,
+            bgcolor: '#fff',
+            borderRadius: 4,
+            p: 3,
+            pb: 2,
+            boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              mb: 2,
+            }}
+          >
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Weak Password
+            </Typography>
+
+            <IconButton
+              onClick={() => setOpenWeakPass(false)}
+              size="small"
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          <DialogContent sx={{ p: 0 }}>
+            <Typography sx={{ mb: 2 }}>
+              Password must meet the following requirements:
+            </Typography>
+
+            <ul style={{ paddingLeft: 20, marginTop: 0 }}>
+              <li>At least 8 characters long</li>
+              <li>Contains at least 1 letter (A–Z)</li>
+              <li>Contains at least 1 number (0–9)</li>
+              <li>Contains at least 1 special character (!@#$%^&*)</li>
+            </ul>
+          </DialogContent>
+
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              mt: 4,
+            }}
+          >
+            <Button
+              variant="contained"
+              onClick={() => setOpenWeakPass(false)}
               sx={{
                 backgroundColor: '#000',
                 color: '#fff',
