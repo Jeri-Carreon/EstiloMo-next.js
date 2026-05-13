@@ -3,6 +3,52 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
+type Params = {
+  params: { id: string };
+};
+
+export async function PUT(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.email || (session.user as any).role !== "OWNER") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const { id } = await params; // 🔥 SAME FIX
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Missing user id" },
+        { status: 400 }
+      );
+    }
+
+    const body = await req.json();
+
+    const updatedUser = await db.user.update({
+      where: { id },
+      data: {
+        firstName: body.firstName,
+        lastName: body.lastName,
+        email: body.email,
+        mobileNumber: body.mobileNumber,
+      },
+    });
+
+    return NextResponse.json({ user: updatedUser });
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json(
+      { error: "Failed to update user" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -10,19 +56,11 @@ export async function DELETE(
   try {
     const session = await getServerSession(authOptions);
 
-    if (
-      !session?.user?.email ||
-      !["OWNER"].includes(
-        (session.user as any).role
-      )
-    ) {
-      return NextResponse.json(
-        { error: "Forbidden" },
-        { status: 403 }
-      );
+    if (!session?.user?.email || (session.user as any).role !== "OWNER") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const { id } = await params; // 🔥 FIX HERE
 
     if (!id) {
       return NextResponse.json(
@@ -32,16 +70,12 @@ export async function DELETE(
     }
 
     await db.user.delete({
-      where: {
-        id,
-      },
+      where: { id },
     });
 
     return NextResponse.json({ ok: true });
-
   } catch (error) {
     console.error(error);
-
     return NextResponse.json(
       { error: "Failed to delete user" },
       { status: 500 }
