@@ -64,23 +64,29 @@ export default function ServicesPage() {
 
   const [serviceDescription, setServiceDescription] = useState('');
 
-  const [serviceDuration, setServiceDuration] = useState(0);
+  const [serviceDuration, setServiceDuration] = useState('');
 
-  const [servicePrice, setServicePrice] = useState(0);
+  const [servicePrice, setServicePrice] = useState('');
   
   const [staffList, setStaffList] = useState<{ id: string; name: string }[]>([]);
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
   const [serviceAvailability, setServiceAvailability] = useState(true);
 
   useEffect(() => {
-    const loadStaff = async () => {
-        const res = await fetch('/api/admin/staff');
-        const data = await res.json();
-        setStaffList(data.staff || []);
-    };
+  if (status === 'loading') return;
+  if (!session) return;
 
-    loadStaff();
-    }, []);
+  const loadStaff = async () => {
+    const res = await fetch('/api/admin/staff', {
+      cache: 'no-store',
+    });
+
+    const data = await res.json();
+    setStaffList(data.staff || []);
+  };
+
+  loadStaff();
+}, [session, status]);
 
   // DELETE
   const [openDel, setOpenDel] = useState(false);
@@ -94,6 +100,7 @@ export default function ServicesPage() {
   const [editServiceDescription, setEditServiceDescription] = useState('');
   const [editDuration, setEditDuration] = useState(0);
   const [editPrice, setEditPrice] = useState(0);
+  const [editSelectedStaffIds, setEditSelectedStaffIds] = useState<string[]>([]);
   const [editAvailability, setEditAvailability] = useState(true);
 
   // STATUS MODAL
@@ -207,8 +214,9 @@ export default function ServicesPage() {
 
     setServiceName('');
     setServiceDescription('');
-    setServiceDuration(0);
-    setServicePrice(0);
+    setServiceDuration('');
+    setServicePrice('');
+    setSelectedStaffIds([]);
     setServiceAvailability(true);
 
     showStatusModal(
@@ -279,6 +287,7 @@ export default function ServicesPage() {
             durationMinutes: editDuration,
             price: editPrice,
             isAvailable: editAvailability,
+            assignedStaffIds: editSelectedStaffIds,
           }),
         }
       );
@@ -302,6 +311,14 @@ export default function ServicesPage() {
                 description: editServiceDescription,
                 durationMinutes: editDuration,
                 price: editPrice,
+                assignedStaff: staffList
+                  .filter((staff) =>
+                    editSelectedStaffIds.includes(staff.id)
+                  )
+                  .map((staff) => ({
+                    id: staff.id,
+                    name: staff.name,
+                  })),
                 isAvailable: editAvailability,
               }
             : service
@@ -578,6 +595,10 @@ export default function ServicesPage() {
                               service.price
                             );
 
+                            setEditSelectedStaffIds(
+                              service.assignedStaff.map(s => s.id)
+                            );
+
                             setEditAvailability(
                               service.isAvailable
                             );
@@ -742,7 +763,7 @@ export default function ServicesPage() {
             value={serviceDuration}
             onChange={(e) =>
             setServiceDuration(
-                Number(e.target.value)
+                (e.target.value)
             )
             }
             sx={{
@@ -758,7 +779,7 @@ export default function ServicesPage() {
             value={servicePrice}
             onChange={(e) =>
             setServicePrice(
-                Number(e.target.value)
+                (e.target.value)
             )
             }
             sx={{
@@ -767,27 +788,91 @@ export default function ServicesPage() {
             }}
         />
 
-        <TextField
-            select
-            label="Availability"
-            fullWidth
-            value={String(serviceAvailability)}
-            onChange={(e) =>
-                setServiceAvailability(e.target.value === 'true')
-            }
-            slotProps={{
-                select: {
-                native: true,
-                },
+        <Box>
+          <Typography
+            sx={{
+              mb: 1,
+              fontWeight: 600,
+              fontSize: 14,
             }}
-            >
-            <option value="available">
-            Available
-            </option>
+          >
+            Assign Barbers
+          </Typography>
 
-            <option value="unavailable">
-            Unavailable
-            </option>
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1,
+              maxHeight: 160,
+              overflowY: 'auto',
+              p: 1,
+              border: '1px solid #ddd',
+              borderRadius: 2,
+              bgcolor: '#f6f6f6',
+            }}
+          >
+            {staffList.length === 0 ? (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+              >
+                No staff available
+              </Typography>
+            ) : (
+              staffList.map((staff) => (
+                <Box
+                  key={staff.id}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedStaffIds.includes(staff.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedStaffIds((prev) => [
+                          ...prev,
+                          staff.id,
+                        ]);
+                      } else {
+                        setSelectedStaffIds((prev) =>
+                          prev.filter(
+                            (id) => id !== staff.id
+                          )
+                        );
+                      }
+                    }}
+                  />
+
+                  <Typography>
+                    {staff.name}
+                  </Typography>
+                </Box>
+              ))
+            )}
+          </Box>
+        </Box>
+
+        <TextField
+          select
+          label="Availability"
+          fullWidth
+          value={serviceAvailability ? 'true' : 'false'}
+          onChange={(e) =>
+            setServiceAvailability(e.target.value === 'true')
+          }
+          slotProps={{
+            select: {
+              native: true,
+            },
+          }}
+        >
+          <option value="true">Available</option>
+          <option value="false">Unavailable</option>
         </TextField>
         </DialogContent>
 
@@ -981,6 +1066,67 @@ export default function ServicesPage() {
               }
               fullWidth
             />
+
+            <Box>
+              <Typography sx={{ mb: 1, fontWeight: 600, fontSize: 14 }}>
+                Assign Barbers
+              </Typography>
+
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 1,
+                  maxHeight: 160,
+                  overflowY: 'auto',
+                  p: 1,
+                  border: '1px solid #ddd',
+                  borderRadius: 2,
+                  bgcolor: '#f6f6f6',
+                }}
+              >
+                {staffList.map((staff) => (
+                  <Box
+                    key={staff.id}
+                    sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={editSelectedStaffIds.includes(staff.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setEditSelectedStaffIds((prev) => [...prev, staff.id]);
+                        } else {
+                          setEditSelectedStaffIds((prev) =>
+                            prev.filter((id) => id !== staff.id)
+                          );
+                        }
+                      }}
+                    />
+
+                    <Typography>{staff.name}</Typography>
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+
+            <TextField
+              select
+              label="Availability"
+              fullWidth
+              value={editAvailability ? 'true' : 'false'}
+              onChange={(e) =>
+                setEditAvailability(e.target.value === 'true')
+              }
+              slotProps={{
+                select: {
+                  native: true,
+                },
+              }}
+            >
+              <option value="true">Available</option>
+              <option value="false">Unavailable</option>
+            </TextField>
           </DialogContent>
 
           <Box

@@ -88,6 +88,7 @@ export async function POST(req: Request) {
       description,
       durationMinutes,
       price,
+      assignedStaffIds,
       isAvailable,
     } = body;
 
@@ -105,9 +106,24 @@ export async function POST(req: Request) {
         durationMinutes: Number(durationMinutes),
         price: Number(price),
         isAvailable: Boolean(isAvailable),
+
+         assignedStaff: {
+          connect:
+            assignedStaffIds?.map(
+              (id: string) => ({
+                id,
+              })
+            ) || [],
+        },
       },
       include: {
-        assignedStaff: true,
+        assignedStaff: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
       },
     });
 
@@ -119,7 +135,21 @@ export async function POST(req: Request) {
         durationMinutes: service.durationMinutes,
         price: Number(service.price),
         isAvailable: service.isAvailable,
-        assignedStaff: [],
+        assignedStaff:
+          service.assignedStaff.map(
+            (staff) => ({
+              id: staff.id,
+
+              name:
+                [
+                  staff.firstName,
+                  staff.lastName,
+                ]
+                  .filter(Boolean)
+                  .join(" ") ||
+                "Unknown",
+            })
+          ),
       },
     });
   } catch (error) {
