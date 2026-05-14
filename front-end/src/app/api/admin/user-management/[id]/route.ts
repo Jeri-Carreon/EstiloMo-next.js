@@ -36,6 +36,7 @@ export async function PUT(
         lastName: body.lastName,
         email: body.email,
         mobileNumber: body.mobileNumber,
+        role: body.role,
       },
     });
 

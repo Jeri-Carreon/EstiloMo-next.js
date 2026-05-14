@@ -11,7 +11,7 @@ export async function GET(req: Request) {
       },
       orderBy: {
         user: {
-          createdAt: "desc",
+          createdAt: "asc",
         },
       },
     });

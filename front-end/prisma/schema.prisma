@@ -51,9 +51,9 @@ model User {
   lockedUntil   DateTime?
   loginAttempts Int       @default(0)
 
-  firstName     String?
-  lastName      String?
-  mobileNumber  String?
+  firstName     String
+  lastName      String
+  mobileNumber  String    @db.VarChar(11)
 
   accounts      Account[] @relation("accounts")
   sessions      Session[]
@@ -78,7 +78,7 @@ model Customer {
   firstName     String?
   lastName      String?
   email         String?  @unique
-  mobileNumber  String?
+  mobileNumber  String   @db.VarChar(11)
 
   customerType  CustomerType @default(CASUAL)
 

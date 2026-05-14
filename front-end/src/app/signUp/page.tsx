@@ -96,7 +96,12 @@ export default function SignupPage() {
     const res = await fetch("/api/register", { // await = pause execution until fetch request is complete, then continue with the rest of the function
     method: "POST",
     headers: {"Content-Type": "application/json",},
-    body: JSON.stringify({ firstName, lastName, password, email, mobileNumber 
+    body: JSON.stringify({ 
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      password,
+      email: email.trim(),
+      mobileNumber: mobileNumber.trim(),
     }),
   }); 
 
@@ -215,15 +220,41 @@ export default function SignupPage() {
           
         />
         <TextField
+          placeholder="09123456789"
           label={
           <>
           Enter Your Mobile Number <span style={{ color: 'red' }}>*</span>
           </>
           }
           variant="outlined"
-          onChange={(e) => setMobileNumber(e.target.value)}
           fullWidth
-          
+          value={mobileNumber}
+          onChange={(e) => {
+            // Remove non-numeric characters
+            const value = e.target.value.replace(/\D/g, '');
+
+            // Limit to 11 digits
+            if (value.length <= 11) {
+              setMobileNumber(value);
+            }
+          }}
+          error={
+            mobileNumber.length > 0 &&
+            !/^09\d{9}$/.test(mobileNumber)
+          }
+          helperText={
+            mobileNumber.length > 0 &&
+            !/^09\d{9}$/.test(mobileNumber)
+              ? 'Mobile number must be 11 digits and start with 09'
+              : ''
+          }
+          slotProps={{
+            htmlInput: {
+              inputMode: 'numeric',
+              pattern: '[0-9]*',
+              maxLength: 11,
+            },
+          }}
         />
         <Button variant="contained" type="submit" 
           sx={{

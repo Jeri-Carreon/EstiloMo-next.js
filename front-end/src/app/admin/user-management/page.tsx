@@ -93,6 +93,7 @@ export default function AdminPage() {
   const [editLastName, setEditLastName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editMobileNumber, setEditMobileNumber] = useState("");
+  const [editRole, setEditRole] = useState("");
 
   const [openDel, setOpenDel] = useState(false);
   const [selectedUser, setSelectedUser ] = useState<User | null>(null);
@@ -131,7 +132,7 @@ export default function AdminPage() {
       return;
     }
 
-    setUsers((prev) => [...prev, data.user]); // adjust if you use different state name
+    await loadUsers();
 
     setOpenAdd(false);
 
@@ -189,6 +190,7 @@ export default function AdminPage() {
           lastName: editLastName,
           email: editEmail,
           mobileNumber: editMobileNumber,
+          role: editRole,
         }),
       }
     );
@@ -208,6 +210,7 @@ export default function AdminPage() {
               name: `${editFirstName} ${editLastName}`,
               email: editEmail,
               mobileNumber: editMobileNumber,
+              role: editRole,
             }
           : u
       )
@@ -260,6 +263,34 @@ export default function AdminPage() {
     }
 };
 
+  const loadUsers = async () => {
+    try {
+      const res = await fetch("/api/admin/user-management");
+
+      if (res.status === 403) {
+        router.push("/unauthorized");
+        return;
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Unable to load users.");
+        setUsers([]);
+      } else {
+        // only show OWNER, RECEPTIONIST, BARBER
+        const Users = (data.users);
+
+        setUsers(Users);
+        setError("");
+      }
+    } catch (err) {
+      setError("Unable to load users.");
+    }
+
+    setLoading(false);
+  };
+
   useEffect(() => {
     if (status === "loading") return;
 
@@ -270,34 +301,6 @@ export default function AdminPage() {
       router.push("/unauthorized");
       return;
     }
-
-    const loadUsers = async () => {
-      try {
-        const res = await fetch("/api/admin/user-management");
-
-        if (res.status === 403) {
-          router.push("/unauthorized");
-          return;
-        }
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          setError(data.error || "Unable to load users.");
-          setUsers([]);
-        } else {
-          // only show OWNER, RECEPTIONIST, BARBER
-          const Users = (data.users);
-
-          setUsers(Users);
-          setError("");
-        }
-      } catch (err) {
-        setError("Unable to load users.");
-      }
-
-      setLoading(false);
-    };
 
     loadUsers();
   }, [session, status, router]);
@@ -432,6 +435,7 @@ export default function AdminPage() {
                         setEditLastName(names.slice(1).join(" ") || "");
                         setEditEmail(user.email);
                         setEditMobileNumber(user.mobileNumber);
+                        setEditRole(user.role);
 
                         setOpenEdit(true);
                         }}
@@ -532,12 +536,36 @@ export default function AdminPage() {
             />
 
             <TextField
-              placeholder="Enter mobile number"
+              placeholder="09123456789"
               label="Mobile Number *"
               fullWidth
               value={mobileNumber}
-              onChange={(e) => setMobileNumber(e.target.value)}
-              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+              onChange={(e) => {
+                // Remove non-numeric characters
+                const value = e.target.value.replace(/\D/g, '');
+
+                // Limit to 11 digits
+                if (value.length <= 11) {
+                  setMobileNumber(value);
+                }
+              }}
+              error={
+                mobileNumber.length > 0 &&
+                !/^09\d{9}$/.test(mobileNumber)
+              }
+              helperText={
+                mobileNumber.length > 0 &&
+                !/^09\d{9}$/.test(mobileNumber)
+                  ? 'Mobile number must be 11 digits and start with 09'
+                  : ''
+              }
+              slotProps={{
+                htmlInput: {
+                  inputMode: 'numeric',
+                  pattern: '[0-9]*',
+                  maxLength: 11,
+                },
+              }}
             />
 
             <TextField
@@ -657,6 +685,18 @@ export default function AdminPage() {
               onChange={(e) => setEditMobileNumber(e.target.value)}
               sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
+
+            <FormControl fullWidth sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}>
+              <InputLabel>Role *</InputLabel>
+              <Select
+                value={editRole}
+                label="Role *"
+                onChange={(e) => setEditRole(e.target.value)}
+              >
+                <MenuItem value="RECEPTIONIST">Receptionist</MenuItem>
+                <MenuItem value="BARBER">Barber</MenuItem>
+              </Select>
+            </FormControl>
           </DialogContent>
 
           <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: 3, mb: 2 }}>

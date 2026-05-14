@@ -178,6 +178,8 @@ export default function CustomersPage() {
 
     showStatusModal("Success", "Customer created successfully!");
 
+    loadCustomers();
+    
     setOpenAddConfirm(false);
     setOpenAdd(false);
 
@@ -246,23 +248,7 @@ export default function CustomersPage() {
 
   const router = useRouter();
 
-  
-
-  useEffect(() => {
-    if (status === "loading") return; // waits for status to go from loading to finished before deciding the role check logic below
-    
-    const role = (session?.user as { role?: string })?.role;
-    
-    // checks if user role is OWNER or RECEPTIONIST
-    if (
-      !session?.user?.email || 
-      !["OWNER","RECEPTIONIST"].includes(role || "")
-      ){
-        router.push("/unauthorized");
-        return;
-      }
-
-    const loadCustomers = async () => {
+  const loadCustomers = async () => {
       try {
         const res = await fetch('/api/customers');
 
@@ -284,6 +270,20 @@ export default function CustomersPage() {
 
       setLoading(false);
     };
+
+  useEffect(() => {
+    if (status === "loading") return; // waits for status to go from loading to finished before deciding the role check logic below
+    
+    const role = (session?.user as { role?: string })?.role;
+    
+    // checks if user role is OWNER or RECEPTIONIST
+    if (
+      !session?.user?.email || 
+      !["OWNER","RECEPTIONIST"].includes(role || "")
+      ){
+        router.push("/unauthorized");
+        return;
+      }
 
     loadCustomers();
   }, [session, status, router]); // session array = re-run useEffect whenever one of these changes
