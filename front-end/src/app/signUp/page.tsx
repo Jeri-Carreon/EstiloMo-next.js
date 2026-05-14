@@ -62,7 +62,7 @@ export default function SignupPage() {
   const router = useRouter();
 
   const validatePassword = (password: string) => {
-  const minLength = /.{8,}/;
+  const minLength = /^.{8,72}$/;
   const hasNumber = /[0-9]/;
   const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/;
   const hasLetter = /[a-zA-Z]/;
@@ -78,8 +78,22 @@ export default function SignupPage() {
   const handleRegister = async (e: FormEvent<HTMLFormElement>) => { // async = makes the function wait for a response from server by using await keyword
     e.preventDefault();
     
-    if (!firstName || !lastName || !email || !password || !mobileNumber) {
+    const trimmedFirstName = firstName.trim();
+    const trimmedLastName = lastName.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedMobileNumber = mobileNumber.trim();
+
+    if (!trimmedFirstName || !trimmedLastName || !trimmedEmail || !password || !trimmedMobileNumber) {
       setOpenIncomFields(true)
+      return;
+    }
+    
+    // EMAIL VALIDATION
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(trimmedEmail)) {
+      setServerErrorMsg("Invalid email format");
+      setOpenServerError(true);
       return;
     }
 
@@ -97,11 +111,11 @@ export default function SignupPage() {
     method: "POST",
     headers: {"Content-Type": "application/json",},
     body: JSON.stringify({ 
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
+      firstName: trimmedFirstName,
+      lastName: trimmedLastName,
       password,
-      email: email.trim(),
-      mobileNumber: mobileNumber.trim(),
+      email: trimmedEmail,
+      mobileNumber: trimmedMobileNumber,
     }),
   }); 
 
@@ -167,10 +181,16 @@ export default function SignupPage() {
           Enter Your First name <span style={{ color: 'red' }}>*</span>
           </>
           }
+          placeholder="Juan"
           variant="outlined"
+          value={firstName}
           onChange={(e) => setFirstName(e.target.value)}
           fullWidth
-          
+          slotProps={{
+            htmlInput: {
+              maxLength: 50,
+            },
+          }}
         />
         <TextField
           label={
@@ -178,10 +198,16 @@ export default function SignupPage() {
           Enter Your Last name <span style={{ color: 'red' }}>*</span>
           </>
           }
+          placeholder='Dela Cruz'
           variant="outlined"
+          value={lastName}
           onChange={(e) => setLastName(e.target.value)}
           fullWidth
-          
+          slotProps={{
+            htmlInput: {
+              maxLength: 50,
+            },
+          }}
         />
 
         <FormControl fullWidth variant="outlined">
@@ -193,6 +219,12 @@ export default function SignupPage() {
             type={showPassword ? "text" : "password"}
             onChange={(e) => setPassword(e.target.value)}
             label="Enter Your Password"
+            value={password}
+            slotProps={{
+              input: {
+                maxLength: 72,
+              }
+            }}
           />
         </FormControl> 
         <FormControl fullWidth variant="outlined">
@@ -205,19 +237,41 @@ export default function SignupPage() {
             type={showConfirmPassword ? "text" : "password"}
             onChange={(e) => setConfirmPassword(e.target.value)}
             label="Confirm Your Password"
+            value={confirmPassword}
             notched={true}
+            slotProps={{
+              input: {
+                maxLength: 72,
+              }
+            }}
           />
         </FormControl>  
         <TextField
           label={
-          <>
-          Enter Your Email Address <span style={{ color: 'red' }}>*</span>
-          </>
+            <>
+              Enter Your Email Address <span style={{ color: 'red' }}>*</span>
+            </>
           }
+          placeholder="juandelacruz@gmail.com"
           variant="outlined"
-          onChange={(e) => setEmail(e.target.value)}
           fullWidth
-          
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          error={
+            email.length > 0 &&
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+          }
+          helperText={
+            email.length > 0 &&
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+              ? "Please enter a valid email address"
+              : ""
+          }
+          slotProps={{
+            htmlInput: {
+              maxLength: 100,
+            }
+          }}
         />
         <TextField
           placeholder="09123456789"

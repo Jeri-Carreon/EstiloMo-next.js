@@ -19,6 +19,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
+import ErrorIcon from "@mui/icons-material/Error";
 import Button from "@mui/material/Button";
 
 import AddIcon from "@mui/icons-material/Add";
@@ -58,9 +59,9 @@ export default function AdminPage() {
   const itemsPerPage = 5;
 
   useEffect(() => {
-  console.log("users:", users);
-}, [users]);
-  // Add
+    console.log("users:", users);
+  }, [users]);
+    // Add
   const [openAdd, setOpenAdd] = useState(false);
 
   const [firstName, setFirstName] = useState('');
@@ -68,7 +69,11 @@ export default function AdminPage() {
   const [mobileNumber, setMobileNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [openWeakPass, setOpenWeakPass] = useState(false);
+  const [openDiffPass, setOpenDiffPass] = useState(false);
+  const [openServerError, setOpenServerError] = useState(false);
+  const [serverErrorMsg, setServerErrorMsg] = useState("");
   const [role, setRole] = useState("RECEPTIONIST");
 
   const validatePassword = (password: string) => {
@@ -95,6 +100,8 @@ export default function AdminPage() {
   const [editMobileNumber, setEditMobileNumber] = useState("");
   const [editRole, setEditRole] = useState("");
 
+  const EDITABLE_ROLES = ["RECEPTIONIST", "BARBER"];
+
   const [openDel, setOpenDel] = useState(false);
   const [selectedUser, setSelectedUser ] = useState<User | null>(null);
 
@@ -108,7 +115,17 @@ export default function AdminPage() {
     setStatusMessage(message);
     setOpenStatusModal(true);
   };
-  const handleCreateUser = async () => {
+  const handleCreateUser = async ({
+    firstName,
+    lastName,
+    email,
+    mobileNumber,
+  }: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    mobileNumber: string;
+  }) => {
   try {
     const res = await fetch('/api/admin/create-user', {
       method: 'POST',
@@ -116,10 +133,10 @@ export default function AdminPage() {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        mobileNumber: mobileNumber.trim(),
-        email: email.trim(),
+        firstName,
+        lastName,
+        mobileNumber,
+        email,
         password,
         role,
       }),
@@ -150,21 +167,45 @@ export default function AdminPage() {
   };
 
   const handleReviewUser = () => {
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !mobileNumber.trim() || !password.trim()) {
+    const trimmedFirstName = firstName.trim();
+    const trimmedLastName = lastName.trim();
+    const trimmedEmail = email.trim();
+    const trimmedMobileNumber = mobileNumber.trim();
+    
+    if (!trimmedFirstName.trim() || !trimmedLastName.trim() || !trimmedEmail.trim() || !trimmedMobileNumber.trim() || !password || !confirmPassword ){
       showStatusModal(
-        "Incomplete Fields",
+        "Incomplete Fields",  
         "Please fill in all fields before continuing."
     );
       return;
     }
 
+    // EMAIL VALIDATION
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(trimmedEmail)) {
+      setServerErrorMsg("Invalid email format");
+      setOpenServerError(true);
+      return;
+    }
+
+    if(password !== confirmPassword) {
+      setOpenDiffPass(true)
+      return;
+    }
+    
     if (!validatePassword(password)) {
-    setOpenWeakPass(true);
-    return;
+      setOpenWeakPass(true);
+      return;
     }
 
     setOpenAdd(false);
-    handleCreateUser();
+    handleCreateUser({
+      firstName: trimmedFirstName,
+      lastName: trimmedLastName,
+      email: trimmedEmail,
+      mobileNumber: trimmedMobileNumber,
+    });
     resetForm();
   };
 
@@ -199,6 +240,7 @@ export default function AdminPage() {
 
     if (!res.ok) {
       showStatusModal("Error", data.error || "Failed to update user");
+      setOpenServerError(true)
       return;
     }
 
@@ -435,7 +477,11 @@ export default function AdminPage() {
                         setEditLastName(names.slice(1).join(" ") || "");
                         setEditEmail(user.email);
                         setEditMobileNumber(user.mobileNumber);
-                        setEditRole(user.role);
+                        setEditRole(
+                          user.role === "RECEPTIONIST" || user.role === "BARBER"
+                            ? user.role
+                            : "RECEPTIONIST"
+                        );
 
                         setOpenEdit(true);
                         }}
@@ -515,29 +561,52 @@ export default function AdminPage() {
 
           <DialogContent sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <TextField
-            placeholder="Enter first name"
-            label="First name *"
+            placeholder="Juan"
+            label={
+              <>
+                First name <span style={{ color: 'red' }}>*</span>
+              </>
+            }
             fullWidth
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
+            slotProps={{
+              htmlInput: {
+                maxLength: 50,
+              },
+            }}
             sx={{
               bgcolor: '#f6f6f6',
               borderRadius: 2,
             }}
+            
           />
 
             <TextField
-              placeholder="Enter last name"
-              label="Last name *"
+              placeholder="Dela Cruz"
+              label={
+              <>
+                Last name <span style={{ color: 'red' }}>*</span>
+              </>
+            }
               fullWidth
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
+              slotProps={{
+                htmlInput: {
+                  maxLength: 50,
+                },
+              }}
               sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
 
             <TextField
               placeholder="09123456789"
-              label="Mobile Number *"
+              label={
+              <>
+                Mobile Number <span style={{ color: 'red' }}>*</span>
+              </>
+            }
               fullWidth
               value={mobileNumber}
               onChange={(e) => {
@@ -569,26 +638,73 @@ export default function AdminPage() {
             />
 
             <TextField
-              placeholder="Enter email address"
-              label="Email Address"
+              placeholder="juandelacruz@gmail.com"
+              label={
+              <>
+                Email Address <span style={{ color: 'red' }}>*</span>
+              </>
+            }
               fullWidth
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              error={
+                email.length > 0 &&
+                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+              }
+              helperText={
+                email.length > 0 &&
+                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+                  ? "Please enter a valid email address"
+                  : ""
+              }
+              slotProps={{
+                htmlInput: {
+                  maxLength: 100,
+                }
+              }}
               sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
 
             <TextField
               placeholder="Enter password"
-              label="password"
+              label={
+              <>
+                Password <span style={{ color: 'red' }}>*</span>
+              </>
+            }
               type="password"
               fullWidth
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              slotProps={{
+                htmlInput: {
+                  maxLength: 72,
+                },
+              }}
+              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+            />
+
+            <TextField
+              placeholder="Confirm password"
+              label={
+              <>
+                Confirm Password <span style={{ color: 'red' }}>*</span>
+              </>
+            }
+              type="password"
+              fullWidth
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              slotProps={{
+                htmlInput: {
+                  maxLength: 72,
+                },
+              }}
               sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
 
             <FormControl fullWidth sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}>
-              <InputLabel>Role *</InputLabel>
+              <InputLabel>Role <span style={{ color: 'red' }}>*</span></InputLabel>
               <Select
                 value={role}
                 label="Role *"
@@ -658,36 +774,102 @@ export default function AdminPage() {
 
           <DialogContent sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <TextField
-              label="First Name"
+              label={
+                <>
+                  First Name <span style={{ color: 'red' }}>*</span>
+                </>
+              }
               fullWidth
               value={editFirstName}
               onChange={(e) => setEditFirstName(e.target.value)}
+              slotProps={{
+                htmlInput: {
+                  maxLength: 50,
+                },
+              }}
               sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
             <TextField
-              label="Last Name"
+              label={
+                <>
+                  Last Name <span style={{ color: 'red' }}>*</span>
+                </>
+              }
               fullWidth
               value={editLastName}
               onChange={(e) => setEditLastName(e.target.value)}
+              slotProps={{
+                htmlInput: {
+                  maxLength: 50,
+                },
+              }}
               sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
             <TextField
-              label="Email"
+              label={
+                <>
+                  Email <span style={{ color: 'red' }}>*</span>
+                </>
+              }
               fullWidth
               value={editEmail}
               onChange={(e) => setEditEmail(e.target.value)}
+              error={
+                editEmail.length > 0 &&
+                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())
+              }
+              helperText={
+                editEmail.length > 0 &&
+                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())
+                  ? "Please enter a valid email address"
+                  : ""
+              }
+              slotProps={{
+                htmlInput: {
+                  maxLength: 100,
+                }
+              }}
               sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
             <TextField
-              label="Mobile Number"
+              label={
+                <>
+                  Mobile Number <span style={{ color: 'red' }}>*</span>
+                </>
+              }
               fullWidth
               value={editMobileNumber}
-              onChange={(e) => setEditMobileNumber(e.target.value)}
+              onChange={(e) => {
+                  // Remove non-numeric characters
+                const value = e.target.value.replace(/\D/g, '');
+
+                // Limit to 11 digits
+                if (value.length <= 11) {
+                  setEditMobileNumber(value);
+                }
+              }}
+              error={
+                editMobileNumber.length > 0 &&
+                !/^09\d{9}$/.test(editMobileNumber)
+              }
+              helperText={
+                editMobileNumber.length > 0 &&
+                !/^09\d{9}$/.test(editMobileNumber)
+                  ? 'Mobile number must be 11 digits and start with 09'
+                  : ''
+              }
+              slotProps={{
+                htmlInput: {
+                  inputMode: 'numeric',
+                  pattern: '[0-9]*',
+                  maxLength: 11,
+                },
+              }}
               sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
 
             <FormControl fullWidth sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}>
-              <InputLabel>Role *</InputLabel>
+              <InputLabel>Role <span style={{ color: 'red' }}>*</span></InputLabel>
               <Select
                 value={editRole}
                 label="Role *"
@@ -937,7 +1119,7 @@ export default function AdminPage() {
           </Box>
         </Box>
       </Dialog>
-
+        
       <Dialog
         open={openWeakPass}
         onClose={() => setOpenWeakPass(false)}
@@ -1019,6 +1201,57 @@ export default function AdminPage() {
             </Button>
           </Box>
         </Box>
+      </Dialog>
+
+      {/*Passwords Don't Match*/}
+      <Dialog open={openDiffPass} onClose={() => setOpenDiffPass(false)}>
+        <IconButton onClick={() => setOpenDiffPass(false)}
+        sx={{ position: "absolute", right: 8, top: 8}}
+        >
+          <CloseIcon />
+        </IconButton>
+
+        <DialogContent 
+          sx={{
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 1,
+            mt: 5
+          }}
+          >
+          <ErrorIcon sx={{ fontSize: 80, color: "red"}} />
+        </DialogContent>
+
+        <DialogContent>
+          Passwords Do Not Match!
+        </DialogContent>
+
+      </Dialog>
+
+      {/*Set Server Error Modal*/}
+      <Dialog open={openServerError} onClose={() => setOpenServerError(false)}>
+        <IconButton onClick={() => setOpenServerError(false)}
+        sx={{ position: "absolute", right: 8, top: 8}}
+        >
+          <CloseIcon />
+        </IconButton>
+
+        <DialogContent 
+          sx={{
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 1,
+            mt: 5
+          }}
+          >
+          <ErrorIcon sx={{ fontSize: 80, color: "red"}} />
+            {serverErrorMsg}
+        </DialogContent>
+
       </Dialog>
     </Box>
   );

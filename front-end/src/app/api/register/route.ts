@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     firstName = (firstName ?? "").trim();
     lastName = (lastName ?? "").trim();
     email = (email ?? "").toLowerCase().trim();
-    mobileNumber = (mobileNumber ?? "").trim();
+    mobileNumber = (mobileNumber ?? "").replace(/\D/g, "");
     password = password ?? "";
 
     // ========================
@@ -22,6 +22,29 @@ export async function POST(req: Request) {
     if (!firstName || !lastName || !email || !password || !mobileNumber) {
       return Response.json(
         { ok: false, error: "Missing fields" },
+        { status: 400 }
+      );
+    }
+
+    if (firstName.length > 50 || lastName.length > 50) {
+      return Response.json(
+        { ok: false, error: "Name too long" },
+        { status: 400 }
+      );
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
+      return Response.json(
+        { ok: false, error: "Invalid email format" },
+        { status: 400 }
+      );
+    } 
+
+    if (email.length > 100) {
+      return Response.json(
+        { ok: false, error: "Email is too long" },
         { status: 400 }
       );
     }
@@ -38,6 +61,12 @@ export async function POST(req: Request) {
       );
     }
 
+    if (password.length > 72) {
+      return Response.json(
+        { ok: false, error: "Password too long" }, 
+        { status: 400 });
+    }
+    
     // Password strength
     const strongPassword =
       password.length >= 8 &&
