@@ -37,6 +37,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import TuneIcon from '@mui/icons-material/Tune';
 import AddIcon from '@mui/icons-material/Add';
 import GetAppIcon from '@mui/icons-material/GetApp';
+import ErrorIcon from "@mui/icons-material/Error";
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PersonIcon from '@mui/icons-material/Person';
 import BuildIcon from '@mui/icons-material/Build';
@@ -94,9 +95,22 @@ export default function CustomersPage() {
   const [editEmail, setEditEmail] = useState("");
   const [editMobileNumber, setEditMobileNumber] = useState("");
 
+  // Confirmation Modal
+  const [openStatusModal, setOpenStatusModal] = useState(false);
+  const [statusTitle, setStatusTitle] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [openServerError, setOpenServerError] = useState(false);
+  const [serverErrorMsg, setServerErrorMsg] = useState("");
+
   const [selectedCustomer, setSelectedCustomer ] = useState<Customer | null>(null);
 
- const handleDeleteCustomer = async () => {
+ const showStatusModal = (title: string, message: string) => {
+  setStatusTitle(title);
+  setStatusMessage(message);
+  setOpenStatusModal(true);
+};
+ 
+  const handleDeleteCustomer = async () => {
   if (!selectedCustomer?.id) return;
 
   try {
@@ -114,7 +128,7 @@ export default function CustomersPage() {
     }
 
     if (!res.ok) {
-      alert(data.error || "Delete failed");
+      showStatusModal("Error", data.error || "Delete failed");
       return;
     }
 
@@ -124,15 +138,41 @@ export default function CustomersPage() {
 
     setOpenDel(false);
     setSelectedCustomer(null);
+    showStatusModal("Success", "Customer deleted successfully!");
   } catch (err) {
     console.error(err);
-    alert("Something went wrong deleting customer");
+    showStatusModal("Error", "Something went wrong deleting customer");
   }
 };
 
   const handleReviewCustomer = () => {
-    if (!firstName.trim() || !lastName.trim() || !mobileNumber.trim()) {
-      alert("Please fill in all fields before continuing.");
+    const trimmedFirstName = firstName.trim();
+    const trimmedLastName = lastName.trim();
+    const trimmedEmail = email.trim();
+    const trimmedMobileNumber = mobileNumber.trim();
+
+    if (!trimmedFirstName || !trimmedLastName || !trimmedMobileNumber) {
+      showStatusModal(
+        "Incomplete Fields",
+        "Please fill in all fields before continuing."
+    );
+      return;
+    }
+
+    // EMAIL VALIDATION
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (trimmedEmail && !emailRegex.test(trimmedEmail)) {
+      setServerErrorMsg("Invalid email format");
+      setOpenServerError(true);
+      return;
+    }
+
+    if (!/^09\d{9}$/.test(trimmedMobileNumber)) {
+      showStatusModal(
+        "Invalid Mobile Number",
+        "Mobile number must be 11 digits and start with 09."
+      );
       return;
     }
 
@@ -140,7 +180,17 @@ export default function CustomersPage() {
     setOpenAddConfirm(true);
   };
 
-  const handleCreateCustomer = async () => {
+  const handleCreateCustomer = async ({
+    firstName,
+    lastName,
+    email,
+    mobileNumber,
+  }: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    mobileNumber: string; 
+  }) => {
     const res = await fetch("/api/admin/create-customer", {
       method: "POST",
       headers: {
@@ -157,20 +207,26 @@ export default function CustomersPage() {
     const data = await res.json();
 
     if (!res.ok) {
-      alert(data.error || "Failed to create customer");
+      showStatusModal("Error", data.error || "Failed to create customer");
       return;
     }
 
-    alert("Customer created!");
+    showStatusModal("Success", "Customer created successfully!");
 
+    loadCustomers();
+    
     setOpenAddConfirm(false);
     setOpenAdd(false);
+
+    setCustomers((prev) => [
+      ...prev,
+      data.customer,
+    ]);
+
     setFirstName("");
     setLastName("");
     setEmail("");
     setMobileNumber("");
-
-    location.reload();
   };
 
   const handleUpdateCustomer = async () => {
@@ -196,7 +252,7 @@ export default function CustomersPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.error || "Failed to update customer");
+        showStatusModal("Error", data.error || "Failed to update customer");
         return;
       }
 
@@ -213,7 +269,7 @@ export default function CustomersPage() {
         )
       );
 
-      alert("Customer updated successfully");
+      showStatusModal("Success", "Customer updated successfully!");
 
       setOpenEdit(false);
       setOpenEditConfirm(false);
@@ -221,29 +277,13 @@ export default function CustomersPage() {
 
     } catch (error) {
       console.error(error);
-      alert("Something went wrong");
+      showStatusModal("Error", "Something went wrong");
     }
   };
 
   const router = useRouter();
 
-  
-
-  useEffect(() => {
-    if (status === "loading") return; // waits for status to go from loading to finished before deciding the role check logic below
-    
-    const role = (session?.user as { role?: string })?.role;
-    
-    // checks if user role is OWNER or RECEPTIONIST
-    if (
-      !session?.user?.email || 
-      !["OWNER","RECEPTIONIST"].includes(role || "")
-      ){
-        router.push("/unauthorized");
-        return;
-      }
-
-    const loadCustomers = async () => {
+  const loadCustomers = async () => {
       try {
         const res = await fetch('/api/customers');
 
@@ -266,12 +306,30 @@ export default function CustomersPage() {
       setLoading(false);
     };
 
+  useEffect(() => {
+    if (status === "loading") return; // waits for status to go from loading to finished before deciding the role check logic below
+    
+    const role = (session?.user as { role?: string })?.role;
+    
+    // checks if user role is OWNER or RECEPTIONIST
+    if (
+      !session?.user?.email || 
+      !["OWNER","RECEPTIONIST"].includes(role || "")
+      ){
+        router.push("/unauthorized");
+        return;
+      }
+
     loadCustomers();
   }, [session, status, router]); // session array = re-run useEffect whenever one of these changes
 
   const filteredCustomers = customers.filter((customer) =>
-    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.email.toLowerCase().includes(searchTerm.toLowerCase())
+    (customer.name || "")
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase()) ||
+    (customer.email || "")
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase())
   );
 
   const paginatedCustomers = filteredCustomers.slice(
@@ -301,7 +359,7 @@ export default function CustomersPage() {
     link.download = 'customers.csv';
     link.click();
   };
-
+  
   return (
       <Box sx={{ flex: 1, p: 4, backgroundColor: '#fff' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4 }}>
@@ -400,15 +458,6 @@ export default function CustomersPage() {
                       <TableCell>{customer.totalAppointments}</TableCell>
                       <TableCell>₱ {customer.totalSpent}</TableCell>
                       <TableCell>
-                        <IconButton 
-                          size="small" 
-                          color="error" 
-                          onClick={() => {
-                            setSelectedCustomer(customer);
-                            setOpenDel(true); 
-                            }}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
                         <IconButton
                           size="small"
                           color="primary"
@@ -427,6 +476,15 @@ export default function CustomersPage() {
                           }}
                         >
                           <EditIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton 
+                          size="small" 
+                          color="error" 
+                          onClick={() => {
+                            setSelectedCustomer(customer);
+                            setOpenDel(true); 
+                            }}>
+                          <DeleteIcon fontSize="small" />
                         </IconButton>
                       </TableCell>
                     </TableRow>
@@ -489,40 +547,105 @@ export default function CustomersPage() {
               </IconButton>
             </Box>
 
-            <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <DialogContent sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
               <TextField
-                placeholder="Enter your first name"
-                label="First name *"
-                fullWidth
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
-              />
+              placeholder="Juan"
+              label={
+                <>
+                  First name <span style={{ color: 'red' }}>*</span>
+                </>
+              }
+              fullWidth
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              slotProps={{
+                htmlInput: {
+                  maxLength: 50,
+                },
+              }}
+              sx={{
+                bgcolor: '#f6f6f6',
+                borderRadius: 2,
+              }}
+            />
 
               <TextField
-                placeholder="Enter your last name"
-                label="Last name *"
+                placeholder="Dela Cruz"
+                label={
+                  <>
+                    Last name <span style={{ color: 'red' }}>*</span>
+                  </>
+                }
                 fullWidth
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
+                slotProps={{
+                  htmlInput: {
+                    maxLength: 50,
+                  },
+                }}
                 sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
               />
 
               <TextField
-                placeholder="Enter mobile number"
-                label="Mobile Number *"
+                placeholder="09123456789"
+                label={
+                  <>
+                    Mobile Number <span style={{ color: 'red' }}>*</span>
+                  </>
+                }
                 fullWidth
                 value={mobileNumber}
-                onChange={(e) => setMobileNumber(e.target.value)}
+                onChange={(e) => {
+                // Remove non-numeric characters
+                const value = e.target.value.replace(/\D/g, '');
+
+                  // Limit to 11 digits
+                  if (value.length <= 11) {
+                    setMobileNumber(value);
+                  }
+                }}
+                error={
+                  mobileNumber.length > 0 &&
+                  !/^09\d{9}$/.test(mobileNumber)
+                }
+                helperText={
+                  mobileNumber.length > 0 &&
+                  !/^09\d{9}$/.test(mobileNumber)
+                    ? 'Mobile number must be 11 digits and start with 09'
+                    : ''
+                }
+                slotProps={{
+                  htmlInput: {
+                    inputMode: 'numeric',
+                    pattern: '[0-9]*',
+                    maxLength: 11,
+                  },
+                }}
                 sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
               />
 
               <TextField
-                placeholder="Enter your email"
+                placeholder="juandelacruz@gmail.com"
                 label="Email Address"
                 fullWidth
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                error={
+                  email.length !== 0 &&
+                  !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+                }
+                helperText={
+                  email.length !== 0 &&
+                  !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+                    ? "Please enter a valid email address"
+                    : ""
+                }
+                slotProps={{
+                  htmlInput: {
+                    maxLength: 100,
+                  }
+                }}
                 sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
               />
             </DialogContent>
@@ -616,7 +739,14 @@ export default function CustomersPage() {
               </Button>
               <Button
                 variant="contained"
-                onClick={handleCreateCustomer}
+                onClick={() =>
+                  handleCreateCustomer({
+                    firstName,
+                    lastName,
+                    email,
+                    mobileNumber,
+                  })
+                }
                 sx={{
                   backgroundColor: '#000',
                   color: '#fff',
@@ -660,20 +790,76 @@ export default function CustomersPage() {
               </IconButton>
             </Box>
 
-          <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <DialogContent sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <TextField
-              label="First Name"
+              label={
+                <>
+                  First Name <span style={{ color: 'red' }}>*</span>
+                </>
+              }
               fullWidth
               value={editFirstName}
               onChange={(e) => setEditFirstName(e.target.value)}
+              slotProps={{
+                htmlInput: {
+                  maxLength: 50,
+                },
+              }}
               sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
 
             <TextField
-              label="Last Name"
+              label={
+                <>
+                  Last Name <span style={{ color: 'red' }}>*</span>
+                </>
+              }
               fullWidth
               value={editLastName}
               onChange={(e) => setEditLastName(e.target.value)}
+              slotProps={{
+                htmlInput: {
+                  maxLength: 50,
+                },
+              }}
+              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+            />
+
+            <TextField
+              label={
+                <>
+                  Mobile Number <span style={{ color: 'red' }}>*</span>
+                </>
+              }
+              fullWidth
+              value={editMobileNumber}
+              onChange={(e) => {
+                  // Remove non-numeric characters
+                const value = e.target.value.replace(/\D/g, '');
+
+                // Limit to 11 digits
+                if (value.length <= 11) {
+                  setEditMobileNumber(value);
+                }
+              }}
+              error={
+                editMobileNumber.length > 0 &&
+                !/^09\d{9}$/.test(editMobileNumber)
+              }
+              helperText={
+                editMobileNumber.length > 0 &&
+                !/^09\d{9}$/.test(editMobileNumber)
+                  ? 'Mobile number must be 11 digits and start with 09'
+                  : ''
+              }
+              slotProps={{
+                htmlInput: {
+                  inputMode: 'numeric',
+                  pattern: '[0-9]*',
+                  maxLength: 11,
+                },
+              }}
+              
               sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
 
@@ -682,14 +868,21 @@ export default function CustomersPage() {
               fullWidth
               value={editEmail}
               onChange={(e) => setEditEmail(e.target.value)}
-              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
-            />
-
-            <TextField
-              label="Mobile Number"
-              fullWidth
-              value={editMobileNumber}
-              onChange={(e) => setEditMobileNumber(e.target.value)}
+              error={
+                editEmail.length !== 0 &&
+                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())
+              }
+              helperText={
+                editEmail.length !== 0 &&
+                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())
+                  ? "Please enter a valid email address"
+                  : ""
+              }
+              slotProps={{
+                htmlInput: {
+                  maxLength: 100,
+                }
+              }}
               sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
           </DialogContent>
@@ -804,8 +997,8 @@ export default function CustomersPage() {
         </Dialog>
 
       {/*Delete*/}
-      <Dialog 
-        open={openDel} 
+      <Dialog
+        open={openDel}
         onClose={() => setOpenDel(false)}
         sx={{
           '& .MuiPaper-root': {
@@ -815,51 +1008,198 @@ export default function CustomersPage() {
           },
         }}
       >
+        <Box
+          sx={{
+            m: 2,
+            bgcolor: '#fff',
+            borderRadius: 4,
+            p: 3,
+            pb: 2,
+            width: 500,
+            boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
+          }}
+        >
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Delete Customer
+          </Typography>
 
-      <Box sx={{ m: 2, bgcolor: '#fff', borderRadius: 4, p: 3, pb: 2, width: 500, boxShadow: '0 10px 40px rgba(0,0,0,0.08)' }}>
-        <Typography variant="h6" sx={{ fontWeight: 700 }}>
-          Delete Customer
-        </Typography>
+          <DialogContent
+            sx={{
+              p: 0,
+              display: 'flex',
+            flexDirection: 'column',
+              gap: 2,
+            }}
+          >
+            <Typography>
+              Are you sure you want to delete
+            </Typography>
 
-        <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          Are you sure you want to delete{" "}
-          <b>ID: {selectedCustomer?.id}</b>
-          <b>{selectedCustomer?.name}</b>
+            <Typography>
+              <b>ID:</b> {selectedCustomer?.id}
+            </Typography>
+
+            <Typography>
+              <b>Name:</b> {selectedCustomer?.name}
+            </Typography>
+          </DialogContent>
+
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: 1,
+              mt: 4,
+              mb: 2,
+            }}
+          >
+            <Button
+              variant="contained"
+              onClick={handleDeleteCustomer}
+              sx={{
+                backgroundColor: '#000',
+                color: '#fff',
+                textTransform: 'none',
+                minWidth: 120,
+                py: 1.25,
+                ':hover': { backgroundColor: '#111' },
+              }}
+            >
+              Delete
+            </Button>
+
+            <Button
+              onClick={() => {
+                setOpenDel(false);
+              }}
+              sx={{
+                backgroundColor: '#6d6d6d',
+                color: '#f7c948',
+                textTransform: 'none',
+                minWidth: 120,
+                py: 1.25,
+                ':hover': { backgroundColor: '#5a5a5a' },
+              }}
+            >
+              Cancel
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
+
+      {/* Status Modal */}
+      <Dialog
+        open={openStatusModal}
+        onClose={() => setOpenStatusModal(false)}
+        maxWidth="sm"
+        fullWidth
+        sx={{
+          '& .MuiPaper-root': {
+            borderRadius: 4,
+            bgcolor: '#f2f2f2',
+            overflow: 'visible',
+          },
+        }}
+      >
+        <Box
+          sx={{
+            m: 2,
+            bgcolor: '#fff',
+            borderRadius: 4,
+            p: 3,
+            pb: 2,
+            boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
+          }}
+        >
+          {/* HEADER */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              mb: 2,
+            }}
+          >
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                {statusTitle}
+              </Typography>
+
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 0.5 }}
+              >
+                Customer Management
+              </Typography>
+            </Box>
+
+            <IconButton
+              onClick={() => setOpenStatusModal(false)}
+              size="small"
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          {/* CONTENT */}
+          <DialogContent sx={{ p: 0 }}>
+            <Typography sx={{ mb: 1, color: '#333' }}>
+              {statusMessage}
+            </Typography>
+          </DialogContent>
+
+          {/* BUTTON */}
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              mt: 4,
+              mb: 2,
+            }}
+          >
+            <Button
+              variant="contained"
+            onClick={() => setOpenStatusModal(false)}
+              sx={{
+                backgroundColor: '#000',
+                color: '#fff',
+                textTransform: 'none',
+                minWidth: 120,
+                py: 1.25,
+                ':hover': {
+                  backgroundColor: '#111',
+                },
+              }}
+            >
+              OK
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
+
+      {/*Set Server Error Modal*/}
+      <Dialog open={openServerError} onClose={() => setOpenServerError(false)}>
+        <IconButton onClick={() => setOpenServerError(false)}
+        sx={{ position: "absolute", right: 8, top: 8}}
+        >
+          <CloseIcon />
+        </IconButton>
+
+        <DialogContent 
+          sx={{
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 1,
+            mt: 5
+          }}
+          >
+          <ErrorIcon sx={{ fontSize: 80, color: "red"}} />
+            {serverErrorMsg}
         </DialogContent>
 
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: 4, mb: 2 }}>
-          <Button
-            variant="contained"
-            onClick={handleDeleteCustomer}
-            sx={{
-              backgroundColor: '#000',
-              color: '#fff',
-              textTransform: 'none',
-              minWidth: 120,
-              py: 1.25,
-              ':hover': { backgroundColor: '#111' },
-            }}
-          >
-            Delete
-          </Button>
-              
-          <Button
-            onClick={() => {
-              setOpenDel(false);
-             }}
-            sx={{
-              backgroundColor: '#6d6d6d',
-              color: '#f7c948',
-              textTransform: 'none',
-              minWidth: 120,
-              py: 1.25,
-              ':hover': { backgroundColor: '#5a5a5a' },
-            }}
-          >
-            Cancel
-          </Button>
-        </Box>
-      </Box>
       </Dialog>
     </Box>
   );
