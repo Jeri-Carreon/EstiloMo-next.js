@@ -2,6 +2,7 @@
 
 import { styled } from '@mui/material/styles';
 import { Box, Grid, Paper, Typography, Container, Stack, Button } from "@mui/material";
+import { useEffect, useState } from 'react';
 
 const Item = styled(Paper)(({ theme }) => ({
   backgroundColor: '#fff',
@@ -15,6 +16,7 @@ const Item = styled(Paper)(({ theme }) => ({
   boxShadow: 'none',
 }));
 
+{/*}
 const services = [
   {
     title: "Signature Haircut",
@@ -82,8 +84,44 @@ const services = [
     description: "A thorough cleanse to remove dirt, oil, and product buildup. Leaves your hair fresh, light, and ready for styling."
   },
 ];
+*/}
+
+interface Service {
+  id: string;
+  name: string;
+  price: string;
+  description: string;
+}
 
 export default function ServicesSection() {
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const loadServices = async () => {
+    try {
+      const res = await fetch('/api/services');
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Unable to load services.');
+        setServices([]);
+      } else {
+        setError('');
+        setServices(data.services || []);
+      }
+    } catch (e) {
+      setError('Unable to load services.')
+    }
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    loadServices();
+  }, []);
+
   return (
     <Box sx={{ px: 8, py: 6, backgroundColor: "#fdfcfa" }}>
       
@@ -102,7 +140,7 @@ export default function ServicesSection() {
               }}
             >
               <Typography variant="h6" sx={{ fontWeight: "bold", fontFamily: 'var(--font-nunito-sans)', }}>
-                {service.title} - {service.price}
+                {service.name} - ₱{service.price}
               </Typography>
 
               <Typography variant="body2" sx={{ mt: 1, fontFamily: 'var(--font-nunito-sans)', }}>
