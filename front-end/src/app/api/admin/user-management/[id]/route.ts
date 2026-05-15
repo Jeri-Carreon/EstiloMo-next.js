@@ -30,7 +30,9 @@ export async function PUT(
     const body = await req.json();
 
     const updatedUser = await db.user.update({
-      where: { id },
+      where: { 
+        id 
+      },
       data: {
         firstName: body.firstName,
         lastName: body.lastName,

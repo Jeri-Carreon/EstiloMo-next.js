@@ -47,33 +47,3 @@ export async function GET(req: Request) {
     );
   }
 }
-
-{/*
-export async function DELETE(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
-  try {
-    if (!params.id) {
-      return NextResponse.json(
-        { error: "Missing customer id" },
-        { status: 400 }
-      );
-    }
-
-    await db.customer.delete({
-      where: {
-        id: params.id,
-      },
-    });
-
-    return NextResponse.json({ ok: true });
-  } catch (error) {
-    console.error(error);
-
-    return NextResponse.json(
-      { error: "Failed to delete customer" },
-      { status: 500 }
-    );
-  }
-}*/}

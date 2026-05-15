@@ -37,6 +37,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import TuneIcon from '@mui/icons-material/Tune';
 import AddIcon from '@mui/icons-material/Add';
 import GetAppIcon from '@mui/icons-material/GetApp';
+import ErrorIcon from "@mui/icons-material/Error";
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PersonIcon from '@mui/icons-material/Person';
 import BuildIcon from '@mui/icons-material/Build';
@@ -98,6 +99,8 @@ export default function CustomersPage() {
   const [openStatusModal, setOpenStatusModal] = useState(false);
   const [statusTitle, setStatusTitle] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
+  const [openServerError, setOpenServerError] = useState(false);
+  const [serverErrorMsg, setServerErrorMsg] = useState("");
 
   const [selectedCustomer, setSelectedCustomer ] = useState<Customer | null>(null);
 
@@ -143,7 +146,12 @@ export default function CustomersPage() {
 };
 
   const handleReviewCustomer = () => {
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !mobileNumber.trim()) {
+    const trimmedFirstName = firstName.trim();
+    const trimmedLastName = lastName.trim();
+    const trimmedEmail = email.trim();
+    const trimmedMobileNumber = mobileNumber.trim();
+
+    if (!trimmedFirstName || !trimmedLastName || !trimmedMobileNumber) {
       showStatusModal(
         "Incomplete Fields",
         "Please fill in all fields before continuing."
@@ -151,11 +159,38 @@ export default function CustomersPage() {
       return;
     }
 
+    // EMAIL VALIDATION
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (trimmedEmail && !emailRegex.test(trimmedEmail)) {
+      setServerErrorMsg("Invalid email format");
+      setOpenServerError(true);
+      return;
+    }
+
+    if (!/^09\d{9}$/.test(trimmedMobileNumber)) {
+      showStatusModal(
+        "Invalid Mobile Number",
+        "Mobile number must be 11 digits and start with 09."
+      );
+      return;
+    }
+
     setOpenAdd(false);
     setOpenAddConfirm(true);
   };
 
-  const handleCreateCustomer = async () => {
+  const handleCreateCustomer = async ({
+    firstName,
+    lastName,
+    email,
+    mobileNumber,
+  }: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    mobileNumber: string; 
+  }) => {
     const res = await fetch("/api/admin/create-customer", {
       method: "POST",
       headers: {
@@ -423,15 +458,6 @@ export default function CustomersPage() {
                       <TableCell>{customer.totalAppointments}</TableCell>
                       <TableCell>₱ {customer.totalSpent}</TableCell>
                       <TableCell>
-                        <IconButton 
-                          size="small" 
-                          color="error" 
-                          onClick={() => {
-                            setSelectedCustomer(customer);
-                            setOpenDel(true); 
-                            }}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
                         <IconButton
                           size="small"
                           color="primary"
@@ -450,6 +476,15 @@ export default function CustomersPage() {
                           }}
                         >
                           <EditIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton 
+                          size="small" 
+                          color="error" 
+                          onClick={() => {
+                            setSelectedCustomer(customer);
+                            setOpenDel(true); 
+                            }}>
+                          <DeleteIcon fontSize="small" />
                         </IconButton>
                       </TableCell>
                     </TableRow>
@@ -514,11 +549,20 @@ export default function CustomersPage() {
 
             <DialogContent sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
               <TextField
-              placeholder="Enter your first"
-              label="First name *"
+              placeholder="Juan"
+              label={
+                <>
+                  First name <span style={{ color: 'red' }}>*</span>
+                </>
+              }
               fullWidth
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
+              slotProps={{
+                htmlInput: {
+                  maxLength: 50,
+                },
+              }}
               sx={{
                 bgcolor: '#f6f6f6',
                 borderRadius: 2,
@@ -526,29 +570,82 @@ export default function CustomersPage() {
             />
 
               <TextField
-                placeholder="Enter your last name"
-                label="Last name *"
+                placeholder="Dela Cruz"
+                label={
+                  <>
+                    Last name <span style={{ color: 'red' }}>*</span>
+                  </>
+                }
                 fullWidth
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
+                slotProps={{
+                  htmlInput: {
+                    maxLength: 50,
+                  },
+                }}
                 sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
               />
 
               <TextField
-                placeholder="Enter mobile number"
-                label="Mobile Number *"
+                placeholder="09123456789"
+                label={
+                  <>
+                    Mobile Number <span style={{ color: 'red' }}>*</span>
+                  </>
+                }
                 fullWidth
                 value={mobileNumber}
-                onChange={(e) => setMobileNumber(e.target.value)}
+                onChange={(e) => {
+                // Remove non-numeric characters
+                const value = e.target.value.replace(/\D/g, '');
+
+                  // Limit to 11 digits
+                  if (value.length <= 11) {
+                    setMobileNumber(value);
+                  }
+                }}
+                error={
+                  mobileNumber.length > 0 &&
+                  !/^09\d{9}$/.test(mobileNumber)
+                }
+                helperText={
+                  mobileNumber.length > 0 &&
+                  !/^09\d{9}$/.test(mobileNumber)
+                    ? 'Mobile number must be 11 digits and start with 09'
+                    : ''
+                }
+                slotProps={{
+                  htmlInput: {
+                    inputMode: 'numeric',
+                    pattern: '[0-9]*',
+                    maxLength: 11,
+                  },
+                }}
                 sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
               />
 
               <TextField
-                placeholder="Enter your email"
+                placeholder="juandelacruz@gmail.com"
                 label="Email Address"
                 fullWidth
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                error={
+                  email.length !== 0 &&
+                  !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+                }
+                helperText={
+                  email.length !== 0 &&
+                  !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+                    ? "Please enter a valid email address"
+                    : ""
+                }
+                slotProps={{
+                  htmlInput: {
+                    maxLength: 100,
+                  }
+                }}
                 sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
               />
             </DialogContent>
@@ -642,7 +739,14 @@ export default function CustomersPage() {
               </Button>
               <Button
                 variant="contained"
-                onClick={handleCreateCustomer}
+                onClick={() =>
+                  handleCreateCustomer({
+                    firstName,
+                    lastName,
+                    email,
+                    mobileNumber,
+                  })
+                }
                 sx={{
                   backgroundColor: '#000',
                   color: '#fff',
@@ -688,18 +792,74 @@ export default function CustomersPage() {
 
           <DialogContent sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <TextField
-              label="First Name"
+              label={
+                <>
+                  First Name <span style={{ color: 'red' }}>*</span>
+                </>
+              }
               fullWidth
               value={editFirstName}
               onChange={(e) => setEditFirstName(e.target.value)}
+              slotProps={{
+                htmlInput: {
+                  maxLength: 50,
+                },
+              }}
               sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
 
             <TextField
-              label="Last Name"
+              label={
+                <>
+                  Last Name <span style={{ color: 'red' }}>*</span>
+                </>
+              }
               fullWidth
               value={editLastName}
               onChange={(e) => setEditLastName(e.target.value)}
+              slotProps={{
+                htmlInput: {
+                  maxLength: 50,
+                },
+              }}
+              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+            />
+
+            <TextField
+              label={
+                <>
+                  Mobile Number <span style={{ color: 'red' }}>*</span>
+                </>
+              }
+              fullWidth
+              value={editMobileNumber}
+              onChange={(e) => {
+                  // Remove non-numeric characters
+                const value = e.target.value.replace(/\D/g, '');
+
+                // Limit to 11 digits
+                if (value.length <= 11) {
+                  setEditMobileNumber(value);
+                }
+              }}
+              error={
+                editMobileNumber.length > 0 &&
+                !/^09\d{9}$/.test(editMobileNumber)
+              }
+              helperText={
+                editMobileNumber.length > 0 &&
+                !/^09\d{9}$/.test(editMobileNumber)
+                  ? 'Mobile number must be 11 digits and start with 09'
+                  : ''
+              }
+              slotProps={{
+                htmlInput: {
+                  inputMode: 'numeric',
+                  pattern: '[0-9]*',
+                  maxLength: 11,
+                },
+              }}
+              
               sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
 
@@ -708,14 +868,21 @@ export default function CustomersPage() {
               fullWidth
               value={editEmail}
               onChange={(e) => setEditEmail(e.target.value)}
-              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
-            />
-
-            <TextField
-              label="Mobile Number"
-              fullWidth
-              value={editMobileNumber}
-              onChange={(e) => setEditMobileNumber(e.target.value)}
+              error={
+                editEmail.length !== 0 &&
+                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())
+              }
+              helperText={
+                editEmail.length !== 0 &&
+                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())
+                  ? "Please enter a valid email address"
+                  : ""
+              }
+              slotProps={{
+                htmlInput: {
+                  maxLength: 100,
+                }
+              }}
               sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
           </DialogContent>
@@ -1009,6 +1176,30 @@ export default function CustomersPage() {
             </Button>
           </Box>
         </Box>
+      </Dialog>
+
+      {/*Set Server Error Modal*/}
+      <Dialog open={openServerError} onClose={() => setOpenServerError(false)}>
+        <IconButton onClick={() => setOpenServerError(false)}
+        sx={{ position: "absolute", right: 8, top: 8}}
+        >
+          <CloseIcon />
+        </IconButton>
+
+        <DialogContent 
+          sx={{
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 1,
+            mt: 5
+          }}
+          >
+          <ErrorIcon sx={{ fontSize: 80, color: "red"}} />
+            {serverErrorMsg}
+        </DialogContent>
+
       </Dialog>
     </Box>
   );

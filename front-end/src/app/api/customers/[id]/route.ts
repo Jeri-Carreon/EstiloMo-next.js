@@ -10,11 +10,7 @@ export async function DELETE(
   try {
     const session = await getServerSession(authOptions);
 
-    if (
-      !session?.user?.email ||
-      !["OWNER", "RECEPTIONIST"].includes(
-        (session.user as any).role
-      )
+    if (!session?.user?.email || !["OWNER", "RECEPTIONIST"].includes((session.user as any).role)
     ) {
       return NextResponse.json(
         { error: "Forbidden" },
@@ -56,11 +52,7 @@ export async function PUT(
   try {
     const session = await getServerSession(authOptions);
 
-    if (
-      !session?.user?.email ||
-      !["OWNER", "RECEPTIONIST"].includes(
-        (session.user as any).role
-      )
+    if (!session?.user?.email || !["OWNER", "RECEPTIONIST"].includes((session.user as any).role)
     ) {
       return NextResponse.json(
         { error: "Forbidden" },
@@ -79,16 +71,15 @@ export async function PUT(
       mobileNumber,
     } = body;
 
-    const updatedCustomer =
-      await db.customer.update({
+    const updatedCustomer = await db.customer.update({
         where: {
           id,
         },
         data: {
-          firstName,
-          lastName,
-          email,
-          mobileNumber,
+          firstName: body.firstName,
+          lastName: body.lastName,
+          email: body.email,
+          mobileNumber: body.mobileNumber,
         },
       });
 

@@ -20,17 +20,13 @@ export async function POST(req: Request) {
     }
 
     // REQUEST BODY
-    let {
-      firstName,
-      lastName,
-      email,
-      mobileNumber,
-    } = await req.json();
+    let {firstName, lastName, email, mobileNumber,} = 
+      await req.json();
 
-    firstName = firstName?.trim();
-    lastName = lastName?.trim();
-    email = email?.trim().toLowerCase() || null;
-    mobileNumber = mobileNumber?.trim();
+    firstName = (firstName ?? "").trim();
+    lastName = (lastName ?? "").trim();
+    email = (email ?? "").toLowerCase().trim() || null;
+    mobileNumber = (mobileNumber ?? "").replace(/\D/g, "");
 
     // VALIDATION
     if (!firstName || !lastName || !mobileNumber) {
@@ -40,7 +36,55 @@ export async function POST(req: Request) {
       );
     }
 
-    // TRANSACTION
+    if (firstName.length > 50 || lastName.length > 50) {
+      return NextResponse.json(
+        { ok: false, error: "Name too long" },
+        { status: 400 }
+      );
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (email && !emailRegex.test(email)) {
+      return NextResponse.json(
+        { ok: false, error: "Invalid email format" },
+        { status: 400 }
+      );
+    } 
+
+    if (email && email.length > 100) {
+      return NextResponse.json(
+        { ok: false, error: "Email is too long" },
+        { status: 400 }
+      );
+    }
+
+    // PH mobile format validation
+    const mobileRegex = /^09\d{9}$/;
+    if (!mobileRegex.test(mobileNumber)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Mobile number must be valid and formatted like 09123456789',
+        },
+        { status: 400 }
+      );
+    }
+
+    if (email) {
+      const existingUser = await db.user.findUnique({
+        where: { email },
+      });
+
+      if (existingUser) {
+        return NextResponse.json(
+          { ok: false, error: "Email already exists" },
+          { status: 400 }
+        );
+      }
+    }
+
     const customer = await db.$transaction(async (tx) => {
 
       // Create customer
