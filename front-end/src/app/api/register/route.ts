@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import crypto from "crypto";
+import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { Resend } from "resend";
 
@@ -20,14 +21,14 @@ export async function POST(req: Request) {
     // VALIDATION
     // ========================
     if (!firstName || !lastName || !email || !password || !mobileNumber) {
-      return Response.json(
+      return NextResponse.json(
         { ok: false, error: "Missing fields" },
         { status: 400 }
       );
     }
 
     if (firstName.length > 50 || lastName.length > 50) {
-      return Response.json(
+      return NextResponse.json(
         { ok: false, error: "Name too long" },
         { status: 400 }
       );
@@ -36,14 +37,14 @@ export async function POST(req: Request) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!emailRegex.test(email)) {
-      return Response.json(
+      return NextResponse.json(
         { ok: false, error: "Invalid email format" },
         { status: 400 }
       );
     } 
 
     if (email.length > 100) {
-      return Response.json(
+      return NextResponse.json(
         { ok: false, error: "Email is too long" },
         { status: 400 }
       );
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
     // PH mobile format validation
     const mobileRegex = /^09\d{9}$/;
     if (!mobileRegex.test(mobileNumber)) {
-      return Response.json(
+      return NextResponse.json(
         {
           ok: false,
           error: "Mobile number must be valid (09123456789 format)",
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
     }
 
     if (password.length > 72) {
-      return Response.json(
+      return NextResponse.json(
         { ok: false, error: "Password too long" }, 
         { status: 400 });
     }
@@ -75,7 +76,7 @@ export async function POST(req: Request) {
       /[!@#$%^&*(),.?":{}|<>]/.test(password);
 
     if (!strongPassword) {
-      return Response.json(
+      return NextResponse.json(
         { ok: false, error: "Weak password" },
         { status: 400 }
       );
@@ -89,7 +90,7 @@ export async function POST(req: Request) {
     });
 
     if (existingUser) {
-      return Response.json(
+      return NextResponse.json(
         { ok: false, error: "Email already registered" },
         { status: 400 }
       );
@@ -166,7 +167,7 @@ export async function POST(req: Request) {
     // ========================
     const { password: _, ...safeUser } = user;
 
-    return Response.json({
+    return NextResponse.json({
       ok: true,
       message: "Verification email sent",
       user: safeUser,
@@ -174,7 +175,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Registration error:", error);
 
-    return Response.json(
+    return NextResponse.json(
       { ok: false, error: "Registration failed" },
       { status: 500 }
     );
