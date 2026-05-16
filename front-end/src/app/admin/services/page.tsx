@@ -174,7 +174,19 @@ export default function ServicesPage() {
     filteredServices.length / itemsPerPage
   );
 
-  const handleCreateService = async () => {
+  const handleCreateService = async ({
+    name,
+    description,
+    durationMinutes,
+    price,
+    isAvailable,
+  }: {
+    name: string;
+    description: string;
+    durationMinutes: number;
+    price: number;
+    isAvailable: boolean;
+  }) => {
   try {
     const res = await fetch(
       '/api/admin/services',
@@ -184,12 +196,12 @@ export default function ServicesPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: serviceName,
-          description: serviceDescription,
-          durationMinutes: serviceDuration,
-          price: servicePrice,
+          name,
+          description,
+          durationMinutes,
+          price,
           assignedStaffIds: selectedStaffIds,
-          isAvailable: serviceAvailability,
+          isAvailable,
         }),
       }
     );
@@ -197,18 +209,14 @@ export default function ServicesPage() {
     const data = await res.json();
 
     if (!res.ok) {
-      showStatusModal(
-        'Error',
-        data.error || 'Failed to create service'
-      );
-
+      showStatusModal('Error', data.error || 'Failed to create service');
       return;
     }
 
-    setServices((prev) => [
-      ...prev,
-      data.service,
-    ]);
+    // await loadServices(); pagisipan if dadagdag pa toh
+
+
+    setServices((prev) => [...prev, data.service]);
 
     setOpenAdd(false);
 
@@ -217,20 +225,64 @@ export default function ServicesPage() {
     setServiceDuration('');
     setServicePrice('');
     setSelectedStaffIds([]);
-    setServiceAvailability(true);
+    setServiceAvailability(false);
 
-    showStatusModal(
-      'Success',
-      'Service created successfully!'
-    );
+    showStatusModal('Success', 'Service created successfully!');
   } catch (error) {
-    showStatusModal(
-      'Error',
-      'Something went wrong.'
-    );
+    showStatusModal('Error', 'Something went wrong.');
   }
 };
 
+  const handleReviewService = () => {
+  const trimmedName = serviceName.trim();
+  const trimmedDesc = serviceDescription.trim();
+
+  if (
+    !trimmedName ||
+    !trimmedDesc ||
+    !serviceDuration ||
+    !servicePrice
+  ) {
+    showStatusModal(
+      "Incomplete Fields",
+      "Please complete all fields."
+    );
+    return;
+  }
+
+  const hasStaff = Array.isArray(selectedStaffIds) && selectedStaffIds.length > 0;
+
+  if (serviceAvailability && !hasStaff) {
+    showStatusModal(
+      "Incomplete Fields",
+      "Please assign at least 1 staff member."
+    );
+    return;
+  }
+  
+  const duration = Number(serviceDuration);
+  const price = Number(servicePrice);
+
+  if (Number.isNaN(duration) || duration < 1 || duration > 999) {
+    showStatusModal("Error", "Duration must only be 3 digits(Minutes)");
+    return;
+  }
+
+  if (Number.isNaN(price) || price < 1 || price > 99999) {
+    showStatusModal("Error", "Price must only be 5 digits(Pesos)");
+    return;
+  }
+
+  setOpenAdd(false);
+
+  handleCreateService({
+    name: trimmedName,
+    description: trimmedDesc,
+    durationMinutes: duration,
+    price: price,
+    isAvailable: serviceAvailability,
+  });
+};
   const handleDeleteService = async () => {
     if (!selectedService) return;
 
@@ -727,13 +779,21 @@ export default function ServicesPage() {
         }}
         >
         <TextField
-            label="Service Name *"
+            label={
+              <>
+                Service Name <span style={{ color: 'red' }}>*</span>
+              </>}
             placeholder="Enter service name"
             fullWidth
             value={serviceName}
             onChange={(e) =>
             setServiceName(e.target.value)
             }
+            slotProps={{
+                htmlInput: {
+                  maxLength: 50,
+                },
+              }}
             sx={{
             bgcolor: '#f6f6f6',
             borderRadius: 2,
@@ -741,7 +801,10 @@ export default function ServicesPage() {
         />
 
         <TextField
-            label="Description *"
+            label={
+              <>
+                Description <span style={{ color: 'red' }}>*</span>
+              </>}
             placeholder="Enter description"
             fullWidth
             multiline
@@ -750,6 +813,11 @@ export default function ServicesPage() {
             onChange={(e) =>
             setServiceDescription(e.target.value)
             }
+            slotProps={{
+                htmlInput: {
+                  maxLength: 150,
+                },
+              }}
             sx={{
             bgcolor: '#f6f6f6',
             borderRadius: 2,
@@ -757,15 +825,28 @@ export default function ServicesPage() {
         />
 
         <TextField
-            label="Duration (Minutes) *"
+            label={
+              <>
+                Duration (Minutes) <span style={{ color: 'red' }}>*</span>
+              </>}
             type="number"
             fullWidth
             value={serviceDuration}
-            onChange={(e) =>
-            setServiceDuration(
-                (e.target.value)
-            )
-            }
+            onChange={(e) => {
+            const value = e.target.value;
+
+              // only allow digits + max 3 chars
+              if (value.length <= 3) {
+                setServiceDuration(value);
+              }
+            }}
+            slotProps={{
+              htmlInput: {
+                inputMode: 'numeric',
+                pattern: '[0-9]*',
+                maxLength: 3,
+              }
+            }}
             sx={{
             bgcolor: '#f6f6f6',
             borderRadius: 2,
@@ -773,22 +854,54 @@ export default function ServicesPage() {
         />
 
         <TextField
-            label="Price *"
+            label={
+              <>
+                Price <span style={{ color: 'red' }}>*</span>
+              </>}
             type="number"
             fullWidth
             value={servicePrice}
-            onChange={(e) =>
-            setServicePrice(
-                (e.target.value)
-            )
-            }
+            onChange={(e) => {
+            const value = e.target.value;
+
+              // only allow digits + max 3 chars
+              if (value.length <= 5) {
+                setServicePrice(value);
+              }
+            }}
+            slotProps={{
+              htmlInput: {
+                inputMode: 'numeric',
+                pattern: '[0-9]*',
+                maxLength: 5,
+              }
+            }}
             sx={{
             bgcolor: '#f6f6f6',
             borderRadius: 2,
             }}
         />
 
-        <Box>
+        <TextField
+          select
+          label="Availability"
+          fullWidth
+          value={serviceAvailability ? 'true' : 'false'}
+          onChange={(e) =>
+            setServiceAvailability(e.target.value === 'true')
+          }
+          slotProps={{
+            select: {
+              native: true,
+            },
+          }}
+        >
+          <option value="true">Available</option>
+          <option value="false">Unavailable</option>
+        </TextField>
+
+        {serviceAvailability && (
+          <Box>
           <Typography
             sx={{
               mb: 1,
@@ -796,7 +909,7 @@ export default function ServicesPage() {
               fontSize: 14,
             }}
           >
-            Assign Barbers
+            Assign Barbers <span style={{ color: 'red' }}>*</span>
           </Typography>
 
           <Box
@@ -856,24 +969,8 @@ export default function ServicesPage() {
             )}
           </Box>
         </Box>
+        )}
 
-        <TextField
-          select
-          label="Availability"
-          fullWidth
-          value={serviceAvailability ? 'true' : 'false'}
-          onChange={(e) =>
-            setServiceAvailability(e.target.value === 'true')
-          }
-          slotProps={{
-            select: {
-              native: true,
-            },
-          }}
-        >
-          <option value="true">Available</option>
-          <option value="false">Unavailable</option>
-        </TextField>
         </DialogContent>
 
         {/* BUTTONS */}
@@ -904,7 +1001,7 @@ export default function ServicesPage() {
 
         <Button
             variant="contained"
-            onClick={handleCreateService}
+            onClick={handleReviewService}
             sx={{
             backgroundColor: '#000',
             color: '#fff',
@@ -1120,7 +1217,7 @@ export default function ServicesPage() {
               }
               slotProps={{
                 select: {
-                  native: true,
+                  native: false,
                 },
               }}
             >
