@@ -34,6 +34,7 @@ import GetAppIcon from '@mui/icons-material/GetApp';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Chip from '@mui/material/Chip';
+import { kMaxLength } from 'buffer';
 
 interface Service {
   id: string;
@@ -853,6 +854,8 @@ const filterOpen = Boolean(filterAnchorEl);
             display: 'flex',
             flexDirection: 'column',
             gap: 2,
+            maxHeight: '60vh',
+            overflowY: 'auto',
         }}
         >
         <TextField
@@ -1194,51 +1197,73 @@ const filterOpen = Boolean(filterAnchorEl);
             <TextField
               label="Service Name"
               value={editServiceName}
-              onChange={(e) =>
-                setEditServiceName(
-                  e.target.value
-                )
-              }
+              onChange={(e) => {
+                if (e.target.value.length <= 50) {
+                  setEditServiceName(e.target.value);
+                }
+              }}
               fullWidth
+              slotProps={{
+                htmlInput: {
+                  maxLength: 50,
+                },
+              }}
             />
 
             <TextField
               label="Description *"
-              placeholder="Enter description"
-               fullWidth
-               multiline
-               minRows={3}
-               value={editServiceDescription}
-               onChange={(e) =>
-               setEditServiceDescription(e.target.value)
-               }
-               sx={{
-               bgcolor: '#f6f6f6',
-               borderRadius: 2,
-               }}
+              value={editServiceDescription}
+              onChange={(e) => {
+                if (e.target.value.length <= 150) {
+                  setEditServiceDescription(e.target.value);
+                }
+              }}
+              fullWidth
+              multiline
+              minRows={3}
+              slotProps={{
+                htmlInput: {
+                  maxLength: 150,
+                },
+              }}
             />
+
             <TextField
               label="Duration"
               type="number"
               value={editDuration}
-              onChange={(e) =>
-                setEditDuration(
-                  Number(e.target.value)
-                )
-              }
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value.length <= 3) {
+                  setEditDuration(Number(value));
+                }
+              }}
               fullWidth
+              slotProps={{
+                htmlInput: {
+                  inputMode: 'numeric',
+                  MaxLength: 3,
+                },
+              }}
             />
 
             <TextField
               label="Price"
               type="number"
               value={editPrice}
-              onChange={(e) =>
-                setEditPrice(
-                  Number(e.target.value)
-                )
-              }
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value.length <= 5) {
+                  setEditPrice(Number(value));
+                }
+              }}
               fullWidth
+              slotProps={{
+                htmlInput: {
+                  inputMode: 'numeric',
+                  maxLength: 5,
+                },
+              }}
             />
 
             <Box>
@@ -1289,14 +1314,7 @@ const filterOpen = Boolean(filterAnchorEl);
               label="Availability"
               fullWidth
               value={editAvailability ? 'true' : 'false'}
-              onChange={(e) =>
-                setEditAvailability(e.target.value === 'true')
-              }
-              slotProps={{
-                select: {
-                  native: false,
-                },
-              }}
+              disabled
             >
               <option value="true">Available</option>
               <option value="false">Unavailable</option>
