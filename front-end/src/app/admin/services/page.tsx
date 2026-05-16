@@ -31,8 +31,13 @@ import TuneIcon from '@mui/icons-material/Tune';
 import AddIcon from '@mui/icons-material/Add';
 import GetAppIcon from '@mui/icons-material/GetApp';
 
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import Chip from '@mui/material/Chip';
+
 interface Service {
   id: string;
+  serviceCode: string;
   name: string;
   description: string;
   durationMinutes: number;
@@ -72,6 +77,16 @@ export default function ServicesPage() {
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
   const [serviceAvailability, setServiceAvailability] = useState(true);
 
+  // Filters
+  const [filterAnchorEl, setFilterAnchorEl] =
+  useState<null | HTMLElement>(null);
+
+const [availabilityFilter, setAvailabilityFilter] =
+  useState<'ALL' | 'AVAILABLE' | 'UNAVAILABLE'>(
+    'ALL'
+  );
+
+const filterOpen = Boolean(filterAnchorEl);
   useEffect(() => {
   if (status === 'loading') return;
   if (!session) return;
@@ -159,11 +174,20 @@ export default function ServicesPage() {
     loadServices();
   }, [session, status, router]);
 
-  const filteredServices = services.filter((service) =>
-    service.name
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase())
-  );
+ const filteredServices = services.filter((service) => {
+  const matchesSearch = service.name
+    .toLowerCase()
+    .includes(searchTerm.toLowerCase());
+
+  const matchesAvailability =
+    availabilityFilter === 'ALL'
+      ? true
+      : availabilityFilter === 'AVAILABLE'
+      ? service.isAvailable
+      : !service.isAvailable;
+
+  return matchesSearch && matchesAvailability;
+});
 
   const paginatedServices = filteredServices.slice(
     (page - 1) * itemsPerPage,
@@ -456,6 +480,9 @@ export default function ServicesPage() {
 
         <Button
           startIcon={<TuneIcon />}
+          onClick={(e) =>
+            setFilterAnchorEl(e.currentTarget)
+          }
           sx={{
             textTransform: 'none',
             color: '#666',
@@ -463,6 +490,61 @@ export default function ServicesPage() {
         >
           Filter
         </Button>
+
+        <Menu
+          anchorEl={filterAnchorEl}
+          open={filterOpen}
+          onClose={() => setFilterAnchorEl(null)}
+        >
+          <MenuItem
+            onClick={() => {
+              setAvailabilityFilter('ALL');
+              setFilterAnchorEl(null);
+              setPage(1);
+            }}
+          >
+            All Services
+          </MenuItem>
+
+          <MenuItem
+            onClick={() => {
+              setAvailabilityFilter('AVAILABLE');
+              setFilterAnchorEl(null);
+              setPage(1);
+            }}
+          >
+            Available Services
+          </MenuItem>
+
+          <MenuItem
+            onClick={() => {
+              setAvailabilityFilter('UNAVAILABLE');
+              setFilterAnchorEl(null);
+              setPage(1);
+            }}
+          >
+            Unavailable Services
+          </MenuItem>
+        </Menu>
+
+        {availabilityFilter !== 'ALL' && (
+        <Chip
+          label={
+            availabilityFilter === 'AVAILABLE'
+              ? 'Available Services'
+              : 'Unavailable Services'
+          }
+          onDelete={() => {
+            setAvailabilityFilter('ALL');
+            setPage(1);
+          }}
+          color="secondary"
+          size="small"
+          sx={{
+            borderRadius: 2,
+          }}
+        />
+      )}
 
         <Box sx={{ flex: 1 }} />
 
@@ -561,12 +643,7 @@ export default function ServicesPage() {
                       }}
                     >
                       <TableCell>
-                        {String(
-                          (page - 1) *
-                            itemsPerPage +
-                            index +
-                            1
-                        ).padStart(3, '0')}
+                        {service.serviceCode}
                       </TableCell>
 
                       <TableCell>
