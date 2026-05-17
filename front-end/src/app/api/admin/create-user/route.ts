@@ -15,7 +15,7 @@ export async function POST(req: Request) {
       );
     }
 
-    let { firstName, lastName, email, password, mobileNumber, role } =
+    let { userCode, firstName, lastName, email, password, mobileNumber, role } =
       await req.json();
 
     firstName = (firstName ?? "").trim();
@@ -111,6 +111,7 @@ export async function POST(req: Request) {
 
     const user = await db.user.create({
       data: {
+        userCode,
         firstName,
         lastName,
         email,
