@@ -91,16 +91,129 @@ export async function PUT(
       );
     }
 
-    const body = await req.json();
+    const toTitleCase = (str: string) =>
+      str
+        .toLowerCase()
+        .split(" ")
+        .filter(Boolean)
+        .map(
+          (word) =>
+            word.charAt(0).toUpperCase() +
+            word.slice(1)
+        )
+        .join(" ");
 
-    const {
+    let {
       name,
       description,
       durationMinutes,
       price,
       isAvailable,
       assignedStaffIds,
-    } = body;
+    } = await req.json();
+
+    name = toTitleCase(name ?? "").trim();
+    description = (description ?? "").trim();
+    durationMinutes = Number(durationMinutes);
+    price = Number(price);
+
+    /* ======================================================
+       REQUIRED FIELDS
+    ====================================================== */
+
+    if (
+      !name ||
+      !description ||
+      !durationMinutes ||
+      !price
+    ) {
+      return NextResponse.json(
+        { error: "Missing Fields" },
+        { status: 400 }
+      );
+    }
+
+    /* ======================================================
+       MAX LENGTH VALIDATION
+    ====================================================== */
+
+    if (name.length > 50) {
+      return NextResponse.json(
+        { error: "Service Name too long" },
+        { status: 400 }
+      );
+    }
+
+    if (description.length > 150) {
+      return NextResponse.json(
+        { error: "Description too long" },
+        { status: 400 }
+      );
+    }
+
+    /* ======================================================
+       NUMBER VALIDATION
+    ====================================================== */
+
+    if (
+      Number.isNaN(durationMinutes) ||
+      durationMinutes < 1 ||
+      durationMinutes > 999
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Duration must only be 3 digits",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (
+      Number.isNaN(price) ||
+      price < 1 ||
+      price > 99999
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Price must be 5 digits (Pesos)",
+        },
+        { status: 400 }
+      );
+    }
+
+    /* ======================================================
+       BOOLEAN VALIDATION
+    ====================================================== */
+
+    if (typeof isAvailable !== "boolean") {
+      return NextResponse.json(
+        {
+          error:
+            "isAvailable must be boolean",
+        },
+        { status: 400 }
+      );
+    }
+
+    /* ======================================================
+       STAFF VALIDATION
+    ====================================================== */
+
+    if (
+      isAvailable &&
+      (!Array.isArray(assignedStaffIds) ||
+        assignedStaffIds.length < 1)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Please assign at least 1 staff member",
+        },
+        { status: 400 }
+      );
+    }
 
     const updatedService =
       await db.service.update({
@@ -109,38 +222,19 @@ export async function PUT(
         },
 
         data: {
-          ...(name && {
-            name,
-          }),
+          name,
+          description,
+          durationMinutes,
+          price,
+          isAvailable,
 
-          ...(description && {
-            description,
-          }),
-
-          ...(durationMinutes && {
-            durationMinutes:
-              Number(durationMinutes),
-          }),
-
-          ...(price && {
-            price,
-          }),
-
-          ...(typeof isAvailable ===
-            "boolean" && {
-            isAvailable,
-          }),
-
-          ...(assignedStaffIds && {
-            assignedStaff: {
-              set:
-                assignedStaffIds.map(
-                  (staffId: string) => ({
-                    id: staffId,
-                  })
-                ),
-            },
-          }),
+          assignedStaff: {
+            set: assignedStaffIds.map(
+              (staffId: string) => ({
+                id: staffId,
+              })
+            ),
+          },
         },
 
         include: {
@@ -160,10 +254,14 @@ export async function PUT(
       service: {
         id: updatedService.id,
 
+        serviceCode:
+          updatedService.serviceCode,
+
         name: updatedService.name,
 
-        description: updatedService.description,
-        
+        description:
+          updatedService.description,
+
         durationMinutes:
           updatedService.durationMinutes,
 
