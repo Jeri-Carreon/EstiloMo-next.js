@@ -1,18 +1,27 @@
 import { PrismaClient } from "@prisma/client";
 
+console.log("SEED SCRIPT IS RUNNING");
+
 const db = new PrismaClient();
 
-async function main() {
-  await db.counter.upsert({
-    where: { id: "customerCode" },
-    update: {},
-    create: {
-      id: "customerCode",
-      value: 0,
-    },
-  });
+const counters = [
+  { id: "userCode", value: 0 },
+  { id: "customerCode", value: 0 },
+  { id: "serviceCode", value: 0 },
+  { id: "appointmentCode", value: 0 },
+  { id: "barberCode", value: 0 },
+];
 
-  console.log("Counter seeded");
+async function main() {
+  for (const counter of counters) {
+    await db.counter.upsert({
+      where: { id: counter.id },
+      update: {}, // don't overwrite existing values
+      create: counter,
+    });
+  }
+
+  console.log("All counters seeded successfully");
 }
 
 main()
@@ -21,7 +30,7 @@ main()
     process.exit(0);
   })
   .catch(async (e) => {
-    console.error(e);
+    console.error("Seed error:", e);
     await db.$disconnect();
     process.exit(1);
   });

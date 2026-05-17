@@ -98,9 +98,6 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // ========================
-    // TRANSACTION (IMPORTANT FIX)
-    // ========================
     const user = await db.$transaction(async (tx) => {
 
       // UserCode 
@@ -138,6 +135,9 @@ export async function POST(req: Request) {
       await tx.customer.create({
         data: {
           userId: newUser.id,
+          firstName,
+          lastName,
+          email,
           customerCode, 
           mobileNumber,
           customerType: "CASUAL",

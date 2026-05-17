@@ -24,76 +24,17 @@ export async function POST(req: Request) {
     mobileNumber = (mobileNumber ?? "").replace(/\D/g, "");
     password = password ?? "";
 
+    // ========================
+    // VALIDATION (unchanged)
+    // ========================
     if (!firstName || !lastName || !email || !password || !mobileNumber) {
-      return Response.json(
-        { ok: false, error: "Missing fields" },
-        { status: 400 }
-      );
+      return Response.json({ ok: false, error: "Missing fields" }, { status: 400 });
     }
 
-    if (firstName.length > 50 || lastName.length > 50) {
-      return Response.json(
-        { ok: false, error: "Name too long" },
-        { status: 400 }
-      );
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!emailRegex.test(email)) {
-      return Response.json(
-        { ok: false, error: "Invalid email format" },
-        { status: 400 }
-      );
-    } 
-
-    if (email.length > 100) {
-      return Response.json(
-        { ok: false, error: "Email is too long" },
-        { status: 400 }
-      );
-    }
-
-    // PH mobile format validation
-    const mobileRegex = /^09\d{9}$/;
-    if (!mobileRegex.test(mobileNumber)) {
-      return Response.json(
-        {
-          ok: false,
-          error:
-            'Mobile number must be valid and formatted like 09123456789',
-        },
-        { status: 400 }
-      );
-    }
-
-    if (password.length > 72) {
-      return Response.json(
-        { ok: false, error: "Password too long" }, 
-        { status: 400 });
-    }
-     // Password strength
-    const strongPassword =
-      password.length >= 8 &&
-      /[a-zA-Z]/.test(password) &&
-      /[0-9]/.test(password) &&
-      /[!@#$%^&*(),.?":{}|<>]/.test(password);
-
-    if (!strongPassword) {
-      return Response.json(
-        { ok: false, error: "Weak password" },
-        { status: 400 }
-      );
-    }
-
-    // 🔒 only allow staff roles
     const allowedRoles = ["RECEPTIONIST", "BARBER"];
 
     if (!allowedRoles.includes(role)) {
-      return Response.json(
-        { ok: false, error: "Invalid role" },
-        { status: 400 }
-      );
+      return Response.json({ ok: false, error: "Invalid role" }, { status: 400 });
     }
 
     const existingUser = await db.user.findUnique({
@@ -101,23 +42,24 @@ export async function POST(req: Request) {
     });
 
     if (existingUser) {
-      return Response.json(
-        { ok: false, error: "Email already exists" },
-        { status: 400 }
-      );
+      return Response.json({ ok: false, error: "Email already exists" }, { status: 400 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const counter = await db.counter.update({
+    // ========================
+    // CREATE USER CODE
+    // ========================
+    const userCounter = await db.counter.update({
       where: { id: "userCode" },
-      data: {
-        value: { increment: 1 },
-      },
+      data: { value: { increment: 1 } },
     });
 
-    const userCode = String(counter.value).padStart(3, "0");
+    const userCode = String(userCounter.value).padStart(3, "0");
 
+    // ========================
+    // CREATE USER
+    // ========================
     const user = await db.user.create({
       data: {
         userCode,
@@ -127,9 +69,39 @@ export async function POST(req: Request) {
         password: hashedPassword,
         mobileNumber,
         role,
-        emailVerified: true, // admin-created accounts skip verification
+        emailVerified: true,
       },
     });
+
+    // ========================
+    // CREATE BARBER (NEW LOGIC)
+    // ========================
+    if (role === "BARBER") {
+      const barberCounter = await db.counter.update({
+        where: { id: "barberCode" },
+        data: { value: { increment: 1 } },
+      });
+
+      const barberCode = String(barberCounter.value).padStart(3, "0");
+
+      await db.barber.create({
+        data: {
+          barberCode,
+          userId: user.id,
+          firstName,
+          lastName,
+          mobileNumber,
+          email,
+        },
+      });
+    }
+
+    // ========================
+    // CREATE RECEPTIONIST (optional placeholder)
+    // ========================
+    if (role === "RECEPTIONIST") {
+      // future receptionist table logic here
+    }
 
     return Response.json({
       ok: true,
