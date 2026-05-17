@@ -186,7 +186,7 @@ export default function Navbar() {
                       My Reviews
                     </MenuItem>
 
-                    <MenuItem component={Link} href="/profile">
+                    <MenuItem component={Link} href="/loyaltyCard">
                       Loyalty Card
                     </MenuItem>
 
