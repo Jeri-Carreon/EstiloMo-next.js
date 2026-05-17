@@ -15,7 +15,7 @@ export async function POST(req: Request) {
       );
     }
 
-    let { userCode, firstName, lastName, email, password, mobileNumber, role } =
+    let { firstName, lastName, email, password, mobileNumber, role } =
       await req.json();
 
     firstName = (firstName ?? "").trim();
@@ -108,6 +108,15 @@ export async function POST(req: Request) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+
+    const counter = await db.counter.update({
+      where: { id: "userCode" },
+      data: {
+        value: { increment: 1 },
+      },
+    });
+
+    const userCode = String(counter.value).padStart(3, "0");
 
     const user = await db.user.create({
       data: {
