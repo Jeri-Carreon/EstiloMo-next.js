@@ -36,8 +36,14 @@ model Session {
   @@index([userId])
 }
 
+model Counter {
+  id    String @id
+  value Int
+}
+
 model User {
   id            String    @id @default(cuid())
+  userCode      String    @unique
   email         String?   @unique
   emailVerified Boolean   @default(false)
   image         String?
@@ -74,7 +80,7 @@ enum Role {
 
 model Customer {
   id            String   @id @default(cuid())
-
+  customerCode  String   @unique
   firstName     String?
   lastName      String?
   email         String?  @unique

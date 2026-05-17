@@ -87,9 +87,20 @@ export async function POST(req: Request) {
 
     const customer = await db.$transaction(async (tx) => {
 
+      // customerCode
+      const customerCounter = await tx.counter.update({
+        where: { id: "customerCode" },
+        data: {
+          value: { increment: 1 },
+        },
+      });
+
+      const customerCode = String(customerCounter.value).padStart(3, "0");
+
       // Create customer
       const newCustomer = await tx.customer.create({
         data: {
+          customerCode,
           firstName,
           lastName,
           mobileNumber,

@@ -58,6 +58,7 @@ import { useRouter } from "next/navigation";
 
 interface Customer {
   id: string;
+  customerCode: string;
   type: string;
   name: string;
   contactNumber: string;
@@ -450,7 +451,7 @@ export default function CustomersPage() {
                 <TableBody>
                   {paginatedCustomers.map((customer, index) => (
                     <TableRow key={customer.id} sx={{ '&:hover': { backgroundColor: '#fafafa' } }}>
-                      <TableCell>{String((page - 1) * itemsPerPage + index + 1).padStart(3, '0')}</TableCell>
+                      <TableCell>{customer.customerCode}</TableCell>
                       <TableCell sx={{ color: '#999' }}>{customer.type}</TableCell>
                       <TableCell>{customer.name}</TableCell>
                       <TableCell>{customer.contactNumber}</TableCell>

@@ -18,6 +18,7 @@ export async function GET(req: Request) {
 
     const result = customers.map((customer) => ({
       id: customer.id,
+      customerCode: customer.customerCode,
       type: customer.customerType || "CASUAL",
       name:
         [customer.firstName, customer.lastName].filter(Boolean).join(" ") ||
