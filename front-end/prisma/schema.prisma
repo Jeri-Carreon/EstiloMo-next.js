@@ -44,7 +44,8 @@ model Counter {
 model User {
   id            String    @id @default(cuid())
   userCode      String    @unique
-  email         String?   @unique
+  
+  email         String    @unique
   emailVerified Boolean   @default(false)
   image         String?
 
@@ -67,7 +68,8 @@ model User {
   reviews       Review[]
 
   customer      Customer?
-  
+  barber        Barber?
+
   services       Service[]  @relation("StaffServices")
 }
 
@@ -81,8 +83,8 @@ enum Role {
 model Customer {
   id            String   @id @default(cuid())
   customerCode  String   @unique
-  firstName     String?
-  lastName      String?
+  firstName     String
+  lastName      String
   email         String?  @unique
   mobileNumber  String   @db.VarChar(11)
 
@@ -104,6 +106,21 @@ model Customer {
 enum CustomerType {
   CASUAL
   REGULAR
+}
+
+model Barber {
+  id            String @id @default(cuid())
+  barberCode    String @unique
+
+  firstName     String
+  lastName      String
+  mobileNumber  String
+  email         String
+
+  userId        String @unique
+  user          User @relation(fields: [userId], references: [id])
+
+  appointments  Appointment[]
 }
 
 model PasswordResetToken {
@@ -141,17 +158,32 @@ model Review {
   @@map("Review")
 }
 
+enum AppointmentStatus {
+  PENDING
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NOSHOW
+}
+
 model Appointment {
-  id          String   @id @default(cuid())
-  scheduledAt DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(cuid())
+  appointmentCode String   @unique
 
-  customerId    String?
-  customer      Customer?    @relation(fields: [customerId], references: [id])
+  barberId        String
+  barber          Barber   @relation(fields: [barberId], references: [id])
 
-  serviceId String
-  service   Service  @relation(fields: [serviceId], references: [id])
+  customerId      String
+  customer        Customer @relation(fields: [customerId], references: [id])
+
+  serviceId       String
+  service         Service  @relation(fields: [serviceId], references: [id])
+
+  scheduledAt     DateTime
+  status          AppointmentStatus @default(PENDING)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 enum Status {
