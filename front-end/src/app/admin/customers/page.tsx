@@ -38,19 +38,10 @@ import TuneIcon from '@mui/icons-material/Tune';
 import AddIcon from '@mui/icons-material/Add';
 import GetAppIcon from '@mui/icons-material/GetApp';
 import ErrorIcon from "@mui/icons-material/Error";
-import DashboardIcon from '@mui/icons-material/Dashboard';
-import PersonIcon from '@mui/icons-material/Person';
-import BuildIcon from '@mui/icons-material/Build';
-import GroupIcon from '@mui/icons-material/Group';
-import EventIcon from '@mui/icons-material/Event';
-import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
-import StarIcon from '@mui/icons-material/Star';
-import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
-import DescriptionIcon from '@mui/icons-material/Description';
-import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
-import SecurityIcon from '@mui/icons-material/Security';
-import Avatar from '@mui/material/Avatar';
+
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import Chip from '@mui/material/Chip';
 import Pagination from '@mui/material/Pagination';
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -102,6 +93,16 @@ export default function CustomersPage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [openServerError, setOpenServerError] = useState(false);
   const [serverErrorMsg, setServerErrorMsg] = useState("");
+
+  // Filters
+  const [filterAnchorEl, setFilterAnchorEl] =
+  useState<null | HTMLElement>(null);
+
+const [typeFilter, setTypeFilter] =
+  useState<'ALL' | 'CASUAL' | 'REGULAR'>('ALL');
+
+const filterOpen = Boolean(filterAnchorEl);
+    
 
   const [selectedCustomer, setSelectedCustomer ] = useState<Customer | null>(null);
 
@@ -324,14 +325,22 @@ export default function CustomersPage() {
     loadCustomers();
   }, [session, status, router]); // session array = re-run useEffect whenever one of these changes
 
-  const filteredCustomers = customers.filter((customer) =>
-    (customer.name || "")
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase()) ||
-    (customer.email || "")
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase())
-  );
+  const filteredCustomers = customers.filter((customer) => {
+    const matchesSearch =
+      (customer.name || "")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      (customer.email || "")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+
+    const matchesType =
+      typeFilter === 'ALL'
+        ? true
+        : customer.type === typeFilter;
+
+    return matchesSearch && matchesType;
+  });
 
   const paginatedCustomers = filteredCustomers.slice(
     (page - 1) * itemsPerPage,
@@ -403,10 +412,64 @@ export default function CustomersPage() {
           />
           <Button
             startIcon={<TuneIcon />}
+            onClick={(e) => setFilterAnchorEl(e.currentTarget)}
             sx={{ textTransform: 'none', color: '#666' }}
           >
             Filter
           </Button>
+
+          <Menu
+            anchorEl={filterAnchorEl}
+            open={filterOpen}
+            onClose={() => setFilterAnchorEl(null)}
+          >
+            <MenuItem
+              onClick={() => {
+                setTypeFilter('ALL');
+                setFilterAnchorEl(null);
+                setPage(1);
+              }}
+            >
+              All Customers
+            </MenuItem>
+
+            <MenuItem
+              onClick={() => {
+                setTypeFilter('CASUAL');
+                setFilterAnchorEl(null);
+                setPage(1);
+              }}
+            >
+              Casual Customers
+            </MenuItem>
+
+            <MenuItem
+              onClick={() => {
+                setTypeFilter('REGULAR');
+                setFilterAnchorEl(null);
+                setPage(1);
+              }}
+            >
+              Regular Customers
+            </MenuItem>
+          </Menu>
+
+          {typeFilter !== 'ALL' && (
+            <Chip
+              label={
+                typeFilter === 'CASUAL'
+                  ? 'Casual Customers'
+                  : 'Regular Customers'
+              }
+              onDelete={() => {
+                setTypeFilter('ALL');
+                setPage(1);
+              }}
+              color="secondary"
+              size="small"
+              sx={{ borderRadius: 2 }}
+            />
+          )}
           <Box sx={{ flex: 1 }} />
           <Button
             startIcon={<AddIcon />}

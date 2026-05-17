@@ -3,9 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-/* ======================================================
-   GET SERVICES
-====================================================== */
 export async function GET(req: Request) {
   try {
     const services = await db.service.findMany({
@@ -51,9 +48,6 @@ export async function GET(req: Request) {
   }
 }
 
-/* ======================================================
-   POST CREATE SERVICE
-====================================================== */
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -144,10 +138,6 @@ export async function POST(req: Request) {
       );
     }
 
-    /* ======================================================
-       SERVICE CODE GENERATION
-    ====================================================== */
-
     const lastService = await db.service.findFirst({
       orderBy: { createdAt: "desc" },
       select: { serviceCode: true },
@@ -158,10 +148,6 @@ export async function POST(req: Request) {
       : 0;
 
     const serviceCode = String(lastNumber + 1).padStart(3, "0");
-
-    /* ======================================================
-       CREATE SERVICE
-    ====================================================== */
 
     const service = await db.service.create({
       data: {

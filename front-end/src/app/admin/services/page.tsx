@@ -34,7 +34,6 @@ import GetAppIcon from '@mui/icons-material/GetApp';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Chip from '@mui/material/Chip';
-import { kMaxLength } from 'buffer';
 
 interface Service {
   id: string;
@@ -81,6 +80,7 @@ export default function ServicesPage() {
   // Filters
   const [filterAnchorEl, setFilterAnchorEl] =
   useState<null | HTMLElement>(null);
+
 
 const [availabilityFilter, setAvailabilityFilter] =
   useState<'ALL' | 'AVAILABLE' | 'UNAVAILABLE'>(
