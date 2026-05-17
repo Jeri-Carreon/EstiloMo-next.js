@@ -145,7 +145,7 @@ export async function POST(req: Request) {
     }
 
     /* ======================================================
-       SERVICE CODE GENERATION (SAFE VERSION)
+       SERVICE CODE GENERATION
     ====================================================== */
 
     const lastService = await db.service.findFirst({
