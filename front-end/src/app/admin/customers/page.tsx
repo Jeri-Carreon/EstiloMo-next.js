@@ -931,23 +931,14 @@ const filterOpen = Boolean(filterAnchorEl);
               label="Email"
               fullWidth
               value={editEmail}
-              onChange={(e) => setEditEmail(e.target.value)}
-              error={
-                editEmail.length !== 0 &&
-                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())
-              }
-              helperText={
-                editEmail.length !== 0 &&
-                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())
-                  ? "Please enter a valid email address"
-                  : ""
-              }
-              slotProps={{
-                htmlInput: {
-                  maxLength: 100,
-                }
+              disabled
+              sx={{ 
+                bgcolor: '#f6f6f6', 
+                borderRadius: 2,
+                '& .MuiInputBase-input.Mui-disabled': {
+                  WebkitTextFillColor: '#555',
+                },
               }}
-              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
           </DialogContent>
 
@@ -981,7 +972,7 @@ const filterOpen = Boolean(filterAnchorEl);
                 ':hover': { backgroundColor: '#111' },
               }}
             >
-              Edit
+              Update
             </Button>
           </Box>
         </Box>
@@ -1054,7 +1045,7 @@ const filterOpen = Boolean(filterAnchorEl);
                   ':hover': { backgroundColor: '#111' },
                 }}
               >
-                Edit
+                Update
               </Button>
             </Box>
           </Box>

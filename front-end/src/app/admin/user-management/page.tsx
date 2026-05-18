@@ -813,23 +813,14 @@ export default function AdminPage() {
               }
               fullWidth
               value={editEmail}
-              onChange={(e) => setEditEmail(e.target.value)}
-              error={
-                editEmail.length > 0 &&
-                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())
-              }
-              helperText={
-                editEmail.length > 0 &&
-                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())
-                  ? "Please enter a valid email address"
-                  : ""
-              }
-              slotProps={{
-                htmlInput: {
-                  maxLength: 100,
-                }
+              disabled
+              sx={{ 
+                bgcolor: '#f6f6f6', 
+                borderRadius: 2,
+                '& .MuiInputBase-input.Mui-disabled': {
+                  WebkitTextFillColor: '#555',
+                },
               }}
-              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
             />
             <TextField
               label={
@@ -873,7 +864,12 @@ export default function AdminPage() {
               <Select
                 value={editRole}
                 label="Role *"
-                onChange={(e) => setEditRole(e.target.value)}
+                disabled
+                sx = {{
+                  '& .Mui-disabled': {
+                    WebkitTextFillColor: '#555',
+                  },
+                }}
               >
                 <MenuItem value="RECEPTIONIST">Receptionist</MenuItem>
                 <MenuItem value="BARBER">Barber</MenuItem>
@@ -911,7 +907,7 @@ export default function AdminPage() {
                 ':hover': { backgroundColor: '#111' },
               }}
             >
-              Edit
+              Update
             </Button>
           </Box>
         </Box>
@@ -964,7 +960,7 @@ export default function AdminPage() {
                   py: 1.25,
                   ':hover': { backgroundColor: '#111' },
                 }}>
-              Edit
+              Update
             </Button>
           </Box>
         </Box>
