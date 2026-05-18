@@ -17,7 +17,6 @@ import Link from "next/link";
 
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import page from "@/app/signUp/page";
 
 const pages = [
   { label: "Home", path: "/" },
@@ -187,7 +186,7 @@ export default function Navbar() {
                       My Reviews
                     </MenuItem>
 
-                    <MenuItem component={Link} href="/profile">
+                    <MenuItem component={Link} href="/loyaltyCard">
                       Loyalty Card
                     </MenuItem>
 

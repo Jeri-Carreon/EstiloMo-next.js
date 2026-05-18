@@ -138,9 +138,16 @@ export async function POST(req: Request) {
           firstName,
           lastName,
           email,
-          customerCode, 
+          customerCode,
           mobileNumber,
           customerType: "CASUAL",
+
+          loyaltyCards: {
+            create: {
+              stars: 0,
+              status: "ACTIVE",
+            },
+          },
         },
       });
 
