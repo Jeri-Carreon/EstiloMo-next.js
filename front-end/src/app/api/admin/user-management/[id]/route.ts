@@ -72,8 +72,11 @@ export async function DELETE(
       );
     }
 
-    await db.user.delete({
+    await db.user.update({
       where: { id },
+      data: {
+        isActive: false,
+      },
     });
 
     return NextResponse.json({ ok: true });

@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
 
-    // 🔐 AUTH CHECK
+    // AUTH CHECK
     if (!session || session.user.role !== "OWNER") {
       return Response.json(
         { ok: false, error: "Forbidden" },
@@ -15,22 +15,37 @@ export async function POST(req: Request) {
       );
     }
 
-    let { firstName, lastName, email, password, mobileNumber, role } =
-      await req.json();
+    let {
+      firstName,
+      lastName,
+      email,
+      password,
+      mobileNumber,
+      role,
+    } = await req.json();
 
+    // SANITIZE
     firstName = (firstName ?? "").trim();
     lastName = (lastName ?? "").trim();
     email = (email ?? "").toLowerCase().trim();
     mobileNumber = (mobileNumber ?? "").replace(/\D/g, "");
     password = password ?? "";
 
-    if (!firstName || !lastName || !email || !password || !mobileNumber) {
+    // REQUIRED FIELDS
+    if (
+      !firstName ||
+      !lastName ||
+      !email ||
+      !password ||
+      !mobileNumber
+    ) {
       return Response.json(
         { ok: false, error: "Missing fields" },
         { status: 400 }
       );
     }
 
+    // NAME LENGTH
     if (firstName.length > 50 || lastName.length > 50) {
       return Response.json(
         { ok: false, error: "Name too long" },
@@ -38,6 +53,7 @@ export async function POST(req: Request) {
       );
     }
 
+    // EMAIL VALIDATION
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!emailRegex.test(email)) {
@@ -45,7 +61,7 @@ export async function POST(req: Request) {
         { ok: false, error: "Invalid email format" },
         { status: 400 }
       );
-    } 
+    }
 
     if (email.length > 100) {
       return Response.json(
@@ -54,25 +70,28 @@ export async function POST(req: Request) {
       );
     }
 
-    // PH mobile format validation
+    // MOBILE VALIDATION
     const mobileRegex = /^09\d{9}$/;
+
     if (!mobileRegex.test(mobileNumber)) {
       return Response.json(
         {
           ok: false,
           error:
-            'Mobile number must be valid and formatted like 09123456789',
+            "Mobile number must be valid and formatted like 09123456789",
         },
         { status: 400 }
       );
     }
 
+    // PASSWORD VALIDATION
     if (password.length > 72) {
       return Response.json(
-        { ok: false, error: "Password too long" }, 
-        { status: 400 });
+        { ok: false, error: "Password too long" },
+        { status: 400 }
+      );
     }
-     // Password strength
+
     const strongPassword =
       password.length >= 8 &&
       /[a-zA-Z]/.test(password) &&
@@ -86,7 +105,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 🔒 only allow staff roles
+    // ALLOWED ROLES
     const allowedRoles = ["RECEPTIONIST", "BARBER"];
 
     if (!allowedRoles.includes(role)) {
@@ -96,8 +115,11 @@ export async function POST(req: Request) {
       );
     }
 
+    // CHECK EXISTING EMAIL
     const existingUser = await db.user.findUnique({
-      where: { email },
+      where: {
+        email,
+      },
     });
 
     if (existingUser) {
@@ -107,28 +129,53 @@ export async function POST(req: Request) {
       );
     }
 
+    // HASH PASSWORD
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // GENERATE USER CODE
+    const userCounter = await db.counter.update({
+      where: {
+        id: "userCode",
+      },
+      data: {
+        value: {
+          increment: 1,
+        },
+      },
+    });
+
+    const userCode = `USR-${String(userCounter.value).padStart(3, "0")}`;
+
+    // CREATE USER
     const user = await db.user.create({
       data: {
+        userCode,
+
         firstName,
         lastName,
+
         email,
+
         password: hashedPassword,
+
         mobileNumber,
+
         role,
-        emailVerified: true, // admin-created accounts skip verification
+
+        isActive: true,
+
+        emailVerified: true,
       },
     });
 
     return Response.json({
       ok: true,
-      message: "User created",
+      message: "User created successfully",
       user,
     });
 
   } catch (error) {
-    console.error(error);
+    console.error("CREATE USER ERROR:", error);
 
     return Response.json(
       { ok: false, error: "Server error" },

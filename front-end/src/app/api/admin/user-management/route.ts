@@ -2,18 +2,25 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isAbsolute } from "path";
+import { isAsyncFunction } from "util/types";
 
 export async function GET(req: Request) {
   try {
     const users = await db.user.findMany({
       where: {
         role: {
-            in: ["OWNER", "RECEPTIONIST", "BARBER"]
+          in: ["OWNER", "RECEPTIONIST", "BARBER"],
         },
       },
-      orderBy: {
-          id: "asc",
+      orderBy: [
+        {
+          isActive: "desc",
         },
+        {
+          createdAt: "desc",
+        },
+      ],
     });
 
     const result = users.map((user) => ({
@@ -30,6 +37,8 @@ export async function GET(req: Request) {
         user.email,
         
       role: user.role,
+
+      isActive: user.isActive,
 
       createdAt: user.createdAt,
     }));
