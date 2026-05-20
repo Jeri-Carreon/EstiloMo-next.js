@@ -5,9 +5,9 @@ import { authOptions } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
+    // AUTH CHECK
     const session = await getServerSession(authOptions);
 
-    // AUTH CHECK
     if (!session || session.user.role !== "OWNER") {
       return Response.json(
         { ok: false, error: "Forbidden" },
@@ -15,6 +15,7 @@ export async function POST(req: Request) {
       );
     }
 
+    // REQUEST BODY
     let {
       firstName,
       lastName,
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // NAME LENGTH
+    // NAME VALIDATION
     if (firstName.length > 50 || lastName.length > 50) {
       return Response.json(
         { ok: false, error: "Name too long" },
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
 
     if (email.length > 100) {
       return Response.json(
-        { ok: false, error: "Email is too long" },
+        { ok: false, error: "Email too long" },
         { status: 400 }
       );
     }
@@ -105,7 +106,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // ALLOWED ROLES
+    // ROLE VALIDATION
     const allowedRoles = ["RECEPTIONIST", "BARBER"];
 
     if (!allowedRoles.includes(role)) {
