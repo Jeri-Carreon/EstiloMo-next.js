@@ -81,6 +81,7 @@ export default function ServicesPage() {
   const [filterAnchorEl, setFilterAnchorEl] =
   useState<null | HTMLElement>(null);
 
+
 const [availabilityFilter, setAvailabilityFilter] =
   useState<'ALL' | 'AVAILABLE' | 'UNAVAILABLE'>(
     'ALL'
@@ -347,73 +348,147 @@ const filterOpen = Boolean(filterAnchorEl);
   };
 
   const handleUpdateService = async () => {
-    if (!selectedService) return;
+  if (!selectedService) return;
 
-    try {
-      const res = await fetch(
-        `/api/admin/services/${selectedService.id}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: editServiceName,
-            description: editServiceDescription,
-            durationMinutes: editDuration,
-            price: editPrice,
-            isAvailable: editAvailability,
-            assignedStaffIds: editSelectedStaffIds,
-          }),
-        }
-      );
+  const trimmedName = editServiceName.trim();
+  const trimmedDesc = editServiceDescription.trim();
 
-      const data = await res.json();
+  // REQUIRED FIELDS
+  if (
+    !trimmedName ||
+    !trimmedDesc ||
+    !editDuration ||
+    !editPrice
+  ) {
+    showStatusModal(
+      'Incomplete Fields',
+      'Please complete all fields.'
+    );
+    return;
+  }
 
-      if (!res.ok) {
-        showStatusModal(
-          'Error',
-          data.error || 'Update failed'
-        );
-        return;
+  // MAX LENGTH CHECKS
+  if (trimmedName.length > 50) {
+    showStatusModal(
+      'Error',
+      'Service name must only be 50 characters.'
+    );
+    return;
+  }
+
+  if (trimmedDesc.length > 150) {
+    showStatusModal(
+      'Error',
+      'Description must only be 150 characters.'
+    );
+    return;
+  }
+
+  // STAFF VALIDATION
+  const hasStaff =
+    Array.isArray(editSelectedStaffIds) &&
+    editSelectedStaffIds.length > 0;
+
+  if (editAvailability && !hasStaff) {
+    showStatusModal(
+      'Incomplete Fields',
+      'Please assign at least 1 staff member.'
+    );
+    return;
+  }
+
+  // NUMBER VALIDATION
+  if (
+    Number.isNaN(editDuration) ||
+    editDuration < 1 ||
+    editDuration > 999
+  ) {
+    showStatusModal(
+      'Error',
+      'Duration must only be 3 digits (Minutes)'
+    );
+    return;
+  }
+
+  if (
+    Number.isNaN(editPrice) ||
+    editPrice < 1 ||
+    editPrice > 99999
+  ) {
+    showStatusModal(
+      'Error',
+      'Price must only be 5 digits (Pesos)'
+    );
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      `/api/admin/services/${selectedService.id}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: trimmedName,
+          description: trimmedDesc,
+          durationMinutes: editDuration,
+          price: editPrice,
+          isAvailable: editAvailability,
+          assignedStaffIds: editSelectedStaffIds,
+        }),
       }
+    );
 
-      setServices((prev) =>
-        prev.map((service) =>
-          service.id === selectedService.id
-            ? {
-                ...service,
-                name: editServiceName,
-                description: editServiceDescription,
-                durationMinutes: editDuration,
-                price: editPrice,
-                assignedStaff: staffList
-                  .filter((staff) =>
-                    editSelectedStaffIds.includes(staff.id)
-                  )
-                  .map((staff) => ({
-                    id: staff.id,
-                    name: staff.name,
-                  })),
-                isAvailable: editAvailability,
-              }
-            : service
-        )
-      );
+    const data = await res.json();
 
-      setOpenEdit(false);
-
-      showStatusModal(
-        'Success',
-        'Service updated successfully!'
-      );
-    } catch (err) {
+    if (!res.ok) {
       showStatusModal(
         'Error',
-        'Something went wrong.'
+        data.error || 'Update failed'
       );
+      return;
     }
-  };
+
+    setServices((prev) =>
+      prev.map((service) =>
+        service.id === selectedService.id
+          ? {
+              ...service,
+              name: trimmedName,
+              description: trimmedDesc,
+              durationMinutes: editDuration,
+              price: editPrice,
+              assignedStaff: staffList
+                .filter((staff) =>
+                  editSelectedStaffIds.includes(
+                    staff.id
+                  )
+                )
+                .map((staff) => ({
+                  id: staff.id,
+                  name: staff.name,
+                })),
+              isAvailable: editAvailability,
+            }
+          : service
+      )
+    );
+
+    setOpenEdit(false);
+
+    showStatusModal(
+      'Success',
+      'Service updated successfully!'
+    );
+  } catch (err) {
+    showStatusModal(
+      'Error',
+      'Something went wrong.'
+    );
+  }
+};
 
 
   return (
@@ -853,6 +928,8 @@ const filterOpen = Boolean(filterAnchorEl);
             display: 'flex',
             flexDirection: 'column',
             gap: 2,
+            maxHeight: '60vh',
+            overflowY: 'auto',
         }}
         >
         <TextField
@@ -1192,58 +1269,118 @@ const filterOpen = Boolean(filterAnchorEl);
             }}
           >
             <TextField
-              label="Service Name"
+              label={
+              <>
+                Service Name <span style={{ color: 'red' }}>*</span>
+              </>}
               value={editServiceName}
-              onChange={(e) =>
-                setEditServiceName(
-                  e.target.value
-                )
-              }
+              onChange={(e) => {
+                if (e.target.value.length <= 50) {
+                  setEditServiceName(e.target.value);
+                }
+              }}
               fullWidth
+              slotProps={{
+                htmlInput: {
+                  maxLength: 50,
+                },
+              }}
             />
 
             <TextField
-              label="Description *"
-              placeholder="Enter description"
-               fullWidth
-               multiline
-               minRows={3}
-               value={editServiceDescription}
-               onChange={(e) =>
-               setEditServiceDescription(e.target.value)
-               }
-               sx={{
-               bgcolor: '#f6f6f6',
-               borderRadius: 2,
-               }}
+             label={
+              <>
+                Description <span style={{ color: 'red' }}>*</span>
+              </>}
+              value={editServiceDescription}
+              onChange={(e) => {
+                if (e.target.value.length <= 150) {
+                  setEditServiceDescription(e.target.value);
+                }
+              }}
+              fullWidth
+              multiline
+              minRows={3}
+              slotProps={{
+                htmlInput: {
+                  maxLength: 150,
+                },
+              }}
             />
+
             <TextField
-              label="Duration"
+              label={
+              <>
+                Duration <span style={{ color: 'red' }}>*</span>
+              </>}
               type="number"
-              value={editDuration}
-              onChange={(e) =>
-                setEditDuration(
-                  Number(e.target.value)
-                )
-              }
+              value={editDuration || ''}
+              onChange={(e) => {
+                const value = e.target.value;
+
+                if (value.length <= 3) {
+                  setEditDuration(
+                    value === '' ? 0 : Number(value)
+                  );
+                }
+              }}
               fullWidth
+              slotProps={{
+                htmlInput: {
+                  inputMode: 'numeric',
+                  pattern: '[0-9]*',
+                  maxLength: 3,
+                },
+              }}
             />
 
             <TextField
-              label="Price"
+              label={
+              <>
+                Price <span style={{ color: 'red' }}>*</span>
+              </>}
               type="number"
-              value={editPrice}
-              onChange={(e) =>
-                setEditPrice(
-                  Number(e.target.value)
-                )
-              }
+              value={editPrice || ''}
+              onChange={(e) => {
+                const value = e.target.value;
+
+                if (value.length <= 5) {
+                  setEditPrice(
+                    value === '' ? 0 : Number(value)
+                  );
+                }
+              }}
               fullWidth
+              slotProps={{
+                htmlInput: {
+                  inputMode: 'numeric',
+                  pattern: '[0-9]*',
+                  maxLength: 5,
+                },
+              }}
             />
 
+            <TextField
+              select
+              label="Availability"
+              fullWidth
+              value={editAvailability ? 'true' : 'false'}
+              onChange={(e) =>
+                setEditAvailability(e.target.value === 'true')
+              }
+              slotProps={{
+                select: {
+                  native: true,
+                },
+              }}
+            >
+              <option value="true">Available</option>
+              <option value="false">Unavailable</option>
+            </TextField>
+          {editAvailability && (
             <Box>
               <Typography sx={{ mb: 1, fontWeight: 600, fontSize: 14 }}>
-                Assign Barbers
+                Assign Barbers <span style={{ color: 'red '}}>*</span>
               </Typography>
 
               <Box
@@ -1283,24 +1420,7 @@ const filterOpen = Boolean(filterAnchorEl);
                 ))}
               </Box>
             </Box>
-
-            <TextField
-              select
-              label="Availability"
-              fullWidth
-              value={editAvailability ? 'true' : 'false'}
-              onChange={(e) =>
-                setEditAvailability(e.target.value === 'true')
-              }
-              slotProps={{
-                select: {
-                  native: false,
-                },
-              }}
-            >
-              <option value="true">Available</option>
-              <option value="false">Unavailable</option>
-            </TextField>
+          )}
           </DialogContent>
 
           <Box

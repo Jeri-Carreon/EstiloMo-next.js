@@ -16,14 +16,8 @@ export async function POST(req: Request) {
     }
 
     // REQUEST BODY
-    let {
-      firstName,
-      lastName,
-      email,
-      password,
-      mobileNumber,
-      role,
-    } = await req.json();
+    let { firstName, lastName, email, password, mobileNumber, role } =
+      await req.json();
 
     // SANITIZE
     firstName = (firstName ?? "").trim();
@@ -33,13 +27,7 @@ export async function POST(req: Request) {
     password = password ?? "";
 
     // REQUIRED FIELDS
-    if (
-      !firstName ||
-      !lastName ||
-      !email ||
-      !password ||
-      !mobileNumber
-    ) {
+    if (!firstName || !lastName || !email || !password || !mobileNumber) {
       return Response.json(
         { ok: false, error: "Missing fields" },
         { status: 400 }
@@ -78,8 +66,7 @@ export async function POST(req: Request) {
       return Response.json(
         {
           ok: false,
-          error:
-            "Mobile number must be valid and formatted like 09123456789",
+          error: "Mobile number must be valid and formatted like 09123456789",
         },
         { status: 400 }
       );
@@ -130,43 +117,82 @@ export async function POST(req: Request) {
       );
     }
 
-    // HASH PASSWORD
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // GENERATE USER CODE
-    const userCounter = await db.counter.update({
+    // CHECK EXISTING MOBILE NUMBER
+    const existingMobile = await db.user.findFirst({
       where: {
-        id: "userCode",
-      },
-      data: {
-        value: {
-          increment: 1,
-        },
+        mobileNumber,
       },
     });
 
-    const userCode = `USR-${String(userCounter.value).padStart(3, "0")}`;
+    if (existingMobile) {
+      return Response.json(
+        { ok: false, error: "Mobile number already exists" },
+        { status: 400 }
+      );
+    }
 
-    // CREATE USER
-    const user = await db.user.create({
-      data: {
-        userCode,
+    // HASH PASSWORD
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-        firstName,
-        lastName,
+    // CREATE USER + BARBER INSIDE TRANSACTION
+    const user = await db.$transaction(async (tx) => {
+      const userCounter = await tx.counter.update({
+        where: {
+          id: "userCode",
+        },
+        data: {
+          value: {
+            increment: 1,
+          },
+        },
+      });
 
-        email,
+      const userCode = `USR-${String(userCounter.value).padStart(3, "0")}`;
 
-        password: hashedPassword,
+      const newUser = await tx.user.create({
+        data: {
+          userCode,
+          firstName,
+          lastName,
+          email,
+          password: hashedPassword,
+          mobileNumber,
+          role,
+          isActive: true,
+          emailVerified: true,
+        },
+      });
 
-        mobileNumber,
+      if (role === "BARBER") {
+        const barberCounter = await tx.counter.update({
+          where: {
+            id: "barberCode",
+          },
+          data: {
+            value: {
+              increment: 1,
+            },
+          },
+        });
 
-        role,
+        const barberCode = `BRB-${String(barberCounter.value).padStart(
+          3,
+          "0"
+        )}`;
 
-        isActive: true,
+        await tx.barber.create({
+          data: {
+            barberCode,
+            userId: newUser.id,
+            firstName,
+            lastName,
+            mobileNumber,
+            email,
+          },
+        });
+      }
 
-        emailVerified: true,
-      },
+      return newUser;
     });
 
     return Response.json({
@@ -174,7 +200,6 @@ export async function POST(req: Request) {
       message: "User created successfully",
       user,
     });
-
   } catch (error) {
     console.error("CREATE USER ERROR:", error);
 

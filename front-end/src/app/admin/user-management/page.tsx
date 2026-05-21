@@ -393,12 +393,8 @@ export default function AdminPage() {
                   <TableCell sx={{ fontWeight: 700 }}>ID</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>
-                    Contact Number
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>
-                    Email Address
-                  </TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Contact Number</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Email Address</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Role</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Date Added</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Actions</TableCell>
@@ -843,7 +839,16 @@ export default function AdminPage() {
                 Role <span style={{ color: "red" }}>*</span>
               </InputLabel>
 
-              <Select value={editRole} label="Role *" disabled>
+              <Select
+                value={editRole}
+                label="Role *"
+                disabled
+                sx={{
+                  "& .Mui-disabled": {
+                    WebkitTextFillColor: "#555",
+                  },
+                }}
+              >
                 <MenuItem value="RECEPTIONIST">Receptionist</MenuItem>
                 <MenuItem value="BARBER">Barber</MenuItem>
               </Select>
@@ -888,7 +893,7 @@ export default function AdminPage() {
                 ":hover": { backgroundColor: "#111" },
               }}
             >
-              Edit
+              Update
             </Button>
           </Box>
         </Box>
@@ -954,7 +959,7 @@ export default function AdminPage() {
                 ":hover": { backgroundColor: "#111" },
               }}
             >
-              Edit
+              Update
             </Button>
           </Box>
         </Box>
@@ -1161,8 +1166,8 @@ export default function AdminPage() {
 
             <ul style={{ paddingLeft: 20, marginTop: 0 }}>
               <li>At least 8 characters long</li>
-              <li>Contains at least 1 letter (A–Z)</li>
-              <li>Contains at least 1 number (0–9)</li>
+              <li>Contains at least 1 letter (A-Z)</li>
+              <li>Contains at least 1 number (0-9)</li>
               <li>Contains at least 1 special character (!@#$%^&*)</li>
             </ul>
           </DialogContent>

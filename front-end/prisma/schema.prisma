@@ -20,7 +20,8 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
-  user              User    @relation("accounts", fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation("accounts", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@index([userId])
@@ -31,14 +32,22 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
+model Counter {
+  id    String @id
+  value Int
+}
+
 model User {
   id            String    @id @default(cuid())
+  userCode      String    @unique
   email         String    @unique
+  emailVerified Boolean   @default(false)
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -49,33 +58,48 @@ model User {
   loginAttempts Int       @default(0)
   mobileNumber  String    @db.VarChar(11)
   role          Role      @default(CUSTOMER)
-  emailVerified Boolean   @default(false)
-  userCode      String    @unique
   isActive      Boolean   @default(true)
-  accounts      Account[] @relation("accounts")
-  Barber        Barber?
-  customer      Customer?
-  reviews       Review[]
-  sessions      Session[]
-  services      Service[] @relation("StaffServices")
+
+  accounts Account[] @relation("accounts")
+  sessions Session[]
+  barber   Barber?
+  customer Customer?
+  reviews  Review[]
+  services Service[] @relation("StaffServices")
 }
 
 model Customer {
-  userId        String?       @unique
-  customerType  CustomerType  @default(CASUAL)
-  createdAt     DateTime      @default(now())
-  email         String?       @unique
+  id            String       @id @default(cuid())
+  customerCode  String       @unique
   firstName     String
-  id            String        @id @default(cuid())
   lastName      String
-  loyaltyPoints Int           @default(0)
-  mobileNumber  String        @db.VarChar(11)
-  updatedAt     DateTime      @updatedAt
-  customerCode  String        @unique
-  isActive      Boolean       @default(true)
-  appointments  Appointment[]
-  user          User?         @relation(fields: [userId], references: [id])
-  loyaltyCards  LoyaltyCard[]
+  email         String?      @unique
+  mobileNumber  String       @db.VarChar(11)
+  customerType  CustomerType @default(CASUAL)
+  loyaltyPoints Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  isActive      Boolean      @default(true)
+
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id])
+
+  appointments Appointment[]
+  loyaltyCards LoyaltyCard[]
+}
+
+model Barber {
+  id           String @id @default(cuid())
+  barberCode   String @unique
+  firstName    String
+  lastName     String
+  mobileNumber String
+  email        String
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  appointments Appointment[]
 }
 
 model PasswordResetToken {
@@ -86,10 +110,10 @@ model PasswordResetToken {
 }
 
 model VerificationToken {
+  id      String   @id @default(cuid())
+  email   String
   token   String   @unique
   expires DateTime
-  email   String
-  id      String   @id @default(cuid())
 }
 
 model ContactUsMessages {
@@ -106,25 +130,29 @@ model Review {
   rating    Int
   comment   String?
   createdAt DateTime @default(now())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("Review")
 }
 
 model Appointment {
   id              String            @id @default(cuid())
+  appointmentCode String            @unique
   scheduledAt     DateTime
+  status          AppointmentStatus @default(PENDING)
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
-  customerId      String
-  serviceId       String
-  appointmentCode String            @unique
-  barberId        String
-  status          AppointmentStatus @default(PENDING)
-  Barber          Barber            @relation(fields: [barberId], references: [id])
-  customer        Customer          @relation(fields: [customerId], references: [id])
-  service         Service           @relation(fields: [serviceId], references: [id])
+
+  barberId String
+  barber   Barber @relation(fields: [barberId], references: [id])
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id])
 }
 
 model LoyaltyCard {
@@ -133,12 +161,14 @@ model LoyaltyCard {
   status     Status   @default(ACTIVE)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 }
 
 model Service {
   id               String           @id @default(cuid())
+  serviceCode      String           @unique
   name             String
   description      String?
   category         ServiceCategory?
@@ -154,26 +184,9 @@ model Service {
   isFeatured       Boolean          @default(false)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
-  serviceCode      String           @unique
-  appointments     Appointment[]
-  assignedStaff    User[]           @relation("StaffServices")
-}
 
-model Barber {
-  id           String        @id
-  barberCode   String        @unique
-  firstName    String
-  lastName     String
-  mobileNumber String
-  email        String
-  userId       String        @unique
-  Appointment  Appointment[]
-  User         User          @relation(fields: [userId], references: [id])
-}
-
-model Counter {
-  id    String @id
-  value Int
+  appointments  Appointment[]
+  assignedStaff User[]        @relation("StaffServices")
 }
 
 enum Role {

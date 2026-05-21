@@ -298,7 +298,7 @@ export default function ProfilePage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     variant="outlined"
-                    disabled={!isEditing}
+                    disabled
                     sx={{
                       "& .MuiOutlinedInput-root": {
                         backgroundColor: isEditing ? "#fff" : "#e8e8e8",
