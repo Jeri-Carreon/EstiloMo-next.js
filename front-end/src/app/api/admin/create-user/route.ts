@@ -16,14 +16,8 @@ export async function POST(req: Request) {
     }
 
     // REQUEST BODY
-    let {
-      firstName,
-      lastName,
-      email,
-      password,
-      mobileNumber,
-      role,
-    } = await req.json();
+    let { firstName, lastName, email, password, mobileNumber, role } =
+      await req.json();
 
     // SANITIZE
     firstName = (firstName ?? "").trim();
@@ -32,18 +26,12 @@ export async function POST(req: Request) {
     mobileNumber = (mobileNumber ?? "").replace(/\D/g, "");
     password = password ?? "";
 
-    // ========================
-    // VALIDATION (unchanged)
-    // ========================
     // REQUIRED FIELDS
-    if (
-      !firstName ||
-      !lastName ||
-      !email ||
-      !password ||
-      !mobileNumber
-    ) {
-      return Response.json({ ok: false, error: "Missing fields" }, { status: 400 });
+    if (!firstName || !lastName || !email || !password || !mobileNumber) {
+      return Response.json(
+        { ok: false, error: "Missing fields" },
+        { status: 400 }
+      );
     }
 
     // NAME VALIDATION
@@ -78,8 +66,7 @@ export async function POST(req: Request) {
       return Response.json(
         {
           ok: false,
-          error:
-            "Mobile number must be valid and formatted like 09123456789",
+          error: "Mobile number must be valid and formatted like 09123456789",
         },
         { status: 400 }
       );
@@ -110,7 +97,10 @@ export async function POST(req: Request) {
     const allowedRoles = ["RECEPTIONIST", "BARBER"];
 
     if (!allowedRoles.includes(role)) {
-      return Response.json({ ok: false, error: "Invalid role" }, { status: 400 });
+      return Response.json(
+        { ok: false, error: "Invalid role" },
+        { status: 400 }
+      );
     }
 
     // CHECK EXISTING EMAIL
@@ -121,98 +111,98 @@ export async function POST(req: Request) {
     });
 
     if (existingUser) {
-      return Response.json({ ok: false, error: "Email already exists" }, { status: 400 });
+      return Response.json(
+        { ok: false, error: "Email already exists" },
+        { status: 400 }
+      );
+    }
+
+    // CHECK EXISTING MOBILE NUMBER
+    const existingMobile = await db.user.findFirst({
+      where: {
+        mobileNumber,
+      },
+    });
+
+    if (existingMobile) {
+      return Response.json(
+        { ok: false, error: "Mobile number already exists" },
+        { status: 400 }
+      );
     }
 
     // HASH PASSWORD
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // GENERATE USER CODE
-    const userCounter = await db.counter.update({
-      where: {
-        id: "userCode",
-      },
-      data: {
-        value: {
-          increment: 1,
+    const user = await db.$transaction(async (tx) => {
+      // GENERATE USER CODE
+      const userCounter = await tx.counter.update({
+        where: {
+          id: "userCode",
         },
-      },
-    });
-
-    const userCode = `USR-${String(userCounter.value).padStart(3, "0")}`;
-
-    // CREATE USER
-    // ========================
-    // CREATE USER CODE
-    // ========================
-    const userCounter = await db.counter.update({
-      where: { id: "userCode" },
-      data: { value: { increment: 1 } },
-    });
-
-    const userCode = String(userCounter.value).padStart(3, "0");
-
-    // ========================
-    // CREATE USER
-    // ========================
-    const user = await db.user.create({
-      data: {
-        userCode,
-
-        userCode,
-        firstName,
-        lastName,
-
-        email,
-
-        password: hashedPassword,
-
-        mobileNumber,
-
-        role,
-
-        isActive: true,
-
-        emailVerified: true,
-      },
-    });
-
-    // ========================
-    // CREATE BARBER (NEW LOGIC)
-    // ========================
-    if (role === "BARBER") {
-      const barberCounter = await db.counter.update({
-        where: { id: "barberCode" },
-        data: { value: { increment: 1 } },
+        data: {
+          value: {
+            increment: 1,
+          },
+        },
       });
 
-      const barberCode = String(barberCounter.value).padStart(3, "0");
+      const userCode = `USR-${String(userCounter.value).padStart(3, "0")}`;
 
-      await db.barber.create({
+      // CREATE USER
+      const newUser = await tx.user.create({
         data: {
-          barberCode,
-          userId: user.id,
+          userCode,
           firstName,
           lastName,
-          mobileNumber,
           email,
+          password: hashedPassword,
+          mobileNumber,
+          role,
+          isActive: true,
+          emailVerified: true,
         },
       });
-    }
 
-    // ========================
-    // CREATE RECEPTIONIST (optional placeholder)
-    // ========================
-    if (role === "RECEPTIONIST") {
-      // future receptionist table logic here
-    }
+      // CREATE BARBER IF ROLE IS BARBER
+      if (role === "BARBER") {
+        const barberCounter = await tx.counter.update({
+          where: {
+            id: "barberCode",
+          },
+          data: {
+            value: {
+              increment: 1,
+            },
+          },
+        });
+
+        const barberCode = `BRB-${String(barberCounter.value).padStart(
+          3,
+          "0"
+        )}`;
+
+        await tx.barber.create({
+          data: {
+            id: newUser.id,
+            barberCode,
+            userId: newUser.id,
+            firstName,
+            lastName,
+            mobileNumber,
+            email,
+          },
+        });
+      }
+
+      return newUser;
+    });
 
     return Response.json({
       ok: true,
       message: "User created successfully",
       user,
     });
-
   } catch (error) {
     console.error("CREATE USER ERROR:", error);
 

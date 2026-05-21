@@ -43,10 +43,6 @@ model Counter {
 
 model User {
   id            String    @id @default(cuid())
-  userCode      String    @unique
-  
-  email         String    @unique
-  emailVerified Boolean   @default(false)
   email         String    @unique
   image         String?
   createdAt     DateTime  @default(now())
@@ -62,25 +58,11 @@ model User {
   userCode      String    @unique
   isActive      Boolean   @default(true)
   accounts      Account[] @relation("accounts")
-  Barber        Barber?
+  barber        Barber?
   customer      Customer?
   reviews       Review[]
   sessions      Session[]
   services      Service[] @relation("StaffServices")
-
-  reviews       Review[]
-
-  customer      Customer?
-  barber        Barber?
-
-  services       Service[]  @relation("StaffServices")
-}
-
-enum Role {
-  CUSTOMER
-  OWNER
-  RECEPTIONIST
-  BARBER
 }
 
 model Customer {
@@ -96,39 +78,21 @@ model Customer {
   updatedAt     DateTime      @updatedAt
   customerCode  String        @unique
   isActive      Boolean       @default(true)
-  id            String   @id @default(cuid())
-  customerCode  String   @unique
-  firstName     String
-  lastName      String
-  email         String?  @unique
-  mobileNumber  String   @db.VarChar(11)
-
-  customerType  CustomerType @default(CASUAL)
-
-  loyaltyPoints Int @default(0)
-
-  // Optional link to login account
-  userId        String? @unique
-  user          User? @relation(fields: [userId], references: [id])
-
   appointments  Appointment[]
   user          User?         @relation(fields: [userId], references: [id])
   loyaltyCards  LoyaltyCard[]
 }
 
 model Barber {
-  id            String @id @default(cuid())
-  barberCode    String @unique
-
-  firstName     String
-  lastName      String
-  mobileNumber  String
-  email         String
-
-  userId        String @unique
-  user          User @relation(fields: [userId], references: [id])
-
-  appointments  Appointment[]
+  id           String        @id @default(cuid())
+  barberCode   String        @unique
+  firstName    String
+  lastName     String
+  mobileNumber String
+  email        String
+  userId       String        @unique
+  appointments Appointment[]
+  user         User          @relation(fields: [userId], references: [id])
 }
 
 model PasswordResetToken {
@@ -165,14 +129,6 @@ model Review {
   @@map("Review")
 }
 
-enum AppointmentStatus {
-  PENDING
-  SCHEDULED
-  COMPLETED
-  CANCELLED
-  NOSHOW
-}
-
 model Appointment {
   id              String            @id @default(cuid())
   scheduledAt     DateTime
@@ -183,7 +139,7 @@ model Appointment {
   appointmentCode String            @unique
   barberId        String
   status          AppointmentStatus @default(PENDING)
-  Barber          Barber            @relation(fields: [barberId], references: [id])
+  barber          Barber            @relation(fields: [barberId], references: [id])
   customer        Customer          @relation(fields: [customerId], references: [id])
   service         Service           @relation(fields: [serviceId], references: [id])
 }
@@ -220,23 +176,6 @@ model Service {
   assignedStaff    User[]           @relation("StaffServices")
 }
 
-model Barber {
-  id           String        @id
-  barberCode   String        @unique
-  firstName    String
-  lastName     String
-  mobileNumber String
-  email        String
-  userId       String        @unique
-  Appointment  Appointment[]
-  User         User          @relation(fields: [userId], references: [id])
-}
-
-model Counter {
-  id    String @id
-  value Int
-}
-
 enum Role {
   CUSTOMER
   OWNER
@@ -247,23 +186,14 @@ enum Role {
 enum CustomerType {
   CASUAL
   REGULAR
-  id              String   @id @default(cuid())
-  appointmentCode String   @unique
+}
 
-  barberId        String
-  barber          Barber   @relation(fields: [barberId], references: [id])
-
-  customerId      String
-  customer        Customer @relation(fields: [customerId], references: [id])
-
-  serviceId       String
-  service         Service  @relation(fields: [serviceId], references: [id])
-
-  scheduledAt     DateTime
-  status          AppointmentStatus @default(PENDING)
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+enum AppointmentStatus {
+  PENDING
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NOSHOW
 }
 
 enum Status {
@@ -276,12 +206,4 @@ enum ServiceCategory {
   KIDS_HAIRCUT
   SHAVE
   SCALP_MASSAGE
-}
-
-enum AppointmentStatus {
-  PENDING
-  SCHEDULED
-  COMPLETED
-  CANCELLED
-  NOSHOW
 }

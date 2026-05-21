@@ -838,24 +838,21 @@ export default function AdminPage() {
               sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
             />
 
-            <FormControl fullWidth sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}>
-              <InputLabel>Role <span style={{ color: 'red' }}>*</span></InputLabel>
-              <Select
-                value={editRole}
-                label="Role *"
-                disabled
-                sx = {{
-                  '& .Mui-disabled': {
-                    WebkitTextFillColor: '#555',
-                  },
-                }}
-              >
             <FormControl fullWidth sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}>
               <InputLabel>
                 Role <span style={{ color: "red" }}>*</span>
               </InputLabel>
 
-              <Select value={editRole} label="Role *" disabled>
+              <Select
+                value={editRole}
+                label="Role *"
+                disabled
+                sx={{
+                  "& .Mui-disabled": {
+                    WebkitTextFillColor: "#555",
+                  },
+                }}
+              >
                 <MenuItem value="RECEPTIONIST">Receptionist</MenuItem>
                 <MenuItem value="BARBER">Barber</MenuItem>
               </Select>
@@ -1173,8 +1170,8 @@ export default function AdminPage() {
 
             <ul style={{ paddingLeft: 20, marginTop: 0 }}>
               <li>At least 8 characters long</li>
-              <li>Contains at least 1 letter (A–Z)</li>
-              <li>Contains at least 1 number (0–9)</li>
+              <li>Contains at least 1 letter (A-Z)</li>
+              <li>Contains at least 1 number (0-9)</li>
               <li>Contains at least 1 special character (!@#$%^&*)</li>
             </ul>
           </DialogContent>

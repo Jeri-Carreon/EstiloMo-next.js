@@ -8,10 +8,7 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (
-      !session ||
-      !["OWNER", "RECEPTIONIST"].includes(session.user.role)
-    ) {
+    if (!session || !["OWNER", "RECEPTIONIST"].includes(session.user.role)) {
       return NextResponse.json(
         { ok: false, error: "Forbidden" },
         { status: 403 }
@@ -92,16 +89,6 @@ export async function POST(req: Request) {
     }
 
     const customer = await db.$transaction(async (tx) => {
-
-      // customerCode
-      const customerCounter = await tx.counter.update({
-        where: { id: "customerCode" },
-        data: {
-          value: { increment: 1 },
-        },
-      });
-
-      const customerCode = String(customerCounter.value).padStart(3, "0");
       const customerCounter = await tx.counter.update({
         where: {
           id: "customerCode",
