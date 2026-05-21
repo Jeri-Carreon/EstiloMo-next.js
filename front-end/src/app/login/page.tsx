@@ -53,7 +53,7 @@ export default function LoginPage() {
       email,
       password,
       redirect: false,
-      callbackUrl: "/",
+      callbackUrl: "/customerHome",
       remember: rememberMe, // pass the rememberMe state to the signIn function
     });
     
@@ -73,7 +73,7 @@ export default function LoginPage() {
     if (role !== "CUSTOMER") {
       router.push("/admin")
     } else
-      router.push("/");// manually redirect on success
+      router.push("/customerHome");
   };
 
   

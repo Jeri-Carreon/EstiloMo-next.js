@@ -32,6 +32,9 @@ export async function POST(req: Request) {
     mobileNumber = (mobileNumber ?? "").replace(/\D/g, "");
     password = password ?? "";
 
+    // ========================
+    // VALIDATION (unchanged)
+    // ========================
     // REQUIRED FIELDS
     if (
       !firstName ||
@@ -40,10 +43,7 @@ export async function POST(req: Request) {
       !password ||
       !mobileNumber
     ) {
-      return Response.json(
-        { ok: false, error: "Missing fields" },
-        { status: 400 }
-      );
+      return Response.json({ ok: false, error: "Missing fields" }, { status: 400 });
     }
 
     // NAME VALIDATION
@@ -110,10 +110,7 @@ export async function POST(req: Request) {
     const allowedRoles = ["RECEPTIONIST", "BARBER"];
 
     if (!allowedRoles.includes(role)) {
-      return Response.json(
-        { ok: false, error: "Invalid role" },
-        { status: 400 }
-      );
+      return Response.json({ ok: false, error: "Invalid role" }, { status: 400 });
     }
 
     // CHECK EXISTING EMAIL
@@ -124,10 +121,7 @@ export async function POST(req: Request) {
     });
 
     if (existingUser) {
-      return Response.json(
-        { ok: false, error: "Email already exists" },
-        { status: 400 }
-      );
+      return Response.json({ ok: false, error: "Email already exists" }, { status: 400 });
     }
 
     // HASH PASSWORD
@@ -148,10 +142,24 @@ export async function POST(req: Request) {
     const userCode = `USR-${String(userCounter.value).padStart(3, "0")}`;
 
     // CREATE USER
+    // ========================
+    // CREATE USER CODE
+    // ========================
+    const userCounter = await db.counter.update({
+      where: { id: "userCode" },
+      data: { value: { increment: 1 } },
+    });
+
+    const userCode = String(userCounter.value).padStart(3, "0");
+
+    // ========================
+    // CREATE USER
+    // ========================
     const user = await db.user.create({
       data: {
         userCode,
 
+        userCode,
         firstName,
         lastName,
 
@@ -168,6 +176,36 @@ export async function POST(req: Request) {
         emailVerified: true,
       },
     });
+
+    // ========================
+    // CREATE BARBER (NEW LOGIC)
+    // ========================
+    if (role === "BARBER") {
+      const barberCounter = await db.counter.update({
+        where: { id: "barberCode" },
+        data: { value: { increment: 1 } },
+      });
+
+      const barberCode = String(barberCounter.value).padStart(3, "0");
+
+      await db.barber.create({
+        data: {
+          barberCode,
+          userId: user.id,
+          firstName,
+          lastName,
+          mobileNumber,
+          email,
+        },
+      });
+    }
+
+    // ========================
+    // CREATE RECEPTIONIST (optional placeholder)
+    // ========================
+    if (role === "RECEPTIONIST") {
+      // future receptionist table logic here
+    }
 
     return Response.json({
       ok: true,

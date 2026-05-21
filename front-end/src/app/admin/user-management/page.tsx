@@ -838,6 +838,18 @@ export default function AdminPage() {
               sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
             />
 
+            <FormControl fullWidth sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}>
+              <InputLabel>Role <span style={{ color: 'red' }}>*</span></InputLabel>
+              <Select
+                value={editRole}
+                label="Role *"
+                disabled
+                sx = {{
+                  '& .Mui-disabled': {
+                    WebkitTextFillColor: '#555',
+                  },
+                }}
+              >
             <FormControl fullWidth sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}>
               <InputLabel>
                 Role <span style={{ color: "red" }}>*</span>
@@ -888,7 +900,7 @@ export default function AdminPage() {
                 ":hover": { backgroundColor: "#111" },
               }}
             >
-              Edit
+              Update
             </Button>
           </Box>
         </Box>
@@ -954,7 +966,7 @@ export default function AdminPage() {
                 ":hover": { backgroundColor: "#111" },
               }}
             >
-              Edit
+              Update
             </Button>
           </Box>
         </Box>
