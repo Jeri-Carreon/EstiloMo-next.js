@@ -6,29 +6,22 @@ import { authOptions } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
-    // AUTH CHECK
     const session = await getServerSession(authOptions);
 
-    if (
-      !session ||
-      !["OWNER", "RECEPTIONIST"].includes(session.user.role)
-    ) {
+    if (!session || !["OWNER", "RECEPTIONIST"].includes(session.user.role)) {
       return NextResponse.json(
         { ok: false, error: "Forbidden" },
         { status: 403 }
       );
     }
 
-    // REQUEST BODY
-    let {firstName, lastName, email, mobileNumber,} = 
-      await req.json();
+    let { firstName, lastName, email, mobileNumber } = await req.json();
 
     firstName = (firstName ?? "").trim();
     lastName = (lastName ?? "").trim();
     email = (email ?? "").toLowerCase().trim() || null;
     mobileNumber = (mobileNumber ?? "").replace(/\D/g, "");
 
-    // VALIDATION
     if (!firstName || !lastName || !mobileNumber) {
       return NextResponse.json(
         { ok: false, error: "Missing required fields" },
@@ -50,7 +43,7 @@ export async function POST(req: Request) {
         { ok: false, error: "Invalid email format" },
         { status: 400 }
       );
-    } 
+    }
 
     if (email && email.length > 100) {
       return NextResponse.json(
@@ -59,25 +52,24 @@ export async function POST(req: Request) {
       );
     }
 
-    // PH mobile format validation
     const mobileRegex = /^09\d{9}$/;
+
     if (!mobileRegex.test(mobileNumber)) {
       return NextResponse.json(
         {
           ok: false,
-          error:
-            'Mobile number must be valid and formatted like 09123456789',
+          error: "Mobile number must be valid and formatted like 09123456789",
         },
         { status: 400 }
       );
     }
 
     if (email) {
-      const existingUser = await db.user.findUnique({
+      const existingCustomer = await db.customer.findUnique({
         where: { email },
       });
 
-      if (existingUser) {
+      if (existingCustomer) {
         return NextResponse.json(
           { ok: false, error: "Email already exists" },
           { status: 400 }
@@ -85,32 +77,43 @@ export async function POST(req: Request) {
       }
     }
 
-    const customer = await db.$transaction(async (tx) => {
+    const existingMobile = await db.customer.findFirst({
+      where: { mobileNumber },
+    });
 
-      // customerCode
+    if (existingMobile) {
+      return NextResponse.json(
+        { ok: false, error: "Mobile number already exists" },
+        { status: 400 }
+      );
+    }
+
+    const customer = await db.$transaction(async (tx) => {
       const customerCounter = await tx.counter.update({
-        where: { id: "customerCode" },
+        where: {
+          id: "customerCode",
+        },
         data: {
-          value: { increment: 1 },
+          value: {
+            increment: 1,
+          },
         },
       });
 
       const customerCode = String(customerCounter.value).padStart(3, "0");
 
-      // Create customer
       const newCustomer = await tx.customer.create({
         data: {
           customerCode,
           firstName,
           lastName,
           mobileNumber,
-
+          isActive: true,
           customerType: "CASUAL",
           ...(email ? { email } : {}),
         },
       });
 
-      // Create loyalty card automatically
       await tx.loyaltyCard.create({
         data: {
           customerId: newCustomer.id,
@@ -120,13 +123,11 @@ export async function POST(req: Request) {
       return newCustomer;
     });
 
-    // ✅ SUCCESS
     return NextResponse.json({
       ok: true,
       message: "Customer created successfully",
       customer,
     });
-
   } catch (error) {
     console.error("Create customer error:", error);
 
