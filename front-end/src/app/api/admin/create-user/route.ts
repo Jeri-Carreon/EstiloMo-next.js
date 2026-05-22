@@ -184,7 +184,6 @@ export async function POST(req: Request) {
 
         await tx.barber.create({
           data: {
-            id: newUser.id,
             barberCode,
             userId: newUser.id,
             firstName,

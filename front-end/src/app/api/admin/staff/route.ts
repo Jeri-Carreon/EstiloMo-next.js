@@ -20,24 +20,23 @@ export async function GET() {
       );
     }
 
-    const staff = await db.user.findMany({
-      where: {
-        role: "BARBER",
-      },
-
+    const staff = await db.barber.findMany({
+  include: {
+    user: {
       select: {
-        id: true,
         firstName: true,
         lastName: true,
       },
-    });
+    },
+  },
+});
 
     return NextResponse.json({
-      staff: staff.map((s) => ({
-        id: s.id,
-        name: `${s.firstName || ""} ${s.lastName || ""}`.trim(),
-      })),
-    });
+  staff: staff.map((b) => ({
+    id: b.id, // ✅ barber.id (CORRECT)
+    name: `${b.user?.firstName || ""} ${b.user?.lastName || ""}`.trim(),
+  })),
+});
   } catch (error) {
     console.error(error);
 

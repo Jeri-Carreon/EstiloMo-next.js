@@ -7,7 +7,6 @@ import Grid from '@mui/material/Grid';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
-import Avatar from '@mui/material/Avatar';
 import Stack from '@mui/material/Stack';
 
 import type { AppointmentData } from '@/app/appointment/page';
@@ -20,71 +19,98 @@ const steps = [
   'Confirmation',
 ];
 
-interface Barber {
+interface Service {
   id: string;
   name: string;
-  role?: string;
+  price: number;
+  description: string;
 }
 
-interface BarberStepProps {
+interface ServiceStepProps {
   appointmentData: AppointmentData;
 
-  setAppointmentData: React.Dispatch<React.SetStateAction<AppointmentData>>;
+  setAppointmentData: React.Dispatch<
+    React.SetStateAction<AppointmentData>
+  >;
 
   nextStep: () => void;
+
+  prevStep: () => void;
 }
 
-export default function BarberStep({
+export default function ServiceStep({
   appointmentData,
   setAppointmentData,
   nextStep,
-}: BarberStepProps) {
-  const [barbers, setBarbers] = useState<Barber[]>([]);
+  prevStep,
+}: ServiceStepProps) {
+  const [services, setServices] = useState<Service[]>([]);
 
-  const [selectedBarber, setSelectedBarber] =
-    useState<string>(appointmentData.barberId || '');
+  const [selectedService, setSelectedService] =
+    useState<string>(
+      appointmentData.serviceId || ''
+    );
 
   const [loading, setLoading] = useState(true);
 
   const [error, setError] = useState('');
 
-  const loadBarbers = async () => {
+  const loadServices = async () => {
     try {
-      const res = await fetch('/api/appointment/barbers');
+      const res = await fetch(
+        `/api/appointment/services?barberId=${appointmentData.barberId}`
+      );
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'Unable to load barbers.');
-        setBarbers([]);
+        setError(
+          data.error ||
+            'Unable to load services.'
+        );
+
+        setServices([]);
       } else {
         setError('');
-        setBarbers(data.barbers || []);
+
+        setServices(data.services || []);
       }
     } catch (error) {
-      setError('Unable to load barbers.');
+      setError(
+        'An error occurred while loading services.'
+      );
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadBarbers();
-  }, []);
+  if (!appointmentData.barberId) return;
+
+  setLoading(true); // 🔥 IMPORTANT FIX
+  setServices([]);
+  setError('');
+
+  loadServices();
+}, [appointmentData.barberId]);
 
   const handleNext = () => {
-    if (!selectedBarber) return;
+    if (!selectedService) return;
 
-    const barber = barbers.find(
-      (b) => b.id === selectedBarber
+    const service = services.find(
+      (s) => s.id === selectedService
     );
 
-    if (!barber) return;
+    if (!service) return;
 
     setAppointmentData((prev) => ({
       ...prev,
-      barberId: barber.id,
-      barberName: barber.name,
+
+      serviceId: service.id,
+      serviceName: service.name,
+      servicePrice: service.price,
+      serviceDescription:
+        service.description,
     }));
 
     nextStep();
@@ -104,14 +130,16 @@ export default function BarberStep({
       >
         <Stack spacing={5}>
           {steps.map((step, index) => {
-            const active = index === 0;
+            const active = index === 1;
 
             return (
               <Stack
                 key={step}
                 direction="row"
                 spacing={2}
-                sx={{ alignItems: 'center' }}
+                sx={{
+                  alignItems: 'center',
+                }}
               >
                 <Box
                   sx={{
@@ -121,10 +149,16 @@ export default function BarberStep({
                     backgroundColor: active
                       ? '#f4b400'
                       : '#777',
-                    color: active ? '#000' : '#fff',
+
+                    color: active
+                      ? '#000'
+                      : '#fff',
+
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
+                    justifyContent:
+                      'center',
+
                     fontWeight: 'bold',
                   }}
                 >
@@ -133,8 +167,14 @@ export default function BarberStep({
 
                 <Typography
                   sx={{
-                    color: active ? '#fff' : '#aaa',
-                    fontWeight: active ? 'bold' : 'normal',
+                    color: active
+                      ? '#fff'
+                      : '#aaa',
+
+                    fontWeight: active
+                      ? 'bold'
+                      : 'normal',
+
                     fontFamily:
                       'var(--font-nunito-sans)',
                   }}
@@ -158,7 +198,9 @@ export default function BarberStep({
         {/* TITLE */}
         <Box
           sx={{
-            borderBottom: '1px solid #bbb',
+            borderBottom:
+              '1px solid #bbb',
+
             px: 4,
             py: 3,
           }}
@@ -167,18 +209,19 @@ export default function BarberStep({
             variant="h4"
             sx={{
               fontWeight: 'bold',
-              fontFamily: 'var(--font-nunito-sans)',
+              fontFamily:
+                'var(--font-nunito-sans)',
             }}
           >
-            Barber
+            Service
           </Typography>
         </Box>
 
-        {/* BARBERS */}
+        {/* SERVICES */}
         <Box sx={{ p: 4 }}>
           {loading ? (
             <Typography>
-              Loading barbers...
+              Loading services...
             </Typography>
           ) : error ? (
             <Typography color="error">
@@ -186,22 +229,25 @@ export default function BarberStep({
             </Typography>
           ) : (
             <Grid container spacing={4}>
-              {barbers.map((barber) => {
+              {services.map((service) => {
                 const isSelected =
-                  selectedBarber === barber.id;
+                  selectedService ===
+                  service.id;
 
                 return (
                   <Grid
-                    key={barber.id}
+                    key={service.id}
                     size={{
                       xs: 12,
                       sm: 6,
-                      md: 3,
+                      md: 4,
                     }}
                   >
                     <Paper
                       onClick={() =>
-                        setSelectedBarber(barber.id)
+                        setSelectedService(
+                          service.id
+                        )
                       }
                       elevation={0}
                       sx={{
@@ -215,54 +261,56 @@ export default function BarberStep({
 
                         transition: '0.2s',
 
+                        minHeight: 220,
+
                         '&:hover': {
-                          transform: 'translateY(-4px)',
+                          transform:
+                            'translateY(-4px)',
+
                           boxShadow: 3,
                         },
                       }}
                     >
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          justifyContent: 'center',
-                          mb: 3,
-                        }}
-                      >
-                        <Avatar
-                          sx={{
-                            width: 90,
-                            height: 90,
-                            backgroundColor: '#e0e0e0',
-                            color: '#000',
-                            fontSize: '2rem',
-                          }}
-                        >
-                          👤
-                        </Avatar>
-                      </Box>
-
                       <Typography
-                        align="center"
                         sx={{
                           fontWeight: 'bold',
-                          fontSize: '1.1rem',
+                          fontSize: '1.3rem',
+
                           fontFamily:
                             'var(--font-nunito-sans)',
                         }}
                       >
-                        {barber.name}
+                        {service.name}
                       </Typography>
 
                       <Typography
-                        align="center"
                         sx={{
-                          color: '#666',
+                          color: '#f4b400',
+                          fontWeight: 'bold',
+                          fontSize: '1.1rem',
                           mt: 1,
+
                           fontFamily:
                             'var(--font-nunito-sans)',
                         }}
                       >
-                        Barber
+                        ₱
+                        {service.price.toLocaleString()}
+                      </Typography>
+
+                      <Typography
+                        sx={{
+                          color: '#666',
+                          mt: 2,
+                          lineHeight: 1.7,
+
+                          fontFamily:
+                            'var(--font-nunito-sans)',
+                        }}
+                      >
+                        {
+                          service.description
+                        }
                       </Typography>
                     </Paper>
                   </Grid>
@@ -278,20 +326,26 @@ export default function BarberStep({
             borderTop: '1px solid #bbb',
             px: 4,
             py: 3,
+
             display: 'flex',
-            justifyContent: 'space-between',
+            justifyContent:
+              'space-between',
           }}
         >
           <Button
             variant="contained"
-            disabled
+            onClick={prevStep}
             sx={{
               backgroundColor: '#cfcfcf',
-              color: '#666',
+              color: '#000',
+
               px: 6,
               py: 1.5,
+
               borderRadius: 10,
+
               textTransform: 'none',
+
               boxShadow: 'none',
             }}
           >
@@ -300,20 +354,27 @@ export default function BarberStep({
 
           <Button
             variant="contained"
-            disabled={!selectedBarber}
+            disabled={!selectedService}
             onClick={handleNext}
             sx={{
               backgroundColor: '#f4b400',
               color: '#000',
+
               px: 6,
               py: 1.5,
+
               borderRadius: 10,
+
               textTransform: 'none',
+
               fontWeight: 'bold',
+
               boxShadow: 'none',
 
               '&.Mui-disabled': {
-                backgroundColor: '#d9d9d9',
+                backgroundColor:
+                  '#d9d9d9',
+
                 color: '#888',
               },
             }}
