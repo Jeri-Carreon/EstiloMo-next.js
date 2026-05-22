@@ -52,7 +52,7 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
+export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -63,27 +63,33 @@ export async function DELETE(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params; // 🔥 FIX HERE
+    const { id } = await params;
 
-    if (!id) {
-      return NextResponse.json(
-        { error: "Missing user id" },
-        { status: 400 }
-      );
+    const user = await db.user.findUnique({
+      where: { id },
+      select: { isActive: true },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    await db.user.update({
+    const updated = await db.user.update({
       where: { id },
       data: {
-        isActive: false,
+        isActive: !user.isActive,
       },
     });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+      user: updated,
+      message: "User status updated successfully",
+    });
   } catch (error) {
-    console.error(error);
+    console.error("PATCH USER ERROR:", error);
+
     return NextResponse.json(
-      { error: "Failed to delete user" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

@@ -8,6 +8,7 @@ export async function GET(req: Request) {
         const users = await db.user.findMany({
             where: {
                 role: "BARBER",
+                isActive: true,
             },
             orderBy: {
                 id: "asc",

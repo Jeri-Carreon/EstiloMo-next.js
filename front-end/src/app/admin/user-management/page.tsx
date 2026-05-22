@@ -303,7 +303,7 @@ export default function AdminPage() {
 
     try {
       const res = await fetch(`/api/admin/user-management/${selectedUser.id}`, {
-        method: "DELETE",
+        method: "PATCH",
       });
 
       const data = await res.json();
