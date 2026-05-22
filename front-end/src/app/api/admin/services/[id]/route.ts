@@ -112,6 +112,11 @@ export async function PUT(
       assignedStaffIds,
     } = await req.json();
 
+    console.log("UPDATE SERVICE DATA:", {
+  id,
+  assignedStaffIds,
+});
+
     name = toTitleCase(name ?? "").trim();
     description = (description ?? "").trim();
     durationMinutes = Number(durationMinutes);
@@ -201,19 +206,21 @@ export async function PUT(
        STAFF VALIDATION
     ====================================================== */
 
-    if (
-      isAvailable &&
-      (!Array.isArray(assignedStaffIds) ||
-        assignedStaffIds.length < 1)
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Please assign at least 1 staff member",
-        },
-        { status: 400 }
-      );
-    }
+    if (isAvailable && Array.isArray(assignedStaffIds)) {
+  const validBarbers = await db.barber.findMany({
+    where: {
+      id: { in: assignedStaffIds },
+    },
+    select: { id: true },
+  });
+
+  if (validBarbers.length !== assignedStaffIds.length) {
+    return NextResponse.json(
+      { error: "One or more barbers not found" },
+      { status: 400 }
+    );
+  }
+}
 
     const updatedService =
       await db.service.update({
@@ -229,14 +236,11 @@ export async function PUT(
           isAvailable,
 
           assignedStaff: {
-            set: assignedStaffIds.map(
-              (staffId: string) => ({
-                id: staffId,
-              })
-            ),
-          },
+            set: assignedStaffIds
+              .filter(Boolean)
+              .map((id: string) => ({ id })),
+          }
         },
-
         include: {
           assignedStaff: {
             select: {
@@ -274,13 +278,13 @@ export async function PUT(
 
         assignedStaff:
           updatedService.assignedStaff.map(
-            (staff) => ({
-              id: staff.id,
+            (barber) => ({
+              id: barber.id,
 
               name:
                 [
-                  staff.firstName,
-                  staff.lastName,
+                  barber.firstName,
+                  barber.lastName,
                 ]
                   .filter(Boolean)
                   .join(" ") || "Unknown",

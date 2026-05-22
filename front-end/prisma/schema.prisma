@@ -62,7 +62,6 @@ model User {
   customer      Customer?
   reviews       Review[]
   sessions      Session[]
-  services      Service[] @relation("StaffServices")
 }
 
 model Customer {
@@ -91,8 +90,12 @@ model Barber {
   mobileNumber String
   email        String
   userId       String        @unique
+
   appointments Appointment[]
+
   user         User          @relation(fields: [userId], references: [id])
+
+  assignedServices Service[] @relation("StaffServices")
 }
 
 model PasswordResetToken {
@@ -172,8 +175,10 @@ model Service {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   serviceCode      String           @unique
+
   appointments     Appointment[]
-  assignedStaff    User[]           @relation("StaffServices")
+  
+  assignedStaff    Barber[]           @relation("StaffServices")
 }
 
 enum Role {

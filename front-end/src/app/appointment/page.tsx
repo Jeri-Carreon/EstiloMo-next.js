@@ -6,10 +6,15 @@ import Box from '@mui/material/Box';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import BarberStep from '@/components/appointment/BarberStep';
+import ServiceStep from '@/components/appointment/ServiceStep';
 
 export interface AppointmentData {
   barberId: string;
   barberName: string;
+  serviceId: string;
+  serviceName: string;
+  servicePrice: number;
+  serviceDescription: string;
 }
 
 export default function AppointmentPage() {
@@ -19,6 +24,10 @@ export default function AppointmentPage() {
     useState<AppointmentData>({
       barberId: '',
       barberName: '',
+      serviceId: '',
+      serviceName: '',
+      servicePrice: 0,
+      serviceDescription: '',
     });
 
   const nextStep = () => {
@@ -40,6 +49,17 @@ export default function AppointmentPage() {
             nextStep={nextStep}
           />
         )}
+
+        {currentStep === 1 && (
+          <ServiceStep
+            appointmentData={appointmentData}
+            setAppointmentData={setAppointmentData}
+            nextStep={nextStep}
+            prevStep={prevStep}
+          />
+        )}
+
+
       <Footer />
     </Box>
   );
