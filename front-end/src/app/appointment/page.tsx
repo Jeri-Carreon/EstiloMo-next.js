@@ -7,6 +7,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import BarberStep from '@/components/appointment/BarberStep';
 import ServiceStep from '@/components/appointment/ServiceStep';
+import ScheduleStep from '@/components/appointment/ScheduleStep';
 
 export interface AppointmentData {
   barberId: string;
@@ -52,6 +53,15 @@ export default function AppointmentPage() {
 
         {currentStep === 1 && (
           <ServiceStep
+            appointmentData={appointmentData}
+            setAppointmentData={setAppointmentData}
+            nextStep={nextStep}
+            prevStep={prevStep}
+          />
+        )}
+
+        {currentStep === 2 && (
+          <ScheduleStep
             appointmentData={appointmentData}
             setAppointmentData={setAppointmentData}
             nextStep={nextStep}

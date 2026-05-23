@@ -1,15 +1,17 @@
 'use client';
 
-import { CacheProvider } from '@emotion/react';
+import * as React from 'react';
 import createCache from '@emotion/cache';
-import { createTheme, ThemeProvider } from '@mui/material/styles';
+import { CacheProvider } from '@emotion/react';
+import { useServerInsertedHTML } from 'next/navigation';
+
+import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import { ReactNode } from 'react';
 
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#000000', // Black color for the navbar
+      main: '#000000',
     },
     secondary: {
       main: '#ffffff',
@@ -17,19 +19,66 @@ const theme = createTheme({
   },
 });
 
-// Create Emotion cache for MUI
-const emotionCache = createCache({
-  key: 'mui-style',
-  prepend: true,
-});
-
 export default function ThemeRegistry({
   children,
 }: {
-  children: ReactNode;
+  children: React.ReactNode;
 }) {
+  const [{ cache, flush }] = React.useState(() => {
+    const cache = createCache({
+      key: 'mui',
+    });
+
+    cache.compat = true;
+
+    const prevInsert = cache.insert;
+    let inserted: string[] = [];
+
+    cache.insert = (...args: Parameters<typeof prevInsert>) => {
+      const serialized = args[1];
+
+      if (cache.inserted[serialized.name] === undefined) {
+        inserted.push(serialized.name);
+      }
+
+      return prevInsert(...args);
+    };
+
+    const flush = () => {
+      const prevInserted = inserted;
+      inserted = [];
+      return prevInserted;
+    };
+
+    return { cache, flush };
+  });
+
+  useServerInsertedHTML(() => {
+    const names = flush();
+
+    if (names.length === 0) {
+      return null;
+    }
+
+    let styles = '';
+
+    for (const name of names) {
+      styles += cache.inserted[name];
+    }
+
+    return (
+      <style
+        key={cache.key}
+        data-emotion={`${cache.key} ${names.join(' ')}`}
+        dangerouslySetInnerHTML={{
+          __html: styles,
+        }}
+      />
+    );
+  });
+
   return (
-    <CacheProvider value={emotionCache}>
+    <CacheProvider value={cache}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
         {children}
