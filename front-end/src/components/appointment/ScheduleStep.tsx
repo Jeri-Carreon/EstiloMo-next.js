@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -12,6 +12,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 
 import type { AppointmentData } from '@/app/appointment/page';
+
 
 const steps = [
   'Barber',
@@ -43,59 +44,11 @@ const weekdays = [
   'Saturday',
 ];
 
-const availableDates = [22, 23, 24, 25, 26, 27];
-
-const availableTimes = [
-  {
-    label: '10:00AM - 11:00AM',
-    disabled: true,
-  },
-
-  {
-    label: '11:00AM - 12:00PM',
-    disabled: false,
-  },
-
-  {
-    label: '12:00PM - 1:00PM',
-    disabled: false,
-  },
-
-  {
-    label: '1:00PM - 2:00PM',
-    disabled: false,
-  },
-
-  {
-    label: '2:00PM - 3:00PM',
-    disabled: false,
-  },
-
-  {
-    label: '3:00PM - 4:00PM',
-    disabled: true,
-  },
-
-  {
-    label: '4:00PM - 5:00PM',
-    disabled: true,
-  },
-
-  {
-    label: '5:00PM - 6:00PM',
-    disabled: false,
-  },
-
-  {
-    label: '6:00PM - 7:00PM',
-    disabled: false,
-  },
-
-  {
-    label: '7:00PM - 8:00PM',
-    disabled: false,
-  },
-];
+interface AvailableTime {
+  startMinutes: number;
+  endMinutes: number;
+  label: string;
+}
 
 export default function ScheduleStep({
   appointmentData,
@@ -103,15 +56,23 @@ export default function ScheduleStep({
   nextStep,
   prevStep,
 }: ScheduleStepProps) {
-  const [selectedDate, setSelectedDate] =
-    useState<number>(25);
 
-  const [selectedTime, setSelectedTime] =
-    useState<string>('7:00PM - 8:00PM');
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+
+  const [selectedTime, setSelectedTime,] = useState<AvailableTime | null>( null);
+
+  const [availableTimes, setAvailableTimes,] = useState<AvailableTime[]>([]);
+  
+  const [loadingTimes, setLoadingTimes] = useState(false);
 
   const days = useMemo(() => {
-    const year = 2026;
-    const month = 1;
+    const year =
+      currentMonth.getFullYear();
+
+    const month =
+      currentMonth.getMonth();
 
     const firstDay = new Date(
       year,
@@ -125,33 +86,125 @@ export default function ScheduleStep({
       0
     ).getDate();
 
-    const cells: (number | null)[] = [];
+    const cells: (Date | null)[] = [];
 
     for (let i = 0; i < firstDay; i++) {
       cells.push(null);
     }
 
-    for (let i = 1; i <= totalDays; i++) {
-      cells.push(i);
+    for (let day = 1; day <= totalDays; day++) {
+      cells.push(
+        new Date(year, month, day)
+      );
     }
 
     return cells;
-  }, []);
+  }, [currentMonth]);
+
+  const handlePrevMonth = () => {
+    setCurrentMonth((prev) =>
+      new Date(
+        prev.getFullYear(),
+        prev.getMonth() - 1,
+        1
+      )
+    );
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonth((prev) =>
+      new Date(
+        prev.getFullYear(),
+        prev.getMonth() + 1,
+        1
+      )
+    );
+  };
 
   const handleNext = () => {
+    if (!selectedDate)
+      return;
+    
     setAppointmentData((prev) => ({
       ...prev,
 
       appointmentDate:
-        '2026-02-25',
+        `${selectedDate.getFullYear()}-${String(
+          selectedDate.getMonth() + 1
+        ).padStart(2, '0')}-${String(
+          selectedDate.getDate()
+        ).padStart(2, '0')}`,
 
-      appointmentTime:
-        selectedTime,
+      startMinutes:
+        selectedTime?.startMinutes,
+
+      endMinutes:
+        selectedTime?.endMinutes,
     }));
 
     nextStep();
   };
 
+  const fetchAvailability = async (
+    date: Date
+  ) => {
+    try {
+      setLoadingTimes(true);
+
+      const formattedDate =
+        `${date.getFullYear()}-${String(
+          date.getMonth() + 1
+        ).padStart(2, '0')}-${String(
+          date.getDate()
+        ).padStart(2, '0')}`
+
+      const response = await fetch(
+        `/api/admin/barbers/availability?barberId=${appointmentData.barberId}&serviceId=${appointmentData.serviceId}&date=${formattedDate}`
+      );
+
+      const data =
+        await response.json();
+
+    
+      setAvailableTimes(data.availableTimes);
+      setSelectedTime(null);
+      
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoadingTimes(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedDate) return;
+
+    fetchAvailability(selectedDate);
+  }, [selectedDate]);
+
+  const [unavailableDates, setUnavailableDates] = useState<Set<string>>(new Set());
+
+// Fetch barber's days off and absences for the current month
+const fetchUnavailableDates = async (month: Date) => {
+  try {
+    const year = month.getFullYear();
+    const m = String(month.getMonth() + 1).padStart(2, '0');
+
+    const response = await fetch(
+      `/api/admin/barbers/unavailable-dates?barberId=${appointmentData.barberId}&year=${year}&month=${m}`
+    );
+
+    const data = await response.json();
+    // Expect: { unavailableDates: ['2025-06-01', '2025-06-15', ...] }
+    setUnavailableDates(new Set(data.unavailableDates));
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+useEffect(() => {
+  fetchUnavailableDates(currentMonth);
+}, [currentMonth]);
   return (
     <Box sx={{ display: 'flex' }}>
       {/* SIDEBAR */}
@@ -283,6 +336,7 @@ export default function ScheduleStep({
               >
                 <IconButton
                   size="small"
+                  onClick={handlePrevMonth}
                   sx={{
                     backgroundColor:
                       '#fff',
@@ -308,11 +362,12 @@ export default function ScheduleStep({
                       'var(--font-nunito-sans)',
                   }}
                 >
-                  February 2026
+                  {currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
                 </Typography>
 
                 <IconButton
                   size="small"
+                  onClick={handleNextMonth}
                   sx={{
                     backgroundColor:
                       '#fff',
@@ -365,7 +420,7 @@ export default function ScheduleStep({
                         justifyContent:
                           'center',
 
-                        fontSize: 12,
+                        fontSize: 10,
                         fontWeight: 700,
 
                         '&:last-child': {
@@ -387,26 +442,44 @@ export default function ScheduleStep({
                       'repeat(7, 1fr)',
                   }}
                 >
-                  {days.map((day, index) => {
-                    const isAvailable =
-                      availableDates.includes(
-                        day || 0
-                      );
+                  {days.map((date, index) => {
+                    const day = date?.getDate();
+
+                    const today = new Date();
+
+                    today.setHours(0, 0, 0, 0);
+
+                    const formattedDate =
+                      date
+                        ? `${date.getFullYear()}-${String(
+                            date.getMonth() + 1
+                          ).padStart(2, '0')}-${String(
+                            date.getDate()
+                          ).padStart(2, '0')}`
+                        : '';
+
+
+                    const isPastDate = date ? date < today: false;
+
+                    const isUnavailable = !!date && unavailableDates.has(formattedDate);
+
+                    const isAvailable = 
+                      !!day && 
+                      !isPastDate &&
+                      !isUnavailable;
+
 
                     const isSelected =
-                      selectedDate === day;
+                      selectedDate &&
+                      date &&
+                      selectedDate.toDateString() === date.toDateString();
 
                     return (
                       <Box
                         key={index}
                         onClick={() => {
-                          if (
-                            day &&
-                            isAvailable
-                          ) {
-                            setSelectedDate(
-                              day
-                            );
+                          if (date && !isPastDate && !isUnavailable) {
+                            setSelectedDate(date);
                           }
                         }}
                         sx={{
@@ -423,14 +496,19 @@ export default function ScheduleStep({
 
                           cursor:
                             day &&
-                            isAvailable
+                            isAvailable &&
+                            !isUnavailable
                               ? 'pointer'
-                              : 'default',
+                              : 'not-allowed',
 
                           backgroundColor:
-                            isSelected
+                            isPastDate || isUnavailable
+                              ? '#e1e1e1'
+                              : isSelected
                               ? '#d9d9d9'
                               : '#efefef',
+
+                          opacity: isPastDate || isUnavailable ? 0.5 : 1,
 
                           '&:nth-of-type(7n)': {
                             borderRight:
@@ -541,7 +619,17 @@ export default function ScheduleStep({
                       'var(--font-nunito-sans)',
                   }}
                 >
-                  February 25, 2026
+                  {selectedDate
+                    ? selectedDate.toLocaleDateString(
+                        'en-US',
+                        {
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric'
+                        }
+                      )
+                    : 'Select a date'
+                  }
                 </Typography>
               </Box>
 
@@ -559,22 +647,42 @@ export default function ScheduleStep({
                   px: 3,
                 }}
               >
+
+                {loadingTimes && (
+                  <Typography
+                    sx={{
+                      width: '100%',
+                      textAlign: 'center',
+                    }}
+                  >
+                    Loading times...
+                  </Typography>
+                )}
+                {!loadingTimes &&
+                  selectedDate &&
+                  availableTimes.length === 0 && (
+                    <Typography
+                      sx={{
+                        width: '100%',
+                        textAlign: 'center',
+                      }}
+                    >
+                      No available times.
+                    </Typography>
+                  )}
+
                 {availableTimes.map(
                   (time) => {
                     const selected =
-                      selectedTime ===
-                      time.label;
-
+                      selectedTime?.startMinutes ===
+                      time.startMinutes;
                     return (
                       <Button
                         key={time.label}
-                        disabled={
-                          time.disabled
-                        }
+                        disabled={false}
+                        
                         onClick={() =>
-                          setSelectedTime(
-                            time.label
-                          )
+                          setSelectedTime(time)
                         }
                         variant="outlined"
                         sx={{
@@ -589,16 +697,11 @@ export default function ScheduleStep({
                               : '1px solid #d5d5d5',
 
                           backgroundColor:
-                            time.disabled
-                              ? '#e1e1e1'
-                              : selected
+                              selected
                               ? '#fff'
                               : '#d9d9d9',
 
-                          color:
-                            time.disabled
-                              ? '#9a9a9a'
-                              : '#000',
+                          color: '#000',
 
                           fontWeight: 700,
 

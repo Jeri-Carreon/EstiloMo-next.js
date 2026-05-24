@@ -16,6 +16,10 @@ export interface AppointmentData {
   serviceName: string;
   servicePrice: number;
   serviceDescription: string;
+
+  appointmentDate?: string;
+  startMinutes?: number;
+  endMinutes?: number;
 }
 
 export default function AppointmentPage() {
@@ -29,6 +33,9 @@ export default function AppointmentPage() {
       serviceName: '',
       servicePrice: 0,
       serviceDescription: '',
+      appointmentDate: '',
+      startMinutes: 0,
+      endMinutes: 0, 
     });
 
   const nextStep = () => {
