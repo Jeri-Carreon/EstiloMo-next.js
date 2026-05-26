@@ -40,18 +40,31 @@ type AvailabilityRow = {
 };
 
 const DAYS = [
-  'Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday',
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
 ];
 
 const TIME_OPTIONS = [
-  '08:00 AM','09:00 AM','10:00 AM','11:00 AM',
-  '12:00 PM','01:00 PM','02:00 PM','03:00 PM',
-  '04:00 PM','05:00 PM','06:00 PM','07:00 PM','08:00 PM',
+  '08:00 AM',
+  '09:00 AM',
+  '10:00 AM',
+  '11:00 AM',
+  '12:00 PM',
+  '01:00 PM',
+  '02:00 PM',
+  '03:00 PM',
+  '04:00 PM',
+  '05:00 PM',
+  '06:00 PM',
+  '07:00 PM',
+  '08:00 PM',
 ];
 
-// =======================
-// TIME HELPERS
-// =======================
 function minutesToTime(minutes: number) {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
@@ -74,45 +87,20 @@ function timeToMinutes(time: string) {
   return hours * 60 + minutes;
 }
 
-function getNextSunday() {
-  const now = new Date();
-
-  // normalize to local midnight
-  now.setHours(0, 0, 0, 0);
-
-  const day = now.getDay(); // 0 = Sunday
-
-  const daysUntilSunday = (7 - day) % 7;
-
-  const nextSunday = new Date(now);
-  nextSunday.setDate(now.getDate() + daysUntilSunday);
-
-  return nextSunday;
-}
-// =======================
-// DAILY DATE HELPER
-// =======================
 function getDateFromDayOfWeek(dayOfWeek: number) {
   const now = new Date();
 
-  const local = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate()
-  );
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  const currentDay = local.getDay();
+  const currentDay = today.getDay();
 
-  const daysUntilSunday = (7 - currentDay) % 7;
-
-  const sunday = new Date(local);
-  sunday.setDate(local.getDate() + daysUntilSunday);
+  const sunday = new Date(today);
+  sunday.setDate(today.getDate() - currentDay);
 
   const target = new Date(sunday);
   target.setDate(sunday.getDate() + dayOfWeek);
 
-  // ✅ FIX: return LOCAL DATE STRING ONLY (NO TIMEZONE SHIFT)
-  return target.toLocaleDateString('en-CA'); // YYYY-MM-DD
+  return target.toLocaleDateString('en-CA');
 }
 
 export default function BarbersPage() {
@@ -135,6 +123,7 @@ export default function BarbersPage() {
     try {
       const res = await fetch('/api/admin/barbers');
       const data = await res.json();
+
       setBarbers(data.barbers || []);
     } finally {
       setLoading(false);
@@ -143,8 +132,8 @@ export default function BarbersPage() {
 
   async function fetchAbsents() {
     const res = await fetch('/api/admin/barbers/absent');
-
     const data = await res.json();
+
     const map: Record<string, boolean> = {};
 
     data.forEach((a: any) => {
@@ -262,53 +251,60 @@ export default function BarbersPage() {
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: '180px 1fr 1fr 120px',
+              gridTemplateColumns: '180px 140px 1fr 1fr 120px',
               mt: 3,
               mb: 1,
               px: 1,
               fontWeight: 700,
+              gap: 2,
             }}
           >
             <div>Day</div>
+            <div>Date</div>
             <div>From</div>
             <div>To</div>
             <div>Absent</div>
           </Box>
 
           {availability.map((schedule, index) => {
-             const absentDate = getDateFromDayOfWeek(schedule.dayOfWeek);
-             const absentKey = `${currentBarber.id}-${absentDate}`;
-             const isAbsent = !!absentMap[absentKey];
+            const absentDate = getDateFromDayOfWeek(schedule.dayOfWeek);
+            const absentKey = `${currentBarber.id}-${absentDate}`;
+            const isAbsent = !!absentMap[absentKey];
 
             return (
               <Box
                 key={schedule.day}
                 sx={{
                   display: 'grid',
-                  gridTemplateColumns: '180px 1fr 1fr 120px',
+                  gridTemplateColumns: '180px 140px 1fr 1fr 120px',
                   alignItems: 'center',
                   py: 1.2,
                   borderTop: '1px solid #ddd',
                   px: 1,
                   opacity: isAbsent ? 0.4 : 1,
+                  gap: 2,
                 }}
               >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Checkbox
                     checked={schedule.enabled}
+                    disabled={isAbsent}
                     onChange={(e) => {
                       const updated = [...availability];
                       updated[index].enabled = e.target.checked;
                       setAvailability(updated);
                     }}
                   />
+
                   <Typography>{schedule.day}</Typography>
                 </Box>
+
+                <Typography>{absentDate}</Typography>
 
                 <FormControl size="small" fullWidth>
                   <Select
                     value={schedule.from}
-                    disabled={!schedule.enabled}
+                    disabled={!schedule.enabled || isAbsent}
                     onChange={(e) => {
                       const updated = [...availability];
                       updated[index].from = e.target.value;
@@ -327,7 +323,7 @@ export default function BarbersPage() {
                 <FormControl size="small" fullWidth>
                   <Select
                     value={schedule.to}
-                    disabled={!schedule.enabled}
+                    disabled={!schedule.enabled || isAbsent}
                     onChange={(e) => {
                       const updated = [...availability];
                       updated[index].to = e.target.value;
@@ -349,24 +345,26 @@ export default function BarbersPage() {
                     onChange={async (e) => {
                       const checked = e.target.checked;
 
-                      const date = getDateFromDayOfWeek(schedule.dayOfWeek);
-
                       if (checked) {
                         await fetch('/api/admin/barbers/absent', {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
                           body: JSON.stringify({
                             barberId: currentBarber.id,
-                            date: getDateFromDayOfWeek(schedule.dayOfWeek),
+                            date: absentDate,
                           }),
                         });
                       } else {
                         await fetch('/api/admin/barbers/absent', {
                           method: 'DELETE',
-                          headers: { 'Content-Type': 'application/json' },
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
                           body: JSON.stringify({
                             barberId: currentBarber.id,
-                            date: getDateFromDayOfWeek(schedule.dayOfWeek),
+                            date: absentDate,
                           }),
                         });
                       }
@@ -383,9 +381,7 @@ export default function BarbersPage() {
           })}
 
           <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3, mt: 5 }}>
-            <Button onClick={() => setOpenAvailability(false)}>
-              Cancel
-            </Button>
+            <Button onClick={() => setOpenAvailability(false)}>Cancel</Button>
 
             <Button variant="contained" onClick={saveAvailability}>
               Save
