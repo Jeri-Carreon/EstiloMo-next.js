@@ -47,6 +47,7 @@ interface Service {
     name: string;
   }[];
   isAvailable: boolean;
+  sortOrder: number;
 }
 
 export default function ServicesPage() {
@@ -82,10 +83,8 @@ export default function ServicesPage() {
   useState<null | HTMLElement>(null);
 
 
-const [availabilityFilter, setAvailabilityFilter] =
-  useState<'ALL' | 'AVAILABLE' | 'UNAVAILABLE'>(
-    'ALL'
-  );
+const [availabilityFilter, setAvailabilityFilter] = useState<'ALL' | 'AVAILABLE' | 'UNAVAILABLE'>('ALL');
+const [sortOrderFilter, setSortOrderFilter] = useState<'ASC' | 'DESC'>('ASC');
 
 const filterOpen = Boolean(filterAnchorEl);
   useEffect(() => {
@@ -118,6 +117,7 @@ const filterOpen = Boolean(filterAnchorEl);
   const [editPrice, setEditPrice] = useState(0);
   const [editSelectedStaffIds, setEditSelectedStaffIds] = useState<string[]>([]);
   const [editAvailability, setEditAvailability] = useState(true);
+  const [editOriginalSortOrder, setEditOriginalSortOrder] = useState(0);
 
   // STATUS MODAL
   const [openStatusModal, setOpenStatusModal] = useState(false);
@@ -188,7 +188,12 @@ const filterOpen = Boolean(filterAnchorEl);
       : !service.isAvailable;
 
   return matchesSearch && matchesAvailability;
-});
+})
+  .sort((a, b) =>
+    sortOrderFilter === 'ASC'
+      ? a.sortOrder - b.sortOrder
+      : b.sortOrder - a.sortOrder
+  );
 
   const paginatedServices = filteredServices.slice(
     (page - 1) * itemsPerPage,
@@ -358,7 +363,8 @@ const filterOpen = Boolean(filterAnchorEl);
     !trimmedName ||
     !trimmedDesc ||
     !editDuration ||
-    !editPrice
+    !editPrice ||
+    !editOriginalSortOrder === null
   ) {
     showStatusModal(
       'Incomplete Fields',
@@ -436,6 +442,7 @@ const filterOpen = Boolean(filterAnchorEl);
           durationMinutes: editDuration,
           price: editPrice,
           isAvailable: editAvailability,
+          sortOrder: editOriginalSortOrder,
           assignedStaffIds: editSelectedStaffIds,
         }),
       }
@@ -471,6 +478,7 @@ const filterOpen = Boolean(filterAnchorEl);
                   name: staff.name,
                 })),
               isAvailable: editAvailability,
+              sortOrder: editOriginalSortOrder,
             }
           : service
       )
@@ -600,6 +608,24 @@ const filterOpen = Boolean(filterAnchorEl);
           >
             Unavailable Services
           </MenuItem>
+
+          <MenuItem
+            onClick={() => {
+              setSortOrderFilter('ASC');
+              setFilterAnchorEl(null);
+            }}
+          >
+            Sort by Sort Order (Asc)
+          </MenuItem>
+
+          <MenuItem
+            onClick={() => {
+              setSortOrderFilter('DESC');
+              setFilterAnchorEl(null);
+            }}
+          >
+            Sort by Sort Order (Desc)
+          </MenuItem>
         </Menu>
 
         {availabilityFilter !== 'ALL' && (
@@ -620,6 +646,16 @@ const filterOpen = Boolean(filterAnchorEl);
           }}
         />
       )}
+
+        {sortOrderFilter !== 'ASC' && (
+          <Chip
+            label = "Sort Order : Desc"
+            onDelete={() => {setSortOrderFilter('ASC')}}
+            color="secondary"
+            size="small"
+            sx={{borderRadius: 2, }}
+          />
+        )}
 
         <Box sx={{ flex: 1 }} />
 
@@ -681,6 +717,10 @@ const filterOpen = Boolean(filterAnchorEl);
                   </TableCell>
 
                   <TableCell sx={{ fontWeight: 700 }}>
+                    Sort Order
+                  </TableCell>
+
+                  <TableCell sx={{ fontWeight: 700 }}>
                     Service Name
                   </TableCell>
 
@@ -719,6 +759,10 @@ const filterOpen = Boolean(filterAnchorEl);
                     >
                       <TableCell>
                         {service.serviceCode}
+                      </TableCell>
+
+                      <TableCell>
+                        {service.sortOrder}
                       </TableCell>
 
                       <TableCell>
@@ -782,6 +826,10 @@ const filterOpen = Boolean(filterAnchorEl);
                           onClick={() => {
                             setSelectedService(
                               service
+                            );
+
+                            setEditOriginalSortOrder(
+                              service.sortOrder
                             );
 
                             setEditServiceName(
@@ -1268,6 +1316,31 @@ const filterOpen = Boolean(filterAnchorEl);
               gap: 2,
             }}
           >
+            <TextField
+              label={
+              <>
+                Sort Order <span style={{ color: 'red' }}>*</span>
+              </>}
+              type="number"
+              value={editOriginalSortOrder ?? ''}
+              onChange={(e) => {
+                const value = e.target.value;
+
+                if (value.length <= 3) {
+                  setEditOriginalSortOrder(
+                    value === '' ? 0 : Number(value)
+                  );
+                }
+              }}
+              fullWidth
+              slotProps={{
+                htmlInput: {
+                  inputMode: 'numeric',
+                  pattern: '[0-9]*',
+                  maxLength: 3,
+                },
+              }}
+            />
             <TextField
               label={
               <>

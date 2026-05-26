@@ -16,13 +16,14 @@ export async function GET(req: Request) {
         },
       },
       orderBy: {
-        createdAt: "asc",
+        sortOrder: "asc",
       },
     });
 
     const result = services.map((service) => ({
       id: service.id,
       serviceCode: service.serviceCode,
+      sortOrder: service.sortOrder,
       name: service.name,
       description: service.description,
       durationMinutes: service.durationMinutes,
@@ -74,13 +75,15 @@ export async function POST(req: Request) {
       price,
       assignedStaffIds,
       isAvailable,
+      sortOrder,
     } = await req.json();
 
     name = toTitleCase(name ?? "").trim();
     description = (description ?? "").trim();
     durationMinutes = Number(durationMinutes);
     price = Number(price);
-
+    sortOrder = Number(sortOrder);
+    
     if (!name || !description || !durationMinutes || !price) {
       return NextResponse.json(
         { error: "Missing Fields" },
@@ -140,7 +143,7 @@ export async function POST(req: Request) {
 
     const lastService = await db.service.findFirst({
       orderBy: { createdAt: "desc" },
-      select: { serviceCode: true },
+      select: { serviceCode: true, sortOrder: true },
     });
 
     const lastNumber = lastService?.serviceCode
@@ -148,6 +151,8 @@ export async function POST(req: Request) {
       : 0;
 
     const serviceCode = String(lastNumber + 1).padStart(3, "0");
+
+    const nextSortOrder = (lastService?.sortOrder ?? 0) + 1;
 
     const service = await db.service.create({
       data: {
@@ -157,6 +162,7 @@ export async function POST(req: Request) {
         durationMinutes,
         price,
         isAvailable: Boolean(isAvailable),
+        sortOrder: nextSortOrder,
 
         assignedStaff: {
           connect:
@@ -183,6 +189,7 @@ export async function POST(req: Request) {
         durationMinutes: service.durationMinutes,
         price: Number(service.price),
         isAvailable: service.isAvailable,
+        sortOrder: service.sortOrder,
         assignedStaff: service.assignedStaff.map((staff) => ({
           id: staff.id,
           name:
