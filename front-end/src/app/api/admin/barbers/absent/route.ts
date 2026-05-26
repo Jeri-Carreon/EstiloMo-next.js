@@ -41,6 +41,30 @@ export async function POST(req: Request) {
   }
 }
 
+// GET = list absences
+export async function GET() {
+  try {
+    const absents = await db.barberAbsent.findMany({
+      select: {
+        id: true,
+        barberId: true,
+        date: true,
+        reason: true,
+      },
+    });
+
+    return NextResponse.json(
+      absents.map((a) => ({
+        ...a,
+        date: a.date.toISOString().slice(0, 10),
+      }))
+    );
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json([], { status: 500 });
+  }
+}
+
 // DELETE = remove absence
 export async function DELETE(req: Request) {
   try {

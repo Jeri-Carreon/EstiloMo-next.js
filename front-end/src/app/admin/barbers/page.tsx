@@ -143,19 +143,16 @@ export default function BarbersPage() {
 
   async function fetchAbsents() {
     const res = await fetch('/api/admin/barbers/absent');
-    const data = await res.json();
 
+    const data = await res.json();
     const map: Record<string, boolean> = {};
 
     data.forEach((a: any) => {
-        const d = new Date(a.date + 'T00:00:00');
-        const dayOfWeek = d.getDay();
-
-        map[`${a.barberId}-${dayOfWeek}`] = true;
+      map[`${a.barberId}-${a.date}`] = true;
     });
 
     setAbsentMap(map);
-    }
+  }
 
   useEffect(() => {
     if (!currentBarber) return;
@@ -279,8 +276,9 @@ export default function BarbersPage() {
           </Box>
 
           {availability.map((schedule, index) => {
-            const absentKey = `${currentBarber.id}-${schedule.dayOfWeek}`;
-            const isAbsent = !!absentMap[absentKey];
+             const absentDate = getDateFromDayOfWeek(schedule.dayOfWeek);
+             const absentKey = `${currentBarber.id}-${absentDate}`;
+             const isAbsent = !!absentMap[absentKey];
 
             return (
               <Box

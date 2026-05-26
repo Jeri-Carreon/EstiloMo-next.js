@@ -83,60 +83,41 @@ model Customer {
 }
 
 model Barber {
-  id         String @id @default(cuid())
-  barberCode String @unique
-
-  firstName String
-  lastName  String
-
-  mobileNumber String
-  email        String
-
-  userId String @unique
-
-  appointments Appointment[]
-
-  user User @relation(fields: [userId], references: [id])
-
-  assignedServices Service[] @relation("StaffServices")
-
-  schedules BarberSchedule[]
-
-  absence BarberAbsent[]
+  id               String           @id @default(cuid())
+  barberCode       String           @unique
+  firstName        String
+  lastName         String
+  mobileNumber     String
+  email            String
+  userId           String           @unique
+  appointments     Appointment[]
+  user             User             @relation(fields: [userId], references: [id])
+  absence          BarberAbsent[]
+  schedules        BarberSchedule[]
+  assignedServices Service[]        @relation("StaffServices")
 }
 
 model BarberSchedule {
-  id String @id @default(cuid())
-
-  barberId String
-  barber   Barber @relation(fields: [barberId], references: [id], onDelete: Cascade)
-
+  id        String   @id @default(cuid())
+  barberId  String
   dayOfWeek Int
-  // 0 = Sunday
-  // ...
-  // 6 = Saturday
-
-  startTime Int // 540 = 09:00
-  endTime   Int // 1080 = 18:00
-
-  isDayOff Boolean @default(false)
-
+  startTime Int
+  endTime   Int
+  isDayOff  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
 
   @@unique([barberId, dayOfWeek])
 }
 
 model BarberAbsent {
-  id String @id @default(cuid())
-
-  barberId String
-  barber Barber @relation(fields: [barberId], references: [id], onDelete: Cascade)
-
-  date   DateTime
-  reason String?
-
+  id        String   @id @default(cuid())
+  barberId  String
+  date      DateTime
+  reason    String?
   createdAt DateTime @default(now())
+  barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
 
   @@unique([barberId, date])
 }
@@ -176,27 +157,20 @@ model Review {
 }
 
 model Appointment {
-  id String @id @default(cuid())
-
-  barberId   String
-  customerId String
-  serviceId  String
-
-  status AppointmentStatus @default(PENDING)
-
+  id              String            @id @default(cuid())
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  customerId      String
+  serviceId       String
+  appointmentCode String            @unique
+  barberId        String
+  status          AppointmentStatus @default(PENDING)
   appointmentDate DateTime
-
-  startMinutes Int
-  endMinutes   Int
-
-  appointmentCode String @unique
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  barber   Barber   @relation(fields: [barberId], references: [id])
-  customer Customer @relation(fields: [customerId], references: [id])
-  service  Service  @relation(fields: [serviceId], references: [id])
+  endMinutes      Int
+  startMinutes    Int
+  barber          Barber            @relation(fields: [barberId], references: [id])
+  customer        Customer          @relation(fields: [customerId], references: [id])
+  service         Service           @relation(fields: [serviceId], references: [id])
 }
 
 model LoyaltyCard {
@@ -210,28 +184,23 @@ model LoyaltyCard {
 }
 
 model Service {
-  id String @id @default(cuid())
-
-  name            String
-  description     String?
-  category        ServiceCategory?
-  durationMinutes Int
-
-  price       Decimal @db.Decimal(10, 2)
-  isAvailable Boolean @default(true)
-
-  requiresApproval Boolean  @default(false)
-  cancellationFee  Decimal? @db.Decimal(10, 2)
-  totalBookings    Int      @default(0)
-  totalRevenue     Decimal  @default(0) @db.Decimal(12, 2)
-  isFeatured       Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  serviceCode      String   @unique
-
-  appointments Appointment[]
-
-  assignedStaff Barber[] @relation("StaffServices")
+  id               String           @id @default(cuid())
+  name             String
+  description      String?
+  category         ServiceCategory?
+  durationMinutes  Int
+  price            Decimal          @db.Decimal(10, 2)
+  isAvailable      Boolean          @default(true)
+  requiresApproval Boolean          @default(false)
+  cancellationFee  Decimal?         @db.Decimal(10, 2)
+  totalBookings    Int              @default(0)
+  totalRevenue     Decimal          @default(0) @db.Decimal(12, 2)
+  isFeatured       Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  serviceCode      String           @unique
+  appointments     Appointment[]
+  assignedStaff    Barber[]         @relation("StaffServices")
 }
 
 enum Role {
