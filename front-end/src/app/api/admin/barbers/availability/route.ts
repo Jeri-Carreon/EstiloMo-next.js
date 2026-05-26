@@ -168,18 +168,27 @@ export async function GET(
     // GENERATE AVAILABLE SLOTS
     const availableTimes = [];
 
-    const duration =
-      service.durationMinutes;
+    const duration = service.durationMinutes;
+
+    const now = new Date();
+    const isToday =
+      targetDate.getFullYear() === now.getFullYear() &&
+      targetDate.getMonth() === now.getMonth() &&
+      targetDate.getDate() === now.getDate();
+    
+    const currentMinutes = isToday ? now.getHours() * 60 + now.getMinutes() : 0;
 
     for (
-      let start =
-        schedule.startTime;
-      start + duration <=
-      schedule.endTime;
+      let start = schedule.startTime;
+      start + duration <= schedule.endTime;
       start += duration
     ) {
-      const end =
-        start + duration;
+      const end = start + duration;
+    
+      // SKIPS PAST TIMES
+      if (isToday && end <= currentMinutes) {
+        continue;
+      }
 
       // CHECK OVERLAP
       const overlaps =
@@ -197,12 +206,8 @@ export async function GET(
 
       availableTimes.push({
         startMinutes: start,
-
         endMinutes: end,
-
-        label: `${formatMinutes(
-          start
-        )} - ${formatMinutes(end)}`,
+        label: `${formatMinutes(start)} - ${formatMinutes(end)}`,
       });
     }
 
