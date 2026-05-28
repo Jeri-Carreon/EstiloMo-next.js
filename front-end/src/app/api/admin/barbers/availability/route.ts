@@ -178,6 +178,9 @@ export async function GET(
     
     const currentMinutes = isToday ? now.getHours() * 60 + now.getMinutes() : 0;
 
+    const bufferMinutes = 60; // 1 HOUR BUFFER
+
+
     for (
       let start = schedule.startTime;
       start + duration <= schedule.endTime;
@@ -186,7 +189,11 @@ export async function GET(
       const end = start + duration;
     
       // SKIPS PAST TIMES
-      if (isToday && end <= currentMinutes) {
+      if (isToday && start <= currentMinutes) {
+        continue;
+      }
+
+      if (isToday && start < currentMinutes + bufferMinutes) {
         continue;
       }
 
