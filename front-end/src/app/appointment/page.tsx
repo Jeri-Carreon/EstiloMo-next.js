@@ -3,16 +3,17 @@
 import { useState } from 'react';
 
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Typography from '@mui/material/Typography';
 import Modal from '@mui/material/Modal';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import BarberStep from '@/components/appointment/BarberStep';
 import ServiceStep from '@/components/appointment/ServiceStep';
 import ScheduleStep from '@/components/appointment/ScheduleStep';
 import CartStep from '@/components/appointment/CartStep';
+import ConfirmationStep from '@/components/appointment/ConfirmationStep';
 
 export interface CartItem {
   barberId: string;
@@ -275,390 +276,19 @@ export default function AppointmentPage() {
       )}
 
       {currentStep === 4 && (
-        <Box
-          sx={{
-            backgroundColor: '#e5e5e5',
-            minHeight: '100vh',
-            p: { xs: 2, md: 4 },
-            fontFamily: 'var(--font-nunito-sans)',
-          }}
-        >
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 900,
-              mb: 3,
-              color: '#111',
-            }}
-          >
-            Confirmation
-          </Typography>
-
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' },
-              gap: 3,
-            }}
-          >
-            <Box
-              sx={{
-                backgroundColor: '#fff',
-                border: '1px solid #999',
-                minHeight: 430,
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
-              <Box sx={{ p: 3, flex: 1 }}>
-                <Typography sx={{ fontWeight: 900, fontSize: 26, mb: 1 }}>
-                  Deposit to Secure your Slot!
-                </Typography>
-
-                <Typography sx={{ color: '#666', fontWeight: 700, mb: 3 }}>
-                  Send your downpayment, then upload a screenshot of your payment.
-                </Typography>
-
-                <Box
-                  sx={{
-                    display: 'grid',
-                    gridTemplateColumns: { xs: '1fr', md: '1fr 230px' },
-                    gap: 3,
-                    alignItems: 'start',
-                  }}
-                >
-                  <Box>
-                    <Box
-                      sx={{
-                        border: '1px solid #bbb',
-                        borderRadius: 1,
-                        px: 2,
-                        py: 1.2,
-                        mb: 2,
-                      }}
-                    >
-                      <Typography
-                        sx={{
-                          color: '#888',
-                          fontWeight: 900,
-                          fontSize: 13,
-                        }}
-                      >
-                        Mobile No.
-                      </Typography>
-
-                      <Typography sx={{ fontWeight: 900, fontSize: 18 }}>
-                        09773644731
-                      </Typography>
-                    </Box>
-
-                    <Box
-                      sx={{
-                        border: '1px solid #bbb',
-                        borderRadius: 1,
-                        px: 2,
-                        py: 1.2,
-                        mb: 3,
-                      }}
-                    >
-                      <Typography
-                        sx={{
-                          color: '#888',
-                          fontWeight: 900,
-                          fontSize: 13,
-                        }}
-                      >
-                        Name
-                      </Typography>
-
-                      <Typography sx={{ fontWeight: 900, fontSize: 18 }}>
-                        (North Fades) Al***** N**** M***
-                      </Typography>
-                    </Box>
-
-                    <Typography sx={{ color: '#666', fontWeight: 800, mb: 1 }}>
-                      Screenshot of ₱150 DP (REQUIRED)
-                    </Typography>
-
-                    <Button
-                      component="label"
-                      sx={{
-                        backgroundColor: '#ddd',
-                        color: '#111',
-                        borderRadius: 10,
-                        px: 3,
-                        py: 1,
-                        textTransform: 'none',
-                        fontWeight: 900,
-                        boxShadow: '0 3px 5px rgba(0,0,0,0.2)',
-                        '&:hover': {
-                          backgroundColor: '#ccc',
-                        },
-                      }}
-                    >
-                      {paymentScreenshot
-                        ? paymentScreenshot.name
-                        : 'Upload Payment Screenshot'}
-
-                      <input
-                        hidden
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          setPaymentScreenshot(e.target.files?.[0] || null);
-                        }}
-                      />
-                    </Button>
-
-                    <Box sx={{ mt: 3 }}>
-                      <Typography sx={{ fontWeight: 900 }}>
-                        Downpayment amount: ₱{downPayment.toFixed(2)}
-                      </Typography>
-
-                      <Typography
-                        sx={{
-                          color: '#666',
-                          fontWeight: 700,
-                          fontSize: 13,
-                          mt: 1,
-                        }}
-                      >
-                        Downpayments are non-refundable in case of cancellation.
-                      </Typography>
-
-                      <Typography
-                        sx={{
-                          color: '#666',
-                          fontWeight: 700,
-                          fontSize: 13,
-                          mt: 1,
-                        }}
-                      >
-                        Arriving more than 30 minutes late will be considered a
-                        “No-show”.
-                      </Typography>
-                    </Box>
-                  </Box>
-
-                  <Box
-                    sx={{
-                      backgroundColor: '#f4f4f4',
-                      border: '1px solid #bbb',
-                      borderRadius: 2,
-                      p: 2,
-                      textAlign: 'center',
-                    }}
-                  >
-                    <Typography sx={{ fontWeight: 900, mb: 1 }}>
-                      Payment QR
-                    </Typography>
-
-                    <Box
-                      sx={{
-                        width: 150,
-                        height: 150,
-                        mx: 'auto',
-                        backgroundColor: '#fff',
-                        border: '2px solid #111',
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(5, 1fr)',
-                        gridTemplateRows: 'repeat(5, 1fr)',
-                        gap: '4px',
-                        p: 1,
-                      }}
-                    >
-                      {Array.from({ length: 25 }).map((_, i) => (
-                        <Box
-                          key={i}
-                          sx={{
-                            backgroundColor: [
-                              0, 1, 3, 5, 6, 8, 10, 12, 14, 16, 18, 19, 21,
-                              23, 24,
-                            ].includes(i)
-                              ? '#111'
-                              : '#fff',
-                          }}
-                        />
-                      ))}
-                    </Box>
-
-                    <Typography sx={{ fontWeight: 800, fontSize: 13, mt: 1 }}>
-                      Scan to Pay
-                    </Typography>
-
-                    <Typography sx={{ color: '#666', fontSize: 12, mt: 0.5 }}>
-                      QR placeholder only
-                    </Typography>
-                  </Box>
-                </Box>
-              </Box>
-
-              <Box
-                sx={{
-                  backgroundColor: '#b9e5c1',
-                  px: 3,
-                  py: 2,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  borderTop: '1px solid #999',
-                }}
-              >
-                <Typography sx={{ color: '#21a44c', fontWeight: 900 }}>
-                  Total Price
-                </Typography>
-
-                <Typography sx={{ fontSize: 28, fontWeight: 900 }}>
-                  ₱ {totalPrice.toFixed(2)}
-                </Typography>
-              </Box>
-            </Box>
-
-            <Box
-              sx={{
-                backgroundColor: '#fff',
-                border: '1px solid #777',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
-              <Box sx={{ p: 3, flex: 1 }}>
-                <Typography
-                  sx={{
-                    letterSpacing: 2,
-                    fontWeight: 900,
-                    fontSize: 14,
-                    mb: 3,
-                    color: '#111',
-                  }}
-                >
-                  SUMMARY
-                </Typography>
-
-                {appointmentData.cartItems[0] && (
-                  <>
-                    <Typography sx={{ fontWeight: 900, fontSize: 26 }}>
-                      {appointmentData.cartItems[0].serviceName}
-                    </Typography>
-
-                    <Typography
-                      sx={{
-                        color: '#f4b400',
-                        fontWeight: 900,
-                        fontSize: 18,
-                        mt: 0.5,
-                      }}
-                    >
-                      {formatDate(appointmentData.cartItems[0].appointmentDate)},{' '}
-                      {formatTime(appointmentData.cartItems[0].startMinutes)}
-                    </Typography>
-
-                    <Box sx={{ borderBottom: '1px solid #ddd', mt: 2 }} />
-                  </>
-                )}
-              </Box>
-
-              <Box
-                sx={{
-                  p: 3,
-                  borderTop: '1px solid #ddd',
-                }}
-              >
-                <Typography
-                  sx={{
-                    color: '#777',
-                    fontWeight: 900,
-                    letterSpacing: 2,
-                    fontSize: 13,
-                    mb: 2,
-                  }}
-                >
-                  COST BREAKDOWN
-                </Typography>
-
-                {appointmentData.cartItems.map((item, index) => (
-                  <Box
-                    key={`${item.serviceId}-${index}`}
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      mb: 1,
-                    }}
-                  >
-                    <Typography>{item.serviceName}</Typography>
-                    <Typography>₱{item.servicePrice.toFixed(2)}</Typography>
-                  </Box>
-                ))}
-
-                <Box sx={{ borderBottom: '1px solid #111', my: 1.5 }} />
-
-                <Box
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Typography sx={{ fontWeight: 900, fontSize: 24 }}>
-                    Total Price
-                  </Typography>
-
-                  <Typography sx={{ fontWeight: 900, fontSize: 24 }}>
-                    ₱{totalPrice.toFixed(2)}
-                  </Typography>
-                </Box>
-              </Box>
-            </Box>
-          </Box>
-
-          <Box
-            sx={{
-              mt: 3,
-              display: 'flex',
-              justifyContent: 'space-between',
-              gap: 2,
-            }}
-          >
-            <Button
-              onClick={prevStep}
-              sx={{
-                backgroundColor: '#ddd',
-                color: '#111',
-                px: 6,
-                py: 1.3,
-                borderRadius: 10,
-                textTransform: 'none',
-                fontWeight: 900,
-              }}
-            >
-              Back
-            </Button>
-
-            <Button
-              onClick={handleConfirm}
-              disabled={loading}
-              sx={{
-                backgroundColor: '#f4b400',
-                color: '#111',
-                px: 7,
-                py: 1.3,
-                borderRadius: 10,
-                textTransform: 'none',
-                fontWeight: 900,
-                '&:hover': {
-                  backgroundColor: '#e0a800',
-                },
-                '&:disabled': {
-                  backgroundColor: '#f5dc90',
-                  color: '#777',
-                },
-              }}
-            >
-              {loading ? 'Confirming...' : 'Confirm'}
-            </Button>
-          </Box>
-        </Box>
+        <ConfirmationStep
+          appointmentData={appointmentData}
+          prevStep={prevStep}
+          totalPrice={totalPrice}
+          downPayment={downPayment}
+          paymentScreenshot={paymentScreenshot}
+          setPaymentScreenshot={setPaymentScreenshot}
+          handleConfirm={handleConfirm}
+          loading={loading}
+        />
       )}
+
+      <Footer />
 
       <Modal open={successOpen}>
         <Box
@@ -730,8 +360,6 @@ export default function AppointmentPage() {
           </Button>
         </Box>
       </Modal>
-
-      <Footer />
     </Box>
   );
 }
