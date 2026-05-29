@@ -3,8 +3,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 
-function createAppointmentCode() {
-  return `APT-${Date.now()}`;
+async function createAppointmentCode() {
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const count = await db.appointment.count();
+  return `APT-${today}-${String(count + 1).padStart(4, '0')}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -61,7 +63,7 @@ export async function POST(req: NextRequest) {
     for (const item of cartItems) {
       const appointment = await db.appointment.create({
         data: {
-          appointmentCode: createAppointmentCode(),
+          appointmentCode: await createAppointmentCode(),
           customerId: user.customer.id,
           barberId: item.barberId,
           serviceId: item.serviceId,

@@ -290,6 +290,7 @@ export default function AppointmentPage() {
 
       <Footer />
 
+      {/* SUCCESS MODAL */}
       <Modal open={successOpen}>
         <Box
           sx={{
