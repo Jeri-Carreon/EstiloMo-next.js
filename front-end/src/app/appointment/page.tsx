@@ -40,44 +40,24 @@ export interface AppointmentData {
   cartItems: CartItem[];
 }
 
-function formatTime(minutes: number) {
-  const hour = Math.floor(minutes / 60);
-  const minute = minutes % 60;
-  const suffix = hour >= 12 ? 'PM' : 'AM';
-  const normalHour = hour % 12 || 12;
-
-  return `${normalHour}:${minute.toString().padStart(2, '0')} ${suffix}`;
-}
-
-function formatDate(date: string) {
-  if (!date) return '';
-
-  return new Date(date).toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
-
 export default function AppointmentPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
   const [successOpen, setSuccessOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const [appointmentData, setAppointmentData] =
-    useState<AppointmentData>({
-      barberId: '',
-      barberName: '',
-      serviceId: '',
-      serviceName: '',
-      servicePrice: 0,
-      serviceDescription: '',
-      appointmentDate: '',
-      startMinutes: 0,
-      endMinutes: 0,
-      cartItems: [],
-    });
+  const [appointmentData, setAppointmentData] = useState<AppointmentData>({
+    barberId: '',
+    barberName: '',
+    serviceId: '',
+    serviceName: '',
+    servicePrice: 0,
+    serviceDescription: '',
+    appointmentDate: '',
+    startMinutes: 0,
+    endMinutes: 0,
+    cartItems: [],
+  });
 
   const nextStep = (
     appointmentDate?: string,
@@ -290,7 +270,6 @@ export default function AppointmentPage() {
 
       <Footer />
 
-      {/* SUCCESS MODAL */}
       <Modal open={successOpen}>
         <Box
           sx={{

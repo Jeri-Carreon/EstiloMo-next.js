@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
@@ -6,6 +7,7 @@ import { db } from '@/lib/db';
 async function createAppointmentCode() {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const count = await db.appointment.count();
+
   return `APT-${today}-${String(count + 1).padStart(4, '0')}`;
 }
 
@@ -14,30 +16,29 @@ export async function POST(req: NextRequest) {
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const formData = await req.formData();
 
     const cartItemsRaw = formData.get('cartItems');
     const paymentMethod = String(formData.get('paymentMethod') || 'GCASH');
-    const downPayment = Number(formData.get('downPayment') || 200);
+    const downPayment = Number(formData.get('downPayment') || 150);
+    const paymentScreenshot = formData.get('paymentScreenshot') as File | null;
 
     if (!cartItemsRaw) {
-      return NextResponse.json(
-        { error: 'Missing cart items' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing cart items' }, { status: 400 });
     }
 
     const cartItems = JSON.parse(String(cartItemsRaw));
 
     if (!Array.isArray(cartItems) || cartItems.length === 0) {
+      return NextResponse.json({ error: 'Cart is empty' }, { status: 400 });
+    }
+
+    if (!paymentScreenshot) {
       return NextResponse.json(
-        { error: 'Cart is empty' },
+        { error: 'Payment screenshot is required' },
         { status: 400 }
       );
     }
@@ -57,6 +58,38 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
+
+    const bytes = await paymentScreenshot.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+
+    const fileExt = paymentScreenshot.name.split('.').pop() || 'png';
+    const fileName = `${Date.now()}-${Math.random()
+      .toString(36)
+      .substring(2)}.${fileExt}`;
+
+    const filePath = `payments/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('payment-screenshots')
+      .upload(filePath, buffer, {
+        contentType: paymentScreenshot.type,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error('SUPABASE UPLOAD ERROR:', uploadError);
+
+      return NextResponse.json(
+        { error: 'Failed to upload payment screenshot' },
+        { status: 500 }
+      );
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('payment-screenshots')
+      .getPublicUrl(filePath);
+
+    const screenshotUrl = publicUrlData.publicUrl;
 
     const createdAppointments = [];
 
@@ -81,7 +114,7 @@ export async function POST(req: NextRequest) {
           downPayment,
           method: paymentMethod === 'PAY_AT_SHOP' ? 'PAY_AT_SHOP' : 'GCASH',
           status: 'PENDING',
-          screenshotUrl: null,
+          screenshotUrl,
         },
       });
 
