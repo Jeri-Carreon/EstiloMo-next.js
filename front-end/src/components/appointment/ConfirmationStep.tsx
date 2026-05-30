@@ -7,13 +7,7 @@ import Button from '@mui/material/Button';
 
 import type { AppointmentData } from '@/app/appointment/page';
 
-const steps = [
-  'Barber',
-  'Service',
-  'Schedule',
-  'Cart',
-  'Confirmation',
-];
+const steps = ['Barber', 'Service', 'Schedule', 'Cart', 'Confirmation'];
 
 interface ConfirmationStepProps {
   appointmentData: AppointmentData;
@@ -31,11 +25,13 @@ function formatTime(minutes: number) {
   const minute = minutes % 60;
   const suffix = hour >= 12 ? 'PM' : 'AM';
   const normalHour = hour % 12 || 12;
+
   return `${normalHour}:${minute.toString().padStart(2, '0')} ${suffix}`;
 }
 
 function formatDate(date: string) {
   if (!date) return '';
+
   return new Date(date).toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
@@ -55,7 +51,6 @@ export default function ConfirmationStep({
 }: ConfirmationStepProps) {
   return (
     <Box sx={{ display: 'flex' }}>
-      {/* SIDEBAR */}
       <Box
         sx={{
           width: 220,
@@ -68,6 +63,7 @@ export default function ConfirmationStep({
         <Stack spacing={5}>
           {steps.map((step, index) => {
             const active = index === 4;
+
             return (
               <Stack
                 key={step}
@@ -90,6 +86,7 @@ export default function ConfirmationStep({
                 >
                   {index + 1}
                 </Box>
+
                 <Typography
                   sx={{
                     color: active ? '#fff' : '#aaa',
@@ -105,7 +102,6 @@ export default function ConfirmationStep({
         </Stack>
       </Box>
 
-      {/* MAIN CONTENT */}
       <Box
         sx={{
           flex: 1,
@@ -133,7 +129,6 @@ export default function ConfirmationStep({
             gap: 3,
           }}
         >
-          {/* LEFT: Payment */}
           <Box
             sx={{
               backgroundColor: '#fff',
@@ -170,11 +165,14 @@ export default function ConfirmationStep({
                       mb: 2,
                     }}
                   >
-                    <Typography sx={{ color: '#888', fontWeight: 900, fontSize: 13 }}>
+                    <Typography
+                      sx={{ color: '#888', fontWeight: 900, fontSize: 13 }}
+                    >
                       Mobile No.
                     </Typography>
+
                     <Typography sx={{ fontWeight: 900, fontSize: 18 }}>
-                      09773644731
+                      09273763938
                     </Typography>
                   </Box>
 
@@ -187,11 +185,14 @@ export default function ConfirmationStep({
                       mb: 3,
                     }}
                   >
-                    <Typography sx={{ color: '#888', fontWeight: 900, fontSize: 13 }}>
+                    <Typography
+                      sx={{ color: '#888', fontWeight: 900, fontSize: 13 }}
+                    >
                       Name
                     </Typography>
+
                     <Typography sx={{ fontWeight: 900, fontSize: 18 }}>
-                      (North Fades) Al***** N**** M***
+                      (The Barbs Bro) Carlo Glenn C. Yoldi
                     </Typography>
                   </Box>
 
@@ -216,6 +217,7 @@ export default function ConfirmationStep({
                     {paymentScreenshot
                       ? paymentScreenshot.name
                       : 'Upload Payment Screenshot'}
+
                     <input
                       hidden
                       type="file"
@@ -230,16 +232,32 @@ export default function ConfirmationStep({
                     <Typography sx={{ fontWeight: 900 }}>
                       Downpayment amount: ₱{downPayment.toFixed(2)}
                     </Typography>
-                    <Typography sx={{ color: '#666', fontWeight: 700, fontSize: 13, mt: 1 }}>
+
+                    <Typography
+                      sx={{
+                        color: '#666',
+                        fontWeight: 700,
+                        fontSize: 13,
+                        mt: 1,
+                      }}
+                    >
                       Downpayments are non-refundable in case of cancellation.
                     </Typography>
-                    <Typography sx={{ color: '#666', fontWeight: 700, fontSize: 13, mt: 1 }}>
-                      Arriving more than 30 minutes late will be considered a "No-show".
+
+                    <Typography
+                      sx={{
+                        color: '#666',
+                        fontWeight: 700,
+                        fontSize: 13,
+                        mt: 1,
+                      }}
+                    >
+                      Arriving more than 30 minutes late will be considered a
+                      "No-show".
                     </Typography>
                   </Box>
                 </Box>
 
-                {/* QR Code */}
                 <Box
                   sx={{
                     backgroundColor: '#f4f4f4',
@@ -249,39 +267,38 @@ export default function ConfirmationStep({
                     textAlign: 'center',
                   }}
                 >
-                  <Typography sx={{ fontWeight: 900, mb: 1 }}>Payment QR</Typography>
+                  <Typography sx={{ fontWeight: 900, mb: 1 }}>
+                    Payment QR
+                  </Typography>
+
                   <Box
+                    component="img"
+                    src="/images/qr.png"
+                    alt="Payment QR"
                     sx={{
-                      width: 150,
-                      height: 150,
+                      width: 180,
+                      height: 180,
                       mx: 'auto',
+                      display: 'block',
+                      objectFit: 'contain',
                       backgroundColor: '#fff',
                       border: '2px solid #111',
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(5, 1fr)',
-                      gridTemplateRows: 'repeat(5, 1fr)',
-                      gap: '4px',
+                      borderRadius: 1,
                       p: 1,
                     }}
-                  >
-                    {Array.from({ length: 25 }).map((_, i) => (
-                      <Box
-                        key={i}
-                        sx={{
-                          backgroundColor: [0, 1, 3, 5, 6, 8, 10, 12, 14, 16, 18, 19, 21, 23, 24].includes(i)
-                            ? '#111'
-                            : '#fff',
-                        }}
-                      />
-                    ))}
-                  </Box>
-                  <Typography sx={{ fontWeight: 800, fontSize: 13, mt: 1 }}>Scan to Pay</Typography>
-                  <Typography sx={{ color: '#666', fontSize: 12, mt: 0.5 }}>QR placeholder only</Typography>
+                  />
+
+                  <Typography sx={{ fontWeight: 800, fontSize: 13, mt: 1 }}>
+                    Scan to Pay
+                  </Typography>
+
+                  <Typography sx={{ color: '#666', fontSize: 12, mt: 0.5 }}>
+                    GCash Payment
+                  </Typography>
                 </Box>
               </Box>
             </Box>
 
-            {/* Total Price Footer */}
             <Box
               sx={{
                 backgroundColor: '#b9e5c1',
@@ -293,21 +310,39 @@ export default function ConfirmationStep({
                 borderTop: '1px solid #999',
               }}
             >
-              <Typography sx={{ color: '#21a44c', fontWeight: 900 }}>Total Price</Typography>
-              <Typography sx={{ fontSize: 28, fontWeight: 900 }}>₱ {totalPrice.toFixed(2)}</Typography>
+              <Typography sx={{ color: '#21a44c', fontWeight: 900 }}>
+                Total Price
+              </Typography>
+
+              <Typography sx={{ fontSize: 28, fontWeight: 900 }}>
+                ₱ {totalPrice.toFixed(2)}
+              </Typography>
             </Box>
           </Box>
 
-          {/* RIGHT: Summary */}
           <Box
             sx={{
               backgroundColor: '#fff',
               border: '1px solid #777',
               display: 'flex',
               flexDirection: 'column',
+              height: 650,
             }}
           >
-            <Box sx={{ p: 3, flex: 1 }}>
+            <Box
+              sx={{
+                p: 3,
+                flex: 1,
+                overflowY: 'auto',
+                '&::-webkit-scrollbar': {
+                  width: '6px',
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  backgroundColor: '#bbb',
+                  borderRadius: '10px',
+                },
+              }}
+            >
               <Typography
                 sx={{
                   letterSpacing: 2,
@@ -320,21 +355,38 @@ export default function ConfirmationStep({
                 SUMMARY
               </Typography>
 
-              {appointmentData.cartItems[0] && (
-                <>
-                  <Typography sx={{ fontWeight: 900, fontSize: 26 }}>
-                    {appointmentData.cartItems[0].serviceName}
+              {appointmentData.cartItems.map((item, index) => (
+                <Box
+                  key={`${item.serviceId}-${item.appointmentDate}-${item.startMinutes}-${index}`}
+                  sx={{
+                    borderBottom: '1px solid #ddd',
+                    pb: 2,
+                    mb: 2,
+                  }}
+                >
+                  <Typography sx={{ fontWeight: 900, fontSize: 24 }}>
+                    {item.serviceName}
                   </Typography>
-                  <Typography sx={{ color: '#f4b400', fontWeight: 900, fontSize: 18, mt: 0.5 }}>
-                    {formatDate(appointmentData.cartItems[0].appointmentDate)},{' '}
-                    {formatTime(appointmentData.cartItems[0].startMinutes)}
+
+                  <Typography
+                    sx={{
+                      color: '#f4b400',
+                      fontWeight: 900,
+                      fontSize: 16,
+                      mt: 0.5,
+                    }}
+                  >
+                    {formatDate(item.appointmentDate)},{' '}
+                    {formatTime(item.startMinutes)}
                   </Typography>
-                  <Box sx={{ borderBottom: '1px solid #ddd', mt: 2 }} />
-                </>
-              )}
+
+                  <Typography sx={{ color: '#555', fontWeight: 700, mt: 1 }}>
+                    Barber: {item.barberName}
+                  </Typography>
+                </Box>
+              ))}
             </Box>
 
-            {/* Cost Breakdown */}
             <Box sx={{ p: 3, borderTop: '1px solid #ddd' }}>
               <Typography
                 sx={{
@@ -351,7 +403,11 @@ export default function ConfirmationStep({
               {appointmentData.cartItems.map((item, index) => (
                 <Box
                   key={`${item.serviceId}-${index}`}
-                  sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    mb: 1,
+                  }}
                 >
                   <Typography>{item.serviceName}</Typography>
                   <Typography>₱{item.servicePrice.toFixed(2)}</Typography>
@@ -360,16 +416,33 @@ export default function ConfirmationStep({
 
               <Box sx={{ borderBottom: '1px solid #111', my: 1.5 }} />
 
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography sx={{ fontWeight: 900, fontSize: 24 }}>Total Price</Typography>
-                <Typography sx={{ fontWeight: 900, fontSize: 24 }}>₱{totalPrice.toFixed(2)}</Typography>
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <Typography sx={{ fontWeight: 900, fontSize: 24 }}>
+                  Total Price
+                </Typography>
+
+                <Typography sx={{ fontWeight: 900, fontSize: 24 }}>
+                  ₱{totalPrice.toFixed(2)}
+                </Typography>
               </Box>
             </Box>
           </Box>
         </Box>
 
-        {/* Footer Buttons */}
-        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+        <Box
+          sx={{
+            mt: 3,
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 2,
+          }}
+        >
           <Button
             onClick={prevStep}
             sx={{
