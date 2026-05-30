@@ -489,6 +489,126 @@ export default function BarbersPage() {
         </>
       )}
 
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          mb: 2,
+        }}
+      >
+        <Typography variant="h5" sx={{ fontWeight: 700 }}>
+          Processed appointments
+        </Typography>
+      </Box>
+
+      {error && (
+        <Typography color="error" sx={{ mb: 2 }}>
+          {error}
+        </Typography>
+      )}
+
+      {appointmentLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+          <CircularProgress />
+        </Box>
+      ) : appointments.length === 0 ? (
+        <Typography sx={{ textAlign: "center", color: "text.secondary" }}>
+          No appointments found.
+        </Typography>
+      ) : (
+        <>
+          <TableContainer component={Paper}>
+          <Table>
+            <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700 }}>Appointment#</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>ID</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Customer Name</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Schedule</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Service</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Barber Name</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Total Amount</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Action</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {paginatedProcessedAppointments.map((appointment) => (
+                <TableRow
+                  key={appointment.id}
+                  sx={{
+                    '&:hover': {
+                      backgroundColor: '#fafafa',
+                    },
+                  }}
+                >
+                  <TableCell>{appointment.appointmentCode}</TableCell>
+                  <TableCell>{appointment.customerCode}</TableCell>
+                  <TableCell>{appointment.customerName}</TableCell>
+                  <TableCell>{appointment.schedule}</TableCell>
+                  <TableCell>{appointment.serviceName}</TableCell>
+                  <TableCell>{appointment.barberName}</TableCell>
+                  <TableCell>{formatAmount(appointment.totalAmount)}</TableCell>
+                  <TableCell
+                    sx={{
+                      fontWeight: 700,
+                      color:
+                        appointment.status === 'COMPLETED'
+                          ? 'green'
+                          : appointment.status === 'CANCELLED'
+                          ? 'red'
+                          : '#333',
+                    }}
+                  >
+                    {appointment.status}
+                  </TableCell>
+                  <TableCell>
+                    <IconButton
+                      size="small"
+                      color="primary"
+                      aria-label="view appointment"
+                      onClick={() => {
+                        console.log('View appointment', appointment.id);
+                      }}
+                    >
+                      <InfoIcon fontSize="small" />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        {/* PAGINATION CONTROLS * */}
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              mt: 4,
+            }}
+          >
+            <Typography
+              sx={{
+                color: 'text.secondary',
+                fontSize: 14,
+              }}
+            >
+              Showing 1 to {paginatedProcessedAppointments.length} of{' '}
+              {filteredProcessedAppointments.length} Entries
+            </Typography>
+  
+            <Pagination
+              count={totalPagesProcessed}
+              page={processedPage}
+              onChange={(_, value) => setProcessedPage(value)}
+              size="small"
+            />
+          </Box>
+        </>
+      )}
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2}}>
         <Button
           variant="outlined"
