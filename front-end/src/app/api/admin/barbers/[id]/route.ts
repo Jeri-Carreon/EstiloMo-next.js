@@ -10,22 +10,42 @@ function minutesToTime(minutes: number) {
   return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-export async function GET() {
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const appointments = await db.appointment.findMany({
-      include: {
-        barber: true,
-        customer: true,
-        payment: true,
-        service: true,
+    const { id } = await params;
+
+    const barber = await db.barber.findUnique({
+      where: {
+        id,
       },
-      orderBy: {
-        appointmentDate: 'asc',
+
+      include: {
+        schedules: {
+          orderBy: {
+            dayOfWeek: 'asc',
+          },
+        },
+
+        appointments: {
+          include: {
+            barber: true,
+            customer: true,
+            payment: true,
+            service: true,
+          },
+
+          orderBy: {
+            appointmentDate: 'asc',
+          },
+        },
       },
     });
 
-    const result = appointments.map((appointment) => ({
-        id: appointment.id,
+    const result = barber?.appointments.map((appointment) => ({
+      id: appointment.id,
         appointmentCode: appointment.appointmentCode,
         customer: {
             id: appointment.customer.id,
@@ -64,9 +84,31 @@ export async function GET() {
 
         status: appointment.status,
     }));
+
+    if (!barber) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Barber not found',
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Error fetching appointments:', error);
-    return NextResponse.json({ error: 'Failed to fetch appointments' }, { status: 500 });
+    console.error(error);
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error: 'Failed to fetch barber',
+      },
+      {
+        status: 500,
+      }
+    );
   }
 }

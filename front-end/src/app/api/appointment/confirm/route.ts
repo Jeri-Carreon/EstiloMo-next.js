@@ -80,7 +80,9 @@ export async function POST(req: NextRequest) {
       console.error('SUPABASE UPLOAD ERROR:', uploadError);
 
       return NextResponse.json(
-        { error: 'Failed to upload payment screenshot' },
+        { error: 'Failed to upload payment screenshot',
+          details: uploadError.message,
+         },
         { status: 500 }
       );
     }
