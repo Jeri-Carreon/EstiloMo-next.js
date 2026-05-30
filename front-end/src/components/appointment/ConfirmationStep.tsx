@@ -150,7 +150,7 @@ export default function ConfirmationStep({
               <Box
                 sx={{
                   display: 'grid',
-                  gridTemplateColumns: { xs: '1fr', md: '1fr 230px' },
+                  gridTemplateColumns: { xs: '1fr', md: '1fr 320px' },
                   gap: 3,
                   alignItems: 'start',
                 }}
@@ -276,8 +276,8 @@ export default function ConfirmationStep({
                     src="/images/qr.png"
                     alt="Payment QR"
                     sx={{
-                      width: 180,
-                      height: 180,
+                      width: 280,
+                      height: 280,
                       mx: 'auto',
                       display: 'block',
                       objectFit: 'contain',
