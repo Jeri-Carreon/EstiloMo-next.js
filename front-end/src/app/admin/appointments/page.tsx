@@ -29,6 +29,7 @@ import Stack from '@mui/material/Stack';
 import InfoIcon from '@mui/icons-material/Info';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 
@@ -112,6 +113,7 @@ export default function AppointmentsPage() {
 
   const [openAddModal, setOpenAddModal] = useState(false);
   const [openEditModal, setOpenEditModal] = useState(false);
+  const [openEditScheduleModal, setOpenEditScheduleModal] = useState(false);
 
   const [selectedAppointment, setSelectedAppointment] =
     useState<Appointment | null>(null);
@@ -310,7 +312,15 @@ export default function AppointmentsPage() {
   };
 
   const fetchAvailability = async (date: Date) => {
-    if (!addForm.barberId || !addForm.serviceId) {
+    const barberId = openEditScheduleModal
+      ? selectedAppointment?.barberId
+      : addForm.barberId;
+
+    const serviceId = openEditScheduleModal
+      ? selectedAppointment?.serviceId
+      : addForm.serviceId;
+
+    if (!barberId || !serviceId) {
       setAvailableTimes([]);
       return;
     }
@@ -322,7 +332,7 @@ export default function AppointmentsPage() {
       const formattedDate = formatDateInput(date);
 
       const response = await fetch(
-        `/api/admin/barbers/availability?barberId=${addForm.barberId}&serviceId=${addForm.serviceId}&date=${formattedDate}&blockedSlots=`
+        `/api/admin/barbers/availability?barberId=${barberId}&serviceId=${serviceId}&date=${formattedDate}&blockedSlots=`
       );
 
       const data = await response.json();
@@ -463,6 +473,8 @@ export default function AppointmentsPage() {
       }
 
       resetAddModal();
+      setSuccessMessage('Appointment successfully added!');
+      setSuccessOpen(true);
       await loadAppointments();
     } catch (error) {
       console.error('ADD APPOINTMENT ERROR:', error);
@@ -471,6 +483,10 @@ export default function AppointmentsPage() {
       setSaving(false);
     }
   };
+
+  const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const handleUpdateAppointment = async () => {
     if (!selectedAppointment || isReadOnly) return;
@@ -503,6 +519,8 @@ export default function AppointmentsPage() {
 
       setOpenEditModal(false);
       setSelectedAppointment(null);
+      setSuccessMessage('Appointment successfully updated!');
+      setSuccessOpen(true);
       await loadAppointments();
     } catch (error) {
       console.error('UPDATE APPOINTMENT ERROR:', error);
@@ -553,7 +571,13 @@ export default function AppointmentsPage() {
                 <IconButton
                   size="small"
                   color="primary"
-                  onClick={() => {
+                  onClick={async () => {
+                    setServices([]);
+
+                    if (appointment.barberId) {
+                      await loadServicesByBarber(appointment.barberId);
+                    }
+
                     setSelectedAppointment(appointment);
                     setOpenEditModal(true);
                   }}
@@ -1237,9 +1261,25 @@ export default function AppointmentsPage() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={openEditModal} onClose={() => setOpenEditModal(false)} fullWidth maxWidth="sm">
-        <DialogTitle sx={{ fontWeight: 800 }}>
+      <Dialog
+        open={openEditModal}
+        onClose={() => setOpenEditModal(false)}
+        fullWidth
+        maxWidth={false}
+        slotProps={{
+          paper: {
+            sx: {
+              width: '650px',
+              maxWidth: '95vw',
+              bgcolor: '#f2f2f2',
+              borderRadius: 0,
+            },
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, fontSize: 24, pb: 1 }}>
           Edit Appointment Details
+
           <IconButton
             onClick={() => setOpenEditModal(false)}
             sx={{ position: 'absolute', right: 12, top: 10 }}
@@ -1250,21 +1290,53 @@ export default function AppointmentsPage() {
 
         {selectedAppointment && (
           <>
-            <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-              <TextField label="Customer ID" value={selectedAppointment.customerCode} disabled />
+            <DialogContent
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1.5,
+                pt: 1,
+              }}
+            >
+              <Typography sx={{ fontSize: 12, color: '#555' }}>
+                Customer ID: {selectedAppointment.customerCode}
+              </Typography>
 
-              <TextField label="Name" value={selectedAppointment.customerName} disabled />
+              <TextField
+                label="Name *"
+                value={selectedAppointment.customerName}
+                disabled
+                size="small"
+                sx={{ bgcolor: '#fff' }}
+              />
 
               <TextField
                 select
-                label="Barber"
+                label="Barber *"
                 value={selectedAppointment.barberId || ''}
                 disabled={!!isReadOnly}
-                onChange={(e) =>
+                size="small"
+                sx={{ bgcolor: '#fff' }}
+                onChange={(e) => {
+                  const barberId = e.target.value;
+
                   setSelectedAppointment((prev) =>
-                    prev ? { ...prev, barberId: e.target.value } : prev
-                  )
-                }
+                    prev
+                      ? {
+                          ...prev,
+                          barberId,
+                          serviceId: '',
+                          appointmentDate: '',
+                          startMinutes: undefined,
+                          endMinutes: undefined,
+                          schedule: '',
+                        }
+                      : prev
+                  );
+
+                  setServices([]);
+                  loadServicesByBarber(barberId);
+                }}
               >
                 {barbers.map((barber) => (
                   <MenuItem key={barber.id} value={barber.id}>
@@ -1275,12 +1347,27 @@ export default function AppointmentsPage() {
 
               <TextField
                 select
-                label="Service"
-                value={selectedAppointment.serviceId || ''}
+                label="Service *"
+                value={
+                  services.some((service) => service.id === selectedAppointment.serviceId)
+                    ? selectedAppointment.serviceId
+                    : ''
+                }
                 disabled={!!isReadOnly}
+                size="small"
+                sx={{ bgcolor: '#fff' }}
                 onChange={(e) =>
                   setSelectedAppointment((prev) =>
-                    prev ? { ...prev, serviceId: e.target.value } : prev
+                    prev
+                      ? {
+                          ...prev,
+                          serviceId: e.target.value,
+                          appointmentDate: '',
+                          startMinutes: undefined,
+                          endMinutes: undefined,
+                          schedule: '',
+                        }
+                      : prev
                   )
                 }
               >
@@ -1291,60 +1378,175 @@ export default function AppointmentsPage() {
                 ))}
               </TextField>
 
-              <TextField
-                label="Schedule Date"
-                type="date"
-                slotProps={{ inputLabel: { shrink: true } }}
-                value={(selectedAppointment.appointmentDate || '').slice(0, 10)}
-                disabled={!!isReadOnly}
-                onChange={(e) =>
-                  setSelectedAppointment((prev) =>
-                    prev ? { ...prev, appointmentDate: e.target.value } : prev
-                  )
-                }
-              />
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <TextField
+                  label="Schedule *"
+                  value={selectedAppointment.schedule || 'Select schedule'}
+                  disabled
+                  fullWidth
+                  size="small"
+                  sx={{
+                    bgcolor: '#fff',
+                    '& .MuiInputBase-input.Mui-disabled': {
+                      WebkitTextFillColor: '#111',
+                    },
+                  }}
+                />
 
-              <TextField
-                label="Proof of Downpayment"
-                value={selectedAppointment.paymentScreenshotUrl || 'No proof uploaded'}
+                <IconButton
+                  disabled={!!isReadOnly}
+                  onClick={() => setOpenEditScheduleModal(true)}
+                  sx={{
+                    bgcolor: '#fff',
+                    border: '1px solid #ccc',
+                    borderRadius: 1,
+                    width: 42,
+                    height: 40,
+                    '&:hover': {
+                      bgcolor: '#eee',
+                    },
+                  }}
+                >
+                  <CalendarMonthIcon />
+                </IconButton>
+              </Box>
+
+              <Button
                 disabled
-              />
+                sx={{
+                  justifyContent: 'flex-start',
+                  color: '#777',
+                  textTransform: 'none',
+                  fontSize: 13,
+                  p: 0,
+                  width: 'fit-content',
+                }}
+              >
+                + Add New Service
+              </Button>
+
+              <Box>
+                <Typography sx={{ fontSize: 13, color: '#555', mb: 0.5 }}>
+                  Proof of Downpayment <span style={{ color: 'red' }}>*</span>
+                </Typography>
+
+                <Box
+                  sx={{
+                    bgcolor: '#fff',
+                    minHeight: 38,
+                    display: 'flex',
+                    alignItems: 'center',
+                    px: 1.5,
+                  }}
+                >
+                  {selectedAppointment.paymentScreenshotUrl ? (
+                    <Button
+                      onClick={() =>
+                        window.open(selectedAppointment.paymentScreenshotUrl!, '_blank')
+                      }
+                      sx={{
+                        p: 0,
+                        color: '#3b82f6',
+                        textTransform: 'none',
+                        fontSize: 13,
+                      }}
+                    >
+                      Image_12345
+                    </Button>
+                  ) : (
+                    <Typography sx={{ color: '#999', fontSize: 13 }}>
+                      No proof uploaded
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
 
               <TextField
                 select
-                label="Status"
+                label="Status *"
                 value={selectedAppointment.status}
                 disabled={!!isReadOnly}
+                size="small"
+                sx={{ bgcolor: '#fff' }}
                 onChange={(e) =>
                   setSelectedAppointment((prev) =>
                     prev ? { ...prev, status: e.target.value } : prev
                   )
                 }
               >
-                <MenuItem value="PENDING">PENDING</MenuItem>
-                <MenuItem value="SCHEDULED">SCHEDULED</MenuItem>
-                <MenuItem value="COMPLETED">COMPLETED</MenuItem>
-                <MenuItem value="NOSHOW">NOSHOW</MenuItem>
-                <MenuItem value="CANCELLED">CANCELLED</MenuItem>
+                <MenuItem value="PENDING">Pending</MenuItem>
+                <MenuItem value="SCHEDULED">Scheduled</MenuItem>
+                <MenuItem value="CONFIRMED">Confirmed</MenuItem>
+                <MenuItem value="COMPLETED">Completed</MenuItem>
+                <MenuItem value="NOSHOW">No-show</MenuItem>
+                <MenuItem value="CANCELLED">Cancelled</MenuItem>
               </TextField>
 
-              <TextField
-                label="After Service Photos"
-                value={selectedAppointment.afterServicePhotoUrl || 'No after service photo yet'}
-                disabled
-              />
+              <Box>
+                <Typography sx={{ fontSize: 13, color: '#555', mb: 0.5 }}>
+                  After Service Photos
+                </Typography>
+
+                <Box
+                  sx={{
+                    bgcolor: '#fff',
+                    minHeight: 38,
+                    display: 'flex',
+                    alignItems: 'center',
+                    px: 1.5,
+                    gap: 1,
+                  }}
+                >
+                  {selectedAppointment.afterServicePhotoUrl ? (
+                    <Button
+                      onClick={() => setPhotoViewerOpen(true)}
+                      sx={{
+                        p: 0,
+                        color: '#3b82f6',
+                        textTransform: 'none',
+                        fontSize: 13,
+                      }}
+                    >
+                      Image_12345
+                    </Button>
+                  ) : (
+                    <Typography sx={{ color: '#999', fontSize: 13 }}>
+                      No after service photos
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
 
               {isReadOnly && (
                 <Typography sx={{ color: 'error.main', fontSize: 13 }}>
-                  Completed, No Show, and Cancelled appointments are view-only.
+                  Completed, No-show, and Cancelled appointments are view-only.
                 </Typography>
               )}
             </DialogContent>
 
-            <DialogActions sx={{ px: 3, pb: 3 }}>
+            <DialogActions
+              sx={{
+                px: 3,
+                pb: 3,
+                justifyContent: 'center',
+                gap: 2,
+              }}
+            >
               <Button
                 onClick={() => setOpenEditModal(false)}
-                sx={{ backgroundColor: '#777', color: '#fff', px: 4 }}
+                sx={{
+                  backgroundColor: '#777',
+                  color: '#f4b400',
+                  width: 180,
+                  minHeight: 44,
+                  py: 1,
+                  borderRadius: 1,
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  '&:hover': {
+                    backgroundColor: '#666',
+                  },
+                }}
               >
                 Cancel
               </Button>
@@ -1352,7 +1554,24 @@ export default function AppointmentsPage() {
               <Button
                 onClick={handleUpdateAppointment}
                 disabled={saving || !!isReadOnly}
-                sx={{ backgroundColor: '#000', color: '#f4b400', px: 4 }}
+                sx={{
+                  backgroundColor: '#000',
+                  color: '#f4b400',
+                  width: 180,
+                  minHeight: 44,
+                  py: 1,
+                  borderRadius: 1,
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  lineHeight: 1.1,
+                  '&:hover': {
+                    backgroundColor: '#111',
+                  },
+                  '&.Mui-disabled': {
+                    backgroundColor: '#ccc',
+                    color: '#777',
+                  },
+                }}
               >
                 {saving ? 'Saving...' : isReadOnly ? 'View Only' : 'Edit Appointment'}
               </Button>
@@ -1360,6 +1579,305 @@ export default function AppointmentsPage() {
           </>
         )}
       </Dialog>
+
+      <Dialog
+  open={openEditScheduleModal}
+  onClose={() => setOpenEditScheduleModal(false)}
+  fullWidth
+  maxWidth={false}
+  slotProps={{
+    paper: {
+      sx: {
+        width: '1400px',
+        maxWidth: '95vw',
+      },
+    },
+  }}
+>
+  <DialogTitle sx={{ fontWeight: 900 }}>
+    Change Schedule
+
+    <IconButton
+      onClick={() => setOpenEditScheduleModal(false)}
+      sx={{ position: 'absolute', right: 12, top: 10 }}
+    >
+      <CloseIcon />
+    </IconButton>
+  </DialogTitle>
+
+  <DialogContent sx={{ bgcolor: '#f5f5f5' }}>
+    <Box sx={{ display: 'flex', gap: 3 }}>
+      <Box sx={{ width: 550 }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{
+            justifyContent: 'center',
+            alignItems: 'center',
+            mb: 2,
+          }}
+        >
+          <IconButton
+            size="small"
+            onClick={() =>
+              setAddCurrentMonth((prev) =>
+                new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
+              )
+            }
+            sx={{
+              backgroundColor: '#fff',
+              border: '1px solid #d0d0d0',
+            }}
+          >
+            <ChevronLeftIcon />
+          </IconButton>
+
+          <Typography sx={{ fontWeight: 700, fontSize: '1.5rem' }}>
+            {addCurrentMonth.toLocaleString('default', {
+              month: 'long',
+              year: 'numeric',
+            })}
+          </Typography>
+
+          <IconButton
+            size="small"
+            onClick={() =>
+              setAddCurrentMonth((prev) =>
+                new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
+              )
+            }
+            sx={{
+              backgroundColor: '#fff',
+              border: '1px solid #d0d0d0',
+            }}
+          >
+            <ChevronRightIcon />
+          </IconButton>
+        </Stack>
+
+        <Box sx={{ border: '1px solid #7b7b7b', backgroundColor: '#fff' }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+            {weekdays.map((day) => (
+              <Box
+                key={day}
+                sx={{
+                  borderRight: '1px solid #7b7b7b',
+                  borderBottom: '1px solid #7b7b7b',
+                  height: 50,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 10,
+                  fontWeight: 700,
+                }}
+              >
+                {day}
+              </Box>
+            ))}
+          </Box>
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+            {addCalendarDays.map((date, index) => {
+              const day = date?.getDate();
+
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+
+              const formattedDate = date ? formatDateInput(date) : '';
+              const isPastDate = date ? date < today : false;
+              const isUnavailable =
+                !!date && unavailableDates.has(formattedDate);
+
+              const isAvailable = !!day && !isPastDate && !isUnavailable;
+
+              const isSelected =
+                selectedAddDate &&
+                date &&
+                selectedAddDate.toDateString() === date.toDateString();
+
+              return (
+                <Box
+                  key={index}
+                  onClick={() => {
+                    if (date && !isPastDate && !isUnavailable) {
+                      setSelectedAddDate(date);
+                      setSelectedTime(null);
+
+                      if (selectedAppointment) {
+                        setSelectedAppointment((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                appointmentDate: formatDateInput(date),
+                                startMinutes: undefined,
+                                endMinutes: undefined,
+                              }
+                            : prev
+                        );
+                      }
+
+                      fetchAvailability(date);
+                    }
+                  }}
+                  sx={{
+                    height: 68,
+                    borderRight: '1px solid #7b7b7b',
+                    borderBottom: '1px solid #7b7b7b',
+                    position: 'relative',
+                    cursor: isAvailable ? 'pointer' : 'not-allowed',
+                    backgroundColor:
+                      isPastDate || isUnavailable
+                        ? '#e1e1e1'
+                        : isSelected
+                        ? '#d9d9d9'
+                        : '#efefef',
+                    opacity: isPastDate || isUnavailable ? 0.5 : 1,
+                  }}
+                >
+                  {day && (
+                    <>
+                      <Typography
+                        sx={{
+                          position: 'absolute',
+                          top: 8,
+                          right: 8,
+                          fontWeight: isSelected ? 700 : 500,
+                          color: '#555',
+                        }}
+                      >
+                        {day}
+                      </Typography>
+
+                      {isAvailable && (
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            bottom: 4,
+                            left: 4,
+                            right: 4,
+                            height: 8,
+                            borderRadius: 5,
+                            backgroundColor: '#39d000',
+                          }}
+                        />
+                      )}
+                    </>
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
+      </Box>
+
+      <Box
+        sx={{
+          flex: 1,
+          border: '1px solid #7b7b7b',
+          backgroundColor: '#efefef',
+          minHeight: 530,
+        }}
+      >
+        <Box sx={{ borderBottom: '1px solid #7b7b7b', py: 2 }}>
+          <Typography
+            align="center"
+            sx={{ fontWeight: 700, fontSize: '1.5rem' }}
+          >
+            Time
+          </Typography>
+        </Box>
+
+        <Box sx={{ py: 3 }}>
+          <Typography align="center" sx={{ fontSize: '2rem', fontWeight: 500 }}>
+            {selectedAddDate
+              ? selectedAddDate.toLocaleDateString('en-US', {
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric',
+                })
+              : 'Select a date'}
+          </Typography>
+        </Box>
+
+        <Box
+          sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            gap: 2,
+            px: 3,
+          }}
+        >
+          {loadingTimes && (
+            <Typography sx={{ width: '100%', textAlign: 'center' }}>
+              Loading times...
+            </Typography>
+          )}
+
+          {!loadingTimes && selectedAddDate && availableTimes.length === 0 && (
+            <Typography sx={{ width: '100%', textAlign: 'center' }}>
+              No available times.
+            </Typography>
+          )}
+
+          {availableTimes.map((time) => {
+            const selected = selectedTime?.startMinutes === time.startMinutes;
+
+            return (
+              <Button
+                key={time.label}
+                onClick={() => {
+                  setSelectedTime(time);
+
+                  const selectedDateText = selectedAddDate
+                    ? selectedAddDate.toLocaleDateString('en-US', {
+                        month: 'long',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })
+                    : '';
+
+                  setSelectedAppointment((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          appointmentDate: selectedAddDate
+                            ? formatDateInput(selectedAddDate)
+                            : prev.appointmentDate,
+                          startMinutes: time.startMinutes,
+                          endMinutes: time.endMinutes,
+                          schedule: `${selectedDateText} ${time.label}`,
+                        }
+                      : prev
+                  );
+
+                  setOpenEditScheduleModal(false);
+                }}
+                variant="outlined"
+                sx={{
+                  minWidth: 180,
+                  height: 48,
+                  borderRadius: 2,
+                  border: selected ? '2px solid #000' : '1px solid #d5d5d5',
+                  backgroundColor: selected ? '#fff' : '#d9d9d9',
+                  color: '#000',
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  '&:hover': {
+                    border: '2px solid #000',
+                    backgroundColor: '#fff',
+                  },
+                }}
+              >
+                {time.label}
+              </Button>
+            );
+          })}
+        </Box>
+      </Box>
+    </Box>
+  </DialogContent>
+</Dialog>
     </Box>
   );
 }

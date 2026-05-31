@@ -15,10 +15,7 @@ export async function PUT(
       !session?.user?.email ||
       !["OWNER", "RECEPTIONIST"].includes(session.user.role)
     ) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id } = await params;
@@ -32,21 +29,98 @@ export async function PUT(
 
     const body = await req.json();
 
-    const { status, afterServicePhotoUrl } = body;
+    const {
+      barberId,
+      serviceId,
+      appointmentDate,
+      startMinutes,
+      endMinutes,
+      status,
+    } = body;
+
+    const data: any = {};
+
+    if (barberId) {
+      data.barber = {
+        connect: { id: barberId },
+      };
+    }
+
+    if (serviceId) {
+      data.service = {
+        connect: { id: serviceId },
+      };
+    }
+
+    if (appointmentDate) {
+      data.appointmentDate = new Date(appointmentDate);
+    }
+
+    if (startMinutes !== undefined && startMinutes !== "") {
+      data.startMinutes = Number(startMinutes);
+    }
+
+    if (endMinutes !== undefined && endMinutes !== "") {
+      data.endMinutes = Number(endMinutes);
+    }
+
+    if (status) {
+      data.status = status;
+    }
+
+    if (
+      data.startMinutes !== undefined &&
+      data.endMinutes !== undefined &&
+      data.endMinutes <= data.startMinutes
+    ) {
+      return NextResponse.json(
+        { error: "Invalid appointment time" },
+        { status: 400 }
+      );
+    }
 
     const appointment = await db.appointment.update({
       where: { id },
-      data: {
-        ...(status !== undefined && { status }),
-        ...(afterServicePhotoUrl !== undefined && { afterServicePhotoUrl }),
-      },
+      data,
       include: {
         customer: true,
         barber: true,
         service: true,
         payment: true,
+        afterServicePhotos: true,
       },
     });
+
+    if (serviceId) {
+      const service = await db.service.findUnique({
+        where: { id: serviceId },
+        select: { price: true },
+      });
+
+      const existingPayment = await db.payment.findFirst({
+        where: { appointmentId: id },
+      });
+
+      if (existingPayment) {
+        await db.payment.update({
+          where: { id: existingPayment.id },
+          data: {
+            amount: Number(service?.price || 0),
+          },
+        });
+      } else {
+        await db.payment.create({
+          data: {
+            appointmentId: id,
+            amount: Number(service?.price || 0),
+            downPayment: 150,
+            method: "GCASH",
+            status: "PENDING",
+            screenshotUrl: null,
+          },
+        });
+      }
+    }
 
     return NextResponse.json({
       success: true,
@@ -56,7 +130,10 @@ export async function PUT(
     console.error("UPDATE APPOINTMENT ERROR:", error);
 
     return NextResponse.json(
-      { error: "Failed to update appointment" },
+      {
+        error: "Failed to update appointment",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }
@@ -73,10 +150,7 @@ export async function DELETE(
       !session?.user?.email ||
       !["OWNER", "RECEPTIONIST"].includes(session.user.role)
     ) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id } = await params;
@@ -99,7 +173,10 @@ export async function DELETE(
     console.error("DELETE APPOINTMENT ERROR:", error);
 
     return NextResponse.json(
-      { error: "Failed to delete appointment" },
+      {
+        error: "Failed to delete appointment",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }
