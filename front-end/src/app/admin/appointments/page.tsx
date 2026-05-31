@@ -88,6 +88,8 @@ const weekdays = [
   'Saturday',
 ];
 
+const itemsPerPage = 4;
+
 function formatDateInput(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
     2,
@@ -110,6 +112,9 @@ export default function AppointmentsPage() {
 
   const [pendingPage, setPendingPage] = useState(1);
   const [processedPage, setProcessedPage] = useState(1);
+
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
+  const [openCalendarModal, setOpenCalendarModal] = useState(false);
 
   const [openAddModal, setOpenAddModal] = useState(false);
   const [openEditModal, setOpenEditModal] = useState(false);
@@ -143,8 +148,15 @@ export default function AppointmentsPage() {
     new Set()
   );
 
-  const itemsPerPage = 4;
+  const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+
   const servicePrice = Number(selectedAddService?.price || 0);
+
+  const isReadOnly =
+    selectedAppointment &&
+    readOnlyStatuses.includes(selectedAppointment.status.toUpperCase());
 
   const addCalendarDays = (() => {
     const year = addCurrentMonth.getFullYear();
@@ -187,6 +199,38 @@ export default function AppointmentsPage() {
     });
   };
 
+  const formatMinutes = (minutes?: number) => {
+    if (minutes === undefined || minutes === null) return '';
+
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHour = hours % 12 || 12;
+
+    return `${displayHour}:${String(mins).padStart(2, '0')} ${period}`;
+  };
+
+  const formatAmount = (amount: number | string | null) => {
+    if (amount === null || amount === undefined) return '-';
+
+    const parsed = typeof amount === 'string' ? parseFloat(amount) : amount;
+
+    if (Number.isNaN(parsed)) return '-';
+
+    return `₱ ${parsed.toFixed(2)}`;
+  };
+
+  const getStatusColor = (status: string) => {
+    const normalized = status.toUpperCase();
+
+    if (normalized === 'COMPLETED') return 'green';
+    if (normalized === 'CANCELLED') return 'red';
+    if (normalized === 'NOSHOW') return '#777';
+    if (normalized === 'PENDING') return '#92400E';
+
+    return '#333';
+  };
+
   const loadAppointments = async () => {
     try {
       setLoading(true);
@@ -211,7 +255,7 @@ export default function AppointmentsPage() {
       setAppointments(
         (data || []).map((appointment: any) => ({
           id: appointment.id,
-          appointmentCode: appointment.appointmentCode,
+          appointmentCode: appointment.appointmentCode || '',
           customerId: appointment.customerId,
           customerCode: appointment.customer?.customerCode || '',
           customerName:
@@ -245,7 +289,8 @@ export default function AppointmentsPage() {
       );
 
       setError('');
-    } catch {
+    } catch (error) {
+      console.error(error);
       setError('Unable to load appointments.');
       setAppointments([]);
     } finally {
@@ -348,7 +393,11 @@ export default function AppointmentsPage() {
   };
 
   const fetchUnavailableDates = async (month: Date) => {
-    if (!addForm.barberId) {
+    const barberId = openEditScheduleModal
+      ? selectedAppointment?.barberId
+      : addForm.barberId;
+
+    if (!barberId) {
       setUnavailableDates(new Set());
       return;
     }
@@ -358,7 +407,7 @@ export default function AppointmentsPage() {
       const m = String(month.getMonth() + 1).padStart(2, '0');
 
       const response = await fetch(
-        `/api/admin/barbers/unavailable-dates?barberId=${addForm.barberId}&year=${year}&month=${m}`
+        `/api/admin/barbers/unavailable-dates?barberId=${barberId}&year=${year}&month=${m}`
       );
 
       const data = await response.json();
@@ -386,34 +435,27 @@ export default function AppointmentsPage() {
 
   useEffect(() => {
     fetchUnavailableDates(addCurrentMonth);
-  }, [addCurrentMonth, addForm.barberId]);
+  }, [addCurrentMonth, addForm.barberId, selectedAppointment?.barberId, openEditScheduleModal]);
 
   useEffect(() => {
     if (!selectedAddDate) return;
 
     fetchAvailability(selectedAddDate);
-  }, [selectedAddDate, addForm.barberId, addForm.serviceId]);
-
-  const formatAmount = (amount: number | string | null) => {
-    if (amount === null || amount === undefined) return '-';
-
-    const parsed = typeof amount === 'string' ? parseFloat(amount) : amount;
-
-    if (Number.isNaN(parsed)) return '-';
-
-    return `₱ ${parsed.toFixed(2)}`;
-  };
-
-  const isReadOnly =
-    selectedAppointment &&
-    readOnlyStatuses.includes(selectedAppointment.status.toUpperCase());
+  }, [
+    selectedAddDate,
+    addForm.barberId,
+    addForm.serviceId,
+    selectedAppointment?.barberId,
+    selectedAppointment?.serviceId,
+    openEditScheduleModal,
+  ]);
 
   const filteredPendingAppointments = appointments.filter(
-    (appointment) => appointment.status === 'PENDING'
+    (appointment) => appointment.status.toUpperCase() === 'PENDING'
   );
 
   const filteredProcessedAppointments = appointments.filter(
-    (appointment) => appointment.status !== 'PENDING'
+    (appointment) => appointment.status.toUpperCase() !== 'PENDING'
   );
 
   const paginatedPendingAppointments = filteredPendingAppointments.slice(
@@ -484,10 +526,6 @@ export default function AppointmentsPage() {
     }
   };
 
-  const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
-  const [successOpen, setSuccessOpen] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-
   const handleUpdateAppointment = async () => {
     if (!selectedAppointment || isReadOnly) return;
 
@@ -548,49 +586,276 @@ export default function AppointmentsPage() {
         </TableHead>
 
         <TableBody>
-          {rows.map((appointment) => (
-            <TableRow
-              key={appointment.id}
-              sx={{
-                '&:hover': {
-                  backgroundColor: '#fafafa',
-                },
-              }}
-            >
-              <TableCell>{appointment.appointmentCode}</TableCell>
-              <TableCell>{appointment.customerCode}</TableCell>
-              <TableCell>{appointment.customerName}</TableCell>
-              <TableCell>{appointment.schedule}</TableCell>
-              <TableCell>{appointment.serviceName}</TableCell>
-              <TableCell>{appointment.barberName}</TableCell>
-              <TableCell>{formatAmount(appointment.totalAmount)}</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>
-                {appointment.status}
-              </TableCell>
-              <TableCell>
-                <IconButton
-                  size="small"
-                  color="primary"
-                  onClick={async () => {
-                    setServices([]);
-
-                    if (appointment.barberId) {
-                      await loadServicesByBarber(appointment.barberId);
-                    }
-
-                    setSelectedAppointment(appointment);
-                    setOpenEditModal(true);
-                  }}
-                >
-                  <InfoIcon fontSize="small" />
-                </IconButton>
+          {rows.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={9} align="center">
+                No appointments found.
               </TableCell>
             </TableRow>
-          ))}
+          ) : (
+            rows.map((appointment) => (
+              <TableRow
+                key={appointment.id}
+                sx={{
+                  '&:hover': {
+                    backgroundColor: '#fafafa',
+                  },
+                }}
+              >
+                <TableCell>{appointment.appointmentCode}</TableCell>
+                <TableCell>{appointment.customerCode}</TableCell>
+                <TableCell>{appointment.customerName}</TableCell>
+                <TableCell>{appointment.schedule}</TableCell>
+                <TableCell>{appointment.serviceName}</TableCell>
+                <TableCell>{appointment.barberName}</TableCell>
+                <TableCell>{formatAmount(appointment.totalAmount)}</TableCell>
+                <TableCell
+                  sx={{
+                    fontWeight: 700,
+                    color: getStatusColor(appointment.status),
+                  }}
+                >
+                  {appointment.status}
+                </TableCell>
+                <TableCell>
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={async () => {
+                      setServices([]);
+
+                      if (appointment.barberId) {
+                        await loadServicesByBarber(appointment.barberId);
+                      }
+
+                      setSelectedAppointment(appointment);
+                      setOpenEditModal(true);
+                    }}
+                  >
+                    <InfoIcon fontSize="small" />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))
+          )}
         </TableBody>
       </Table>
     </TableContainer>
   );
+
+  const AppointmentCalendar = ({
+    appointments,
+  }: {
+    appointments: Appointment[];
+  }) => {
+    const currentMonth = calendarMonth;
+
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const totalDays = new Date(year, month + 1, 0).getDate();
+
+    const calDays: (number | null)[] = [
+      ...Array(firstDay).fill(null),
+      ...Array.from({ length: totalDays }, (_, i) => i + 1),
+    ];
+
+    const getAppointmentsForDay = (day: number) => {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(
+        day
+      ).padStart(2, '0')}`;
+
+      return appointments.filter((a) =>
+        a.appointmentDate?.startsWith(dateStr)
+      );
+    };
+
+    const statusColor: Record<string, { bg: string; color: string }> = {
+      PENDING: { bg: '#FEF3C7', color: '#92400E' },
+      SCHEDULED: { bg: '#D1FAE5', color: '#065F46' },
+      CONFIRMED: { bg: '#DBEAFE', color: '#1E40AF' },
+      COMPLETED: { bg: '#E0E7FF', color: '#3730A3' },
+      CANCELLED: { bg: '#FEE2E2', color: '#991B1B' },
+      NOSHOW: { bg: '#F3F4F6', color: '#6B7280' },
+    };
+
+    return (
+      <Box>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 1,
+            mb: 2,
+          }}
+        >
+          <IconButton
+            size="small"
+            onClick={() => setCalendarMonth(new Date(year, month - 1, 1))}
+            sx={{ border: '1px solid #d0d0d0', bgcolor: '#fff' }}
+          >
+            <ChevronLeftIcon />
+          </IconButton>
+
+          <Typography
+            sx={{
+              fontWeight: 700,
+              fontSize: '1.1rem',
+              minWidth: 160,
+              textAlign: 'center',
+            }}
+          >
+            {currentMonth.toLocaleString('default', {
+              month: 'long',
+              year: 'numeric',
+            })}
+          </Typography>
+
+          <IconButton
+            size="small"
+            onClick={() => setCalendarMonth(new Date(year, month + 1, 1))}
+            sx={{ border: '1px solid #d0d0d0', bgcolor: '#fff' }}
+          >
+            <ChevronRightIcon />
+          </IconButton>
+        </Box>
+
+        <Box
+          sx={{
+            border: '1px solid #d0d0d0',
+            borderRadius: 2,
+            overflow: 'hidden',
+            bgcolor: '#fff',
+          }}
+        >
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+            {weekdays.map((day) => (
+              <Box
+                key={day}
+                sx={{
+                  textAlign: 'center',
+                  py: 1.2,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  borderRight: '1px solid #e0e0e0',
+                  borderBottom: '1px solid #d0d0d0',
+                  '&:last-child': {
+                    borderRight: 'none',
+                  },
+                }}
+              >
+                {day}
+              </Box>
+            ))}
+          </Box>
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+            {calDays.map((day, index) => {
+              const dayAppointments = day ? getAppointmentsForDay(day) : [];
+
+              return (
+                <Box
+                  key={index}
+                  sx={{
+                    minHeight: 90,
+                    borderRight: '1px solid #e0e0e0',
+                    borderBottom: '1px solid #e0e0e0',
+                    p: 0.5,
+                    bgcolor: day ? '#fafafa' : '#f0f0f0',
+                    '&:nth-of-type(7n)': {
+                      borderRight: 'none',
+                    },
+                  }}
+                >
+                  {day && (
+                    <>
+                      <Typography
+                        sx={{
+                          fontSize: 11,
+                          color: '#999',
+                          textAlign: 'right',
+                          pr: 0.5,
+                        }}
+                      >
+                        {day}
+                      </Typography>
+
+                      {dayAppointments.map((appointment) => {
+                        const colors =
+                          statusColor[appointment.status.toUpperCase()] ||
+                          statusColor.NOSHOW;
+
+                        return (
+                          <Box
+                            key={appointment.id}
+                            title={`${appointment.customerName} - ${appointment.serviceName} (${appointment.barberName})`}
+                            onClick={async () => {
+                              setServices([]);
+
+                              if (appointment.barberId) {
+                                await loadServicesByBarber(appointment.barberId);
+                              }
+
+                              setSelectedAppointment(appointment);
+                              setOpenEditModal(true);
+                            }}
+                            sx={{
+                              fontSize: 10,
+                              fontWeight: 600,
+                              px: 0.8,
+                              py: 0.3,
+                              mb: 0.3,
+                              borderRadius: 1,
+                              bgcolor: colors.bg,
+                              color: colors.color,
+                              cursor: 'pointer',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              '&:hover': {
+                                filter: 'brightness(0.92)',
+                              },
+                            }}
+                          >
+                            {formatMinutes(appointment.startMinutes)} -{' '}
+                            {formatMinutes(appointment.endMinutes)}
+                          </Box>
+                        );
+                      })}
+                    </>
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
+
+        <Box sx={{ display: 'flex', gap: 2, mt: 1.5, flexWrap: 'wrap' }}>
+          {Object.entries(statusColor).map(([label, colors]) => (
+            <Box
+              key={label}
+              sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+            >
+              <Box
+                sx={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '2px',
+                  bgcolor: colors.bg,
+                  border: `1px solid ${colors.color}`,
+                }}
+              />
+              <Typography sx={{ fontSize: 11, color: '#777' }}>
+                {label}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      </Box>
+    );
+  };
 
   return (
     <Box sx={{ flex: 1, p: 4, backgroundColor: '#fff' }}>
@@ -696,9 +961,26 @@ export default function AppointmentsPage() {
               size="small"
             />
           </Box>
+
+          <Box sx={{ display: 'flex', justifyContent: 'flex-start', mt: 2 }}>
+            <Button
+              startIcon={<CalendarMonthIcon />}
+              onClick={() => setOpenCalendarModal(true)}
+              sx={{
+                border: '1px solid #ccc',
+                color: '#555',
+                textTransform: 'none',
+                borderRadius: 2,
+                px: 2,
+              }}
+            >
+              Calendar View
+            </Button>
+          </Box>
         </>
       )}
 
+      {/* ADD MODAL */}
       <Dialog
         open={openAddModal}
         onClose={resetAddModal}
@@ -743,7 +1025,9 @@ export default function AppointmentsPage() {
                 value={selectedAddCustomer}
                 forcePopupIcon={false}
                 getOptionLabel={(option) =>
-                  `${option.name} ${option.customerCode ? `(${option.customerCode})` : ''}`
+                  `${option.name} ${
+                    option.customerCode ? `(${option.customerCode})` : ''
+                  }`
                 }
                 onChange={(_, value) => {
                   setSelectedAddCustomer(value);
@@ -802,7 +1086,9 @@ export default function AppointmentsPage() {
                 sx={{ bgcolor: '#fff' }}
                 onChange={(e) => {
                   const serviceId = e.target.value;
-                  const service = services.find((s) => s.id === serviceId) || null;
+                  const service =
+                    services.find((service) => service.id === serviceId) ||
+                    null;
 
                   setSelectedAddService(service);
                   setSelectedAddDate(null);
@@ -849,9 +1135,6 @@ export default function AppointmentsPage() {
                     sx={{
                       backgroundColor: '#fff',
                       border: '1px solid #d0d0d0',
-                      '&:hover': {
-                        backgroundColor: '#f5f5f5',
-                      },
                     }}
                   >
                     <ChevronLeftIcon />
@@ -874,9 +1157,6 @@ export default function AppointmentsPage() {
                     sx={{
                       backgroundColor: '#fff',
                       border: '1px solid #d0d0d0',
-                      '&:hover': {
-                        backgroundColor: '#f5f5f5',
-                      },
                     }}
                   >
                     <ChevronRightIcon />
@@ -897,9 +1177,6 @@ export default function AppointmentsPage() {
                           justifyContent: 'center',
                           fontSize: 10,
                           fontWeight: 700,
-                          '&:last-child': {
-                            borderRight: 'none',
-                          },
                         }}
                       >
                         {day}
@@ -1095,33 +1372,48 @@ export default function AppointmentsPage() {
           {addStep === 3 && (
             <>
               <Box sx={{ bgcolor: '#fff', border: '1px solid #eee' }}>
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px', p: 1.5 }}>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 120px',
+                    p: 1.5,
+                  }}
+                >
                   <Typography sx={{ fontWeight: 700, color: '#999' }}>
                     Service Summary
                   </Typography>
-                  <Typography sx={{ fontWeight: 700, color: '#999' }}>Price</Typography>
+                  <Typography sx={{ fontWeight: 700, color: '#999' }}>
+                    Price
+                  </Typography>
                 </Box>
 
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 120px', p: 1.5 }}>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 120px',
+                    p: 1.5,
+                  }}
+                >
                   <Typography>{selectedAddService?.name || '-'}</Typography>
                   <Typography>₱ {servicePrice.toFixed(2)}</Typography>
                 </Box>
               </Box>
 
               <Box sx={{ bgcolor: '#fff', p: 2 }}>
-                {[
-                  ['Subtotal', servicePrice],
-                  ['Downpayment To Pay', 150],
-                  ['Total', servicePrice],
-                ].map(([label, amount]) => (
-                  <Box
-                    key={label}
-                    sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}
-                  >
-                    <Typography sx={{ fontWeight: 900 }}>{label}</Typography>
-                    <Typography>₱ {Number(amount).toFixed(2)}</Typography>
-                  </Box>
-                ))}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography sx={{ fontWeight: 900 }}>Subtotal</Typography>
+                  <Typography>₱ {servicePrice.toFixed(2)}</Typography>
+                </Box>
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography sx={{ fontWeight: 900 }}>Downpayment To Pay</Typography>
+                  <Typography>₱ 150.00</Typography>
+                </Box>
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontWeight: 900 }}>Total</Typography>
+                  <Typography>₱ {servicePrice.toFixed(2)}</Typography>
+                </Box>
               </Box>
 
               <Typography sx={{ color: '#777', fontSize: 13 }}>
@@ -1152,14 +1444,18 @@ export default function AppointmentsPage() {
           {addStep === 4 && (
             <>
               <Typography sx={{ fontSize: 13 }}>
-                Are you sure you want to add the following appointment:
+                Are you sure you want to add the following appointment?
               </Typography>
 
               <Typography sx={{ fontSize: 13, color: '#777' }}>
                 Customer ID: {selectedAddCustomer?.customerCode || '—'}
               </Typography>
 
-              <TextField value={selectedAddCustomer?.name || ''} disabled sx={{ bgcolor: '#fff' }} />
+              <TextField
+                value={selectedAddCustomer?.name || ''}
+                disabled
+                sx={{ bgcolor: '#fff' }}
+              />
 
               <TextField
                 value={barbers.find((b) => b.id === addForm.barberId)?.name || ''}
@@ -1168,7 +1464,9 @@ export default function AppointmentsPage() {
               />
 
               <TextField
-                value={`${addForm.appointmentDate} ${addForm.startMinutes} - ${addForm.endMinutes}`}
+                value={`${addForm.appointmentDate} ${formatMinutes(
+                  Number(addForm.startMinutes)
+                )} - ${formatMinutes(Number(addForm.endMinutes))}`}
                 disabled
                 sx={{ bgcolor: '#fff' }}
               />
@@ -1178,7 +1476,9 @@ export default function AppointmentsPage() {
                   <Typography sx={{ fontWeight: 700, color: '#999' }}>
                     Service Summary
                   </Typography>
-                  <Typography sx={{ fontWeight: 700, color: '#999' }}>Price</Typography>
+                  <Typography sx={{ fontWeight: 700, color: '#999' }}>
+                    Price
+                  </Typography>
                 </Box>
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
@@ -1192,7 +1492,9 @@ export default function AppointmentsPage() {
                 </Box>
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography sx={{ fontWeight: 900 }}>Downpayment To Pay</Typography>
+                  <Typography sx={{ fontWeight: 900 }}>
+                    Downpayment To Pay
+                  </Typography>
                   <Typography>₱ 150.00</Typography>
                 </Box>
 
@@ -1233,7 +1535,11 @@ export default function AppointmentsPage() {
               }
 
               if (addStep === 2) {
-                if (!addForm.appointmentDate || !addForm.startMinutes || !addForm.endMinutes) {
+                if (
+                  !addForm.appointmentDate ||
+                  !addForm.startMinutes ||
+                  !addForm.endMinutes
+                ) {
                   alert('Please complete the schedule.');
                   return;
                 }
@@ -1261,6 +1567,7 @@ export default function AppointmentsPage() {
         </DialogActions>
       </Dialog>
 
+      {/* EDIT MODAL */}
       <Dialog
         open={openEditModal}
         onClose={() => setOpenEditModal(false)}
@@ -1349,7 +1656,9 @@ export default function AppointmentsPage() {
                 select
                 label="Service *"
                 value={
-                  services.some((service) => service.id === selectedAppointment.serviceId)
+                  services.some(
+                    (service) => service.id === selectedAppointment.serviceId
+                  )
                     ? selectedAppointment.serviceId
                     : ''
                 }
@@ -1395,7 +1704,12 @@ export default function AppointmentsPage() {
 
                 <IconButton
                   disabled={!!isReadOnly}
-                  onClick={() => setOpenEditScheduleModal(true)}
+                  onClick={() => {
+                    setOpenEditScheduleModal(true);
+                    setSelectedAddDate(null);
+                    setSelectedTime(null);
+                    setAvailableTimes([]);
+                  }}
                   sx={{
                     bgcolor: '#fff',
                     border: '1px solid #ccc',
@@ -1442,7 +1756,10 @@ export default function AppointmentsPage() {
                   {selectedAppointment.paymentScreenshotUrl ? (
                     <Button
                       onClick={() =>
-                        window.open(selectedAppointment.paymentScreenshotUrl!, '_blank')
+                        window.open(
+                          selectedAppointment.paymentScreenshotUrl!,
+                          '_blank'
+                        )
                       }
                       sx={{
                         p: 0,
@@ -1580,304 +1897,372 @@ export default function AppointmentsPage() {
         )}
       </Dialog>
 
+      {/* EDIT SCHEDULE MODAL */}
       <Dialog
-  open={openEditScheduleModal}
-  onClose={() => setOpenEditScheduleModal(false)}
-  fullWidth
-  maxWidth={false}
-  slotProps={{
-    paper: {
-      sx: {
-        width: '1400px',
-        maxWidth: '95vw',
-      },
-    },
-  }}
->
-  <DialogTitle sx={{ fontWeight: 900 }}>
-    Change Schedule
-
-    <IconButton
-      onClick={() => setOpenEditScheduleModal(false)}
-      sx={{ position: 'absolute', right: 12, top: 10 }}
-    >
-      <CloseIcon />
-    </IconButton>
-  </DialogTitle>
-
-  <DialogContent sx={{ bgcolor: '#f5f5f5' }}>
-    <Box sx={{ display: 'flex', gap: 3 }}>
-      <Box sx={{ width: 550 }}>
-        <Stack
-          direction="row"
-          spacing={1}
-          sx={{
-            justifyContent: 'center',
-            alignItems: 'center',
-            mb: 2,
-          }}
-        >
-          <IconButton
-            size="small"
-            onClick={() =>
-              setAddCurrentMonth((prev) =>
-                new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
-              )
-            }
-            sx={{
-              backgroundColor: '#fff',
-              border: '1px solid #d0d0d0',
-            }}
-          >
-            <ChevronLeftIcon />
-          </IconButton>
-
-          <Typography sx={{ fontWeight: 700, fontSize: '1.5rem' }}>
-            {addCurrentMonth.toLocaleString('default', {
-              month: 'long',
-              year: 'numeric',
-            })}
-          </Typography>
-
-          <IconButton
-            size="small"
-            onClick={() =>
-              setAddCurrentMonth((prev) =>
-                new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
-              )
-            }
-            sx={{
-              backgroundColor: '#fff',
-              border: '1px solid #d0d0d0',
-            }}
-          >
-            <ChevronRightIcon />
-          </IconButton>
-        </Stack>
-
-        <Box sx={{ border: '1px solid #7b7b7b', backgroundColor: '#fff' }}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-            {weekdays.map((day) => (
-              <Box
-                key={day}
-                sx={{
-                  borderRight: '1px solid #7b7b7b',
-                  borderBottom: '1px solid #7b7b7b',
-                  height: 50,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 10,
-                  fontWeight: 700,
-                }}
-              >
-                {day}
-              </Box>
-            ))}
-          </Box>
-
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-            {addCalendarDays.map((date, index) => {
-              const day = date?.getDate();
-
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-
-              const formattedDate = date ? formatDateInput(date) : '';
-              const isPastDate = date ? date < today : false;
-              const isUnavailable =
-                !!date && unavailableDates.has(formattedDate);
-
-              const isAvailable = !!day && !isPastDate && !isUnavailable;
-
-              const isSelected =
-                selectedAddDate &&
-                date &&
-                selectedAddDate.toDateString() === date.toDateString();
-
-              return (
-                <Box
-                  key={index}
-                  onClick={() => {
-                    if (date && !isPastDate && !isUnavailable) {
-                      setSelectedAddDate(date);
-                      setSelectedTime(null);
-
-                      if (selectedAppointment) {
-                        setSelectedAppointment((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                appointmentDate: formatDateInput(date),
-                                startMinutes: undefined,
-                                endMinutes: undefined,
-                              }
-                            : prev
-                        );
-                      }
-
-                      fetchAvailability(date);
-                    }
-                  }}
-                  sx={{
-                    height: 68,
-                    borderRight: '1px solid #7b7b7b',
-                    borderBottom: '1px solid #7b7b7b',
-                    position: 'relative',
-                    cursor: isAvailable ? 'pointer' : 'not-allowed',
-                    backgroundColor:
-                      isPastDate || isUnavailable
-                        ? '#e1e1e1'
-                        : isSelected
-                        ? '#d9d9d9'
-                        : '#efefef',
-                    opacity: isPastDate || isUnavailable ? 0.5 : 1,
-                  }}
-                >
-                  {day && (
-                    <>
-                      <Typography
-                        sx={{
-                          position: 'absolute',
-                          top: 8,
-                          right: 8,
-                          fontWeight: isSelected ? 700 : 500,
-                          color: '#555',
-                        }}
-                      >
-                        {day}
-                      </Typography>
-
-                      {isAvailable && (
-                        <Box
-                          sx={{
-                            position: 'absolute',
-                            bottom: 4,
-                            left: 4,
-                            right: 4,
-                            height: 8,
-                            borderRadius: 5,
-                            backgroundColor: '#39d000',
-                          }}
-                        />
-                      )}
-                    </>
-                  )}
-                </Box>
-              );
-            })}
-          </Box>
-        </Box>
-      </Box>
-
-      <Box
-        sx={{
-          flex: 1,
-          border: '1px solid #7b7b7b',
-          backgroundColor: '#efefef',
-          minHeight: 530,
+        open={openEditScheduleModal}
+        onClose={() => setOpenEditScheduleModal(false)}
+        fullWidth
+        maxWidth={false}
+        slotProps={{
+          paper: {
+            sx: {
+              width: '1400px',
+              maxWidth: '95vw',
+            },
+          },
         }}
       >
-        <Box sx={{ borderBottom: '1px solid #7b7b7b', py: 2 }}>
-          <Typography
-            align="center"
-            sx={{ fontWeight: 700, fontSize: '1.5rem' }}
+        <DialogTitle sx={{ fontWeight: 900 }}>
+          Change Schedule
+
+          <IconButton
+            onClick={() => setOpenEditScheduleModal(false)}
+            sx={{ position: 'absolute', right: 12, top: 10 }}
           >
-            Time
-          </Typography>
-        </Box>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
 
-        <Box sx={{ py: 3 }}>
-          <Typography align="center" sx={{ fontSize: '2rem', fontWeight: 500 }}>
-            {selectedAddDate
-              ? selectedAddDate.toLocaleDateString('en-US', {
-                  month: 'long',
-                  day: 'numeric',
-                  year: 'numeric',
-                })
-              : 'Select a date'}
-          </Typography>
-        </Box>
+        <DialogContent sx={{ bgcolor: '#f5f5f5' }}>
+          <Box sx={{ display: 'flex', gap: 3 }}>
+            <Box sx={{ width: 550 }}>
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  mb: 2,
+                }}
+              >
+                <IconButton
+                  size="small"
+                  onClick={() =>
+                    setAddCurrentMonth((prev) =>
+                      new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
+                    )
+                  }
+                  sx={{
+                    backgroundColor: '#fff',
+                    border: '1px solid #d0d0d0',
+                  }}
+                >
+                  <ChevronLeftIcon />
+                </IconButton>
 
-        <Box
-          sx={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-            gap: 2,
-            px: 3,
-          }}
-        >
-          {loadingTimes && (
-            <Typography sx={{ width: '100%', textAlign: 'center' }}>
-              Loading times...
-            </Typography>
-          )}
+                <Typography sx={{ fontWeight: 700, fontSize: '1.5rem' }}>
+                  {addCurrentMonth.toLocaleString('default', {
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </Typography>
 
-          {!loadingTimes && selectedAddDate && availableTimes.length === 0 && (
-            <Typography sx={{ width: '100%', textAlign: 'center' }}>
-              No available times.
-            </Typography>
-          )}
+                <IconButton
+                  size="small"
+                  onClick={() =>
+                    setAddCurrentMonth((prev) =>
+                      new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
+                    )
+                  }
+                  sx={{
+                    backgroundColor: '#fff',
+                    border: '1px solid #d0d0d0',
+                  }}
+                >
+                  <ChevronRightIcon />
+                </IconButton>
+              </Stack>
 
-          {availableTimes.map((time) => {
-            const selected = selectedTime?.startMinutes === time.startMinutes;
+              <Box sx={{ border: '1px solid #7b7b7b', backgroundColor: '#fff' }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                  {weekdays.map((day) => (
+                    <Box
+                      key={day}
+                      sx={{
+                        borderRight: '1px solid #7b7b7b',
+                        borderBottom: '1px solid #7b7b7b',
+                        height: 50,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 10,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {day}
+                    </Box>
+                  ))}
+                </Box>
 
-            return (
-              <Button
-                key={time.label}
-                onClick={() => {
-                  setSelectedTime(time);
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                  {addCalendarDays.map((date, index) => {
+                    const day = date?.getDate();
 
-                  const selectedDateText = selectedAddDate
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+
+                    const formattedDate = date ? formatDateInput(date) : '';
+                    const isPastDate = date ? date < today : false;
+                    const isUnavailable =
+                      !!date && unavailableDates.has(formattedDate);
+
+                    const isAvailable = !!day && !isPastDate && !isUnavailable;
+
+                    const isSelected =
+                      selectedAddDate &&
+                      date &&
+                      selectedAddDate.toDateString() === date.toDateString();
+
+                    return (
+                      <Box
+                        key={index}
+                        onClick={() => {
+                          if (date && !isPastDate && !isUnavailable) {
+                            setSelectedAddDate(date);
+                            setSelectedTime(null);
+
+                            setSelectedAppointment((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    appointmentDate: formatDateInput(date),
+                                    startMinutes: undefined,
+                                    endMinutes: undefined,
+                                  }
+                                : prev
+                            );
+
+                            fetchAvailability(date);
+                          }
+                        }}
+                        sx={{
+                          height: 68,
+                          borderRight: '1px solid #7b7b7b',
+                          borderBottom: '1px solid #7b7b7b',
+                          position: 'relative',
+                          cursor: isAvailable ? 'pointer' : 'not-allowed',
+                          backgroundColor:
+                            isPastDate || isUnavailable
+                              ? '#e1e1e1'
+                              : isSelected
+                              ? '#d9d9d9'
+                              : '#efefef',
+                          opacity: isPastDate || isUnavailable ? 0.5 : 1,
+                        }}
+                      >
+                        {day && (
+                          <>
+                            <Typography
+                              sx={{
+                                position: 'absolute',
+                                top: 8,
+                                right: 8,
+                                fontWeight: isSelected ? 700 : 500,
+                                color: '#555',
+                              }}
+                            >
+                              {day}
+                            </Typography>
+
+                            {isAvailable && (
+                              <Box
+                                sx={{
+                                  position: 'absolute',
+                                  bottom: 4,
+                                  left: 4,
+                                  right: 4,
+                                  height: 8,
+                                  borderRadius: 5,
+                                  backgroundColor: '#39d000',
+                                }}
+                              />
+                            )}
+                          </>
+                        )}
+                      </Box>
+                    );
+                  })}
+                </Box>
+              </Box>
+            </Box>
+
+            <Box
+              sx={{
+                flex: 1,
+                border: '1px solid #7b7b7b',
+                backgroundColor: '#efefef',
+                minHeight: 530,
+              }}
+            >
+              <Box sx={{ borderBottom: '1px solid #7b7b7b', py: 2 }}>
+                <Typography
+                  align="center"
+                  sx={{ fontWeight: 700, fontSize: '1.5rem' }}
+                >
+                  Time
+                </Typography>
+              </Box>
+
+              <Box sx={{ py: 3 }}>
+                <Typography align="center" sx={{ fontSize: '2rem', fontWeight: 500 }}>
+                  {selectedAddDate
                     ? selectedAddDate.toLocaleDateString('en-US', {
                         month: 'long',
                         day: 'numeric',
                         year: 'numeric',
                       })
-                    : '';
+                    : 'Select a date'}
+                </Typography>
+              </Box>
 
-                  setSelectedAppointment((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          appointmentDate: selectedAddDate
-                            ? formatDateInput(selectedAddDate)
-                            : prev.appointmentDate,
-                          startMinutes: time.startMinutes,
-                          endMinutes: time.endMinutes,
-                          schedule: `${selectedDateText} ${time.label}`,
-                        }
-                      : prev
-                  );
-
-                  setOpenEditScheduleModal(false);
-                }}
-                variant="outlined"
+              <Box
                 sx={{
-                  minWidth: 180,
-                  height: 48,
-                  borderRadius: 2,
-                  border: selected ? '2px solid #000' : '1px solid #d5d5d5',
-                  backgroundColor: selected ? '#fff' : '#d9d9d9',
-                  color: '#000',
-                  fontWeight: 700,
-                  textTransform: 'none',
-                  '&:hover': {
-                    border: '2px solid #000',
-                    backgroundColor: '#fff',
-                  },
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  justifyContent: 'center',
+                  gap: 2,
+                  px: 3,
                 }}
               >
-                {time.label}
-              </Button>
-            );
-          })}
-        </Box>
-      </Box>
-    </Box>
-  </DialogContent>
-</Dialog>
+                {loadingTimes && (
+                  <Typography sx={{ width: '100%', textAlign: 'center' }}>
+                    Loading times...
+                  </Typography>
+                )}
+
+                {!loadingTimes && selectedAddDate && availableTimes.length === 0 && (
+                  <Typography sx={{ width: '100%', textAlign: 'center' }}>
+                    No available times.
+                  </Typography>
+                )}
+
+                {availableTimes.map((time) => {
+                  const selected = selectedTime?.startMinutes === time.startMinutes;
+
+                  return (
+                    <Button
+                      key={time.label}
+                      onClick={() => {
+                        setSelectedTime(time);
+
+                        const selectedDateText = selectedAddDate
+                          ? selectedAddDate.toLocaleDateString('en-US', {
+                              month: 'long',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })
+                          : '';
+
+                        setSelectedAppointment((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                appointmentDate: selectedAddDate
+                                  ? formatDateInput(selectedAddDate)
+                                  : prev.appointmentDate,
+                                startMinutes: time.startMinutes,
+                                endMinutes: time.endMinutes,
+                                schedule: `${selectedDateText} ${time.label}`,
+                              }
+                            : prev
+                        );
+
+                        setOpenEditScheduleModal(false);
+                      }}
+                      variant="outlined"
+                      sx={{
+                        minWidth: 180,
+                        height: 48,
+                        borderRadius: 2,
+                        border: selected ? '2px solid #000' : '1px solid #d5d5d5',
+                        backgroundColor: selected ? '#fff' : '#d9d9d9',
+                        color: '#000',
+                        fontWeight: 700,
+                        textTransform: 'none',
+                        '&:hover': {
+                          border: '2px solid #000',
+                          backgroundColor: '#fff',
+                        },
+                      }}
+                    >
+                      {time.label}
+                    </Button>
+                  );
+                })}
+              </Box>
+            </Box>
+          </Box>
+        </DialogContent>
+      </Dialog>
+
+      {/* CALENDAR VIEW MODAL */}
+      <Dialog
+        open={openCalendarModal}
+        onClose={() => setOpenCalendarModal(false)}
+        fullWidth
+        maxWidth={false}
+        slotProps={{
+          paper: {
+            sx: {
+              width: '1100px',
+              maxWidth: '95vw',
+            },
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 800 }}>
+          Calendar View
+          <IconButton
+            onClick={() => setOpenCalendarModal(false)}
+            sx={{ position: 'absolute', right: 12, top: 10 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent sx={{ bgcolor: '#f5f5f5', pt: 2 }}>
+          <AppointmentCalendar appointments={appointments} />
+        </DialogContent>
+      </Dialog>
+
+      {/* PHOTO VIEWER */}
+      <Dialog open={photoViewerOpen} onClose={() => setPhotoViewerOpen(false)}>
+        <DialogTitle>
+          After Service Photo
+          <IconButton
+            onClick={() => setPhotoViewerOpen(false)}
+            sx={{ position: 'absolute', right: 12, top: 10 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent>
+          {selectedAppointment?.afterServicePhotoUrl && (
+            <Box
+              component="img"
+              src={selectedAppointment.afterServicePhotoUrl}
+              alt="After service"
+              sx={{
+                width: '100%',
+                maxWidth: 600,
+                display: 'block',
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* SUCCESS MODAL */}
+      <Dialog open={successOpen} onClose={() => setSuccessOpen(false)}>
+        <DialogTitle sx={{ fontWeight: 800 }}>Success</DialogTitle>
+        <DialogContent>
+          <Typography>{successMessage}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSuccessOpen(false)}>OK</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
