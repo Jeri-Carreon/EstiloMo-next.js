@@ -36,7 +36,7 @@ const menuItems = [
   { label: 'Appointments', icon: EventIcon, path: '/admin/appointments', roles: ["OWNER", "RECEPTIONIST"] },
   { label: 'Sales', icon: MonetizationOnIcon, path: '/admin/sales', roles: ["OWNER", "RECEPTIONIST"] },
   { label: 'Customer Reviews', icon: StarIcon, path: '/admin/reviews', roles: ["OWNER"] },
-  { label: 'Loyalty Card', icon: CardGiftcardIcon, path: '/admin/loyalty', roles: ["OWNER", "RECEPTIONIST"] },
+  { label: 'Loyalty Card', icon: CardGiftcardIcon, path: '/admin/loyaltyCard', roles: ["OWNER", "RECEPTIONIST"] },
   { label: 'Reports', icon: DescriptionIcon, path: '/admin/reports', roles: ["OWNER"] },
   { label: 'User Management', icon: AdminPanelSettingsIcon, path: '/admin/user-management', roles: ["OWNER"] },
   { label: 'Chatbot', icon: SmartToyIcon, path: '/admin/chatbot', roles: ["OWNER"] },

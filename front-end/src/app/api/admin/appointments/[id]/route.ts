@@ -91,6 +91,51 @@ export async function PUT(
       },
     });
 
+    if (status === "COMPLETED") {
+      const completedCount = await db.appointment.count({
+        where: {
+          customerId: appointment.customerId,
+          status: "COMPLETED",
+        },
+      });
+
+      const loyaltyCard = await db.loyaltyCard.findFirst({
+        where: {
+          customerId: appointment.customerId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      if (loyaltyCard) {
+        await db.loyaltyCard.update({
+          where: {
+            id: loyaltyCard.id,
+          },
+          data: {
+            stars: Math.min(completedCount, 10),
+            status: completedCount >= 10 ? "COMPLETED" : "ACTIVE",
+          },
+        });
+      } else {
+        await db.loyaltyCard.create({
+          data: {
+            customerId: appointment.customerId,
+            stars: Math.min(completedCount, 10),
+            status: completedCount >= 10 ? "COMPLETED" : "ACTIVE",
+          },
+        });
+      }
+
+      await db.loyaltyCardActivity.create({
+        data: {
+          customerName: `${appointment.customer.firstName} ${appointment.customer.lastName}`,
+          message: `Earned 1 Sticker from ${appointment.appointmentCode}`,
+        },
+      });
+    }
+
     if (serviceId) {
       const service = await db.service.findUnique({
         where: { id: serviceId },

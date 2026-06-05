@@ -208,6 +208,22 @@ model LoyaltyCard {
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 }
 
+model LoyaltyCardSetting {
+  id                    String   @id @default(cuid())
+  stickersPerTransaction Int     @default(1)
+  fiveStickerReward      String  @default("50% Off")
+  tenStickerReward       String  @default("100% Off")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model LoyaltyCardActivity {
+  id        String   @id @default(cuid())
+  customerName String
+  message   String
+  createdAt DateTime @default(now())
+}
+
 model Service {
   id               String           @id @default(cuid())
   name             String
