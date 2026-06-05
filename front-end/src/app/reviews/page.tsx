@@ -1,9 +1,8 @@
-import Navbar from '@/components/Navbar';
-import CustomerReviews from '@/sections/CustomerReviews';
-import Footer from '@/components/Footer';
+import Navbar from "@/components/Navbar";
+import CustomerReviews from "@/sections/CustomerReviews";
+import Footer from "@/components/Footer";
 
-
-function App() {
+export default function ReviewsPage() {
   return (
     <>
       <Navbar />
@@ -12,5 +11,3 @@ function App() {
     </>
   );
 }
-
-export default App;
