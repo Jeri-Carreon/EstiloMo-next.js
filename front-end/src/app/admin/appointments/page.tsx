@@ -127,8 +127,6 @@ export default function AppointmentsPage() {
   const [selectedAppointment, setSelectedAppointment] =
     useState<Appointment | null>(null);
 
-  const [originalEditStatus, setOriginalEditStatus] = useState('');
-
   const [addForm, setAddForm] = useState({
     customerId: '',
     barberId: '',
@@ -161,8 +159,8 @@ export default function AppointmentsPage() {
   const servicePrice = Number(selectedAddService?.price || 0);
 
   const isReadOnly =
-    !!originalEditStatus &&
-    readOnlyStatuses.includes(originalEditStatus.toUpperCase());
+    selectedAppointment &&
+    readOnlyStatuses.includes(selectedAppointment.status.toUpperCase());
 
   const addCalendarDays = (() => {
     const year = addCurrentMonth.getFullYear();
@@ -563,7 +561,6 @@ export default function AppointmentsPage() {
 
       setOpenEditModal(false);
       setSelectedAppointment(null);
-      setOriginalEditStatus('');
       setSuccessMessage('Appointment successfully updated!');
       setSuccessOpen(true);
       await loadAppointments();
@@ -636,7 +633,6 @@ export default function AppointmentsPage() {
                       }
 
                       setSelectedAppointment(appointment);
-                      setOriginalEditStatus(appointment.status);
                       setOpenEditModal(true);
                     }}
                   >
@@ -1596,10 +1592,7 @@ export default function AppointmentsPage() {
       {/* EDIT MODAL (TABLE & CALENDAR) */}
       <Dialog
         open={openEditModal}
-        onClose={() => {
-          setOpenEditModal(false);
-          setOriginalEditStatus('');
-        }}
+        onClose={() => setOpenEditModal(false)}
         fullWidth
         maxWidth={false}
         slotProps={{
@@ -1617,10 +1610,7 @@ export default function AppointmentsPage() {
           Edit Appointment Details
 
           <IconButton
-            onClick={() => {
-              setOpenEditModal(false);
-              setOriginalEditStatus('');
-            }}
+            onClick={() => setOpenEditModal(false)}
             sx={{ position: 'absolute', right: 12, top: 10 }}
           >
             <CloseIcon />

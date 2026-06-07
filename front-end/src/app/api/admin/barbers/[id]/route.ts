@@ -46,43 +46,47 @@ export async function GET(
 
     const result = barber?.appointments.map((appointment) => ({
       id: appointment.id,
-        appointmentCode: appointment.appointmentCode,
-        customer: {
-            id: appointment.customer.id,
-            customerCode: appointment.customer.customerCode,
-            name: [appointment.customer.firstName, appointment.customer.lastName].filter(Boolean).join(' '),
-        },
-        schedule: {
-          date: appointment.appointmentDate.toLocaleDateString('en-US', { 
-            month: 'numeric', 
-            day: 'numeric',
-            year: 'numeric', 
-        }),
-          startTime: minutesToTime(appointment.startMinutes),
-          endTime: minutesToTime(appointment.endMinutes),
-          formatted: `${appointment.appointmentDate.toLocaleDateString('en-US', {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric',
-          })} ${minutesToTime(appointment.startMinutes)} - ${minutesToTime(appointment.endMinutes)}`,
-        },
-        service: {
-          id: appointment.service.id,
-          name: appointment.service.name,
-        },
-        barber: { 
-          id: appointment.barber.id,
-          name: [appointment.barber.firstName, appointment.barber.lastName].filter(Boolean).join(' '),
-        },
-        payment: {
-            id: appointment.payment?.id,
-            amount: appointment.payment?.amount,
-            downpayment: appointment.payment?.downPayment,
-            method: appointment.payment?.method,
-            proofUrl: appointment.payment?.screenshotUrl,
-        },
+      barberId: appointment.barberId,
+      serviceId: appointment.serviceId,
+      appointmentCode: appointment.appointmentCode,
+      customer: {
+          id: appointment.customer.id,
+          customerCode: appointment.customer.customerCode,
+          name: [appointment.customer.firstName, appointment.customer.lastName].filter(Boolean).join(' '),
+      },
+      appointmentDate: appointment.appointmentDate,
+      schedule: {
+        date: appointment.appointmentDate.toLocaleDateString('en-US', { 
+          month: 'numeric', 
+          day: 'numeric',
+          year: 'numeric', 
+      }),
+        startTime: minutesToTime(appointment.startMinutes),
+        endTime: minutesToTime(appointment.endMinutes),
+        formatted: `${appointment.appointmentDate.toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        })} ${minutesToTime(appointment.startMinutes)} - ${minutesToTime(appointment.endMinutes)}`,
+      },
+      service: {
+        id: appointment.service.id,
+        name: appointment.service.name,
+      },
+      barber: { 
+        id: appointment.barber.id,
+        name: [appointment.barber.firstName, appointment.barber.lastName].filter(Boolean).join(' '),
+      },
+      payment: {
+          id: appointment.payment?.id,
+          amount: appointment.payment?.amount,
+          downpayment: appointment.payment?.downPayment,
+          method: appointment.payment?.method,
+          screenshotUrl: appointment.payment?.screenshotUrl,
+          proofUrl: appointment.payment?.screenshotUrl,
+      },
 
-        status: appointment.status,
+      status: appointment.status,
     }));
 
     if (!barber) {
