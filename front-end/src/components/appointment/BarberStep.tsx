@@ -31,7 +31,7 @@ interface BarberStepProps {
 
   setAppointmentData: React.Dispatch<React.SetStateAction<AppointmentData>>;
 
-  nextStep: () => void;
+  nextStep: (appointmentDate?: string, startMinutes?: number, endMinutes?: number) => void;
 }
 
 export default function BarberStep({

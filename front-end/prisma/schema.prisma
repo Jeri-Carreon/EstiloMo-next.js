@@ -83,19 +83,43 @@ model Customer {
 }
 
 model Barber {
-  id           String        @id @default(cuid())
-  barberCode   String        @unique
-  firstName    String
-  lastName     String
-  mobileNumber String
-  email        String
-  userId       String        @unique
+  id               String           @id @default(cuid())
+  barberCode       String           @unique
+  firstName        String
+  lastName         String
+  mobileNumber     String
+  email            String
+  userId           String           @unique
+  appointments     Appointment[]
+  user             User             @relation(fields: [userId], references: [id])
+  absence          BarberAbsent[]
+  schedules        BarberSchedule[]
+  assignedServices Service[]        @relation("StaffServices")
+}
 
-  appointments Appointment[]
+model BarberSchedule {
+  id        String   @id @default(cuid())
+  barberId  String
+  dayOfWeek Int
+  startTime Int
+  endTime   Int
+  isDayOff  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
 
-  user         User          @relation(fields: [userId], references: [id])
+  @@unique([barberId, dayOfWeek])
+}
 
-  assignedServices Service[] @relation("StaffServices")
+model BarberAbsent {
+  id        String   @id @default(cuid())
+  barberId  String
+  date      DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+  barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
+
+  @@unique([barberId, date])
 }
 
 model PasswordResetToken {
@@ -121,30 +145,72 @@ model ContactUsMessages {
 }
 
 model Review {
-  id        String   @id @default(cuid())
-  service   String
-  rating    Int
-  comment   String?
-  createdAt DateTime @default(now())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String        @id @default(cuid())
+  appointmentId String?       @unique
+  service       String
+  rating        Int
+  comment       String?
+  status        ReviewStatus  @default(PENDING)
+  isVisible     Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @default(now()) @updatedAt
+
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  appointment   Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
 
   @@map("Review")
 }
 
+enum ReviewStatus {
+  PENDING
+  COMPLETED
+  REJECTED
+  HIDDEN
+}
+
 model Appointment {
-  id              String            @id @default(cuid())
-  scheduledAt     DateTime
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  customerId      String
-  serviceId       String
-  appointmentCode String            @unique
-  barberId        String
-  status          AppointmentStatus @default(PENDING)
-  barber          Barber            @relation(fields: [barberId], references: [id])
-  customer        Customer          @relation(fields: [customerId], references: [id])
-  service         Service           @relation(fields: [serviceId], references: [id])
+  id                 String              @id @default(cuid())
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  customerId         String
+  serviceId          String
+  appointmentCode    String              @unique
+  barberId           String
+  status             AppointmentStatus   @default(PENDING)
+  appointmentDate    DateTime
+  endMinutes         Int
+  startMinutes       Int
+  afterServicePhotos AfterServicePhoto[]
+  barber             Barber              @relation(fields: [barberId], references: [id])
+  customer           Customer            @relation(fields: [customerId], references: [id])
+  service            Service             @relation(fields: [serviceId], references: [id])
+  payment            Payment?
+  review             Review?
+}
+
+model AfterServicePhoto {
+  id            String      @id @default(cuid())
+  appointmentId String
+  imageUrl      String
+  createdAt     DateTime    @default(now())
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([appointmentId])
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  appointmentId String        @unique
+  amount        Decimal       @db.Decimal(10, 2)
+  downPayment   Decimal       @db.Decimal(10, 2)
+  method        PaymentMethod @default(GCASH)
+  status        PaymentStatus @default(PENDING)
+  screenshotUrl String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  appointment   Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
 }
 
 model LoyaltyCard {
@@ -157,6 +223,22 @@ model LoyaltyCard {
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 }
 
+model LoyaltyCardSetting {
+  id                    String   @id @default(cuid())
+  stickersPerTransaction Int     @default(1)
+  fiveStickerReward      String  @default("50% Off")
+  tenStickerReward       String  @default("100% Off")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model LoyaltyCardActivity {
+  id        String   @id @default(cuid())
+  customerName String
+  message   String
+  createdAt DateTime @default(now())
+}
+
 model Service {
   id               String           @id @default(cuid())
   name             String
@@ -165,8 +247,6 @@ model Service {
   durationMinutes  Int
   price            Decimal          @db.Decimal(10, 2)
   isAvailable      Boolean          @default(true)
-  bufferBefore     Int              @default(0)
-  bufferAfter      Int              @default(0)
   requiresApproval Boolean          @default(false)
   cancellationFee  Decimal?         @db.Decimal(10, 2)
   totalBookings    Int              @default(0)
@@ -175,10 +255,20 @@ model Service {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   serviceCode      String           @unique
-
+  sortOrder        Int              @default(0)
   appointments     Appointment[]
-  
-  assignedStaff    Barber[]           @relation("StaffServices")
+  assignedStaff    Barber[]         @relation("StaffServices")
+}
+
+enum PaymentMethod {
+  GCASH
+  PAY_AT_SHOP
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REJECTED
 }
 
 enum Role {
