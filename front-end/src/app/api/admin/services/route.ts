@@ -35,6 +35,8 @@ export async function GET(req: Request) {
             .filter(Boolean)
             .join(" ") || "Unknown",
       })),
+      totalBookings: service.totalBookings,
+      totalRevenue: service.totalRevenue,
     }));
 
     return NextResponse.json({ services: result });
