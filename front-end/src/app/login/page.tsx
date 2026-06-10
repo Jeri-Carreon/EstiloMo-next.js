@@ -71,7 +71,7 @@ export default function LoginPage() {
     const role = session?.user?.role;
 
     if (role !== "CUSTOMER") {
-      router.push("/admin")
+      router.push("/admin/dashboard")
     } else
       router.push("/customerHome");
   };
