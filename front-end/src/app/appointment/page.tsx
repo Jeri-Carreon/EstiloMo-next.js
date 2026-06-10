@@ -43,6 +43,7 @@ export interface AppointmentData {
 export default function AppointmentPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'GCASH' | 'CASH'>('GCASH');
   const [successOpen, setSuccessOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -167,7 +168,7 @@ export default function AppointmentPage() {
       return;
     }
 
-    if (!paymentScreenshot) {
+    if (paymentMethod === 'GCASH' && !paymentScreenshot) {
       alert('Please upload your payment screenshot.');
       return;
     }
@@ -176,7 +177,7 @@ export default function AppointmentPage() {
       setLoading(true);
 
       const formData = new FormData();
-      formData.append('paymentMethod', 'GCASH');
+      formData.append('paymentMethod', paymentMethod);
       formData.append('downPayment', String(downPayment));
       formData.append('totalPrice', String(totalPrice));
       formData.append('cartItems', JSON.stringify(appointmentData.cartItems));
@@ -265,6 +266,8 @@ export default function AppointmentPage() {
           setPaymentScreenshot={setPaymentScreenshot}
           handleConfirm={handleConfirm}
           loading={loading}
+          paymentMethod={paymentMethod}
+          setPaymentMethod={setPaymentMethod}
         />
       )}
 
