@@ -143,6 +143,7 @@ export default function AppointmentsPage() {
   const [selectedAddService, setSelectedAddService] =
     useState<ServiceOption | null>(null);
   const [addProof, setAddProof] = useState<File | null>(null);
+  const [afterServicePhoto, setAfterServicePhoto] = useState<File | null>(null);
 
   const [addCurrentMonth, setAddCurrentMonth] = useState(new Date());
   const [selectedAddDate, setSelectedAddDate] = useState<Date | null>(null);
@@ -160,8 +161,8 @@ export default function AppointmentsPage() {
   const servicePrice = Number(selectedAddService?.price || 0);
 
   const isReadOnly =
-    originalAppointmentStatus &&
-    readOnlyStatuses.includes(originalAppointmentStatus.toUpperCase());
+    !!originalAppointmentStatus &&
+    !['PENDING', 'SCHEDULED'].includes(originalAppointmentStatus.toUpperCase());
 
   const addCalendarDays = (() => {
     const year = addCurrentMonth.getFullYear();
@@ -636,6 +637,7 @@ export default function AppointmentsPage() {
                       }
 
                       setSelectedAppointment(appointment);
+                      setOriginalAppointmentStatus(appointment.status);
                       setOpenEditModal(true);
                     }}
                   >
@@ -806,6 +808,7 @@ export default function AppointmentsPage() {
                               }
 
                               setSelectedAppointment(appointment);
+                              setOriginalAppointmentStatus(appointment.status);
                               setOpenEditModal(true);
                             }}
                             sx={{
@@ -2701,6 +2704,7 @@ export default function AppointmentsPage() {
                                 }
                                 setSelectedAppointment(appt);
                                 setOpenDayViewModal(false);
+                                setOriginalAppointmentStatus(appt.status);
                                 setOpenEditDayModal(true);
                               }}
                               sx={{
