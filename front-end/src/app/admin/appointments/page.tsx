@@ -307,41 +307,53 @@ export default function AppointmentsPage() {
   };
 
   const loadOptions = async () => {
-    try {
-      const [customersRes, barbersRes] = await Promise.all([
-        fetch('/api/customers', { cache: 'no-store' }),
-        fetch('/api/appointment/barbers', { cache: 'no-store' }),
-      ]);
+  try {
+    const [customersRes, barbersRes] = await Promise.all([
+      fetch('/api/customers', { cache: 'no-store' }),
+      fetch('/api/appointment/barbers', { cache: 'no-store' }),
+    ]);
 
-      const customersData = await customersRes.json();
-      const barbersData = await barbersRes.json();
+    const customersData = await customersRes.json();
+    const barbersData = await barbersRes.json();
 
-      setCustomers(
-        (customersData.customers || customersData || []).map((c: any) => ({
-          id: c.id,
-          customerCode: c.customerCode || '',
-          name:
-            c.name ||
-            [c.firstName, c.lastName].filter(Boolean).join(' ') ||
-            c.email ||
-            'Unknown Customer',
-        }))
-      );
+    const customersArray = Array.isArray(customersData?.customers)
+      ? customersData.customers
+      : Array.isArray(customersData)
+      ? customersData
+      : [];
 
-      setBarbers(
-        (barbersData.barbers || barbersData || []).map((b: any) => ({
-          id: b.id,
-          name:
-            b.name ||
-            [b.firstName, b.lastName].filter(Boolean).join(' ') ||
-            b.email ||
-            'Unknown Barber',
-        }))
-      );
-    } catch (error) {
-      console.error('LOAD OPTIONS ERROR:', error);
-    }
-  };
+    const barbersArray = Array.isArray(barbersData?.barbers)
+      ? barbersData.barbers
+      : Array.isArray(barbersData)
+      ? barbersData
+      : [];
+
+    setCustomers(
+      customersArray.map((c: any) => ({
+        id: c.id,
+        customerCode: c.customerCode || '',
+        name:
+          c.name ||
+          [c.firstName, c.lastName].filter(Boolean).join(' ') ||
+          c.email ||
+          'Unknown Customer',
+      }))
+    );
+
+    setBarbers(
+      barbersArray.map((b: any) => ({
+        id: b.id,
+        name:
+          b.name ||
+          [b.firstName, b.lastName].filter(Boolean).join(' ') ||
+          b.email ||
+          'Unknown Barber',
+      }))
+    );
+  } catch (error) {
+    console.error('LOAD OPTIONS ERROR:', error);
+  }
+};
 
   const loadServicesByBarber = async (barberId: string) => {
     try {
