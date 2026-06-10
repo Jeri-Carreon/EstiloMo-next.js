@@ -76,7 +76,7 @@ interface AvailableTime {
   label: string;
 }
 
-const readOnlyStatuses = ['COMPLETED', 'NOSHOW', 'CANCELLED'];
+const readOnlyStatuses = ['COMPLETED', 'NOSHOW', 'CANCELLED', 'REJECTED'];
 
 const weekdays = [
   'Sunday',
@@ -101,6 +101,7 @@ export default function AppointmentsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
+   const [originalAppointmentStatus, setOriginalAppointmentStatus] = useState('');
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [barbers, setBarbers] = useState<BarberOption[]>([]);
@@ -159,8 +160,8 @@ export default function AppointmentsPage() {
   const servicePrice = Number(selectedAddService?.price || 0);
 
   const isReadOnly =
-    selectedAppointment &&
-    readOnlyStatuses.includes(selectedAppointment.status.toUpperCase());
+    originalAppointmentStatus &&
+    readOnlyStatuses.includes(originalAppointmentStatus.toUpperCase());
 
   const addCalendarDays = (() => {
     const year = addCurrentMonth.getFullYear();
@@ -229,8 +230,10 @@ export default function AppointmentsPage() {
 
     if (normalized === 'COMPLETED') return 'green';
     if (normalized === 'CANCELLED') return 'red';
+    if (normalized === 'REJECTED') return '#dc2626';
     if (normalized === 'NOSHOW') return '#777';
     if (normalized === 'PENDING') return '#92400E';
+    if (normalized === 'SCHEDULED') return '#2563eb';
 
     return '#333';
   };
@@ -675,14 +678,14 @@ export default function AppointmentsPage() {
       );
     };
 
-    const statusColor: Record<string, { bg: string; color: string }> = {
-      PENDING: { bg: '#FEF3C7', color: '#92400E' },
-      SCHEDULED: { bg: '#D1FAE5', color: '#065F46' },
-      CONFIRMED: { bg: '#DBEAFE', color: '#1E40AF' },
-      COMPLETED: { bg: '#E0E7FF', color: '#3730A3' },
-      CANCELLED: { bg: '#FEE2E2', color: '#991B1B' },
-      NOSHOW: { bg: '#F3F4F6', color: '#6B7280' },
-    };
+    const statusColorMap: Record<string, { bg: string; color: string }> = {
+    PENDING: { bg: '#FEF3C7', color: '#92400E' },
+    SCHEDULED: { bg: '#DBEAFE', color: '#1E40AF' },
+    COMPLETED: { bg: '#D1FAE5', color: '#065F46' },
+    CANCELLED: { bg: '#FEE2E2', color: '#991B1B' },
+    REJECTED: { bg: '#FECACA', color: '#B91C1C' },
+    NOSHOW: { bg: '#F3F4F6', color: '#6B7280' },
+  };
 
     return (
       <Box>
@@ -788,8 +791,8 @@ export default function AppointmentsPage() {
 
                       {dayAppointments.map((appointment) => {
                         const colors =
-                          statusColor[appointment.status.toUpperCase()] ||
-                          statusColor.NOSHOW;
+                           statusColorMap[appointment.status.toUpperCase()] ||
+                          statusColorMap.NOSHOW;
 
                         return (
                           <Box
@@ -837,7 +840,7 @@ export default function AppointmentsPage() {
         </Box>
 
         <Box sx={{ display: 'flex', gap: 2, mt: 1.5, flexWrap: 'wrap' }}>
-          {Object.entries(statusColor).map(([label, colors]) => (
+          {Object.entries(statusColorMap).map(([label, colors]) => (
             <Box
               key={label}
               sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
@@ -1747,20 +1750,6 @@ export default function AppointmentsPage() {
                 </IconButton>
               </Box>
 
-              <Button
-                disabled
-                sx={{
-                  justifyContent: 'flex-start',
-                  color: '#777',
-                  textTransform: 'none',
-                  fontSize: 13,
-                  p: 0,
-                  width: 'fit-content',
-                }}
-              >
-                + Add New Service
-              </Button>
-
               <Box>
                 <Typography sx={{ fontSize: 13, color: '#555', mb: 0.5 }}>
                   Proof of Downpayment <span style={{ color: 'red' }}>*</span>
@@ -1815,10 +1804,10 @@ export default function AppointmentsPage() {
               >
                 <MenuItem value="PENDING">Pending</MenuItem>
                 <MenuItem value="SCHEDULED">Scheduled</MenuItem>
-                <MenuItem value="CONFIRMED">Confirmed</MenuItem>
                 <MenuItem value="COMPLETED">Completed</MenuItem>
                 <MenuItem value="NOSHOW">No-show</MenuItem>
                 <MenuItem value="CANCELLED">Cancelled</MenuItem>
+                <MenuItem value="REJECTED">Rejected</MenuItem>
               </TextField>
 
               <Box>
@@ -2411,20 +2400,6 @@ export default function AppointmentsPage() {
                 </IconButton>
               </Box>
 
-              <Button
-                disabled
-                sx={{
-                  justifyContent: 'flex-start',
-                  color: '#777',
-                  textTransform: 'none',
-                  fontSize: 13,
-                  p: 0,
-                  width: 'fit-content',
-                }}
-              >
-                + Add New Service
-              </Button>
-
               <Box>
                 <Typography sx={{ fontSize: 13, color: '#555', mb: 0.5 }}>
                   Proof of Downpayment <span style={{ color: 'red' }}>*</span>
@@ -2479,10 +2454,10 @@ export default function AppointmentsPage() {
               >
                 <MenuItem value="PENDING">Pending</MenuItem>
                 <MenuItem value="SCHEDULED">Scheduled</MenuItem>
-                <MenuItem value="CONFIRMED">Confirmed</MenuItem>
                 <MenuItem value="COMPLETED">Completed</MenuItem>
                 <MenuItem value="NOSHOW">No-show</MenuItem>
                 <MenuItem value="CANCELLED">Cancelled</MenuItem>
+                <MenuItem value="REJECTED">Rejected</MenuItem>
               </TextField>
 
               <Box>
@@ -2522,7 +2497,7 @@ export default function AppointmentsPage() {
 
               {isReadOnly && (
                 <Typography sx={{ color: 'error.main', fontSize: 13 }}>
-                  Completed, No-show, and Cancelled appointments are view-only.
+                  Completed, Rejected, No-show, and Cancelled appointments are view-only.
                 </Typography>
               )}
             </DialogContent>
@@ -2654,10 +2629,10 @@ export default function AppointmentsPage() {
 
             const statusColorMap: Record<string, { bg: string; color: string }> = {
               PENDING: { bg: '#FEF3C7', color: '#92400E' },
-              SCHEDULED: { bg: '#D1FAE5', color: '#065F46' },
-              CONFIRMED: { bg: '#DBEAFE', color: '#1E40AF' },
-              COMPLETED: { bg: '#E0E7FF', color: '#3730A3' },
+              SCHEDULED: { bg: '#DBEAFE', color: '#1E40AF' },
+              COMPLETED: { bg: '#D1FAE5', color: '#065F46' },
               CANCELLED: { bg: '#FEE2E2', color: '#991B1B' },
+              REJECTED: { bg: '#FECACA', color: '#B91C1C' },
               NOSHOW: { bg: '#F3F4F6', color: '#6B7280' },
             };
             
@@ -2708,10 +2683,10 @@ export default function AppointmentsPage() {
                         {apptInSlot.map((appt) => {
                           const statusColorMap: Record<string, { bg: string; color: string }> = {
                             PENDING: { bg: '#FEF3C7', color: '#92400E' },
-                            SCHEDULED: { bg: '#D1FAE5', color: '#065F46' },
-                            CONFIRMED: { bg: '#DBEAFE', color: '#1E40AF' },
-                            COMPLETED: { bg: '#E0E7FF', color: '#3730A3' },
+                            SCHEDULED: { bg: '#DBEAFE', color: '#1E40AF' },
+                            COMPLETED: { bg: '#D1FAE5', color: '#065F46' },
                             CANCELLED: { bg: '#FEE2E2', color: '#991B1B' },
+                            REJECTED: { bg: '#FECACA', color: '#B91C1C' },
                             NOSHOW: { bg: '#F3F4F6', color: '#6B7280' },
                           };
                           const colors = statusColorMap[appt.status.toUpperCase()] || statusColorMap.NOSHOW;
@@ -2774,10 +2749,10 @@ export default function AppointmentsPage() {
                           .map((appt) => {
                             const statusColorMap: Record<string, { bg: string; color: string }> = {
                               PENDING: { bg: '#FEF3C7', color: '#92400E' },
-                              SCHEDULED: { bg: '#D1FAE5', color: '#065F46' },
-                              CONFIRMED: { bg: '#DBEAFE', color: '#1E40AF' },
-                              COMPLETED: { bg: '#E0E7FF', color: '#3730A3' },
+                              SCHEDULED: { bg: '#DBEAFE', color: '#1E40AF' },
+                              COMPLETED: { bg: '#D1FAE5', color: '#065F46' },
                               CANCELLED: { bg: '#FEE2E2', color: '#991B1B' },
+                              REJECTED: { bg: '#FECACA', color: '#B91C1C' },
                               NOSHOW: { bg: '#F3F4F6', color: '#6B7280' },
                             };
                             const colors = statusColorMap[appt.status.toUpperCase()] || statusColorMap.NOSHOW;
