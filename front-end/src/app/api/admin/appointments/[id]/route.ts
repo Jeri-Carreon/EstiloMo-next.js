@@ -13,7 +13,7 @@ export async function PUT(
 
     if (
       !session?.user?.email ||
-      !["OWNER", "RECEPTIONIST"].includes(session.user.role)
+      !["OWNER", "RECEPTIONIST", "BARBER"].includes(session.user.role)
     ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -29,6 +29,8 @@ export async function PUT(
 
     const body = await req.json();
 
+    console.log("APPOINTMENT UPDATE BODY:", body);
+
     const {
       barberId,
       serviceId,
@@ -36,6 +38,7 @@ export async function PUT(
       startMinutes,
       endMinutes,
       status,
+      afterServicePhotoUrl,
     } = body;
 
     const data: any = {};
@@ -79,97 +82,59 @@ export async function PUT(
       );
     }
 
-    const appointment = await db.appointment.update({
+    await db.appointment.update({
       where: { id },
       data,
+    });
+
+    if (afterServicePhotoUrl) {
+      console.log("SAVING AFTER SERVICE PHOTO:", afterServicePhotoUrl);
+
+      const existingPhoto = await db.afterServicePhoto.findFirst({
+        where: {
+          appointmentId: id,
+        },
+      });
+
+      if (existingPhoto) {
+        await db.afterServicePhoto.update({
+          where: {
+            id: existingPhoto.id,
+          },
+          data: {
+            imageUrl: afterServicePhotoUrl,
+          },
+        });
+      } else {
+        await db.afterServicePhoto.create({
+          data: {
+            appointmentId: id,
+            imageUrl: afterServicePhotoUrl,
+          },
+        });
+      }
+    }
+
+    const updatedAppointment = await db.appointment.findUnique({
+      where: { id },
       include: {
         customer: true,
         barber: true,
         service: true,
         payment: true,
-        afterServicePhotos: true,
+        afterServicePhotos: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
       },
     });
 
-    if (status === "COMPLETED") {
-      const completedCount = await db.appointment.count({
-        where: {
-          customerId: appointment.customerId,
-          status: "COMPLETED",
-        },
-      });
-
-      const loyaltyCard = await db.loyaltyCard.findFirst({
-        where: {
-          customerId: appointment.customerId,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
-
-      if (loyaltyCard) {
-        await db.loyaltyCard.update({
-          where: {
-            id: loyaltyCard.id,
-          },
-          data: {
-            stars: Math.min(completedCount, 10),
-            status: completedCount >= 10 ? "COMPLETED" : "ACTIVE",
-          },
-        });
-      } else {
-        await db.loyaltyCard.create({
-          data: {
-            customerId: appointment.customerId,
-            stars: Math.min(completedCount, 10),
-            status: completedCount >= 10 ? "COMPLETED" : "ACTIVE",
-          },
-        });
-      }
-
-      await db.loyaltyCardActivity.create({
-        data: {
-          customerName: `${appointment.customer.firstName} ${appointment.customer.lastName}`,
-          message: `Earned 1 Sticker from ${appointment.appointmentCode}`,
-        },
-      });
-    }
-
-    if (serviceId) {
-      const service = await db.service.findUnique({
-        where: { id: serviceId },
-        select: { price: true },
-      });
-
-      const existingPayment = await db.payment.findFirst({
-        where: { appointmentId: id },
-      });
-
-      if (existingPayment) {
-        await db.payment.update({
-          where: { id: existingPayment.id },
-          data: {
-            amount: Number(service?.price || 0),
-          },
-        });
-      } else {
-        await db.payment.create({
-          data: {
-            appointmentId: id,
-            amount: Number(service?.price || 0),
-            downPayment: 150,
-            method: "GCASH",
-            status: "PENDING",
-            screenshotUrl: null,
-          },
-        });
-      }
-    }
-
     return NextResponse.json({
       success: true,
-      appointment,
+      appointment: updatedAppointment,
+      afterServicePhotoUrl:
+        updatedAppointment?.afterServicePhotos?.[0]?.imageUrl || null,
     });
   } catch (error) {
     console.error("UPDATE APPOINTMENT ERROR:", error);

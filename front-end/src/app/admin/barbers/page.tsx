@@ -204,6 +204,8 @@ export default function BarbersPage() {
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [saving, setSaving] = useState(false);
   const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
+  const [photoSuccessOpen, setPhotoSuccessOpen] = useState(false);
+  const [photoSuccessMessage, setPhotoSuccessMessage] = useState('');
 
   // For edit schedule modal
   const [openEditScheduleModal, setOpenEditScheduleModal] = useState(false);
@@ -224,7 +226,8 @@ export default function BarbersPage() {
     fetchAbsents();
   }, []);
 
-  const isReadOnly = selectedAppointment?.status !== "SCHEDULED"; // all fields are always view-only on barber page
+  const canUploadAfterServicePhoto =
+  selectedAppointment?.status?.toUpperCase() === 'COMPLETED';
 
   const loadServicesByBarber = async (barberId: string) => {
     try {
@@ -246,26 +249,68 @@ export default function BarbersPage() {
   };
 
   const handleUpdateAppointment = async () => {
-    if (!selectedAppointment || isReadOnly) return;
+    console.log('SAVE CLICKED');
+    console.log('SELECTED APPOINTMENT:', selectedAppointment);
+    console.log('CAN UPLOAD:', canUploadAfterServicePhoto);
+    console.log('PHOTO URL TO SAVE:', selectedAppointment?.afterServicePhotoUrl);
+
+    if (!selectedAppointment || !canUploadAfterServicePhoto) {
+      alert('This appointment is not allowed to upload after-service photos.');
+      return;
+    }
+
+    if (!selectedAppointment.afterServicePhotoUrl) {
+      alert('Please upload an after-service photo first.');
+      return;
+    }
+
     try {
       setSaving(true);
+
+      const payload = {
+        afterServicePhotoUrl: selectedAppointment.afterServicePhotoUrl,
+      };
+
+      console.log('PUT URL:', `/api/admin/appointments/${selectedAppointment.id}`);
+      console.log('PUT PAYLOAD:', payload);
+
       const res = await fetch(`/api/admin/appointments/${selectedAppointment.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          afterServicePhotoUrl: selectedAppointment.afterServicePhotoUrl,
-        }),
+        body: JSON.stringify(payload),
       });
-      const data = await res.json();
+
+      const text = await res.text();
+      console.log('PUT STATUS:', res.status);
+      console.log('PUT RAW RESPONSE:', text);
+
+      let data: any = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (parseError) {
+        console.error('PUT JSON PARSE ERROR:', parseError);
+      }
+
+      console.log('PUT PARSED RESPONSE:', data);
+
       if (!res.ok) {
-        alert(data.error || 'Failed to update appointment.');
+        alert(data.error || data.details || 'Failed to save after-service photo.');
         return;
       }
+
+      setPhotoSuccessMessage('After-service photo uploaded successfully!');
+      setPhotoSuccessOpen(true);
+
       setOpenEditModal(false);
+      setOpenEditDayModal(false);
       setSelectedAppointment(null);
-      if (currentBarber?.id) loadAppointments(currentBarber.id);
+
+      if (currentBarber?.id) {
+        await loadAppointments(currentBarber.id);
+      }
     } catch (error) {
-      alert('Failed to update appointment.');
+      console.error('SAVE AFTER SERVICE PHOTO ERROR:', error);
+      alert('Failed to save after-service photo.');
     } finally {
       setSaving(false);
     }
@@ -384,6 +429,7 @@ export default function BarbersPage() {
         setError("");
       }
     } catch (error) {
+      console.error('LOAD APPOINTMENTS ERROR:', error);
       setError("Unable to load appointments.");
       setAppointments([]);
     }
@@ -489,6 +535,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
     SCHEDULED: { bg: '#D1FAE5', color: '#065F46' },
     COMPLETED: { bg: '#E0E7FF', color: '#3730A3' },
     CANCELLED: { bg: '#FEE2E2', color: '#991B1B' },
+    REJECTED: { bg: '#FECACA', color: '#B91C1C' },
     NOSHOW:    { bg: '#F3F4F6', color: '#6B7280' },
   };
 
@@ -1415,10 +1462,10 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
               >
                 <MenuItem value="PENDING">Pending</MenuItem>
                 <MenuItem value="SCHEDULED">Scheduled</MenuItem>
-                <MenuItem value="CONFIRMED">Confirmed</MenuItem>
                 <MenuItem value="COMPLETED">Completed</MenuItem>
                 <MenuItem value="NOSHOW">No-show</MenuItem>
                 <MenuItem value="CANCELLED">Cancelled</MenuItem>
+                <MenuItem value="REJECTED">Rejected</MenuItem>
               </TextField>
 
               <Box>
@@ -1455,12 +1502,6 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                   )}
                 </Box>
               </Box>
-
-              {isReadOnly && (
-                <Typography sx={{ color: 'error.main', fontSize: 13 }}>
-                  Completed, No-show, and Cancelled appointments are view-only.
-                </Typography>
-              )}
             </DialogContent>
 
             <DialogActions
@@ -1495,7 +1536,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
 
               <Button
                 onClick={handleUpdateAppointment}
-                disabled={saving || !!isReadOnly}
+                disabled={!canUploadAfterServicePhoto || !selectedAppointment?.afterServicePhotoUrl || saving}
                 sx={{
                   backgroundColor: '#000',
                   color: '#f4b400',
@@ -1515,7 +1556,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                   },
                 }}
               >
-                {saving ? 'Saving...' : isReadOnly ? 'View Only' : 'Edit Appointment'}
+                {saving ? 'Saving...' : 'Save Photo'}
               </Button>
             </DialogActions>
           </>
@@ -1591,10 +1632,10 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
             const statusColorMap: Record<string, { bg: string; color: string }> = {
               PENDING:   { bg: '#FEF3C7', color: '#92400E' },
               SCHEDULED: { bg: '#D1FAE5', color: '#065F46' },
-              CONFIRMED: { bg: '#DBEAFE', color: '#1E40AF' },
               COMPLETED: { bg: '#E0E7FF', color: '#3730A3' },
               CANCELLED: { bg: '#FEE2E2', color: '#991B1B' },
-              NOSHOW:    { bg: '#F3F4F6', color: '#6B7280' },
+              REJECTED: { bg: '#FECACA', color: '#B91C1C' },
+    NOSHOW:    { bg: '#F3F4F6', color: '#6B7280' },
             };
 
             return (
@@ -1888,7 +1929,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                     />
     
                     <IconButton
-                      disabled={!!isReadOnly}
+                      disabled
                       onClick={() => {
                         setOpenEditScheduleModal(true);
                         setSelectedAddDate(null);
@@ -1978,10 +2019,10 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                   >
                     <MenuItem value="PENDING">Pending</MenuItem>
                     <MenuItem value="SCHEDULED">Scheduled</MenuItem>
-                    <MenuItem value="CONFIRMED">Confirmed</MenuItem>
                     <MenuItem value="COMPLETED">Completed</MenuItem>
                     <MenuItem value="NOSHOW">No-show</MenuItem>
                     <MenuItem value="CANCELLED">Cancelled</MenuItem>
+                    <MenuItem value="REJECTED">Rejected</MenuItem>
                   </TextField>
     
                   <Box>
@@ -2018,53 +2059,77 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                       )}
                     </Box>
 
-                    <Button
-                      component="label"
-                      sx={{
-                        mt: 1,
-                        bgcolor: '#fff',
-                        color: '#555',
-                        border: '1px solid #ccc',
-                        textTransform: 'none',
-                        fontSize: 13,
-                        px: 2,
-                      }}
-                    >
-                      + Upload After Service Photo
-                      <input
-                        hidden
-                        type="file"
-                        accept="image/*"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-
-                          const formData = new FormData();
-                          formData.append('file', file);
-
-                          try {
-                            const uploadRes = await fetch('/api/upload', {
-                              method: 'POST',
-                              body: formData,
-                            });
-                            const uploadData = await uploadRes.json();
-
-                            setSelectedAppointment((prev) =>
-                              prev ? { ...prev, afterServicePhotoUrl: uploadData.url } : prev
-                            );
-                          } catch (err) {
-                            alert('Failed to upload photo.');
-                          }
+                    {canUploadAfterServicePhoto ? (
+                      <Button
+                        component="label"
+                        sx={{
+                          mt: 1,
+                          bgcolor: '#fff',
+                          color: '#555',
+                          border: '1px solid #ccc',
+                          textTransform: 'none',
+                          fontSize: 13,
+                          px: 2,
                         }}
-                      />
-                    </Button>
+                      >
+                        + Upload After Service Photo
+                        <input
+                          hidden
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+
+                            const formData = new FormData();
+                            formData.append('file', file);
+
+                            try {
+                              const uploadRes = await fetch('/api/upload', {
+                                method: 'POST',
+                                body: formData,
+                              });
+
+                              const uploadText = await uploadRes.text();
+                              console.log('UPLOAD STATUS:', uploadRes.status);
+                              console.log('UPLOAD RAW RESPONSE:', uploadText);
+
+                              let uploadData: any = {};
+                              try {
+                                uploadData = uploadText ? JSON.parse(uploadText) : {};
+                              } catch (parseError) {
+                                console.error('UPLOAD JSON PARSE ERROR:', parseError);
+                              }
+
+                              console.log('UPLOAD PARSED RESPONSE:', uploadData);
+
+                              if (!uploadRes.ok || !uploadData.url) {
+                                alert(uploadData.error || 'Failed to upload photo.');
+                                return;
+                              }
+
+                              setSelectedAppointment((prev) => {
+                                const updated = prev
+                                  ? { ...prev, afterServicePhotoUrl: uploadData.url }
+                                  : prev;
+
+                                console.log('PHOTO URL SET TO STATE:', uploadData.url);
+                                console.log('UPDATED APPOINTMENT STATE:', updated);
+
+                                return updated;
+                              });
+                            } catch (err) {
+                              alert('Failed to upload photo.');
+                            }
+                          }}
+                        />
+                      </Button>
+                    ) : (
+                      <Typography sx={{ color: 'error.main', fontSize: 13, mt: 1 }}>
+                        After-service photos can only be uploaded for completed appointments.
+                      </Typography>
+                    )}
                   </Box>
-    
-                  {isReadOnly && (
-                    <Typography sx={{ color: 'error.main', fontSize: 13 }}>
-                      Completed, No-show, and Cancelled appointments are view-only.
-                    </Typography>
-                  )}
                 </DialogContent>
     
                 <DialogActions
@@ -2098,7 +2163,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
     
                   <Button
                     onClick={handleUpdateAppointment}
-                    disabled={isReadOnly || saving}
+                    disabled={!canUploadAfterServicePhoto || !selectedAppointment?.afterServicePhotoUrl || saving}
                     sx={{
                       backgroundColor: '#000',
                       color: '#f4b400',
@@ -2118,11 +2183,43 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                       },
                     }}
                   >
-                    {saving ? 'Saving...' : 'Save'}
+                    {saving ? 'Saving...' : 'Save Photo'}
                   </Button>
                 </DialogActions>
               </>
             )}
+          </Dialog>
+
+          {/* UPLOAD SUCCESS MODAL */}
+          <Dialog
+            open={photoSuccessOpen}
+            onClose={() => setPhotoSuccessOpen(false)}
+          >
+            <DialogTitle sx={{ fontWeight: 800 }}>
+              Upload Confirmed
+            </DialogTitle>
+
+            <DialogContent>
+              <Typography>
+                {photoSuccessMessage}
+              </Typography>
+            </DialogContent>
+
+            <DialogActions>
+              <Button
+                onClick={() => setPhotoSuccessOpen(false)}
+                sx={{
+                  bgcolor: '#000',
+                  color: '#f4b400',
+                  px: 4,
+                  '&:hover': {
+                    bgcolor: '#111',
+                  },
+                }}
+              >
+                OK
+              </Button>
+            </DialogActions>
           </Dialog>
 
           {/* PHOTO VIEWER */}

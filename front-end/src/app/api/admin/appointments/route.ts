@@ -28,6 +28,12 @@ export async function GET() {
         customer: true,
         payment: true,
         service: true,
+        afterServicePhotos: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
+        },
       },
       orderBy: {
         appointmentDate: 'asc',
@@ -90,6 +96,9 @@ export async function GET() {
         proofUrl: appointment.payment?.screenshotUrl || null,
       },
 
+      afterServicePhotoUrl:
+        appointment.afterServicePhotos?.[0]?.imageUrl || null,
+
       status: appointment.status,
     }));
 
@@ -112,10 +121,7 @@ export async function POST(req: Request) {
       !session?.user?.email ||
       !['OWNER', 'RECEPTIONIST'].includes(session.user.role)
     ) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await req.json();
@@ -158,57 +164,58 @@ export async function POST(req: Request) {
     }
 
     const appointment = await db.appointment.create({
-  data: {
-    appointmentCode: await createAppointmentCode(),
-    customerId,
-    barberId,
-    serviceId,
-    appointmentDate: new Date(appointmentDate),
-    startMinutes: parsedStartMinutes,
-    endMinutes: parsedEndMinutes,
-    status: 'SCHEDULED',
-  },
-});
+      data: {
+        appointmentCode: await createAppointmentCode(),
+        customerId,
+        barberId,
+        serviceId,
+        appointmentDate: new Date(appointmentDate),
+        startMinutes: parsedStartMinutes,
+        endMinutes: parsedEndMinutes,
+        status: 'SCHEDULED',
+      },
+    });
 
-const service = await db.service.findUnique({
-  where: {
-    id: serviceId,
-  },
-  select: {
-    price: true,
-  },
-});
+    const service = await db.service.findUnique({
+      where: {
+        id: serviceId,
+      },
+      select: {
+        price: true,
+      },
+    });
 
-const payment = await db.payment.create({
-  data: {
-    appointmentId: appointment.id,
-    amount: Number(service?.price || 0),
-    downPayment: 150,
-    method: 'GCASH',
-    status: 'PENDING',
-    screenshotUrl: null,
-  },
-});
+    await db.payment.create({
+      data: {
+        appointmentId: appointment.id,
+        amount: Number(service?.price || 0),
+        downPayment: 150,
+        method: 'GCASH',
+        status: 'PENDING',
+        screenshotUrl: null,
+      },
+    });
 
-const completeAppointment = await db.appointment.findUnique({
-  where: {
-    id: appointment.id,
-  },
-  include: {
-    customer: true,
-    barber: true,
-    service: true,
-    payment: true,
-  },
-});
+    const completeAppointment = await db.appointment.findUnique({
+      where: {
+        id: appointment.id,
+      },
+      include: {
+        customer: true,
+        barber: true,
+        service: true,
+        payment: true,
+        afterServicePhotos: true,
+      },
+    });
 
-return NextResponse.json(
-  {
-    success: true,
-    appointment: completeAppointment,
-  },
-  { status: 201 }
-);
+    return NextResponse.json(
+      {
+        success: true,
+        appointment: completeAppointment,
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error('Error creating appointment:', error);
 
