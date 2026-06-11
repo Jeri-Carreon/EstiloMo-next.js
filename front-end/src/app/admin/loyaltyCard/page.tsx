@@ -539,6 +539,7 @@ export default function AdminLoyaltyCardPage() {
         </Box>
       </Dialog>
 
+      {/* Settings Modal */}
       <Dialog
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}

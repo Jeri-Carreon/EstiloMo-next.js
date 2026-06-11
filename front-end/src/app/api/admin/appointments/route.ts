@@ -22,6 +22,15 @@ async function createAppointmentCode() {
 
 export async function GET() {
   try {
+    const session = await getServerSession(authOptions);
+    
+    if (
+      !session ||
+      !["OWNER", "RECEPTIONIST"].includes(session.user.role)
+    ) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const appointments = await db.appointment.findMany({
       include: {
         barber: true,
@@ -102,7 +111,15 @@ export async function GET() {
       status: appointment.status,
     }));
 
-    return NextResponse.json(result);
+    let settings = await db.appointmentSetting.findFirst();
+
+    if (!settings) {
+      settings = await db.appointmentSetting.create({
+        data: { bookingCutoffHours: 1 },
+      });
+    }
+
+    return NextResponse.json({ appointments: result, settings });
   } catch (error) {
     console.error("Error fetching appointments:", error);
 
@@ -225,6 +242,58 @@ export async function POST(req: Request) {
 
     return NextResponse.json(
       { error: "Failed to create appointment" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (
+      !session ||
+      !["OWNER", "RECEPTIONIST"].includes(session.user.role)
+    ) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const body = await req.json();
+
+    const bookingCutoffHours = Number(body.bookingCutoffHours);
+
+    if (Number.isNaN(bookingCutoffHours) || bookingCutoffHours < 0) {
+      return NextResponse.json(
+        { error: "Invalid bookingCutoffHours value" },
+        { status: 400 }
+      );
+    }
+
+    let settings = await db.appointmentSetting.findFirst();
+
+    if (!settings) {
+      settings = await db.appointmentSetting.create({
+        data: {
+          bookingCutoffHours,
+        },
+      });
+    } else {
+      settings = await db.appointmentSetting.update({
+        where: {
+          id: settings.id,
+        },
+        data: {
+          bookingCutoffHours,
+        },
+      });
+    }
+
+    return NextResponse.json({ settings });
+  } catch (error) {
+    console.error("Admin appointment settings PUT error:", error);
+
+    return NextResponse.json(
+      { error: "Failed to save appointment settings" },
       { status: 500 }
     );
   }

@@ -199,6 +199,13 @@ model Appointment {
   @@index([saleId])
 }
 
+model AppointmentSetting {
+  id                 String   @id @default(cuid())
+  bookingCutoffHours Int      @default(1)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
 model AfterServicePhoto {
   id            String   @id @default(cuid())
   appointmentId String

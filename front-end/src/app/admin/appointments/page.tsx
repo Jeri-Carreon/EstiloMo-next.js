@@ -34,6 +34,9 @@ import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import InputAdornment from '@mui/material/InputAdornment';
+import SearchIcon from '@mui/icons-material/Search';
+import SettingsIcon from "@mui/icons-material/Settings";
 
 interface Appointment {
   id: string;
@@ -83,6 +86,9 @@ interface AvailableTime {
   label: string;
 }
 
+interface AppointmentSettings {
+  BookingCutoffHours: number;
+}
 const readOnlyStatuses = ['COMPLETED', 'NOSHOW', 'CANCELLED', 'REJECTED'];
 
 const weekdays = [
@@ -142,6 +148,12 @@ export default function AppointmentsPage() {
   const [openAddModal, setOpenAddModal] = useState(false);
   const [openEditModal, setOpenEditModal] = useState(false);
   const [openEditScheduleModal, setOpenEditScheduleModal] = useState(false);
+
+  // Settings
+  const [settings, setSettings] = useState<AppointmentSettings | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const [bookingCutoffHours, setBookingCutoffHours] = useState<number>(1);
 
   const [selectedAppointment, setSelectedAppointment] =
     useState<Appointment | null>(null);
@@ -306,7 +318,7 @@ export default function AppointmentsPage() {
       }
 
       setAppointments(
-        (data || []).map((appointment: any) => ({
+        (data.appointments || []).map((appointment: any) => ({
           id: appointment.id,
           appointmentCode: appointment.appointmentCode || '',
           customerId: appointment.customerId,
@@ -344,6 +356,12 @@ export default function AppointmentsPage() {
             null,
         }))
       );
+
+      setSettings(data.settings);
+
+      if (data.settings) {
+        setBookingCutoffHours(data.settings.bookingCutoffHours);
+      }
 
       setError('');
     } catch (error) {
@@ -744,6 +762,8 @@ export default function AppointmentsPage() {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
 
+    const today = new Date();
+
     const firstDay = new Date(year, month, 1).getDay();
     const totalDays = new Date(year, month + 1, 0).getDate();
 
@@ -846,6 +866,12 @@ export default function AppointmentsPage() {
             {calDays.map((day, index) => {
               const dayAppointments = day ? getAppointmentsForDay(day) : [];
 
+              const isToday =
+                day !== null &&
+                day === today.getDate() &&
+                month === today.getMonth() &&
+                year === today.getFullYear();
+
               return (
                 <Box
                   key={index}
@@ -854,7 +880,7 @@ export default function AppointmentsPage() {
                     borderRight: '1px solid #e0e0e0',
                     borderBottom: '1px solid #e0e0e0',
                     p: 0.5,
-                    bgcolor: day ? '#fafafa' : '#f0f0f0',
+                    bgcolor: isToday ? '#8d8d8d' : day ? '#fafafa' : '#f0f0f0',
                     '&:nth-of-type(7n)': {
                       borderRight: 'none',
                     },
@@ -949,6 +975,31 @@ export default function AppointmentsPage() {
     );
   };
 
+  const saveSettings = async () => {
+    try {
+      const res = await fetch("/api/admin/appointments", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          bookingCutoffHours,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to save settings");
+      }
+
+      setSettingsOpen(false);
+      await loadAppointments();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   return (
     <Box sx={{ flex: 1, p: 4, backgroundColor: '#fff' }}>
       <Box
@@ -961,6 +1012,39 @@ export default function AppointmentsPage() {
       >
         <Typography variant="h3" sx={{ fontWeight: 700 }}>
           Appointments
+        </Typography>
+
+        <IconButton onClick={() => setSettingsOpen(true)}>
+          <SettingsIcon sx={{ fontSize: 32, color: "#111" }} />
+        </IconButton>
+      </Box>
+
+      {error && (
+        <Typography color="error" sx={{ mb: 2 }}>
+          {error}
+        </Typography>
+      )}
+
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+          <CircularProgress />
+        </Box>
+      ) : appointments.length === 0 ? (
+        <Typography sx={{ textAlign: 'center', color: 'text.secondary' }}>
+          No appointments found.
+        </Typography>
+      ) : (
+        <>
+        <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 2,
+        }}
+      >
+        <Typography variant="h5" sx={{ fontWeight: 700 }}>
+          Pending appointments
         </Typography>
 
         <Button
@@ -982,26 +1066,6 @@ export default function AppointmentsPage() {
           Add Appointment
         </Button>
       </Box>
-
-      {error && (
-        <Typography color="error" sx={{ mb: 2 }}>
-          {error}
-        </Typography>
-      )}
-
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : appointments.length === 0 ? (
-        <Typography sx={{ textAlign: 'center', color: 'text.secondary' }}>
-          No appointments found.
-        </Typography>
-      ) : (
-        <>
-          <Typography variant="h5" sx={{ fontWeight: 700, mb: 2 }}>
-            Pending appointments
-          </Typography>
 
           {renderAppointmentTable(paginatedPendingAppointments)}
 
@@ -1040,8 +1104,9 @@ export default function AppointmentsPage() {
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
               Processed appointments
             </Typography>
+          </Box>
 
-            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', gap: 2, mb: 4, flexWrap: 'wrap' }}>
               <TextField
                 size="small"
                 placeholder="Search processed appointments..."
@@ -1050,9 +1115,18 @@ export default function AppointmentsPage() {
                   setProcessedSearch(e.target.value);
                   setProcessedPage(1);
                 }}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon sx={{ color: '#999' }} />
+                      </InputAdornment>
+                    ),
+                  },
+                }}
                 sx={{
-                  width: 280,
-                  bgcolor: '#fff',
+                  flex: 1,
+                  maxWidth: 300,
                 }}
               />
 
@@ -1077,9 +1151,9 @@ export default function AppointmentsPage() {
                 <MenuItem value="NOSHOW">No-show</MenuItem>
               </TextField>
             </Box>
-          </Box>
 
           {renderAppointmentTable(paginatedProcessedAppointments)}
+
 
           <Box
             sx={{
@@ -3190,6 +3264,78 @@ export default function AppointmentsPage() {
           <Button onClick={() => setSuccessOpen(false)}>OK</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Settings Modal */}
+    <Dialog
+      open={settingsOpen}
+      onClose={() => setSettingsOpen(false)}
+      maxWidth="sm"
+      fullWidth
+      slotProps={{
+        paper: {
+          sx: {
+            borderRadius: 0,
+            bgcolor: "#f3f3f3",
+            p: 2,
+          },
+        },
+      }}
+    >
+      <Box sx={{ p: 3, position: "relative" }}>
+        <IconButton
+          onClick={() => setSettingsOpen(false)}
+          sx={{ position: "absolute", right: 8, top: 8 }}
+        >
+          <CloseIcon />
+        </IconButton>
+
+        <Typography sx={{ fontSize: 26, fontWeight: 900, mb: 3 }}>
+          Appointment Settings
+        </Typography>
+
+        <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
+          Booking Cutoff (Hours) <Box component="span" sx={{ color: "red" }}>*</Box>
+        </Typography>
+
+        <TextField
+          select
+          fullWidth
+          value={bookingCutoffHours}
+          onChange={(e) => setBookingCutoffHours(Number(e.target.value))}
+          sx={{ mb: 5, bgcolor: "#fff" }}
+        >
+          <MenuItem value={1}>1 Hour</MenuItem>
+          <MenuItem value={2}>2 Hours</MenuItem>
+          <MenuItem value={3}>3 Hours</MenuItem>
+          <MenuItem value={4}>4 Hours</MenuItem>
+          <MenuItem value={5}>5 Hours</MenuItem>
+          <MenuItem value={6}>6 Hours</MenuItem>
+          <MenuItem value={7}>7 Hours</MenuItem>
+          <MenuItem value={8}>8 Hours</MenuItem>
+          <MenuItem value={9}>9 Hours</MenuItem>
+          <MenuItem value={10}>10 Hours</MenuItem>
+          <MenuItem value={11}>11 Hours</MenuItem>
+          <MenuItem value={12}>12 Hours</MenuItem>
+          <MenuItem value={24}>24 Hours</MenuItem>
+        </TextField>
+
+        <Box sx={{ display: "flex", justifyContent: "center" }}>
+          <Button
+            onClick={saveSettings}
+            sx={{
+              bgcolor: "#000",
+              color: "#ffc400",
+              width: 160,
+              py: 1.5,
+              textTransform: "none",
+              "&:hover": { bgcolor: "#111" },
+            }}
+          >
+            Save
+          </Button>
+        </Box>
+      </Box>
+    </Dialog>
     </Box>
   );
 }

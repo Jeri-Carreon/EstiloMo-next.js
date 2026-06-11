@@ -209,7 +209,7 @@ export default function AdminDashboardPage() {
           appointmentsRes.json(),
         ]);
 
-        const appts: any[] = appointmentsData ?? [];
+        const appts: any[] = appointmentsData?.appointments ?? [];
         const now = new Date();
 
         const filteredAppts = appts.filter((appt: any) => {

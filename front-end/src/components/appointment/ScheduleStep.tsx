@@ -182,7 +182,23 @@ export default function ScheduleStep({
     fetchAvailability(selectedDate);
   }, [selectedDate]);
 
+  const [bookingCutoffHours, setBookingCutoffHours] = useState<number>(1);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch("/api/admin/appointments/settings");
+        const data = await res.json();
+        setBookingCutoffHours(data?.bookingCutoffHours ?? 1);
+      } catch {
+        setBookingCutoffHours(1);
+      }
+    };
+    fetchSettings();
+  }, []);
+
   const [unavailableDates, setUnavailableDates] = useState<Set<string>>(new Set());
+
 
 // Fetch barber's days off and absences for the current month
 const fetchUnavailableDates = async (month: Date) => {
@@ -465,7 +481,11 @@ useEffect(() => {
                         : '';
 
 
-                    const isPastDate = date ? date < today: false;
+                    const cutoffDate = new Date();
+                    cutoffDate.setHours(cutoffDate.getHours() + bookingCutoffHours);
+                    cutoffDate.setHours(0, 0, 0, 0); // compare by day
+
+                    const isPastDate = date ? date < cutoffDate : false;
 
                     const isUnavailable = !!date && unavailableDates.has(formattedDate);
 
