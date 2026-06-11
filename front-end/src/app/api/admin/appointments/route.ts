@@ -1,23 +1,23 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
 
-import { db } from '@/lib/db';
-import { authOptions } from '@/lib/auth';
+import { db } from "@/lib/db";
+import { authOptions } from "@/lib/auth";
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  const ampm = h >= 12 ? 'PM' : 'AM';
+  const ampm = h >= 12 ? "PM" : "AM";
   const hour = h % 12 || 12;
 
-  return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
+  return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
 async function createAppointmentCode() {
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const count = await db.appointment.count();
 
-  return `APT-${today}-${String(count + 1).padStart(4, '0')}`;
+  return `APT-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 export async function GET() {
@@ -30,13 +30,12 @@ export async function GET() {
         service: true,
         afterServicePhotos: {
           orderBy: {
-            createdAt: 'desc',
+            createdAt: "desc",
           },
-          take: 1,
         },
       },
       orderBy: {
-        appointmentDate: 'asc',
+        appointmentDate: "asc",
       },
     });
 
@@ -55,21 +54,21 @@ export async function GET() {
         customerCode: appointment.customer.customerCode,
         name: [appointment.customer.firstName, appointment.customer.lastName]
           .filter(Boolean)
-          .join(' '),
+          .join(" "),
       },
 
       schedule: {
-        date: appointment.appointmentDate.toLocaleDateString('en-US', {
-          month: 'numeric',
-          day: 'numeric',
-          year: 'numeric',
+        date: appointment.appointmentDate.toLocaleDateString("en-US", {
+          month: "numeric",
+          day: "numeric",
+          year: "numeric",
         }),
         startTime: minutesToTime(appointment.startMinutes),
         endTime: minutesToTime(appointment.endMinutes),
-        formatted: `${appointment.appointmentDate.toLocaleDateString('en-US', {
-          month: 'long',
-          day: 'numeric',
-          year: 'numeric',
+        formatted: `${appointment.appointmentDate.toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
         })} ${minutesToTime(appointment.startMinutes)} - ${minutesToTime(
           appointment.endMinutes
         )}`,
@@ -84,18 +83,19 @@ export async function GET() {
         id: appointment.barber.id,
         name: [appointment.barber.firstName, appointment.barber.lastName]
           .filter(Boolean)
-          .join(' '),
+          .join(" "),
       },
 
       payment: {
         id: appointment.payment?.id || null,
         amount: appointment.payment?.amount ?? appointment.service.price ?? 0,
         downPayment: appointment.payment?.downPayment ?? 150,
-        method: appointment.payment?.method || 'GCASH',
+        method: appointment.payment?.method || "GCASH",
         screenshotUrl: appointment.payment?.screenshotUrl || null,
         proofUrl: appointment.payment?.screenshotUrl || null,
       },
 
+      afterServicePhotos: appointment.afterServicePhotos || [],
       afterServicePhotoUrl:
         appointment.afterServicePhotos?.[0]?.imageUrl || null,
 
@@ -104,10 +104,10 @@ export async function GET() {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Error fetching appointments:', error);
+    console.error("Error fetching appointments:", error);
 
     return NextResponse.json(
-      { error: 'Failed to fetch appointments' },
+      { error: "Failed to fetch appointments" },
       { status: 500 }
     );
   }
@@ -119,9 +119,9 @@ export async function POST(req: Request) {
 
     if (
       !session?.user?.email ||
-      !['OWNER', 'RECEPTIONIST'].includes(session.user.role)
+      !["OWNER", "RECEPTIONIST"].includes(session.user.role)
     ) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await req.json();
@@ -144,7 +144,7 @@ export async function POST(req: Request) {
       endMinutes === undefined
     ) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: "Missing required fields" },
         { status: 400 }
       );
     }
@@ -158,7 +158,7 @@ export async function POST(req: Request) {
       parsedEndMinutes <= parsedStartMinutes
     ) {
       return NextResponse.json(
-        { error: 'Invalid appointment time' },
+        { error: "Invalid appointment time" },
         { status: 400 }
       );
     }
@@ -172,7 +172,7 @@ export async function POST(req: Request) {
         appointmentDate: new Date(appointmentDate),
         startMinutes: parsedStartMinutes,
         endMinutes: parsedEndMinutes,
-        status: 'SCHEDULED',
+        status: "SCHEDULED",
       },
     });
 
@@ -190,8 +190,8 @@ export async function POST(req: Request) {
         appointmentId: appointment.id,
         amount: Number(service?.price || 0),
         downPayment: 150,
-        method: 'GCASH',
-        status: 'PENDING',
+        method: "GCASH",
+        status: "PENDING",
         screenshotUrl: null,
       },
     });
@@ -205,7 +205,11 @@ export async function POST(req: Request) {
         barber: true,
         service: true,
         payment: true,
-        afterServicePhotos: true,
+        afterServicePhotos: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
       },
     });
 
@@ -217,10 +221,10 @@ export async function POST(req: Request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error('Error creating appointment:', error);
+    console.error("Error creating appointment:", error);
 
     return NextResponse.json(
-      { error: 'Failed to create appointment' },
+      { error: "Failed to create appointment" },
       { status: 500 }
     );
   }

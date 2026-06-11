@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 
 import { db } from '@/lib/db';
+import { authOptions } from '@/lib/auth';
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -16,50 +18,58 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+
+    if (
+      !session?.user?.email ||
+      !['OWNER', 'RECEPTIONIST', 'BARBER'].includes(session.user.role)
+    ) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
 
     if (!id) {
       return NextResponse.json(
-        { ok: false, error: 'Missing barber id' },
+        { error: 'Missing barber id' },
         { status: 400 }
       );
     }
 
-    const barber = await db.barber.findUnique({
-      where: { id },
+    const appointments = await db.appointment.findMany({
+      where: {
+        barberId: id,
+      },
       include: {
-        schedules: {
-          orderBy: { dayOfWeek: 'asc' },
-        },
-        appointments: {
-          include: {
-            barber: true,
-            customer: true,
-            payment: true,
-            service: true,
-            afterServicePhotos: {
-              orderBy: { createdAt: 'desc' },
-              take: 1,
-            },
+        customer: true,
+        barber: true,
+        service: true,
+        payment: true,
+        afterServicePhotos: {
+          orderBy: {
+            createdAt: 'desc',
           },
-          orderBy: { appointmentDate: 'asc' },
         },
       },
+      orderBy: [
+        {
+          appointmentDate: 'asc',
+        },
+        {
+          startMinutes: 'asc',
+        },
+      ],
     });
 
-    if (!barber) {
-      return NextResponse.json(
-        { ok: false, error: 'Barber not found' },
-        { status: 404 }
-      );
-    }
-
-    const result = barber.appointments.map((appointment) => ({
+    const result = appointments.map((appointment) => ({
       id: appointment.id,
+      appointmentCode: appointment.appointmentCode,
+      customerId: appointment.customerId,
       barberId: appointment.barberId,
       serviceId: appointment.serviceId,
-      appointmentCode: appointment.appointmentCode,
-      appointmentDate: appointment.appointmentDate.toISOString(),
+      appointmentDate: appointment.appointmentDate,
+      startMinutes: appointment.startMinutes,
+      endMinutes: appointment.endMinutes,
 
       customer: {
         id: appointment.customer.id,
@@ -100,40 +110,26 @@ export async function GET(
 
       payment: {
         id: appointment.payment?.id || null,
-        amount:
-          appointment.payment?.amount !== undefined &&
-          appointment.payment?.amount !== null
-            ? Number(appointment.payment.amount)
-            : null,
-        downPayment:
-          appointment.payment?.downPayment !== undefined &&
-          appointment.payment?.downPayment !== null
-            ? Number(appointment.payment.downPayment)
-            : null,
-        method: appointment.payment?.method || null,
+        amount: appointment.payment?.amount ?? appointment.service.price ?? 0,
+        downPayment: appointment.payment?.downPayment ?? 150,
+        method: appointment.payment?.method || 'GCASH',
         screenshotUrl: appointment.payment?.screenshotUrl || null,
         proofUrl: appointment.payment?.screenshotUrl || null,
       },
 
+      afterServicePhotos: appointment.afterServicePhotos || [],
       afterServicePhotoUrl:
         appointment.afterServicePhotos?.[0]?.imageUrl || null,
-
-      afterServicePhotos: appointment.afterServicePhotos.map((photo) => ({
-        id: photo.id,
-        imageUrl: photo.imageUrl,
-        createdAt: photo.createdAt.toISOString(),
-      })),
 
       status: appointment.status,
     }));
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('GET BARBER APPOINTMENTS ERROR:', error);
+    console.error('FETCH BARBER APPOINTMENTS ERROR:', error);
 
     return NextResponse.json(
       {
-        ok: false,
         error: 'Failed to fetch barber appointments',
         details: error instanceof Error ? error.message : String(error),
       },

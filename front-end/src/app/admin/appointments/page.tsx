@@ -16,6 +16,7 @@ import Paper from '@mui/material/Paper';
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import Pagination from '@mui/material/Pagination';
+
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -32,6 +33,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 interface Appointment {
   id: string;
@@ -51,6 +53,11 @@ interface Appointment {
   status: string;
   paymentScreenshotUrl?: string | null;
   afterServicePhotoUrl?: string | null;
+  afterServicePhotos?: {
+    id: string;
+    imageUrl: string;
+    createdAt?: string;
+  }[];
 }
 
 interface CustomerOption {
@@ -101,7 +108,15 @@ export default function AppointmentsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-   const [originalAppointmentStatus, setOriginalAppointmentStatus] = useState('');
+  const [warningOpen, setWarningOpen] = useState(false);
+  const [warningMessage, setWarningMessage] = useState('');
+
+  const showWarning = (message: string) => {
+    setWarningMessage(message);
+    setWarningOpen(true);
+  };
+  
+  const [originalAppointmentStatus, setOriginalAppointmentStatus] = useState('');
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [barbers, setBarbers] = useState<BarberOption[]>([]);
@@ -113,6 +128,9 @@ export default function AppointmentsPage() {
 
   const [pendingPage, setPendingPage] = useState(1);
   const [processedPage, setProcessedPage] = useState(1);
+
+  const [processedSearch, setProcessedSearch] = useState('');
+  const [processedStatusFilter, setProcessedStatusFilter] = useState('ALL');
 
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [openCalendarModal, setOpenCalendarModal] = useState(false);
@@ -154,11 +172,38 @@ export default function AppointmentsPage() {
     new Set()
   );
 
-  const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [imageViewerUrl, setImageViewerUrl] = useState('');
+  const [imageViewerTitle, setImageViewerTitle] = useState('');
+  const [imageViewerPhotos, setImageViewerPhotos] = useState<string[]>([]);
+  const [imageViewerIndex, setImageViewerIndex] = useState(0);
+
   const [successOpen, setSuccessOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
   const servicePrice = Number(selectedAddService?.price || 0);
+
+
+  const openImageViewer = (title: string, photos: string[], startIndex = 0) => {
+    const validPhotos = photos.filter(Boolean);
+
+    if (validPhotos.length === 0) {
+      setImageViewerTitle(title);
+      setImageViewerPhotos([]);
+      setImageViewerIndex(0);
+      setImageViewerUrl('');
+      setImageViewerOpen(true);
+      return;
+    }
+
+    const safeIndex = Math.min(Math.max(startIndex, 0), validPhotos.length - 1);
+
+    setImageViewerTitle(title);
+    setImageViewerPhotos(validPhotos);
+    setImageViewerIndex(safeIndex);
+    setImageViewerUrl(validPhotos[safeIndex]);
+    setImageViewerOpen(true);
+  };
 
   const isReadOnly =
     !!originalAppointmentStatus &&
@@ -230,9 +275,9 @@ export default function AppointmentsPage() {
     const normalized = status.toUpperCase();
 
     if (normalized === 'COMPLETED') return 'green';
-    if (normalized === 'CANCELLED') return 'red';
-    if (normalized === 'REJECTED') return '#dc2626';
-    if (normalized === 'NOSHOW') return '#777';
+    if (normalized === 'CANCELLED') return '#EA580C';
+    if (normalized === 'REJECTED') return '#DC2626';
+    if (normalized === 'NOSHOW') return '#1F2937';
     if (normalized === 'PENDING') return '#92400E';
     if (normalized === 'SCHEDULED') return '#2563eb';
 
@@ -292,7 +337,11 @@ export default function AppointmentsPage() {
               : null,
           status: appointment.status || '',
           paymentScreenshotUrl: appointment.payment?.screenshotUrl || null,
-          afterServicePhotoUrl: appointment.afterServicePhotoUrl || null,
+          afterServicePhotos: appointment.afterServicePhotos || [],
+          afterServicePhotoUrl:
+            appointment.afterServicePhotoUrl ||
+            appointment.afterServicePhotos?.[0]?.imageUrl ||
+            null,
         }))
       );
 
@@ -474,8 +523,29 @@ export default function AppointmentsPage() {
     (appointment) => appointment.status.toUpperCase() === 'PENDING'
   );
 
-  const filteredProcessedAppointments = appointments.filter(
-    (appointment) => appointment.status.toUpperCase() !== 'PENDING'
+  const processedBaseAppointments = appointments.filter(
+  (appointment) => appointment.status.toUpperCase() !== 'PENDING'
+);
+
+  const filteredProcessedAppointments = processedBaseAppointments.filter(
+    (appointment) => {
+      const searchValue = processedSearch.toLowerCase();
+
+      const matchesSearch =
+        appointment.appointmentCode.toLowerCase().includes(searchValue) ||
+        appointment.customerCode.toLowerCase().includes(searchValue) ||
+        appointment.customerName.toLowerCase().includes(searchValue) ||
+        appointment.schedule.toLowerCase().includes(searchValue) ||
+        appointment.serviceName.toLowerCase().includes(searchValue) ||
+        appointment.barberName.toLowerCase().includes(searchValue) ||
+        appointment.status.toLowerCase().includes(searchValue);
+
+      const matchesStatus =
+        processedStatusFilter === 'ALL' ||
+        appointment.status.toUpperCase() === processedStatusFilter;
+
+      return matchesSearch && matchesStatus;
+    }
   );
 
   const paginatedPendingAppointments = filteredPendingAppointments.slice(
@@ -505,7 +575,7 @@ export default function AppointmentsPage() {
       !addForm.startMinutes ||
       !addForm.endMinutes
     ) {
-      alert('Please complete all required fields.');
+      showWarning('Please complete all required fields.');
       return;
     }
 
@@ -530,7 +600,7 @@ export default function AppointmentsPage() {
       const data = text ? JSON.parse(text) : {};
 
       if (!res.ok) {
-        alert(data.error || 'Failed to add appointment.');
+        showWarning(data.error || 'Failed to add appointment.');
         return;
       }
 
@@ -540,7 +610,7 @@ export default function AppointmentsPage() {
       await loadAppointments();
     } catch (error) {
       console.error('ADD APPOINTMENT ERROR:', error);
-      alert('Failed to add appointment.');
+      showWarning('Failed to add appointment.');
     } finally {
       setSaving(false);
     }
@@ -571,7 +641,7 @@ export default function AppointmentsPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.error || 'Failed to update appointment.');
+        showWarning(data.error || 'Failed to update appointment.');
         return;
       }
 
@@ -582,7 +652,7 @@ export default function AppointmentsPage() {
       await loadAppointments();
     } catch (error) {
       console.error('UPDATE APPOINTMENT ERROR:', error);
-      alert('Failed to update appointment.');
+      showWarning('Failed to update appointment.');
     } finally {
       setSaving(false);
     }
@@ -693,13 +763,13 @@ export default function AppointmentsPage() {
     };
 
     const statusColorMap: Record<string, { bg: string; color: string }> = {
-    PENDING: { bg: '#FEF3C7', color: '#92400E' },
-    SCHEDULED: { bg: '#DBEAFE', color: '#1E40AF' },
-    COMPLETED: { bg: '#D1FAE5', color: '#065F46' },
-    CANCELLED: { bg: '#FEE2E2', color: '#991B1B' },
-    REJECTED: { bg: '#FECACA', color: '#B91C1C' },
-    NOSHOW: { bg: '#F3F4F6', color: '#6B7280' },
-  };
+      PENDING: { bg: '#FEF3C7', color: '#92400E' },
+      SCHEDULED: { bg: '#DBEAFE', color: '#1E40AF' },
+      COMPLETED: { bg: '#D1FAE5', color: '#065F46' },
+      CANCELLED: { bg: '#FFEDD5', color: '#EA580C' },
+      REJECTED: { bg: '#FEE2E2', color: '#DC2626' },
+      NOSHOW: { bg: '#E5E7EB', color: '#1F2937' },
+    };
 
     return (
       <Box>
@@ -957,9 +1027,57 @@ export default function AppointmentsPage() {
             />
           </Box>
 
-          <Typography variant="h5" sx={{ fontWeight: 700, mb: 2 }}>
-            Processed appointments
-          </Typography>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 2,
+              mb: 2,
+              flexWrap: 'wrap',
+            }}
+          >
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+              Processed appointments
+            </Typography>
+
+            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+              <TextField
+                size="small"
+                placeholder="Search processed appointments..."
+                value={processedSearch}
+                onChange={(e) => {
+                  setProcessedSearch(e.target.value);
+                  setProcessedPage(1);
+                }}
+                sx={{
+                  width: 280,
+                  bgcolor: '#fff',
+                }}
+              />
+
+              <TextField
+                select
+                size="small"
+                value={processedStatusFilter}
+                onChange={(e) => {
+                  setProcessedStatusFilter(e.target.value);
+                  setProcessedPage(1);
+                }}
+                sx={{
+                  width: 170,
+                  bgcolor: '#fff',
+                }}
+              >
+                <MenuItem value="ALL">All Status</MenuItem>
+                <MenuItem value="SCHEDULED">Scheduled</MenuItem>
+                <MenuItem value="COMPLETED">Completed</MenuItem>
+                <MenuItem value="CANCELLED">Cancelled</MenuItem>
+                <MenuItem value="REJECTED">Rejected</MenuItem>
+                <MenuItem value="NOSHOW">No-show</MenuItem>
+              </TextField>
+            </Box>
+          </Box>
 
           {renderAppointmentTable(paginatedProcessedAppointments)}
 
@@ -1566,7 +1684,7 @@ export default function AppointmentsPage() {
             onClick={() => {
               if (addStep === 1) {
                 if (!addForm.customerId || !addForm.barberId || !addForm.serviceId) {
-                  alert('Please complete all required fields.');
+                  showWarning('Please complete all required fields.');
                   return;
                 }
 
@@ -1580,7 +1698,7 @@ export default function AppointmentsPage() {
                   !addForm.startMinutes ||
                   !addForm.endMinutes
                 ) {
-                  alert('Please complete the schedule.');
+                  showWarning('Please complete the schedule.');
                   return;
                 }
 
@@ -1590,7 +1708,7 @@ export default function AppointmentsPage() {
 
               if (addStep === 3) {
                 if (!addProof) {
-                  alert('Please upload proof of downpayment.');
+                  showWarning('Please upload proof of downpayment.');
                   return;
                 }
 
@@ -1782,9 +1900,9 @@ export default function AppointmentsPage() {
                   {selectedAppointment.paymentScreenshotUrl ? (
                     <Button
                       onClick={() =>
-                        window.open(
-                          selectedAppointment.paymentScreenshotUrl!,
-                          '_blank'
+                        openImageViewer(
+                          'Proof of Downpayment',
+                          [selectedAppointment.paymentScreenshotUrl || '']
                         )
                       }
                       sx={{
@@ -1794,7 +1912,7 @@ export default function AppointmentsPage() {
                         fontSize: 13,
                       }}
                     >
-                      Image_12345
+                      View Image
                     </Button>
                   ) : (
                     <Typography sx={{ color: '#999', fontSize: 13 }}>
@@ -1840,18 +1958,46 @@ export default function AppointmentsPage() {
                     gap: 1,
                   }}
                 >
-                  {selectedAppointment.afterServicePhotoUrl ? (
-                    <Button
-                      onClick={() => setPhotoViewerOpen(true)}
-                      sx={{
-                        p: 0,
-                        color: '#3b82f6',
-                        textTransform: 'none',
-                        fontSize: 13,
-                      }}
-                    >
-                      Image_12345
-                    </Button>
+                  {(
+                    selectedAppointment.afterServicePhotos?.length
+                      ? selectedAppointment.afterServicePhotos
+                      : selectedAppointment.afterServicePhotoUrl
+                      ? [{ id: 'legacy-photo', imageUrl: selectedAppointment.afterServicePhotoUrl }]
+                      : []
+                  ).length > 0 ? (
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      {(
+                        selectedAppointment.afterServicePhotos?.length
+                          ? selectedAppointment.afterServicePhotos
+                          : [{ id: 'legacy-photo', imageUrl: selectedAppointment.afterServicePhotoUrl || '' }]
+                      ).map((photo, index) => (
+                        <Button
+                          key={photo.id || `${photo.imageUrl}-${index}`}
+                          onClick={() => {
+                            const photoUrls = (
+                              selectedAppointment.afterServicePhotos?.length
+                                ? selectedAppointment.afterServicePhotos
+                                : [
+                                    {
+                                      id: 'legacy-photo',
+                                      imageUrl: selectedAppointment.afterServicePhotoUrl || '',
+                                    },
+                                  ]
+                            ).map((item) => item.imageUrl);
+
+                            openImageViewer('After Service Photos', photoUrls, index);
+                          }}
+                          sx={{
+                            p: 0,
+                            color: '#3b82f6',
+                            textTransform: 'none',
+                            fontSize: 13,
+                          }}
+                        >
+                          View Image {index + 1}
+                        </Button>
+                      ))}
+                    </Box>
                   ) : (
                     <Typography sx={{ color: '#999', fontSize: 13 }}>
                       No after service photos
@@ -2432,9 +2578,9 @@ export default function AppointmentsPage() {
                   {selectedAppointment.paymentScreenshotUrl ? (
                     <Button
                       onClick={() =>
-                        window.open(
-                          selectedAppointment.paymentScreenshotUrl!,
-                          '_blank'
+                        openImageViewer(
+                          'Proof of Downpayment',
+                          [selectedAppointment.paymentScreenshotUrl || '']
                         )
                       }
                       sx={{
@@ -2444,7 +2590,7 @@ export default function AppointmentsPage() {
                         fontSize: 13,
                       }}
                     >
-                      Image_12345
+                      View Image
                     </Button>
                   ) : (
                     <Typography sx={{ color: '#999', fontSize: 13 }}>
@@ -2490,18 +2636,46 @@ export default function AppointmentsPage() {
                     gap: 1,
                   }}
                 >
-                  {selectedAppointment.afterServicePhotoUrl ? (
-                    <Button
-                      onClick={() => setPhotoViewerOpen(true)}
-                      sx={{
-                        p: 0,
-                        color: '#3b82f6',
-                        textTransform: 'none',
-                        fontSize: 13,
-                      }}
-                    >
-                      Image_12345
-                    </Button>
+                  {(
+                    selectedAppointment.afterServicePhotos?.length
+                      ? selectedAppointment.afterServicePhotos
+                      : selectedAppointment.afterServicePhotoUrl
+                      ? [{ id: 'legacy-photo', imageUrl: selectedAppointment.afterServicePhotoUrl }]
+                      : []
+                  ).length > 0 ? (
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      {(
+                        selectedAppointment.afterServicePhotos?.length
+                          ? selectedAppointment.afterServicePhotos
+                          : [{ id: 'legacy-photo', imageUrl: selectedAppointment.afterServicePhotoUrl || '' }]
+                      ).map((photo, index) => (
+                        <Button
+                          key={photo.id || `${photo.imageUrl}-${index}`}
+                          onClick={() => {
+                            const photoUrls = (
+                              selectedAppointment.afterServicePhotos?.length
+                                ? selectedAppointment.afterServicePhotos
+                                : [
+                                    {
+                                      id: 'legacy-photo',
+                                      imageUrl: selectedAppointment.afterServicePhotoUrl || '',
+                                    },
+                                  ]
+                            ).map((item) => item.imageUrl);
+
+                            openImageViewer('After Service Photos', photoUrls, index);
+                          }}
+                          sx={{
+                            p: 0,
+                            color: '#3b82f6',
+                            textTransform: 'none',
+                            fontSize: 13,
+                          }}
+                        >
+                          View Image {index + 1}
+                        </Button>
+                      ))}
+                    </Box>
                   ) : (
                     <Typography sx={{ color: '#999', fontSize: 13 }}>
                       No after service photos
@@ -2646,9 +2820,9 @@ export default function AppointmentsPage() {
               PENDING: { bg: '#FEF3C7', color: '#92400E' },
               SCHEDULED: { bg: '#DBEAFE', color: '#1E40AF' },
               COMPLETED: { bg: '#D1FAE5', color: '#065F46' },
-              CANCELLED: { bg: '#FEE2E2', color: '#991B1B' },
-              REJECTED: { bg: '#FECACA', color: '#B91C1C' },
-              NOSHOW: { bg: '#F3F4F6', color: '#6B7280' },
+              CANCELLED: { bg: '#FFEDD5', color: '#EA580C' },
+              REJECTED: { bg: '#FEE2E2', color: '#DC2626' },
+              NOSHOW: { bg: '#E5E7EB', color: '#1F2937' },
             };
             
             return (
@@ -2700,9 +2874,9 @@ export default function AppointmentsPage() {
                             PENDING: { bg: '#FEF3C7', color: '#92400E' },
                             SCHEDULED: { bg: '#DBEAFE', color: '#1E40AF' },
                             COMPLETED: { bg: '#D1FAE5', color: '#065F46' },
-                            CANCELLED: { bg: '#FEE2E2', color: '#991B1B' },
-                            REJECTED: { bg: '#FECACA', color: '#B91C1C' },
-                            NOSHOW: { bg: '#F3F4F6', color: '#6B7280' },
+                            CANCELLED: { bg: '#FFEDD5', color: '#EA580C' },
+                            REJECTED: { bg: '#FEE2E2', color: '#DC2626' },
+                            NOSHOW: { bg: '#E5E7EB', color: '#1F2937' },
                           };
                           const colors = statusColorMap[appt.status.toUpperCase()] || statusColorMap.NOSHOW;
 
@@ -2767,9 +2941,9 @@ export default function AppointmentsPage() {
                               PENDING: { bg: '#FEF3C7', color: '#92400E' },
                               SCHEDULED: { bg: '#DBEAFE', color: '#1E40AF' },
                               COMPLETED: { bg: '#D1FAE5', color: '#065F46' },
-                              CANCELLED: { bg: '#FEE2E2', color: '#991B1B' },
-                              REJECTED: { bg: '#FECACA', color: '#B91C1C' },
-                              NOSHOW: { bg: '#F3F4F6', color: '#6B7280' },
+                              CANCELLED: { bg: '#FFEDD5', color: '#EA580C' },
+                              REJECTED: { bg: '#FEE2E2', color: '#DC2626' },
+                              NOSHOW: { bg: '#E5E7EB', color: '#1F2937' },
                             };
                             const colors = statusColorMap[appt.status.toUpperCase()] || statusColorMap.NOSHOW;
 
@@ -2832,32 +3006,178 @@ export default function AppointmentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* PHOTO VIEWER */}
-      <Dialog open={photoViewerOpen} onClose={() => setPhotoViewerOpen(false)}>
-        <DialogTitle>
-          After Service Photo
+      {/* IMAGE VIEWER MODAL */}
+      <Dialog
+        open={imageViewerOpen}
+        onClose={() => setImageViewerOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 800 }}>
+          {imageViewerTitle || 'Image Viewer'}
+          {imageViewerPhotos.length > 1 && (
+            <Typography component="span" sx={{ ml: 1, fontSize: 13, color: '#777' }}>
+              ({imageViewerIndex + 1} of {imageViewerPhotos.length})
+            </Typography>
+          )}
+
           <IconButton
-            onClick={() => setPhotoViewerOpen(false)}
+            onClick={() => setImageViewerOpen(false)}
             sx={{ position: 'absolute', right: 12, top: 10 }}
           >
             <CloseIcon />
           </IconButton>
         </DialogTitle>
 
-        <DialogContent>
-          {selectedAppointment?.afterServicePhotoUrl && (
-            <Box
-              component="img"
-              src={selectedAppointment.afterServicePhotoUrl}
-              alt="After service"
-              sx={{
-                width: '100%',
-                maxWidth: 600,
-                display: 'block',
-              }}
-            />
+        <DialogContent
+          sx={{
+            bgcolor: '#f5f5f5',
+            p: 3,
+          }}
+        >
+          {imageViewerUrl ? (
+            <>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 2,
+                }}
+              >
+                {imageViewerPhotos.length > 1 && (
+                  <IconButton
+                    onClick={() => {
+                      const nextIndex =
+                        imageViewerIndex === 0
+                          ? imageViewerPhotos.length - 1
+                          : imageViewerIndex - 1;
+
+                      setImageViewerIndex(nextIndex);
+                      setImageViewerUrl(imageViewerPhotos[nextIndex]);
+                    }}
+                    sx={{ bgcolor: '#fff', border: '1px solid #ddd' }}
+                  >
+                    <ChevronLeftIcon />
+                  </IconButton>
+                )}
+
+                <Box
+                  component="img"
+                  src={imageViewerUrl}
+                  alt={imageViewerTitle || 'Appointment image'}
+                  sx={{
+                    maxWidth: '100%',
+                    maxHeight: '70vh',
+                    objectFit: 'contain',
+                    borderRadius: 2,
+                    bgcolor: '#fff',
+                  }}
+                />
+
+                {imageViewerPhotos.length > 1 && (
+                  <IconButton
+                    onClick={() => {
+                      const nextIndex =
+                        imageViewerIndex === imageViewerPhotos.length - 1
+                          ? 0
+                          : imageViewerIndex + 1;
+
+                      setImageViewerIndex(nextIndex);
+                      setImageViewerUrl(imageViewerPhotos[nextIndex]);
+                    }}
+                    sx={{ bgcolor: '#fff', border: '1px solid #ddd' }}
+                  >
+                    <ChevronRightIcon />
+                  </IconButton>
+                )}
+              </Box>
+
+              {imageViewerPhotos.length > 1 && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    gap: 1,
+                    justifyContent: 'center',
+                    mt: 2,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  {imageViewerPhotos.map((photoUrl, index) => (
+                    <Box
+                      key={`${photoUrl}-${index}`}
+                      component="img"
+                      src={photoUrl}
+                      alt={`Thumbnail ${index + 1}`}
+                      onClick={() => {
+                        setImageViewerIndex(index);
+                        setImageViewerUrl(photoUrl);
+                      }}
+                      sx={{
+                        width: 72,
+                        height: 72,
+                        objectFit: 'cover',
+                        borderRadius: 1,
+                        cursor: 'pointer',
+                        border:
+                          imageViewerIndex === index
+                            ? '2px solid #000'
+                            : '1px solid #ccc',
+                        bgcolor: '#fff',
+                      }}
+                    />
+                  ))}
+                </Box>
+              )}
+            </>
+          ) : (
+            <Typography sx={{ color: '#777', textAlign: 'center' }}>
+              No image available.
+            </Typography>
           )}
         </DialogContent>
+      </Dialog>
+
+      {/* WARNING MODAL */}
+      <Dialog
+        open={warningOpen}
+        onClose={() => setWarningOpen(false)}
+        fullWidth
+        maxWidth="xs"
+        sx={{ zIndex: 99999 }}
+      >
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            fontWeight: 800,
+            color: '#92400E',
+          }}
+        >
+          <WarningAmberIcon sx={{ color: '#f4b400' }} />
+          Warning
+        </DialogTitle>
+
+        <DialogContent>
+          <Typography sx={{ color: '#333' }}>{warningMessage}</Typography>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => setWarningOpen(false)}
+            sx={{
+              backgroundColor: '#000',
+              color: '#f4b400',
+              px: 4,
+              fontWeight: 700,
+              textTransform: 'none',
+              '&:hover': { backgroundColor: '#111' },
+            }}
+          >
+            OK
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* SUCCESS MODAL */}

@@ -76,6 +76,11 @@ interface Appointment {
   status: string;
   paymentScreenshotUrl?: string | null;
   afterServicePhotoUrl?: string | null;
+  afterServicePhotos?: {
+    id: string;
+    imageUrl: string;
+    createdAt?: string;
+  }[];
 }
 
 interface ServiceOption {
@@ -203,9 +208,17 @@ export default function BarbersPage() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [saving, setSaving] = useState(false);
-  const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [imageViewerUrl, setImageViewerUrl] = useState('');
+  const [imageViewerTitle, setImageViewerTitle] = useState('');
+  const [imageViewerPhotos, setImageViewerPhotos] = useState<
+    { id: string; imageUrl: string; createdAt?: string }[]
+  >([]);
+  const [imageViewerIndex, setImageViewerIndex] = useState(0);
+
   const [photoSuccessOpen, setPhotoSuccessOpen] = useState(false);
   const [photoSuccessMessage, setPhotoSuccessMessage] = useState('');
+  const [pendingAfterServicePhotoUrls, setPendingAfterServicePhotoUrls] = useState<string[]>([]);
 
   // For edit schedule modal
   const [openEditScheduleModal, setOpenEditScheduleModal] = useState(false);
@@ -228,6 +241,42 @@ export default function BarbersPage() {
 
   const canUploadAfterServicePhoto =
   selectedAppointment?.status?.toUpperCase() === 'COMPLETED';
+
+  const openImageViewer = (
+    title: string,
+    photos: { id: string; imageUrl: string; createdAt?: string }[],
+    index = 0
+  ) => {
+    const validPhotos = photos.filter((photo) => !!photo.imageUrl);
+
+    setImageViewerTitle(title);
+    setImageViewerPhotos(validPhotos);
+    setImageViewerIndex(index);
+
+    const selectedPhoto = validPhotos[index] || validPhotos[0];
+
+    setImageViewerUrl(selectedPhoto?.imageUrl || '');
+    setImageViewerOpen(true);
+  };
+
+  const getAfterServicePhotos = (appointment: Appointment | null) => {
+    if (!appointment) return [];
+
+    const photos = appointment.afterServicePhotos || [];
+
+    if (photos.length > 0) {
+      return photos.filter((photo) => !!photo.imageUrl);
+    }
+
+    return appointment.afterServicePhotoUrl
+      ? [
+          {
+            id: 'legacy-after-service-photo',
+            imageUrl: appointment.afterServicePhotoUrl,
+          },
+        ]
+      : [];
+  };
 
   const loadServicesByBarber = async (barberId: string) => {
     try {
@@ -252,14 +301,14 @@ export default function BarbersPage() {
     console.log('SAVE CLICKED');
     console.log('SELECTED APPOINTMENT:', selectedAppointment);
     console.log('CAN UPLOAD:', canUploadAfterServicePhoto);
-    console.log('PHOTO URL TO SAVE:', selectedAppointment?.afterServicePhotoUrl);
+    console.log('PENDING PHOTO URLS TO SAVE:', pendingAfterServicePhotoUrls);
 
     if (!selectedAppointment || !canUploadAfterServicePhoto) {
       alert('This appointment is not allowed to upload after-service photos.');
       return;
     }
 
-    if (!selectedAppointment.afterServicePhotoUrl) {
+    if (pendingAfterServicePhotoUrls.length === 0) {
       alert('Please upload an after-service photo first.');
       return;
     }
@@ -267,38 +316,47 @@ export default function BarbersPage() {
     try {
       setSaving(true);
 
-      const payload = {
-        afterServicePhotoUrl: selectedAppointment.afterServicePhotoUrl,
-      };
+      const uniquePhotoUrls = Array.from(new Set(pendingAfterServicePhotoUrls));
 
-      console.log('PUT URL:', `/api/admin/appointments/${selectedAppointment.id}`);
-      console.log('PUT PAYLOAD:', payload);
+      for (const photoUrl of uniquePhotoUrls) {
+        const payload = {
+          afterServicePhotoUrl: photoUrl,
+        };
 
-      const res = await fetch(`/api/admin/appointments/${selectedAppointment.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+        console.log('PUT URL:', `/api/admin/appointments/${selectedAppointment.id}`);
+        console.log('PUT PAYLOAD:', payload);
 
-      const text = await res.text();
-      console.log('PUT STATUS:', res.status);
-      console.log('PUT RAW RESPONSE:', text);
+        const res = await fetch(`/api/admin/appointments/${selectedAppointment.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
 
-      let data: any = {};
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch (parseError) {
-        console.error('PUT JSON PARSE ERROR:', parseError);
+        const text = await res.text();
+        console.log('PUT STATUS:', res.status);
+        console.log('PUT RAW RESPONSE:', text);
+
+        let data: any = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch (parseError) {
+          console.error('PUT JSON PARSE ERROR:', parseError);
+        }
+
+        console.log('PUT PARSED RESPONSE:', data);
+
+        if (!res.ok) {
+          alert(data.error || data.details || 'Failed to save after-service photo.');
+          return;
+        }
       }
 
-      console.log('PUT PARSED RESPONSE:', data);
-
-      if (!res.ok) {
-        alert(data.error || data.details || 'Failed to save after-service photo.');
-        return;
-      }
-
-      setPhotoSuccessMessage('After-service photo uploaded successfully!');
+      setPendingAfterServicePhotoUrls([]);
+      setPhotoSuccessMessage(
+        uniquePhotoUrls.length > 1
+          ? 'After-service photos uploaded successfully!'
+          : 'After-service photo uploaded successfully!'
+      );
       setPhotoSuccessOpen(true);
 
       setOpenEditModal(false);
@@ -424,6 +482,7 @@ export default function BarbersPage() {
             status: appointment.status || "",
             paymentScreenshotUrl: appointment.payment?.screenshotUrl || null,
             afterServicePhotoUrl: appointment.afterServicePhotoUrl || null,
+            afterServicePhotos: appointment.afterServicePhotos || [],
           }))
         );
         setError("");
@@ -653,6 +712,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                               await loadServicesByBarber(appointment.barberId);
                             }
 
+                            setPendingAfterServicePhotoUrls([]);
                             setSelectedAppointment(appointment);
                             setOpenEditModal(true);
                           }}
@@ -834,6 +894,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                         if (appointment.barberId) {
                           await loadServicesByBarber(appointment.barberId);
                         }
+                        setPendingAfterServicePhotoUrls([]);
                         setSelectedAppointment(appointment);
                         setOpenEditModal(true);
                       }}
@@ -960,6 +1021,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                         if (appointment.barberId) {
                           await loadServicesByBarber(appointment.barberId);
                         }
+                        setPendingAfterServicePhotoUrls([]);
                         setSelectedAppointment(appointment);
                         setOpenEditModal(true);
                       }}
@@ -1424,12 +1486,14 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                 >
                   {selectedAppointment.paymentScreenshotUrl ? (
                     <Button
-                      onClick={() =>
-                        window.open(
-                          selectedAppointment.paymentScreenshotUrl!,
-                          '_blank'
-                        )
-                      }
+                      onClick={() => {
+                        openImageViewer('Proof of Downpayment', [
+                          {
+                            id: 'proof-of-downpayment',
+                            imageUrl: selectedAppointment.paymentScreenshotUrl || '',
+                          },
+                        ]);
+                      }}
                       sx={{
                         p: 0,
                         color: '#3b82f6',
@@ -1437,7 +1501,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                         fontSize: 13,
                       }}
                     >
-                      Image_12345
+                      View Image
                     </Button>
                   ) : (
                     <Typography sx={{ color: '#999', fontSize: 13 }}>
@@ -1483,18 +1547,27 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                     gap: 1,
                   }}
                 >
-                  {selectedAppointment.afterServicePhotoUrl ? (
-                    <Button
-                      onClick={() => setPhotoViewerOpen(true)}
-                      sx={{
-                        p: 0,
-                        color: '#3b82f6',
-                        textTransform: 'none',
-                        fontSize: 13,
-                      }}
-                    >
-                      Image_12345
-                    </Button>
+                  {getAfterServicePhotos(selectedAppointment).length > 0 ? (
+                    getAfterServicePhotos(selectedAppointment).map((photo, index) => (
+                      <Button
+                        key={photo.id || photo.imageUrl}
+                        onClick={() => {
+                          openImageViewer(
+                            'After Service Photos',
+                            getAfterServicePhotos(selectedAppointment),
+                            index
+                          );
+                        }}
+                        sx={{
+                          p: 0,
+                          color: '#3b82f6',
+                          textTransform: 'none',
+                          fontSize: 13,
+                        }}
+                      >
+                        View Image {index + 1}
+                      </Button>
+                    ))
                   ) : (
                     <Typography sx={{ color: '#999', fontSize: 13 }}>
                       No after service photos
@@ -1536,7 +1609,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
 
               <Button
                 onClick={handleUpdateAppointment}
-                disabled={!canUploadAfterServicePhoto || !selectedAppointment?.afterServicePhotoUrl || saving}
+                disabled={!canUploadAfterServicePhoto || pendingAfterServicePhotoUrls.length === 0 || saving}
                 sx={{
                   backgroundColor: '#000',
                   color: '#f4b400',
@@ -1556,7 +1629,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                   },
                 }}
               >
-                {saving ? 'Saving...' : 'Save Photo'}
+                {saving ? 'Saving...' : pendingAfterServicePhotoUrls.length > 1 ? 'Save Photos' : 'Save Photo'}
               </Button>
             </DialogActions>
           </>
@@ -1691,6 +1764,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                               <Box
                                 key={appt.id}
                                 onClick={() => {
+                                  setPendingAfterServicePhotoUrls([]);
                                   setSelectedAppointment(appt);
                                   setOpenEditDayModal(true);
                                 }}
@@ -1981,12 +2055,11 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                     >
                       {selectedAppointment.paymentScreenshotUrl ? (
                         <Button
-                          onClick={() =>
-                            window.open(
-                              selectedAppointment.paymentScreenshotUrl!,
-                              '_blank'
-                            )
-                          }
+                          onClick={() => {
+                            setImageViewerUrl(selectedAppointment.paymentScreenshotUrl || '');
+                            setImageViewerTitle('Proof of Downpayment');
+                            setImageViewerOpen(true);
+                          }}
                           sx={{
                             p: 0,
                             color: '#3b82f6',
@@ -1994,7 +2067,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                             fontSize: 13,
                           }}
                         >
-                          Image_12345
+                          View Image
                         </Button>
                       ) : (
                         <Typography sx={{ color: '#999', fontSize: 13 }}>
@@ -2040,18 +2113,27 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                         gap: 1,
                       }}
                     >
-                      {selectedAppointment.afterServicePhotoUrl ? (
-                        <Button
-                          onClick={() => setPhotoViewerOpen(true)}
-                          sx={{
-                            p: 0,
-                            color: '#3b82f6',
-                            textTransform: 'none',
-                            fontSize: 13,
-                          }}
-                        >
-                          Image_12345
-                        </Button>
+                      {getAfterServicePhotos(selectedAppointment).length > 0 ? (
+                        getAfterServicePhotos(selectedAppointment).map((photo, index) => (
+                          <Button
+                            key={photo.id || photo.imageUrl}
+                            onClick={() => {
+                              openImageViewer(
+                                'After Service Photos',
+                                getAfterServicePhotos(selectedAppointment),
+                                index
+                              );
+                            }}
+                            sx={{
+                              p: 0,
+                              color: '#3b82f6',
+                              textTransform: 'none',
+                              fontSize: 13,
+                            }}
+                          >
+                            View Image {index + 1}
+                          </Button>
+                        ))
                       ) : (
                         <Typography sx={{ color: '#999', fontSize: 13 }}>
                           No after service photos
@@ -2108,10 +2190,28 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                                 return;
                               }
 
+                              setPendingAfterServicePhotoUrls((prev) => [
+                                ...prev,
+                                uploadData.url,
+                              ]);
+
                               setSelectedAppointment((prev) => {
-                                const updated = prev
-                                  ? { ...prev, afterServicePhotoUrl: uploadData.url }
-                                  : prev;
+                                if (!prev) return prev;
+
+                                const newPhoto = {
+                                  id: `temp-${Date.now()}`,
+                                  imageUrl: uploadData.url,
+                                  createdAt: new Date().toISOString(),
+                                };
+
+                                const updated = {
+                                  ...prev,
+                                  afterServicePhotoUrl: uploadData.url,
+                                  afterServicePhotos: [
+                                    newPhoto,
+                                    ...(prev.afterServicePhotos || []),
+                                  ],
+                                };
 
                                 console.log('PHOTO URL SET TO STATE:', uploadData.url);
                                 console.log('UPDATED APPOINTMENT STATE:', updated);
@@ -2163,7 +2263,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
     
                   <Button
                     onClick={handleUpdateAppointment}
-                    disabled={!canUploadAfterServicePhoto || !selectedAppointment?.afterServicePhotoUrl || saving}
+                    disabled={!canUploadAfterServicePhoto || pendingAfterServicePhotoUrls.length === 0 || saving}
                     sx={{
                       backgroundColor: '#000',
                       color: '#f4b400',
@@ -2183,7 +2283,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                       },
                     }}
                   >
-                    {saving ? 'Saving...' : 'Save Photo'}
+                    {saving ? 'Saving...' : pendingAfterServicePhotoUrls.length > 1 ? 'Save Photos' : 'Save Photo'}
                   </Button>
                 </DialogActions>
               </>
@@ -2222,28 +2322,147 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
             </DialogActions>
           </Dialog>
 
-          {/* PHOTO VIEWER */}
-          <Dialog open={photoViewerOpen} onClose={() => setPhotoViewerOpen(false)}>
-            <DialogTitle>
-              After Service Photo
+          {/* IMAGE VIEWER */}
+          <Dialog
+            open={imageViewerOpen}
+            onClose={() => setImageViewerOpen(false)}
+            maxWidth="md"
+            fullWidth
+          >
+            <DialogTitle sx={{ fontWeight: 800 }}>
+              {imageViewerTitle}
+              {imageViewerPhotos.length > 1 && (
+                <Typography component="span" sx={{ ml: 1, color: '#777', fontSize: 13 }}>
+                  ({imageViewerIndex + 1} of {imageViewerPhotos.length})
+                </Typography>
+              )}
+
               <IconButton
-                onClick={() => setPhotoViewerOpen(false)}
+                onClick={() => setImageViewerOpen(false)}
                 sx={{ position: 'absolute', right: 12, top: 10 }}
               >
                 <CloseIcon />
               </IconButton>
             </DialogTitle>
-            <DialogContent>
-              {selectedAppointment?.afterServicePhotoUrl && (
-                <Box
-                  component="img"
-                  src={selectedAppointment.afterServicePhotoUrl}
-                  alt="After service"
-                  sx={{ width: '100%', maxWidth: 600, display: 'block' }}
-                />
+
+            <DialogContent
+              sx={{
+                bgcolor: '#f5f5f5',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+                p: 3,
+              }}
+            >
+              {imageViewerUrl ? (
+                <>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 2,
+                    }}
+                  >
+                    <IconButton
+                      disabled={imageViewerPhotos.length <= 1}
+                      onClick={() => {
+                        const nextIndex =
+                          imageViewerIndex === 0
+                            ? imageViewerPhotos.length - 1
+                            : imageViewerIndex - 1;
+
+                        setImageViewerIndex(nextIndex);
+                        setImageViewerUrl(imageViewerPhotos[nextIndex]?.imageUrl || '');
+                      }}
+                      sx={{
+                        bgcolor: '#fff',
+                        border: '1px solid #ddd',
+                        '&:hover': { bgcolor: '#eee' },
+                      }}
+                    >
+                      <ChevronLeftIcon />
+                    </IconButton>
+
+                    <Box
+                      component="img"
+                      src={imageViewerUrl}
+                      alt={imageViewerTitle || 'Appointment image'}
+                      sx={{
+                        width: '100%',
+                        maxWidth: 820,
+                        maxHeight: '68vh',
+                        objectFit: 'contain',
+                        borderRadius: 2,
+                        bgcolor: '#fff',
+                      }}
+                    />
+
+                    <IconButton
+                      disabled={imageViewerPhotos.length <= 1}
+                      onClick={() => {
+                        const nextIndex =
+                          imageViewerIndex === imageViewerPhotos.length - 1
+                            ? 0
+                            : imageViewerIndex + 1;
+
+                        setImageViewerIndex(nextIndex);
+                        setImageViewerUrl(imageViewerPhotos[nextIndex]?.imageUrl || '');
+                      }}
+                      sx={{
+                        bgcolor: '#fff',
+                        border: '1px solid #ddd',
+                        '&:hover': { bgcolor: '#eee' },
+                      }}
+                    >
+                      <ChevronRightIcon />
+                    </IconButton>
+                  </Box>
+
+                  {imageViewerPhotos.length > 1 && (
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        gap: 1,
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      {imageViewerPhotos.map((photo, index) => (
+                        <Box
+                          key={photo.id || photo.imageUrl}
+                          component="img"
+                          src={photo.imageUrl}
+                          alt={`Thumbnail ${index + 1}`}
+                          onClick={() => {
+                            setImageViewerIndex(index);
+                            setImageViewerUrl(photo.imageUrl);
+                          }}
+                          sx={{
+                            width: 76,
+                            height: 58,
+                            objectFit: 'cover',
+                            borderRadius: 1,
+                            cursor: 'pointer',
+                            border:
+                              index === imageViewerIndex
+                                ? '2px solid #000'
+                                : '1px solid #ccc',
+                            bgcolor: '#fff',
+                          }}
+                        />
+                      ))}
+                    </Box>
+                  )}
+                </>
+              ) : (
+                <Typography sx={{ color: '#777', textAlign: 'center' }}>
+                  No image available.
+                </Typography>
               )}
             </DialogContent>
           </Dialog>
+
     </Box>
   );
 }

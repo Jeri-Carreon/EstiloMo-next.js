@@ -29,8 +29,6 @@ export async function PUT(
 
     const body = await req.json();
 
-    console.log("APPOINTMENT UPDATE BODY:", body);
-
     const {
       barberId,
       serviceId,
@@ -44,15 +42,11 @@ export async function PUT(
     const data: any = {};
 
     if (barberId) {
-      data.barber = {
-        connect: { id: barberId },
-      };
+      data.barber = { connect: { id: barberId } };
     }
 
     if (serviceId) {
-      data.service = {
-        connect: { id: serviceId },
-      };
+      data.service = { connect: { id: serviceId } };
     }
 
     if (appointmentDate) {
@@ -88,31 +82,12 @@ export async function PUT(
     });
 
     if (afterServicePhotoUrl) {
-      console.log("SAVING AFTER SERVICE PHOTO:", afterServicePhotoUrl);
-
-      const existingPhoto = await db.afterServicePhoto.findFirst({
-        where: {
+      await db.afterServicePhoto.create({
+        data: {
           appointmentId: id,
+          imageUrl: afterServicePhotoUrl,
         },
       });
-
-      if (existingPhoto) {
-        await db.afterServicePhoto.update({
-          where: {
-            id: existingPhoto.id,
-          },
-          data: {
-            imageUrl: afterServicePhotoUrl,
-          },
-        });
-      } else {
-        await db.afterServicePhoto.create({
-          data: {
-            appointmentId: id,
-            imageUrl: afterServicePhotoUrl,
-          },
-        });
-      }
     }
 
     const updatedAppointment = await db.appointment.findUnique({
@@ -133,6 +108,7 @@ export async function PUT(
     return NextResponse.json({
       success: true,
       appointment: updatedAppointment,
+      afterServicePhotos: updatedAppointment?.afterServicePhotos || [],
       afterServicePhotoUrl:
         updatedAppointment?.afterServicePhotos?.[0]?.imageUrl || null,
     });
