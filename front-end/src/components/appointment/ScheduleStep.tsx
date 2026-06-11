@@ -494,6 +494,7 @@ useEffect(() => {
                       !isPastDate &&
                       !isUnavailable;
 
+                      
 
                     const isSelected =
                       selectedDate &&
