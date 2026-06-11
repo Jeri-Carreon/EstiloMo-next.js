@@ -84,8 +84,10 @@ type Sale = {
     id: string;
     paymentCode: string | null;
     amount: number;
+    downPayment: number;
     method: "CASH" | "GCASH";
     status: "PENDING" | "PAID" | "REJECTED";
+    screenshotUrl: string | null;
   } | null;
 };
 
@@ -203,7 +205,13 @@ export default function SalesPage() {
 
   const [openAdd, setOpenAdd] = useState(false);
   const [openPayment, setOpenPayment] = useState(false);
+  const [openCancelConfirm, setOpenCancelConfirm] = useState(false);
+  const [openViewTransaction, setOpenViewTransaction] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [imageViewerUrl, setImageViewerUrl] = useState("");
+  const [imageViewerTitle, setImageViewerTitle] = useState("");
 
   const [customerSearch, setCustomerSearch] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -242,6 +250,36 @@ export default function SalesPage() {
       customer.mobileNumber?.includes(keyword)
     );
   });
+
+  const openImageViewer = (title: string, imageUrl?: string | null) => {
+    setImageViewerTitle(title);
+    setImageViewerUrl(imageUrl || "");
+    setImageViewerOpen(true);
+  };
+
+  useEffect(() => {
+    if (!selectedSale) return;
+
+    setSelectedCustomerId(selectedSale.customer.id);
+    setCustomerSearch(selectedSale.customer.name);
+    setMethod((selectedSale.payment?.method as "CASH" | "GCASH") || "CASH");
+    setSelectedBarberId(selectedSale.barber?.id || "");
+    setDiscountPercent(
+      selectedSale.subtotal > 0
+        ? Math.round((selectedSale.discount / selectedSale.subtotal) * 100)
+        : 0
+    );
+
+    setCart(
+      selectedSale.items.map((item) => ({
+        serviceId: item.serviceId,
+        serviceName: item.serviceName,
+        quantity: item.quantity,
+        price: Number(item.price),
+        durationMinutes: 0,
+      }))
+    );
+  }, [selectedSale]);
 
   async function loadData() {
     try {
@@ -291,7 +329,18 @@ export default function SalesPage() {
     setCart([]);
   }
 
+  function closePosAndReset() {
+    setOpenAdd(false);
+    setOpenCancelConfirm(false);
+    setOpenPayment(false);
+    setOpenViewTransaction(false);
+    setSelectedSale(null);
+    resetForm();
+  }
+
   function addServiceToCart(service: Service) {
+    if (selectedSale) return;
+
     setCart((prev) => {
       const existing = prev.find((item) => item.serviceId === service.id);
 
@@ -317,6 +366,8 @@ export default function SalesPage() {
   }
 
   function increaseQty(serviceId: string) {
+    if (selectedSale) return;
+
     setCart((prev) =>
       prev.map((item) =>
         item.serviceId === serviceId
@@ -327,6 +378,8 @@ export default function SalesPage() {
   }
 
   function decreaseQty(serviceId: string) {
+    if (selectedSale) return;
+
     setCart((prev) =>
       prev
         .map((item) =>
@@ -339,10 +392,13 @@ export default function SalesPage() {
   }
 
   function removeFromCart(serviceId: string) {
+    if (selectedSale) return;
     setCart((prev) => prev.filter((item) => item.serviceId !== serviceId));
   }
 
   function handleCustomerSearch(value: string) {
+    if (selectedSale) return;
+
     setCustomerSearch(value);
 
     if (value.trim().length < 2) {
@@ -445,8 +501,7 @@ export default function SalesPage() {
         throw new Error(data.error || "Failed to create sale");
       }
 
-      setOpenAdd(false);
-      resetForm();
+      closePosAndReset();
       await loadData();
 
       setSnackbar({
@@ -485,8 +540,7 @@ export default function SalesPage() {
         throw new Error(data.error || "Failed to confirm payment");
       }
 
-      setOpenPayment(false);
-      setSelectedSale(null);
+      closePosAndReset();
       await loadData();
 
       setSnackbar({
@@ -523,7 +577,11 @@ export default function SalesPage() {
         <Button
           variant="outlined"
           startIcon={<AddIcon />}
-          onClick={() => setOpenAdd(true)}
+          onClick={() => {
+            setSelectedSale(null);
+            resetForm();
+            setOpenAdd(true);
+          }}
           sx={{
             borderColor: "#e0e0e0",
             color: "#8a8a8a",
@@ -578,13 +636,10 @@ export default function SalesPage() {
                     }}
                   >
                     <TableCell sx={bodyCell}>{sale.saleCode}</TableCell>
-
                     <TableCell sx={bodyCell}>
                       {sale.customer.customerCode}
                     </TableCell>
-
                     <TableCell sx={bodyCell}>{sale.customer.name}</TableCell>
-
                     <TableCell sx={bodyCell}>
                       {new Date(sale.createdAt).toLocaleDateString("en-US", {
                         month: "long",
@@ -592,15 +647,12 @@ export default function SalesPage() {
                         year: "numeric",
                       })}
                     </TableCell>
-
                     <TableCell sx={bodyCell}>
                       {formatPeso(sale.totalAmount)}
                     </TableCell>
-
                     <TableCell sx={bodyCell}>
                       {sale.source === "WALKIN" ? "Walk-In" : "Appointment"}
                     </TableCell>
-
                     <TableCell sx={bodyCell}>
                       {sale.payment?.status === "PAID"
                         ? "Paid"
@@ -622,7 +674,7 @@ export default function SalesPage() {
                           disabled={sale.payment?.status === "PAID"}
                           onClick={() => {
                             setSelectedSale(sale);
-                            setOpenPayment(true);
+                            setOpenAdd(true);
                           }}
                           sx={{
                             ...actionIcon,
@@ -632,7 +684,14 @@ export default function SalesPage() {
                           <PaymentIcon sx={{ fontSize: 16 }} />
                         </IconButton>
 
-                        <IconButton size="small" sx={actionIcon}>
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            setSelectedSale(sale);
+                            setOpenViewTransaction(true);
+                          }}
+                          sx={actionIcon}
+                        >
                           <ReceiptLongIcon sx={{ fontSize: 16 }} />
                         </IconButton>
                       </Box>
@@ -681,7 +740,8 @@ export default function SalesPage() {
         <Box sx={pageArrow}>›</Box>
       </Box>
 
-      <Dialog open={openAdd} onClose={() => setOpenAdd(false)} fullScreen>
+      {/* POS / CONFIRM PAYMENT VIEW */}
+      <Dialog open={openAdd} onClose={() => setOpenCancelConfirm(true)} fullScreen>
         <DialogContent sx={{ p: 0, overflow: "hidden" }}>
           <Box sx={{ display: "flex", height: "100vh", bgcolor: "#fff" }}>
             <Box sx={{ flex: 1.35, px: 7, py: 5 }}>
@@ -704,6 +764,7 @@ export default function SalesPage() {
                   .map((service) => (
                     <Button
                       key={service.id}
+                      disabled={Boolean(selectedSale)}
                       onClick={() => addServiceToCart(service)}
                       sx={{
                         height: 72,
@@ -714,6 +775,7 @@ export default function SalesPage() {
                         display: "flex",
                         flexDirection: "column",
                         fontWeight: 900,
+                        opacity: selectedSale ? 0.55 : 1,
                         "&:hover": { bgcolor: "#dedede" },
                       }}
                     >
@@ -745,10 +807,7 @@ export default function SalesPage() {
               }}
             >
               <IconButton
-                onClick={() => {
-                  setOpenAdd(false);
-                  resetForm();
-                }}
+                onClick={() => setOpenCancelConfirm(true)}
                 sx={{ position: "absolute", top: 18, right: 20, zIndex: 5 }}
               >
                 <CloseIcon />
@@ -756,14 +815,17 @@ export default function SalesPage() {
 
               <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
                 <Typography sx={{ fontWeight: 900, color: "#aaa", mb: 0.5 }}>
-                  {selectedCustomer?.customerCode || "000"}
+                  {selectedSale?.customer.customerCode ||
+                    selectedCustomer?.customerCode ||
+                    "000"}
                 </Typography>
 
                 <TextField
                   fullWidth
                   variant="standard"
                   placeholder="Enter Name"
-                  value={customerSearch}
+                  value={selectedSale?.customer.name || customerSearch}
+                  disabled={Boolean(selectedSale)}
                   onChange={(e) => handleCustomerSearch(e.target.value)}
                   sx={{
                     bgcolor: "#fff",
@@ -779,7 +841,8 @@ export default function SalesPage() {
 
                 {customerSearch &&
                   filteredCustomers.length > 0 &&
-                  !selectedCustomer && (
+                  !selectedCustomer &&
+                  !selectedSale && (
                     <Paper
                       sx={{
                         position: "absolute",
@@ -824,14 +887,19 @@ export default function SalesPage() {
                   }}
                 >
                   <Typography sx={{ fontWeight: 800, color: "#777" }}>
-                    TRX-New
+                    {selectedSale?.saleCode || "TRX-New"}
                   </Typography>
+
                   <Box sx={{ textAlign: "right" }}>
                     <Typography sx={{ fontWeight: 900, color: "#777" }}>
-                      Walk-in
+                      {selectedSale?.source === "BOOKING"
+                        ? "Appointment"
+                        : "Walk-in"}
                     </Typography>
                     <Typography sx={{ fontWeight: 900, color: "#777" }}>
-                      Unpaid
+                      {selectedSale?.payment?.status === "PAID"
+                        ? "Paid"
+                        : "Unpaid"}
                     </Typography>
                   </Box>
                 </Box>
@@ -887,6 +955,7 @@ export default function SalesPage() {
                         <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
                           <Button
                             size="small"
+                            disabled={Boolean(selectedSale)}
                             onClick={() => decreaseQty(item.serviceId)}
                             sx={{ minWidth: 18, p: 0 }}
                           >
@@ -899,6 +968,7 @@ export default function SalesPage() {
 
                           <Button
                             size="small"
+                            disabled={Boolean(selectedSale)}
                             onClick={() => increaseQty(item.serviceId)}
                             sx={{ minWidth: 18, p: 0 }}
                           >
@@ -918,6 +988,7 @@ export default function SalesPage() {
 
                           <IconButton
                             size="small"
+                            disabled={Boolean(selectedSale)}
                             onClick={() => removeFromCart(item.serviceId)}
                             sx={{ bgcolor: "#ddd", width: 30, height: 30 }}
                           >
@@ -944,7 +1015,7 @@ export default function SalesPage() {
                     <Typography
                       sx={{ textDecoration: "line-through", color: "#888" }}
                     >
-                      ₱ 0
+                      {formatPeso(selectedSale?.payment?.downPayment || 0)}
                     </Typography>
                   </Box>
 
@@ -964,6 +1035,7 @@ export default function SalesPage() {
                       select
                       variant="standard"
                       value={method}
+                      disabled={Boolean(selectedSale)}
                       onChange={(e) =>
                         setMethod(e.target.value as "CASH" | "GCASH")
                       }
@@ -980,6 +1052,7 @@ export default function SalesPage() {
                       select
                       variant="standard"
                       value={discountPercent}
+                      disabled={Boolean(selectedSale)}
                       onChange={(e) => setDiscountPercent(Number(e.target.value))}
                       sx={{ width: 70 }}
                     >
@@ -991,47 +1064,49 @@ export default function SalesPage() {
                   </Box>
                 </Box>
 
-                <Box sx={{ bgcolor: "#fff", p: 2, mt: 2 }}>
-                  <Box sx={summaryRow}>
-                    <Typography>Barber</Typography>
-                    <TextField
-                      select
-                      variant="standard"
-                      value={selectedBarberId}
-                      onChange={(e) => setSelectedBarberId(e.target.value)}
-                      sx={{ width: 150 }}
-                    >
-                      {barbers.map((barber) => (
-                        <MenuItem key={barber.id} value={barber.id}>
-                          {fullName(barber)}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  </Box>
+                {!selectedSale && (
+                  <Box sx={{ bgcolor: "#fff", p: 2, mt: 2 }}>
+                    <Box sx={summaryRow}>
+                      <Typography>Barber</Typography>
+                      <TextField
+                        select
+                        variant="standard"
+                        value={selectedBarberId}
+                        onChange={(e) => setSelectedBarberId(e.target.value)}
+                        sx={{ width: 150 }}
+                      >
+                        {barbers.map((barber) => (
+                          <MenuItem key={barber.id} value={barber.id}>
+                            {fullName(barber)}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    </Box>
 
-                  <Box sx={summaryRow}>
-                    <Typography>Date</Typography>
-                    <TextField
-                      variant="standard"
-                      type="date"
-                      value={appointmentDate}
-                      onChange={(e) => setAppointmentDate(e.target.value)}
-                      sx={{ width: 150 }}
-                    />
-                  </Box>
+                    <Box sx={summaryRow}>
+                      <Typography>Date</Typography>
+                      <TextField
+                        variant="standard"
+                        type="date"
+                        value={appointmentDate}
+                        onChange={(e) => setAppointmentDate(e.target.value)}
+                        sx={{ width: 150 }}
+                      />
+                    </Box>
 
-                  <Box sx={summaryRow}>
-                    <Typography>Start</Typography>
-                    <TextField
-                      variant="standard"
-                      type="number"
-                      value={startMinutes}
-                      onChange={(e) => setStartMinutes(Number(e.target.value))}
-                      helperText={minutesToTime(Number(startMinutes || 0))}
-                      sx={{ width: 150 }}
-                    />
+                    <Box sx={summaryRow}>
+                      <Typography>Start</Typography>
+                      <TextField
+                        variant="standard"
+                        type="number"
+                        value={startMinutes}
+                        onChange={(e) => setStartMinutes(Number(e.target.value))}
+                        helperText={minutesToTime(Number(startMinutes || 0))}
+                        sx={{ width: 150 }}
+                      />
+                    </Box>
                   </Box>
-                </Box>
+                )}
               </Box>
 
               <Box
@@ -1045,10 +1120,7 @@ export default function SalesPage() {
               >
                 <Button
                   variant="contained"
-                  onClick={() => {
-                    setOpenAdd(false);
-                    resetForm();
-                  }}
+                  onClick={() => setOpenCancelConfirm(true)}
                   sx={{
                     bgcolor: "#d71920",
                     color: "#fff",
@@ -1064,7 +1136,14 @@ export default function SalesPage() {
 
                 <Button
                   variant="contained"
-                  onClick={createSale}
+                  onClick={() => {
+                    if (selectedSale) {
+                      setOpenPayment(true);
+                      return;
+                    }
+
+                    createSale();
+                  }}
                   disabled={saving}
                   sx={{
                     bgcolor: "#000",
@@ -1084,32 +1163,238 @@ export default function SalesPage() {
         </DialogContent>
       </Dialog>
 
+      {/* VIEW TRANSACTION */}
+      <Dialog
+        open={openViewTransaction}
+        onClose={() => {
+          setOpenViewTransaction(false);
+          setSelectedSale(null);
+        }}
+        maxWidth={false}
+        slotProps={{
+          paper: {
+            sx: {
+              width: 420,
+              borderRadius: 0,
+              p: 3,
+              boxShadow: "none",
+              border: "1px solid #999",
+            },
+          },
+          backdrop: {
+            sx: {
+              bgcolor: "rgba(255,255,255,0.65)",
+              backdropFilter: "grayscale(1)",
+            },
+          },
+        }}
+      >
+        <Box sx={{ position: "relative" }}>
+          <IconButton
+            onClick={() => {
+              setOpenViewTransaction(false);
+              setSelectedSale(null);
+            }}
+            sx={{ position: "absolute", top: -12, right: -12 }}
+          >
+            <CloseIcon />
+          </IconButton>
+
+          <Typography sx={{ fontWeight: 900, fontSize: 22, mb: 2 }}>
+            View Transaction
+          </Typography>
+
+          <Typography sx={{ fontWeight: 900 }}>
+            Transaction #: {selectedSale?.saleCode}
+          </Typography>
+          <Typography sx={{ fontWeight: 900 }}>
+            ID: {selectedSale?.customer.customerCode}
+          </Typography>
+          <Typography sx={{ fontWeight: 900, mb: 2 }}>
+            Name: {selectedSale?.customer.name}
+          </Typography>
+
+          <Box sx={{ bgcolor: "#fff", border: "1px solid #eee", mb: 2 }}>
+            {selectedSale?.items.map((item) => (
+              <Box
+                key={item.id}
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  px: 2,
+                  py: 1.5,
+                  borderBottom: "1px solid #eee",
+                }}
+              >
+                <Typography sx={{ fontWeight: 800 }}>
+                  {item.serviceName} x{item.quantity}
+                </Typography>
+                <Typography sx={{ fontWeight: 800 }}>
+                  {formatPeso(item.subtotal)}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+
+          <Box sx={{ bgcolor: "#fff", p: 2 }}>
+            <Box sx={summaryRow}>
+              <Typography>Subtotal</Typography>
+              <Typography>{formatPeso(selectedSale?.subtotal || 0)}</Typography>
+            </Box>
+
+            <Box sx={summaryRow}>
+              <Typography>Downpayment</Typography>
+
+              {selectedSale?.payment?.screenshotUrl ? (
+                <Button
+                  onClick={() =>
+                    openImageViewer(
+                      "Proof of Downpayment",
+                      selectedSale.payment?.screenshotUrl
+                    )
+                  }
+                  sx={{
+                    p: 0,
+                    minWidth: 0,
+                    color: "#1976d2",
+                    fontWeight: 900,
+                    textTransform: "none",
+                    textDecoration: "underline",
+                  }}
+                >
+                  {formatPeso(selectedSale.payment?.downPayment || 0)}
+                </Button>
+              ) : (
+                <Typography>{formatPeso(selectedSale?.payment?.downPayment || 0)}</Typography>
+              )}
+            </Box>
+
+            <Box sx={summaryRow}>
+              <Typography>Discount</Typography>
+              <Typography>{formatPeso(selectedSale?.discount || 0)}</Typography>
+            </Box>
+
+            <Box sx={summaryRow}>
+              <Typography>Total Payment</Typography>
+              <Typography>{formatPeso(selectedSale?.totalAmount || 0)}</Typography>
+            </Box>
+
+            <Box sx={summaryRow}>
+              <Typography>Mode of Payment</Typography>
+              <Typography>{selectedSale?.payment?.method || "-"}</Typography>
+            </Box>
+
+            <Box sx={summaryRow}>
+              <Typography>Status</Typography>
+              <Typography>
+                {selectedSale?.payment?.status === "PAID" ? "Paid" : "Unpaid"}
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+      </Dialog>
+
+      {/* IMAGE VIEWER */}
+      <Dialog
+        open={imageViewerOpen}
+        onClose={() => setImageViewerOpen(false)}
+        maxWidth={false}
+        slotProps={{
+          paper: {
+            sx: {
+              width: 800,
+              maxWidth: "90vw",
+              borderRadius: 2,
+              p: 3,
+              boxShadow: 3,
+            },
+          },
+          backdrop: {
+            sx: {
+              bgcolor: "rgba(255,255,255,0.65)",
+              backdropFilter: "grayscale(1)",
+            },
+          },
+        }}
+      >
+        <Box sx={{ position: "relative", textAlign: "center" }}>
+          <IconButton
+            onClick={() => setImageViewerOpen(false)}
+            sx={{ position: "absolute", top: -18, right: -18 }}
+          >
+            <CloseIcon />
+          </IconButton>
+
+          <Typography sx={{ fontWeight: 900, mb: 2 }}>
+            {imageViewerTitle}
+          </Typography>
+
+          {imageViewerUrl ? (
+            <Box
+              component="img"
+              src={imageViewerUrl}
+              alt={imageViewerTitle}
+              sx={{
+                width: "100%",
+                maxHeight: "80vh",
+                objectFit: "contain",
+              }}
+            />
+          ) : (
+            <Typography>No image uploaded.</Typography>
+          )}
+        </Box>
+      </Dialog>
+
+      {/* CONFIRM PAYMENT MODAL */}
       <Dialog
         open={openPayment}
         onClose={() => setOpenPayment(false)}
-        fullWidth
-        maxWidth="sm"
+        maxWidth={false}
+        slotProps={{
+          paper: {
+            sx: {
+              width: 420,
+              borderRadius: 0,
+              p: 3,
+              boxShadow: "none",
+              border: "1px solid #999",
+            },
+          },
+          backdrop: {
+            sx: {
+              bgcolor: "rgba(255,255,255,0.65)",
+              backdropFilter: "grayscale(1)",
+            },
+          },
+        }}
       >
-        <DialogContent>
+        <Box sx={{ position: "relative" }}>
+          <IconButton
+            onClick={() => setOpenPayment(false)}
+            sx={{ position: "absolute", top: -12, right: -12 }}
+          >
+            <CloseIcon />
+          </IconButton>
+
           <Typography sx={{ fontWeight: 900, fontSize: 22, mb: 2 }}>
             Confirm Payment
           </Typography>
 
-          <Typography sx={{ mb: 1 }}>
-            Are you sure you want to confirm this transaction?
+          <Typography sx={{ fontSize: 14, color: "#777", fontWeight: 700 }}>
+            Are you sure you want to Confirm Transaction?
           </Typography>
 
-          <Typography>
-            <b>Transaction #:</b> {selectedSale?.saleCode}
+          <Typography sx={{ fontWeight: 900 }}>
+            Transaction #: {selectedSale?.saleCode || "TRX-New"}
           </Typography>
-          <Typography>
-            <b>ID:</b> {selectedSale?.customer.customerCode}
+
+          <Typography sx={{ fontWeight: 900 }}>
+            ID: {selectedSale?.customer.customerCode || "000"}
           </Typography>
-          <Typography>
-            <b>Name:</b> {selectedSale?.customer.name}
-          </Typography>
-          <Typography>
-            <b>Total:</b> {formatPeso(selectedSale?.totalAmount || 0)}
+
+          <Typography sx={{ fontWeight: 900 }}>
+            Name: {selectedSale?.customer.name || "Customer"}
           </Typography>
 
           <Box sx={{ display: "flex", justifyContent: "center", gap: 3, mt: 4 }}>
@@ -1120,9 +1405,11 @@ export default function SalesPage() {
               sx={{
                 bgcolor: "#777",
                 color: "#ffc107",
+                width: 120,
+                height: 45,
                 textTransform: "none",
-                px: 5,
-                "&:hover": { bgcolor: "#666" },
+                boxShadow: "none",
+                "&:hover": { bgcolor: "#666", boxShadow: "none" },
               }}
             >
               {saving ? "Confirming..." : "Confirm"}
@@ -1134,15 +1421,102 @@ export default function SalesPage() {
               sx={{
                 bgcolor: "#000",
                 color: "#ffc107",
+                width: 120,
+                height: 45,
                 textTransform: "none",
-                px: 5,
-                "&:hover": { bgcolor: "#111" },
+                boxShadow: "none",
+                "&:hover": { bgcolor: "#111", boxShadow: "none" },
               }}
             >
               Cancel
             </Button>
           </Box>
-        </DialogContent>
+        </Box>
+      </Dialog>
+
+      {/* CANCEL TRANSACTION MODAL */}
+      <Dialog
+        open={openCancelConfirm}
+        onClose={() => setOpenCancelConfirm(false)}
+        maxWidth={false}
+        slotProps={{
+          paper: {
+            sx: {
+              width: 420,
+              borderRadius: 0,
+              p: 3,
+              boxShadow: "none",
+              border: "1px solid #999",
+            },
+          },
+          backdrop: {
+            sx: {
+              bgcolor: "rgba(255,255,255,0.65)",
+              backdropFilter: "grayscale(1)",
+            },
+          },
+        }}
+      >
+        <Box sx={{ position: "relative" }}>
+          <IconButton
+            onClick={() => setOpenCancelConfirm(false)}
+            sx={{ position: "absolute", top: -12, right: -12 }}
+          >
+            <CloseIcon />
+          </IconButton>
+
+          <Typography sx={{ fontWeight: 900, fontSize: 22, mb: 2 }}>
+            Cancel Transaction
+          </Typography>
+
+          <Typography sx={{ fontSize: 14, color: "#777", fontWeight: 700 }}>
+            Are you sure you want to Cancel Transaction?
+          </Typography>
+
+          <Typography sx={{ fontWeight: 900 }}>
+            ID: {selectedSale?.saleCode || "TRX-New"}
+          </Typography>
+
+          <Typography sx={{ fontWeight: 900 }}>
+            Name:{" "}
+            {selectedSale?.customer.name ||
+              (selectedCustomer ? fullName(selectedCustomer) : "Customer")}
+          </Typography>
+
+          <Box sx={{ display: "flex", justifyContent: "center", gap: 3, mt: 4 }}>
+            <Button
+              variant="contained"
+              onClick={closePosAndReset}
+              sx={{
+                bgcolor: "#777",
+                color: "#ffc107",
+                width: 120,
+                height: 45,
+                textTransform: "none",
+                boxShadow: "none",
+                "&:hover": { bgcolor: "#666", boxShadow: "none" },
+              }}
+            >
+              Delete
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={() => setOpenCancelConfirm(false)}
+              sx={{
+                bgcolor: "#000",
+                color: "#ffc107",
+                width: 120,
+                height: 45,
+                textTransform: "none",
+                boxShadow: "none",
+                "&:hover": { bgcolor: "#111", boxShadow: "none" },
+              }}
+            >
+              Cancel
+            </Button>
+          </Box>
+        </Box>
       </Dialog>
 
       <Snackbar

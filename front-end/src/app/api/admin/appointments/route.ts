@@ -28,6 +28,11 @@ export async function GET() {
         customer: true,
         payment: true,
         service: true,
+        sale: {
+          include: {
+            payment: true,
+          },
+        },
         afterServicePhotos: {
           orderBy: {
             createdAt: "desc",
@@ -39,68 +44,73 @@ export async function GET() {
       },
     });
 
-    const result = appointments.map((appointment) => ({
-      id: appointment.id,
-      appointmentCode: appointment.appointmentCode,
-      customerId: appointment.customerId,
-      barberId: appointment.barberId,
-      serviceId: appointment.serviceId,
-      appointmentDate: appointment.appointmentDate,
-      startMinutes: appointment.startMinutes,
-      endMinutes: appointment.endMinutes,
+    const result = appointments.map((appointment) => {
+      const payment = appointment.payment || appointment.sale?.payment || null;
 
-      customer: {
-        id: appointment.customer.id,
-        customerCode: appointment.customer.customerCode,
-        name: [appointment.customer.firstName, appointment.customer.lastName]
-          .filter(Boolean)
-          .join(" "),
-      },
+      return {
+        id: appointment.id,
+        appointmentCode: appointment.appointmentCode,
+        customerId: appointment.customerId,
+        barberId: appointment.barberId,
+        serviceId: appointment.serviceId,
+        appointmentDate: appointment.appointmentDate,
+        startMinutes: appointment.startMinutes,
+        endMinutes: appointment.endMinutes,
 
-      schedule: {
-        date: appointment.appointmentDate.toLocaleDateString("en-US", {
-          month: "numeric",
-          day: "numeric",
-          year: "numeric",
-        }),
-        startTime: minutesToTime(appointment.startMinutes),
-        endTime: minutesToTime(appointment.endMinutes),
-        formatted: `${appointment.appointmentDate.toLocaleDateString("en-US", {
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        })} ${minutesToTime(appointment.startMinutes)} - ${minutesToTime(
-          appointment.endMinutes
-        )}`,
-      },
+        customer: {
+          id: appointment.customer.id,
+          customerCode: appointment.customer.customerCode,
+          name: [appointment.customer.firstName, appointment.customer.lastName]
+            .filter(Boolean)
+            .join(" "),
+        },
 
-      service: {
-        id: appointment.service.id,
-        name: appointment.service.name,
-      },
+        schedule: {
+          date: appointment.appointmentDate.toLocaleDateString("en-US", {
+            month: "numeric",
+            day: "numeric",
+            year: "numeric",
+          }),
+          startTime: minutesToTime(appointment.startMinutes),
+          endTime: minutesToTime(appointment.endMinutes),
+          formatted: `${appointment.appointmentDate.toLocaleDateString("en-US", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          })} ${minutesToTime(appointment.startMinutes)} - ${minutesToTime(
+            appointment.endMinutes
+          )}`,
+        },
 
-      barber: {
-        id: appointment.barber.id,
-        name: [appointment.barber.firstName, appointment.barber.lastName]
-          .filter(Boolean)
-          .join(" "),
-      },
+        service: {
+          id: appointment.service.id,
+          name: appointment.service.name,
+        },
 
-      payment: {
-        id: appointment.payment?.id || null,
-        amount: appointment.payment?.amount ?? appointment.service.price ?? 0,
-        downPayment: appointment.payment?.downPayment ?? 150,
-        method: appointment.payment?.method || "GCASH",
-        screenshotUrl: appointment.payment?.screenshotUrl || null,
-        proofUrl: appointment.payment?.screenshotUrl || null,
-      },
+        barber: {
+          id: appointment.barber.id,
+          name: [appointment.barber.firstName, appointment.barber.lastName]
+            .filter(Boolean)
+            .join(" "),
+        },
 
-      afterServicePhotos: appointment.afterServicePhotos || [],
-      afterServicePhotoUrl:
-        appointment.afterServicePhotos?.[0]?.imageUrl || null,
+        payment: {
+          id: payment?.id || null,
+          amount: Number(payment?.amount || appointment.service.price || 0),
+          downPayment: Number(payment?.downPayment || 0),
+          method: payment?.method || "GCASH",
+          status: payment?.status || "PENDING",
+          screenshotUrl: payment?.screenshotUrl || null,
+          proofUrl: payment?.screenshotUrl || null,
+        },
 
-      status: appointment.status,
-    }));
+        afterServicePhotos: appointment.afterServicePhotos || [],
+        afterServicePhotoUrl:
+          appointment.afterServicePhotos?.[0]?.imageUrl || null,
+
+        status: appointment.status,
+      };
+    });
 
     return NextResponse.json(result);
   } catch (error) {
