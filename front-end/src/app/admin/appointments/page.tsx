@@ -543,7 +543,7 @@ export default function AppointmentsPage() {
 
   const processedBaseAppointments = appointments.filter(
   (appointment) => appointment.status.toUpperCase() !== 'PENDING'
-);
+  );
 
   const filteredProcessedAppointments = processedBaseAppointments.filter(
     (appointment) => {
@@ -785,8 +785,8 @@ export default function AppointmentsPage() {
     const statusColorMap: Record<string, { bg: string; color: string }> = {
       PENDING: { bg: '#FEF3C7', color: '#92400E' },
       SCHEDULED: { bg: '#DBEAFE', color: '#1E40AF' },
-      COMPLETED: { bg: '#D1FAE5', color: '#065F46' },
-      CANCELLED: { bg: '#FFEDD5', color: '#EA580C' },
+      COMPLETED: { bg: '#D1FAE5', color: '#065f46' },
+      CANCELLED: { bg: '#d81d1d', color: '#2b1515' },
       REJECTED: { bg: '#FEE2E2', color: '#DC2626' },
       NOSHOW: { bg: '#E5E7EB', color: '#1F2937' },
     };

@@ -35,6 +35,8 @@ import DialogTitle from '@mui/material/DialogTitle';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DialogActions from '@mui/material/DialogActions';
+import InputAdornment from '@mui/material/InputAdornment';
+import SearchIcon from '@mui/icons-material/Search';
 
 import TextField from '@mui/material/TextField';
 
@@ -188,6 +190,9 @@ export default function BarbersPage() {
   const [scheduledPage, setScheduledPage] = useState(1);
   const [processedPage, setProcessedPage] = useState(1);
 
+  // Search & Filter
+  const [processedSearch, setProcessedSearch] = useState('');
+  const [processedStatusFilter, setProcessedStatusFilter] = useState('ALL');
   const itemsPerPage = 4;
 
   const currentBarber = barbers[currentBarberIndex];
@@ -539,9 +544,34 @@ export default function BarbersPage() {
   );
 
   {/* Processed Appointments */}
-  const filteredProcessedAppointments = appointments.filter((appointment) => {
-    return appointment.status !== "SCHEDULED" && appointment.status !== "PENDING";
-  });
+  const processedBaseAppointments = appointments.filter(
+  (appointment) => appointment.status.toUpperCase() !== 'SCHEDULED' && appointment.status.toUpperCase() !== 'PENDING' && appointment.status.toUpperCase() !== 'REJECTED'
+  );
+
+  const filteredProcessedAppointments = processedBaseAppointments.filter(
+    (appointment) => {
+      const searchValue = processedSearch.toLowerCase();
+
+      const matchesSearch =
+        appointment.appointmentCode.toLowerCase().includes(searchValue) ||
+        appointment.customerCode.toLowerCase().includes(searchValue) ||
+        appointment.customerName.toLowerCase().includes(searchValue) ||
+        appointment.schedule.toLowerCase().includes(searchValue) ||
+        appointment.serviceName.toLowerCase().includes(searchValue) ||
+        appointment.barberName.toLowerCase().includes(searchValue) ||
+        appointment.status.toLowerCase().includes(searchValue);
+
+      const matchesStatus =
+        processedStatusFilter === 'ALL' ||
+        appointment.status.toUpperCase() === processedStatusFilter;
+
+      const isProcessed =
+        appointment.status !== "SCHEDULED" && 
+        appointment.status !== "PENDING" &&
+        appointment.status !== "REJECTED";
+      return matchesSearch && matchesStatus && isProcessed;
+    }
+  );
 
   const paginatedProcessedAppointments = filteredProcessedAppointments.slice(
     (processedPage - 1) * itemsPerPage,
@@ -560,6 +590,7 @@ export default function BarbersPage() {
     );
   }
 
+  // CALENDAR VIEW
   const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function formatMinutes(minutes: number) {
@@ -576,6 +607,8 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
 
+  const today = new Date();
+
   const firstDay = new Date(year, month, 1).getDay();
   const totalDays = new Date(year, month + 1, 0).getDate();
 
@@ -586,16 +619,14 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
 
   const getAppointmentsForDay = (day: number) => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return appointments.filter((a) => a.appointmentDate?.startsWith(dateStr) && a.status !== "PENDING");
+    return appointments.filter((a) => a.appointmentDate?.startsWith(dateStr) && a.status !== "PENDING" && a.status !== "REJECTED");
   };
 
   const statusColor: Record<string, { bg: string; color: string }> = {
-    PENDING:   { bg: '#FEF3C7', color: '#92400E' },
-    SCHEDULED: { bg: '#D1FAE5', color: '#065F46' },
-    COMPLETED: { bg: '#E0E7FF', color: '#3730A3' },
-    CANCELLED: { bg: '#FEE2E2', color: '#991B1B' },
-    REJECTED: { bg: '#FECACA', color: '#B91C1C' },
-    NOSHOW:    { bg: '#F3F4F6', color: '#6B7280' },
+    SCHEDULED: { bg: '#DBEAFE', color: '#1E40AF' },
+    COMPLETED: { bg: '#D1FAE5', color: '#065f46' },
+    CANCELLED: { bg: '#d81d1d', color: '#2b1515' },
+    NOSHOW: { bg: '#E5E7EB', color: '#1F2937' },
   };
 
   return (
@@ -671,6 +702,12 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
           {calDays.map((day, index) => {
             const dayAppointments = day ? getAppointmentsForDay(day) : [];
 
+            const isToday =
+                day !== null &&
+                day === today.getDate() &&
+                month === today.getMonth() &&
+                year === today.getFullYear();
+
             return (
               <Box
                 key={index}
@@ -679,7 +716,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                   borderRight: '1px solid #e0e0e0',
                   borderBottom: '1px solid #e0e0e0',
                   p: 0.5,
-                  bgcolor: day ? '#fafafa' : '#f0f0f0',
+                  bgcolor: isToday ? '#8d8d8d' : day ? '#fafafa' : '#f0f0f0',
                   '&:nth-of-type(7n)': { borderRight: 'none' },
                 }}
               >
@@ -948,6 +985,50 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
           Processed appointments
         </Typography>
+      </Box>
+
+      <Box sx={{ display: 'flex', gap: 2, mb: 4, flexWrap: 'wrap' }}>
+        <TextField
+          size="small"
+          placeholder="Search processed appointments..."
+          value={processedSearch}
+          onChange={(e) => {
+            setProcessedSearch(e.target.value);
+            setProcessedPage(1);
+          }}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: '#999' }} />
+                </InputAdornment>
+              ),
+            },
+          }}
+          sx={{
+            flex: 1,
+            maxWidth: 300,
+          }}
+        />
+
+        <TextField
+          select
+          size="small"
+          value={processedStatusFilter}
+          onChange={(e) => {
+            setProcessedStatusFilter(e.target.value);
+            setProcessedPage(1);
+          }}
+          sx={{
+            width: 170,
+            bgcolor: '#fff',
+          }}
+        >
+          <MenuItem value="ALL">All Status</MenuItem>
+          <MenuItem value="COMPLETED">Completed</MenuItem>
+          <MenuItem value="CANCELLED">Cancelled</MenuItem>
+          <MenuItem value="NOSHOW">No-show</MenuItem>
+        </TextField>
       </Box>
 
       {error && (
@@ -1697,18 +1778,16 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
           {(() => {
             const dateStr = formatDateInput(dayViewDate);
             const dayAppointments = appointments.filter((a) =>
-              a.appointmentDate?.startsWith(dateStr) && a.status !== 'PENDING'
+              a.appointmentDate?.startsWith(dateStr) && a.status !== 'PENDING' && a.status !== 'REJECTED'
             );
 
             const hours = Array.from({ length: 11 }, (_, i) => i + 10);
 
             const statusColorMap: Record<string, { bg: string; color: string }> = {
-              PENDING:   { bg: '#FEF3C7', color: '#92400E' },
-              SCHEDULED: { bg: '#D1FAE5', color: '#065F46' },
-              COMPLETED: { bg: '#E0E7FF', color: '#3730A3' },
-              CANCELLED: { bg: '#FEE2E2', color: '#991B1B' },
-              REJECTED: { bg: '#FECACA', color: '#B91C1C' },
-    NOSHOW:    { bg: '#F3F4F6', color: '#6B7280' },
+              SCHEDULED: { bg: '#DBEAFE', color: '#1E40AF' },
+              COMPLETED: { bg: '#D1FAE5', color: '#065f46' },
+              CANCELLED: { bg: '#d81d1d', color: '#2b1515' },
+              NOSHOW: { bg: '#E5E7EB', color: '#1F2937' },
             };
 
             return (

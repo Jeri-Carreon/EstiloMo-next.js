@@ -47,6 +47,7 @@ interface Service {
     name: string;
   }[];
   isAvailable: boolean;
+  sortOrder: number;
 }
 
 export default function ServicesPage() {
@@ -56,11 +57,6 @@ export default function ServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
-  const [searchTerm, setSearchTerm] = useState('');
-  const [page, setPage] = useState(1);
-
-  const itemsPerPage = 5;
 
   // ADD MODAL
   const [openAdd, setOpenAdd] = useState(false);
@@ -77,33 +73,6 @@ export default function ServicesPage() {
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
   const [serviceAvailability, setServiceAvailability] = useState(true);
 
-  // Filters
-  const [filterAnchorEl, setFilterAnchorEl] =
-  useState<null | HTMLElement>(null);
-
-
-const [availabilityFilter, setAvailabilityFilter] =
-  useState<'ALL' | 'AVAILABLE' | 'UNAVAILABLE'>(
-    'ALL'
-  );
-
-const filterOpen = Boolean(filterAnchorEl);
-  useEffect(() => {
-  if (status === 'loading') return;
-  if (!session) return;
-
-  const loadStaff = async () => {
-    const res = await fetch('/api/admin/staff', {
-      cache: 'no-store',
-    });
-
-    const data = await res.json();
-    setStaffList(data.staff || []);
-  };
-
-  loadStaff();
-}, [session, status]);
-
   // DELETE
   const [openDel, setOpenDel] = useState(false);
 
@@ -118,6 +87,7 @@ const filterOpen = Boolean(filterAnchorEl);
   const [editPrice, setEditPrice] = useState(0);
   const [editSelectedStaffIds, setEditSelectedStaffIds] = useState<string[]>([]);
   const [editAvailability, setEditAvailability] = useState(true);
+  const [editOriginalSortOrder, setEditOriginalSortOrder] = useState(0);
 
   // STATUS MODAL
   const [openStatusModal, setOpenStatusModal] = useState(false);
@@ -175,29 +145,61 @@ const filterOpen = Boolean(filterAnchorEl);
     loadServices();
   }, [session, status, router]);
 
- const filteredServices = services.filter((service) => {
-  const matchesSearch = service.name
-    .toLowerCase()
-    .includes(searchTerm.toLowerCase());
+  // Loads Barbers For Add and Edit
+  useEffect(() => {
+    const loadStaff = async () => {
+      try {
+        const res = await fetch('/api/admin/staff');
+        const data = await res.json();
+        setStaffList(data.staff || []);
+      } catch (err) {
+        console.error('Failed to load staff', err);
+      }
+    };
 
-  const matchesAvailability =
-    availabilityFilter === 'ALL'
-      ? true
-      : availabilityFilter === 'AVAILABLE'
-      ? service.isAvailable
-      : !service.isAvailable;
+    loadStaff();
+  }, []);
 
-  return matchesSearch && matchesAvailability;
-});
+  // Search and Filters
+  const [searchTerm, setSearchTerm] = useState('');
+  const [serviceFilter, setServiceFilter] = useState('ALL')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | ''>('');
 
-  const paginatedServices = filteredServices.slice(
-    (page - 1) * itemsPerPage,
-    page * itemsPerPage
-  );
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 5;
+  
+  const filteredServices = services.filter(
+    (service) => {
+      const searchValue = searchTerm.toLowerCase();
 
-  const totalPages = Math.ceil(
-    filteredServices.length / itemsPerPage
-  );
+      const matchesSearch = 
+      service.id.toLowerCase().includes(searchValue) ||
+      service.name.toLowerCase().includes(searchValue) ||
+      service.isAvailable.toString().toLowerCase().includes(searchValue) ||
+      service.assignedStaff.some((staff) =>
+        staff.name.toLowerCase().includes(searchValue)
+      );
+    
+      const matchesFilter =
+        serviceFilter === 'ALL' ||
+        (serviceFilter === 'AVAILABLE' && service.isAvailable === true) ||
+        (serviceFilter === 'UNAVAILABLE' && service.isAvailable === false);
+
+    return matchesSearch && matchesFilter;
+  })
+  .sort((a, b) => {
+    if (sortOrder === 'asc') return a.sortOrder - b.sortOrder;
+    if (sortOrder === 'desc') return b.sortOrder - a.sortOrder;
+    return 0;
+  });
+    const paginatedServices = filteredServices.slice(
+      (page - 1) * itemsPerPage,
+      page * itemsPerPage
+    );
+
+    const totalPages = Math.ceil(
+      filteredServices.length / itemsPerPage
+    );
 
   const handleCreateService = async ({
     name,
@@ -358,7 +360,8 @@ const filterOpen = Boolean(filterAnchorEl);
     !trimmedName ||
     !trimmedDesc ||
     !editDuration ||
-    !editPrice
+    !editPrice ||
+    !editOriginalSortOrder === null
   ) {
     showStatusModal(
       'Incomplete Fields',
@@ -436,6 +439,7 @@ const filterOpen = Boolean(filterAnchorEl);
           durationMinutes: editDuration,
           price: editPrice,
           isAvailable: editAvailability,
+          sortOrder: editOriginalSortOrder,
           assignedStaffIds: editSelectedStaffIds,
         }),
       }
@@ -471,6 +475,7 @@ const filterOpen = Boolean(filterAnchorEl);
                   name: staff.name,
                 })),
               isAvailable: editAvailability,
+              sortOrder: editOriginalSortOrder,
             }
           : service
       )
@@ -552,74 +557,53 @@ const filterOpen = Boolean(filterAnchorEl);
             maxWidth: 300,
           }}
         />
-
-        <Button
-          startIcon={<TuneIcon />}
-          onClick={(e) =>
-            setFilterAnchorEl(e.currentTarget)
-          }
-          sx={{
-            textTransform: 'none',
-            color: '#666',
-          }}
-        >
-          Filter
-        </Button>
-
-        <Menu
-          anchorEl={filterAnchorEl}
-          open={filterOpen}
-          onClose={() => setFilterAnchorEl(null)}
-        >
-          <MenuItem
-            onClick={() => {
-              setAvailabilityFilter('ALL');
-              setFilterAnchorEl(null);
-              setPage(1);
-            }}
-          >
-            All Services
-          </MenuItem>
-
-          <MenuItem
-            onClick={() => {
-              setAvailabilityFilter('AVAILABLE');
-              setFilterAnchorEl(null);
-              setPage(1);
-            }}
-          >
-            Available Services
-          </MenuItem>
-
-          <MenuItem
-            onClick={() => {
-              setAvailabilityFilter('UNAVAILABLE');
-              setFilterAnchorEl(null);
-              setPage(1);
-            }}
-          >
-            Unavailable Services
-          </MenuItem>
-        </Menu>
-
-        {availabilityFilter !== 'ALL' && (
-        <Chip
-          label={
-            availabilityFilter === 'AVAILABLE'
-              ? 'Available Services'
-              : 'Unavailable Services'
-          }
-          onDelete={() => {
-            setAvailabilityFilter('ALL');
+        
+        <TextField
+          select
+          size="small"
+          value={serviceFilter}
+          onChange={(e) => {
+            setServiceFilter(e.target.value);
             setPage(1);
           }}
-          color="secondary"
-          size="small"
           sx={{
-            borderRadius: 2,
+            width: 170,
+            bgcolor: '#fff',
           }}
-        />
-      )}
+        >
+          <MenuItem value="ALL">ALL</MenuItem>
+          <MenuItem value="AVAILABLE">Available Services</MenuItem>
+          <MenuItem value="UNAVAILABLE">Unavailable Services</MenuItem>
+        </TextField>
+
+        <TextField
+          select
+          size="small"
+          value={sortOrder}
+          onChange={(e) => {
+            setSortOrder(e.target.value as 'asc' | 'desc' | '');
+            setPage(1);
+          }}
+          sx={{
+            width: 200,
+            bgcolor: '#fff',
+          }}
+          slotProps={{
+            select: {
+              displayEmpty: true,
+            renderValue: (value) => {
+              if (value === '') return <span style={{ color: '#000000' }}>Default Order</span>;
+              if (value === 'asc') return 'Sort Order (Asc)';
+              if (value === 'desc') return 'Sort Order (Desc)';
+            },
+            }
+          }}
+          >
+        
+          <MenuItem value="">Default Order</MenuItem>
+          <MenuItem value="asc">Sort Order (Asc)</MenuItem>
+          <MenuItem value="desc">Sort Order (Desc)</MenuItem>
+        </TextField>
 
         <Box sx={{ flex: 1 }} />
 
@@ -681,6 +665,10 @@ const filterOpen = Boolean(filterAnchorEl);
                   </TableCell>
 
                   <TableCell sx={{ fontWeight: 700 }}>
+                    Sort Order
+                  </TableCell>
+
+                  <TableCell sx={{ fontWeight: 700 }}>
                     Service Name
                   </TableCell>
 
@@ -719,6 +707,10 @@ const filterOpen = Boolean(filterAnchorEl);
                     >
                       <TableCell>
                         {service.serviceCode}
+                      </TableCell>
+
+                      <TableCell>
+                        {service.sortOrder}
                       </TableCell>
 
                       <TableCell>
@@ -782,6 +774,10 @@ const filterOpen = Boolean(filterAnchorEl);
                           onClick={() => {
                             setSelectedService(
                               service
+                            );
+
+                            setEditOriginalSortOrder(
+                              service.sortOrder
                             );
 
                             setEditServiceName(
@@ -1268,6 +1264,31 @@ const filterOpen = Boolean(filterAnchorEl);
               gap: 2,
             }}
           >
+            <TextField
+              label={
+              <>
+                Sort Order <span style={{ color: 'red' }}>*</span>
+              </>}
+              type="number"
+              value={editOriginalSortOrder ?? ''}
+              onChange={(e) => {
+                const value = e.target.value;
+
+                if (value.length <= 3) {
+                  setEditOriginalSortOrder(
+                    value === '' ? 0 : Number(value)
+                  );
+                }
+              }}
+              fullWidth
+              slotProps={{
+                htmlInput: {
+                  inputMode: 'numeric',
+                  pattern: '[0-9]*',
+                  maxLength: 3,
+                },
+              }}
+            />
             <TextField
               label={
               <>

@@ -110,11 +110,13 @@ export async function PUT(
       price,
       isAvailable,
       assignedStaffIds,
+      sortOrder,
     } = await req.json();
 
     console.log("UPDATE SERVICE DATA:", {
   id,
   assignedStaffIds,
+  sortOrder,
 });
 
     name = toTitleCase(name ?? "").trim();
@@ -130,7 +132,8 @@ export async function PUT(
       !name ||
       !description ||
       !durationMinutes ||
-      !price
+      !price ||
+      !sortOrder
     ) {
       return NextResponse.json(
         { error: "Missing Fields" },
@@ -222,13 +225,13 @@ export async function PUT(
   }
 }
 
-    const updatedService =
-      await db.service.update({
+    const updatedService = await db.service.update({
         where: {
           id,
         },
 
         data: {
+          sortOrder,
           name,
           description,
           durationMinutes,
@@ -257,6 +260,8 @@ export async function PUT(
 
       service: {
         id: updatedService.id,
+
+        sortOrder: updatedService.sortOrder,
 
         serviceCode:
           updatedService.serviceCode,

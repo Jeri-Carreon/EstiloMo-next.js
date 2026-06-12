@@ -295,6 +295,7 @@ model Service {
   category         ServiceCategory?
   durationMinutes  Int
   price            Decimal          @db.Decimal(10, 2)
+  sortOrder        Int              @default(1)
   isAvailable      Boolean          @default(true)
   requiresApproval Boolean          @default(false)
   cancellationFee  Decimal?         @db.Decimal(10, 2)

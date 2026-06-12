@@ -64,9 +64,6 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [page, setPage] = useState(1);
-  const itemsPerPage = 5;
 
   // Add Modal
   const [openAdd, setOpenAdd] = useState(false);
@@ -93,17 +90,7 @@ export default function CustomersPage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [openServerError, setOpenServerError] = useState(false);
   const [serverErrorMsg, setServerErrorMsg] = useState("");
-
-  // Filters
-  const [filterAnchorEl, setFilterAnchorEl] =
-  useState<null | HTMLElement>(null);
-
-const [typeFilter, setTypeFilter] =
-  useState<'ALL' | 'CASUAL' | 'REGULAR'>('ALL');
-
-const filterOpen = Boolean(filterAnchorEl);
     
-
   const [selectedCustomer, setSelectedCustomer ] = useState<Customer | null>(null);
 
  const showStatusModal = (title: string, message: string) => {
@@ -325,29 +312,43 @@ const filterOpen = Boolean(filterAnchorEl);
     loadCustomers();
   }, [session, status, router]); // session array = re-run useEffect whenever one of these changes
 
-  const filteredCustomers = customers.filter((customer) => {
-    const matchesSearch =
-      (customer.name || "")
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      (customer.email || "")
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
+  // Search and Filters
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'CASUAL' | 'REGULAR'>('ALL');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | ''>('');
 
-    const matchesType =
-      typeFilter === 'ALL'
-        ? true
-        : customer.type === typeFilter;
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 5;
 
-    return matchesSearch && matchesType;
-  });
+  const filteredCustomers = customers
+    .filter((customer) => {
+      const searchValue = searchTerm.toLowerCase();
 
-  const paginatedCustomers = filteredCustomers.slice(
-    (page - 1) * itemsPerPage,
-    page * itemsPerPage
-  );
+      const matchesSearch =
+        (customer.name || '').toLowerCase().includes(searchValue) ||
+        (customer.email || '').toLowerCase().includes(searchValue) ||
+        (customer.contactNumber || '').toLowerCase().includes(searchValue) ||
+        (customer.customerCode || '').toLowerCase().includes(searchValue);
 
-  const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
+      const matchesType =
+        typeFilter === 'ALL' ||
+        customer.type.toUpperCase() === typeFilter;
+
+      return matchesSearch && matchesType;
+    })
+    .sort((a, b) => {
+      if (sortOrder === 'asc') return a.name.localeCompare(b.name);
+      if (sortOrder === 'desc') return b.name.localeCompare(a.name);
+      return 0;
+    });
+
+    const paginatedCustomers = filteredCustomers.slice(
+      (page - 1) * itemsPerPage,
+      page * itemsPerPage
+    );
+
+    const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
+
 
   const handleExportCSV = () => {
     const headers = ['ID', 'Type', 'Name', 'Contact Number', 'Email', 'Total Appointments', 'Total Spent'];
@@ -410,66 +411,46 @@ const filterOpen = Boolean(filterAnchorEl);
             }}
             sx={{ flex: 1, maxWidth: 300 }}
           />
-          <Button
-            startIcon={<TuneIcon />}
-            onClick={(e) => setFilterAnchorEl(e.currentTarget)}
-            sx={{ textTransform: 'none', color: '#666' }}
+          <TextField
+            select
+            size="small"
+            value={typeFilter}
+            onChange={(e) => {
+              setTypeFilter(e.target.value as 'ALL' | 'CASUAL' | 'REGULAR');
+              setPage(1);
+            }}
+            sx={{ width: 150, bgcolor: '#fff' }}
           >
-            Filter
-          </Button>
+            <MenuItem value="ALL">All</MenuItem>
+            <MenuItem value="CASUAL">Casual</MenuItem>
+            <MenuItem value="REGULAR">Regular</MenuItem>
+          </TextField>
 
-          <Menu
-            anchorEl={filterAnchorEl}
-            open={filterOpen}
-            onClose={() => setFilterAnchorEl(null)}
+          {/* Sort Order */}
+          <TextField
+            select
+            size="small"
+            value={sortOrder}
+            onChange={(e) => {
+              setSortOrder(e.target.value as 'asc' | 'desc' | '');
+              setPage(1);
+            }}
+            sx={{ width: 200, bgcolor: '#fff' }}
+            slotProps={{
+              select: {
+                displayEmpty: true,
+                renderValue: (value) => {
+                  if (value === '') return <span style={{ color: '#000000' }}>Default Order</span>;
+                  if (value === 'asc') return 'Name (A → Z)';
+                  if (value === 'desc') return 'Name (Z → A)';
+                },
+              },
+            }}
           >
-            <MenuItem
-              onClick={() => {
-                setTypeFilter('ALL');
-                setFilterAnchorEl(null);
-                setPage(1);
-              }}
-            >
-              All Customers
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => {
-                setTypeFilter('CASUAL');
-                setFilterAnchorEl(null);
-                setPage(1);
-              }}
-            >
-              Casual Customers
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => {
-                setTypeFilter('REGULAR');
-                setFilterAnchorEl(null);
-                setPage(1);
-              }}
-            >
-              Regular Customers
-            </MenuItem>
-          </Menu>
-
-          {typeFilter !== 'ALL' && (
-            <Chip
-              label={
-                typeFilter === 'CASUAL'
-                  ? 'Casual Customers'
-                  : 'Regular Customers'
-              }
-              onDelete={() => {
-                setTypeFilter('ALL');
-                setPage(1);
-              }}
-              color="secondary"
-              size="small"
-              sx={{ borderRadius: 2 }}
-            />
-          )}
+            <MenuItem value="">Default Order</MenuItem>
+            <MenuItem value="asc">Name (A → Z)</MenuItem>
+            <MenuItem value="desc">Name (Z → A)</MenuItem>
+          </TextField>
           <Box sx={{ flex: 1 }} />
           <Button
             startIcon={<AddIcon />}

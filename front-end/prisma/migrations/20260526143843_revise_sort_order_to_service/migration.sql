@@ -1,1 +1,2 @@
--- This migration was applied directly to the database
+-- AlterTable
+ALTER TABLE "Service" ALTER COLUMN "sortOrder" SET DEFAULT 1;
