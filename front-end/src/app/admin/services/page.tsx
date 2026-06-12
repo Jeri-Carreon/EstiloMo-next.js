@@ -58,11 +58,6 @@ export default function ServicesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [page, setPage] = useState(1);
-
-  const itemsPerPage = 5;
-
   // ADD MODAL
   const [openAdd, setOpenAdd] = useState(false);
 
@@ -77,31 +72,6 @@ export default function ServicesPage() {
   const [staffList, setStaffList] = useState<{ id: string; name: string }[]>([]);
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
   const [serviceAvailability, setServiceAvailability] = useState(true);
-
-  // Filters
-  const [filterAnchorEl, setFilterAnchorEl] =
-  useState<null | HTMLElement>(null);
-
-
-const [availabilityFilter, setAvailabilityFilter] = useState<'ALL' | 'AVAILABLE' | 'UNAVAILABLE'>('ALL');
-const [sortOrderFilter, setSortOrderFilter] = useState<'ASC' | 'DESC'>('ASC');
-
-const filterOpen = Boolean(filterAnchorEl);
-  useEffect(() => {
-  if (status === 'loading') return;
-  if (!session) return;
-
-  const loadStaff = async () => {
-    const res = await fetch('/api/admin/staff', {
-      cache: 'no-store',
-    });
-
-    const data = await res.json();
-    setStaffList(data.staff || []);
-  };
-
-  loadStaff();
-}, [session, status]);
 
   // DELETE
   const [openDel, setOpenDel] = useState(false);
@@ -175,34 +145,61 @@ const filterOpen = Boolean(filterAnchorEl);
     loadServices();
   }, [session, status, router]);
 
- const filteredServices = services.filter((service) => {
-  const matchesSearch = service.name
-    .toLowerCase()
-    .includes(searchTerm.toLowerCase());
+  // Loads Barbers For Add and Edit
+  useEffect(() => {
+    const loadStaff = async () => {
+      try {
+        const res = await fetch('/api/admin/staff');
+        const data = await res.json();
+        setStaffList(data.staff || []);
+      } catch (err) {
+        console.error('Failed to load staff', err);
+      }
+    };
 
-  const matchesAvailability =
-    availabilityFilter === 'ALL'
-      ? true
-      : availabilityFilter === 'AVAILABLE'
-      ? service.isAvailable
-      : !service.isAvailable;
+    loadStaff();
+  }, []);
 
-  return matchesSearch && matchesAvailability;
-})
-  .sort((a, b) =>
-    sortOrderFilter === 'ASC'
-      ? a.sortOrder - b.sortOrder
-      : b.sortOrder - a.sortOrder
-  );
+  // Search and Filters
+  const [searchTerm, setSearchTerm] = useState('');
+  const [serviceFilter, setServiceFilter] = useState('ALL')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | ''>('');
 
-  const paginatedServices = filteredServices.slice(
-    (page - 1) * itemsPerPage,
-    page * itemsPerPage
-  );
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 5;
+  
+  const filteredServices = services.filter(
+    (service) => {
+      const searchValue = searchTerm.toLowerCase();
 
-  const totalPages = Math.ceil(
-    filteredServices.length / itemsPerPage
-  );
+      const matchesSearch = 
+      service.id.toLowerCase().includes(searchValue) ||
+      service.name.toLowerCase().includes(searchValue) ||
+      service.isAvailable.toString().toLowerCase().includes(searchValue) ||
+      service.assignedStaff.some((staff) =>
+        staff.name.toLowerCase().includes(searchValue)
+      );
+    
+      const matchesFilter =
+        serviceFilter === 'ALL' ||
+        (serviceFilter === 'AVAILABLE' && service.isAvailable === true) ||
+        (serviceFilter === 'UNAVAILABLE' && service.isAvailable === false);
+
+    return matchesSearch && matchesFilter;
+  })
+  .sort((a, b) => {
+    if (sortOrder === 'asc') return a.sortOrder - b.sortOrder;
+    if (sortOrder === 'desc') return b.sortOrder - a.sortOrder;
+    return 0;
+  });
+    const paginatedServices = filteredServices.slice(
+      (page - 1) * itemsPerPage,
+      page * itemsPerPage
+    );
+
+    const totalPages = Math.ceil(
+      filteredServices.length / itemsPerPage
+    );
 
   const handleCreateService = async ({
     name,
@@ -560,102 +557,53 @@ const filterOpen = Boolean(filterAnchorEl);
             maxWidth: 300,
           }}
         />
-
-        <Button
-          startIcon={<TuneIcon />}
-          onClick={(e) =>
-            setFilterAnchorEl(e.currentTarget)
-          }
-          sx={{
-            textTransform: 'none',
-            color: '#666',
-          }}
-        >
-          Filter
-        </Button>
-
-        <Menu
-          anchorEl={filterAnchorEl}
-          open={filterOpen}
-          onClose={() => setFilterAnchorEl(null)}
-        >
-          <MenuItem
-            onClick={() => {
-              setAvailabilityFilter('ALL');
-              setFilterAnchorEl(null);
-              setPage(1);
-            }}
-          >
-            All Services
-          </MenuItem>
-
-          <MenuItem
-            onClick={() => {
-              setAvailabilityFilter('AVAILABLE');
-              setFilterAnchorEl(null);
-              setPage(1);
-            }}
-          >
-            Available Services
-          </MenuItem>
-
-          <MenuItem
-            onClick={() => {
-              setAvailabilityFilter('UNAVAILABLE');
-              setFilterAnchorEl(null);
-              setPage(1);
-            }}
-          >
-            Unavailable Services
-          </MenuItem>
-
-          <MenuItem
-            onClick={() => {
-              setSortOrderFilter('ASC');
-              setFilterAnchorEl(null);
-            }}
-          >
-            Sort by Sort Order (Asc)
-          </MenuItem>
-
-          <MenuItem
-            onClick={() => {
-              setSortOrderFilter('DESC');
-              setFilterAnchorEl(null);
-            }}
-          >
-            Sort by Sort Order (Desc)
-          </MenuItem>
-        </Menu>
-
-        {availabilityFilter !== 'ALL' && (
-        <Chip
-          label={
-            availabilityFilter === 'AVAILABLE'
-              ? 'Available Services'
-              : 'Unavailable Services'
-          }
-          onDelete={() => {
-            setAvailabilityFilter('ALL');
+        
+        <TextField
+          select
+          size="small"
+          value={serviceFilter}
+          onChange={(e) => {
+            setServiceFilter(e.target.value);
             setPage(1);
           }}
-          color="secondary"
-          size="small"
           sx={{
-            borderRadius: 2,
+            width: 170,
+            bgcolor: '#fff',
           }}
-        />
-      )}
+        >
+          <MenuItem value="ALL">ALL</MenuItem>
+          <MenuItem value="AVAILABLE">Available Services</MenuItem>
+          <MenuItem value="UNAVAILABLE">Unavailable Services</MenuItem>
+        </TextField>
 
-        {sortOrderFilter !== 'ASC' && (
-          <Chip
-            label = "Sort Order : Desc"
-            onDelete={() => {setSortOrderFilter('ASC')}}
-            color="secondary"
-            size="small"
-            sx={{borderRadius: 2, }}
-          />
-        )}
+        <TextField
+          select
+          size="small"
+          value={sortOrder}
+          onChange={(e) => {
+            setSortOrder(e.target.value as 'asc' | 'desc' | '');
+            setPage(1);
+          }}
+          sx={{
+            width: 200,
+            bgcolor: '#fff',
+          }}
+          slotProps={{
+            select: {
+              displayEmpty: true,
+            renderValue: (value) => {
+              if (value === '') return <span style={{ color: '#000000' }}>Default Order</span>;
+              if (value === 'asc') return 'Sort Order (Asc)';
+              if (value === 'desc') return 'Sort Order (Desc)';
+            },
+            }
+          }}
+          >
+        
+          <MenuItem value="">Default Order</MenuItem>
+          <MenuItem value="asc">Sort Order (Asc)</MenuItem>
+          <MenuItem value="desc">Sort Order (Desc)</MenuItem>
+        </TextField>
 
         <Box sx={{ flex: 1 }} />
 
