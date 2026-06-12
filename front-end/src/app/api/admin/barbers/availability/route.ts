@@ -178,6 +178,18 @@ export async function GET(
     
     const currentMinutes = isToday ? now.getHours() * 60 + now.getMinutes() : 0;
 
+    const bufferMinutes = 60; // 1 HOUR BUFFER
+
+    // GET BLOCKED SLOTS FROM CART
+      const blockedSlotsParam = searchParams.get('blockedSlots');
+      
+      const blockedSlots = blockedSlotsParam
+        ? blockedSlotsParam.split(',').map(slot => {
+            const [start, end] = slot.split('-').map(Number);
+            return { startMinutes: start, endMinutes: end };
+          })
+        : [];
+
     for (
       let start = schedule.startTime;
       start + duration <= schedule.endTime;
@@ -186,7 +198,12 @@ export async function GET(
       const end = start + duration;
     
       // SKIPS PAST TIMES
-      if (isToday && end <= currentMinutes) {
+      if (isToday && start <= currentMinutes) {
+        continue;
+      }
+
+      // SKIPS TIMES WITHIN BUFFER
+      if (isToday && start < currentMinutes + bufferMinutes) {
         continue;
       }
 
@@ -198,12 +215,18 @@ export async function GET(
               appointment.endMinutes &&
             end >
               appointment.startMinutes
+        ) ||
+        blockedSlots.some(
+          (blocked) =>
+            start < blocked.endMinutes &&
+            end > blocked.startMinutes
         );
 
       if (overlaps) {
         continue;
       }
 
+      
       availableTimes.push({
         startMinutes: start,
         endMinutes: end,

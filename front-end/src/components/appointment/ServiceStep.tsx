@@ -33,7 +33,7 @@ interface ServiceStepProps {
     React.SetStateAction<AppointmentData>
   >;
 
-  nextStep: () => void;
+  nextStep: (appointmentDate?: string, startMinutes?: number, endMinutes?: number) => void;
 
   prevStep: () => void;
 }

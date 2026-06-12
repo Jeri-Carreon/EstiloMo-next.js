@@ -12,6 +12,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 
 import type { AppointmentData } from '@/app/appointment/page';
+import { join } from '@prisma/client/runtime/library';
 
 
 const steps = [
@@ -21,18 +22,6 @@ const steps = [
   'Cart',
   'Confirmation',
 ];
-
-interface ScheduleStepProps {
-  appointmentData: AppointmentData;
-
-  setAppointmentData: React.Dispatch<
-    React.SetStateAction<AppointmentData>
-  >;
-
-  nextStep: () => void;
-
-  prevStep: () => void;
-}
 
 const weekdays = [
   'Sunday',
@@ -48,6 +37,15 @@ interface AvailableTime {
   startMinutes: number;
   endMinutes: number;
   label: string;
+}
+
+interface ScheduleStepProps {
+  appointmentData: AppointmentData;
+  setAppointmentData: React.Dispatch<React.SetStateAction<AppointmentData>>;
+
+  nextStep: (appointmentDate: string, startMinutes: number, endMinutes: number) => void;
+
+  prevStep: () => void;
 }
 
 export default function ScheduleStep({
@@ -122,55 +120,57 @@ export default function ScheduleStep({
   };
 
   const handleNext = () => {
-    if (!selectedDate)
-      return;
+    if (!selectedDate || !selectedTime) return;
     
-    setAppointmentData((prev) => ({
-      ...prev,
-
-      appointmentDate:
+    const appointmentDate =
         `${selectedDate.getFullYear()}-${String(
           selectedDate.getMonth() + 1
         ).padStart(2, '0')}-${String(
           selectedDate.getDate()
-        ).padStart(2, '0')}`,
+        ).padStart(2, '0')}`;
 
-      startMinutes:
-        selectedTime?.startMinutes,
-
-      endMinutes:
-        selectedTime?.endMinutes,
-    }));
-
-    nextStep();
+    nextStep(appointmentDate, selectedTime.startMinutes, selectedTime.endMinutes);
   };
 
+  // Fetch available times for the selected date
   const fetchAvailability = async (
     date: Date
   ) => {
+    if (!appointmentData.barberId || !appointmentData.serviceId) {
+      setAvailableTimes([]);
+      return;
+    }
+
     try {
       setLoadingTimes(true);
+      setAvailableTimes([]);
 
       const formattedDate =
         `${date.getFullYear()}-${String(
           date.getMonth() + 1
         ).padStart(2, '0')}-${String(
           date.getDate()
-        ).padStart(2, '0')}`
+        ).padStart(2, '0')}`;
+
+      const blockedSlots = appointmentData.cartItems
+        .filter(
+          (item) =>
+            item.barberId === appointmentData.barberId &&
+            item.appointmentDate === formattedDate
+        )
+        .map((item) => `${item.startMinutes}-${item.endMinutes}`)
+        .join(',');
 
       const response = await fetch(
-        `/api/admin/barbers/availability?barberId=${appointmentData.barberId}&serviceId=${appointmentData.serviceId}&date=${formattedDate}`
+        `/api/admin/barbers/availability?barberId=${appointmentData.barberId}&serviceId=${appointmentData.serviceId}&date=${formattedDate}&blockedSlots=${blockedSlots}`
       );
 
-      const data =
-        await response.json();
-
-    
-      setAvailableTimes(data.availableTimes);
+      const data = await response.json();
+      setAvailableTimes(data?.availableTimes ?? []);
       setSelectedTime(null);
-      
     } catch (error) {
       console.error(error);
+      setAvailableTimes([]);
     } finally {
       setLoadingTimes(false);
     }
@@ -182,10 +182,31 @@ export default function ScheduleStep({
     fetchAvailability(selectedDate);
   }, [selectedDate]);
 
+  const [bookingCutoffHours, setBookingCutoffHours] = useState<number>(1);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch("/api/admin/appointments/settings");
+        const data = await res.json();
+        setBookingCutoffHours(data?.bookingCutoffHours ?? 1);
+      } catch {
+        setBookingCutoffHours(1);
+      }
+    };
+    fetchSettings();
+  }, []);
+
   const [unavailableDates, setUnavailableDates] = useState<Set<string>>(new Set());
+
 
 // Fetch barber's days off and absences for the current month
 const fetchUnavailableDates = async (month: Date) => {
+  if (!appointmentData.barberId) {
+    setUnavailableDates(new Set());
+    return;
+  }
+
   try {
     const year = month.getFullYear();
     const m = String(month.getMonth() + 1).padStart(2, '0');
@@ -196,15 +217,16 @@ const fetchUnavailableDates = async (month: Date) => {
 
     const data = await response.json();
     // Expect: { unavailableDates: ['2025-06-01', '2025-06-15', ...] }
-    setUnavailableDates(new Set(data.unavailableDates));
+    setUnavailableDates(new Set(data?.unavailableDates ?? []));
   } catch (error) {
     console.error(error);
+    setUnavailableDates(new Set());
   }
 };
 
 useEffect(() => {
   fetchUnavailableDates(currentMonth);
-}, [currentMonth]);
+}, [currentMonth, appointmentData.barberId]);
   return (
     <Box sx={{ display: 'flex' }}>
       {/* SIDEBAR */}
@@ -459,7 +481,11 @@ useEffect(() => {
                         : '';
 
 
-                    const isPastDate = date ? date < today: false;
+                    const cutoffDate = new Date();
+                    cutoffDate.setHours(cutoffDate.getHours() + bookingCutoffHours);
+                    cutoffDate.setHours(0, 0, 0, 0); // compare by day
+
+                    const isPastDate = date ? date < cutoffDate : false;
 
                     const isUnavailable = !!date && unavailableDates.has(formattedDate);
 
@@ -468,6 +494,7 @@ useEffect(() => {
                       !isPastDate &&
                       !isUnavailable;
 
+                      
 
                     const isSelected =
                       selectedDate &&
@@ -660,7 +687,7 @@ useEffect(() => {
                 )}
                 {!loadingTimes &&
                   selectedDate &&
-                  availableTimes.length === 0 && (
+                  (availableTimes?.length ?? 0) === 0 && (
                     <Typography
                       sx={{
                         width: '100%',

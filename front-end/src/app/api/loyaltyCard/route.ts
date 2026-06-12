@@ -8,10 +8,7 @@ export async function GET() {
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const customer = await db.customer.findUnique({
@@ -25,6 +22,20 @@ export async function GET() {
           },
           take: 1,
         },
+        appointments: {
+          where: {
+            status: "COMPLETED",
+          },
+          orderBy: {
+            appointmentDate: "asc",
+          },
+          include: {
+            barber: true,
+            service: true,
+            payment: true,
+          },
+          take: 10,
+        },
       },
     });
 
@@ -37,19 +48,25 @@ export async function GET() {
 
     let loyaltyCard = customer.loyaltyCards[0];
 
+    const completedCount = customer.appointments.length;
+
     if (!loyaltyCard) {
       loyaltyCard = await db.loyaltyCard.create({
         data: {
           customerId: customer.id,
-          stars: 0,
-          status: "ACTIVE",
+          stars: Math.min(completedCount, 10),
+          status: completedCount >= 10 ? "COMPLETED" : "ACTIVE",
         },
       });
     }
 
     return NextResponse.json({
       customer,
-      loyaltyCard,
+      loyaltyCard: {
+        ...loyaltyCard,
+        stars: Math.min(loyaltyCard.stars, 10),
+      },
+      appointments: customer.appointments,
     });
   } catch (error) {
     console.error("Loyalty card error:", error);

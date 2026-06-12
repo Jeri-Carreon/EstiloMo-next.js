@@ -1,7 +1,8 @@
 import Sidebar from '@/components/admin/Sidebar';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation';
+import Box from '@mui/material/Box';
 
 export default async function AdminLayout({
   children,
@@ -28,6 +29,7 @@ export default async function AdminLayout({
       />
 
       <main style={{ flex: 1 }}>
+        <Box sx={{ display: { xs: 'block', md: 'none' }, minHeight: 56 }} />
         {children}
       </main>
     </div>

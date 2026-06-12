@@ -22,16 +22,14 @@ export async function GET() {
       barbers,
     });
   } catch (error) {
-    console.error(error);
+    console.error('FETCH BARBERS ERROR:', error);
 
     return NextResponse.json(
       {
         ok: false,
         error: 'Failed to fetch barbers',
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }
