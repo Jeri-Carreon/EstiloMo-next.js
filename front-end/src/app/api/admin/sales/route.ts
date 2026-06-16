@@ -126,7 +126,10 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user?.email || !["OWNER", "RECEPTIONIST"].includes(session.user.role)) {
+    if (
+      !session?.user?.email ||
+      !["OWNER", "RECEPTIONIST"].includes(session.user.role)
+    ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -134,42 +137,37 @@ export async function POST(req: Request) {
 
     const {
       customerId,
-      barberId,
-      appointmentDate,
-      startMinutes,
       items,
       discount = 0,
       method = "CASH",
     } = body;
 
-    if (!customerId || !barberId || !appointmentDate || startMinutes === undefined) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    if (!customerId) {
+      return NextResponse.json({ error: "Missing customer" }, { status: 400 });
     }
 
     if (!Array.isArray(items) || items.length < 1) {
-      return NextResponse.json({ error: "Please add at least one service" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Please add at least one service" },
+        { status: 400 }
+      );
     }
 
-    const parsedStart = Number(startMinutes);
     const parsedDiscount = Number(discount || 0);
-
-    if (Number.isNaN(parsedStart) || parsedStart < 0) {
-      return NextResponse.json({ error: "Invalid start time" }, { status: 400 });
-    }
-
     const serviceIds = items.map((item: any) => item.serviceId);
 
     const services = await db.service.findMany({
       where: {
-        id: {
-          in: serviceIds,
-        },
+        id: { in: serviceIds },
         isAvailable: true,
       },
     });
 
     if (services.length !== serviceIds.length) {
-      return NextResponse.json({ error: "One or more services are invalid" }, { status: 400 });
+      return NextResponse.json(
+        { error: "One or more services are invalid" },
+        { status: 400 }
+      );
     }
 
     const createdSale = await db.$transaction(async (tx) => {
@@ -177,13 +175,11 @@ export async function POST(req: Request) {
       const paymentCode = await createPaymentCode();
 
       let subtotal = 0;
-      let runningStart = parsedStart;
 
       const sale = await tx.sale.create({
         data: {
           saleCode,
           customerId,
-          barberId,
           source: "WALKIN",
           status: "PENDING",
           subtotal: 0,
@@ -194,7 +190,6 @@ export async function POST(req: Request) {
 
       for (const rawItem of items) {
         const service = services.find((s) => s.id === rawItem.serviceId);
-
         if (!service) continue;
 
         const quantity = Number(rawItem.quantity || 1);
@@ -212,27 +207,6 @@ export async function POST(req: Request) {
             subtotal: itemSubtotal,
           },
         });
-
-        for (let i = 0; i < quantity; i++) {
-          const endMinutes = runningStart + service.durationMinutes;
-
-          await tx.appointment.create({
-            data: {
-              appointmentCode: await createAppointmentCode(tx),
-              customerId,
-              barberId,
-              serviceId: service.id,
-              saleId: sale.id,
-              source: "WALKIN",
-              status: "SCHEDULED",
-              appointmentDate: new Date(appointmentDate),
-              startMinutes: runningStart,
-              endMinutes,
-            },
-          });
-
-          runningStart = endMinutes;
-        }
       }
 
       const totalAmount = Math.max(subtotal - parsedDiscount, 0);
@@ -255,6 +229,7 @@ export async function POST(req: Request) {
           discount: parsedDiscount,
           method,
           status: "PENDING",
+          screenshotUrl: null,
         },
       });
 
@@ -263,20 +238,22 @@ export async function POST(req: Request) {
         include: {
           customer: true,
           barber: true,
-          items: {
-            include: {
-              service: true,
-            },
-          },
+          items: { include: { service: true } },
           payment: true,
           appointments: true,
         },
       });
     });
 
-    return NextResponse.json({ success: true, sale: createdSale }, { status: 201 });
+    return NextResponse.json(
+      { success: true, sale: createdSale },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("CREATE SALE ERROR:", error);
-    return NextResponse.json({ error: "Failed to create sale" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create sale" },
+      { status: 500 }
+    );
   }
 }

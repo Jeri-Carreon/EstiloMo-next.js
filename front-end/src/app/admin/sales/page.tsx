@@ -37,13 +37,6 @@ type Customer = {
   mobileNumber: string;
 };
 
-type Barber = {
-  id: string;
-  firstName?: string;
-  lastName?: string;
-  name?: string;
-};
-
 type Service = {
   id: string;
   serviceCode: string;
@@ -97,6 +90,16 @@ type CartItem = {
   quantity: number;
   price: number;
   durationMinutes: number;
+};
+
+type LoyaltyCard = {
+  id: string;
+  cardNumber: string;
+  customerId: string;
+  name: string;
+  stickers: number;
+  maxStickers: number;
+  status: "ACTIVE" | "COMPLETED";
 };
 
 const headCell = {
@@ -160,21 +163,24 @@ function formatPeso(value: number) {
   })}`;
 }
 
+function formatDate(value: string | Date) {
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatToday() {
+  return formatDate(new Date());
+}
+
 function fullName(person: any) {
   return (
     [person?.firstName, person?.lastName].filter(Boolean).join(" ") ||
     person?.name ||
     "Unknown"
   );
-}
-
-function minutesToTime(minutes: number) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  const ampm = h >= 12 ? "PM" : "AM";
-  const hour = h % 12 || 12;
-
-  return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
 async function fetchJson(url: string) {
@@ -197,8 +203,8 @@ async function fetchJson(url: string) {
 export default function SalesPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [barbers, setBarbers] = useState<Barber[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [loyaltyCards, setLoyaltyCards] = useState<LoyaltyCard[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -215,9 +221,6 @@ export default function SalesPage() {
 
   const [customerSearch, setCustomerSearch] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
-  const [selectedBarberId, setSelectedBarberId] = useState("");
-  const [appointmentDate, setAppointmentDate] = useState("");
-  const [startMinutes, setStartMinutes] = useState(540);
   const [method, setMethod] = useState<"CASH" | "GCASH">("CASH");
   const [discountPercent, setDiscountPercent] = useState(0);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -240,8 +243,21 @@ export default function SalesPage() {
     (customer) => customer.id === selectedCustomerId
   );
 
+  const selectedLoyaltyCard = loyaltyCards.find(
+    (card) =>
+      card.customerId === selectedCustomer?.customerCode ||
+      card.cardNumber === selectedCustomer?.customerCode
+  );
+
+  const stickerCount = selectedLoyaltyCard?.stickers || 0;
+  const canUse50Discount = stickerCount >= 5;
+  const canUse100Discount = stickerCount >= 10;
+
   const filteredCustomers = customers.filter((customer) => {
-    const keyword = customerSearch.toLowerCase();
+    const keyword = customerSearch.trim().toLowerCase();
+
+    if (!keyword || selectedCustomerId) return false;
+
     const name = fullName(customer).toLowerCase();
 
     return (
@@ -260,10 +276,10 @@ export default function SalesPage() {
   useEffect(() => {
     if (!selectedSale) return;
 
-    setSelectedCustomerId(selectedSale.customer.id);
     setCustomerSearch(selectedSale.customer.name);
+    setSelectedCustomerId(selectedSale.customer.id);
     setMethod((selectedSale.payment?.method as "CASH" | "GCASH") || "CASH");
-    setSelectedBarberId(selectedSale.barber?.id || "");
+
     setDiscountPercent(
       selectedSale.subtotal > 0
         ? Math.round((selectedSale.discount / selectedSale.subtotal) * 100)
@@ -281,21 +297,39 @@ export default function SalesPage() {
     );
   }, [selectedSale]);
 
+  useEffect(() => {
+    if (selectedSale) return;
+
+    if (discountPercent === 100 && !canUse100Discount) {
+      setDiscountPercent(0);
+    }
+
+    if (discountPercent === 50 && !canUse50Discount) {
+      setDiscountPercent(0);
+    }
+  }, [
+    selectedCustomerId,
+    discountPercent,
+    canUse50Discount,
+    canUse100Discount,
+    selectedSale,
+  ]);
+
   async function loadData() {
     try {
       setLoading(true);
 
-      const [salesData, servicesData, barbersData, customersData] =
+      const [salesData, servicesData, customersData, loyaltyData] =
         await Promise.all([
           fetchJson("/api/admin/sales"),
           fetchJson("/api/admin/services"),
-          fetchJson("/api/admin/barbers"),
           fetchJson("/api/customers"),
+          fetchJson("/api/admin/loyaltyCard"),
         ]);
 
       setSales(salesData.sales || []);
       setServices(servicesData.services || []);
-      setBarbers(barbersData.barbers || []);
+      setLoyaltyCards(loyaltyData.cards || []);
 
       const customerList =
         customersData.customers || customersData.data || customersData || [];
@@ -321,9 +355,6 @@ export default function SalesPage() {
   function resetForm() {
     setCustomerSearch("");
     setSelectedCustomerId("");
-    setSelectedBarberId("");
-    setAppointmentDate("");
-    setStartMinutes(540);
     setMethod("CASH");
     setDiscountPercent(0);
     setCart([]);
@@ -400,16 +431,15 @@ export default function SalesPage() {
     if (selectedSale) return;
 
     setCustomerSearch(value);
+    setSelectedCustomerId("");
 
-    if (value.trim().length < 2) {
-      setSelectedCustomerId("");
-      return;
-    }
+    if (value.trim().length < 1) return;
 
     const keyword = value.toLowerCase();
 
     const exactMatch = customers.find((customer) => {
       const name = fullName(customer).toLowerCase();
+
       return (
         name === keyword ||
         customer.customerCode?.toLowerCase() === keyword ||
@@ -419,21 +449,13 @@ export default function SalesPage() {
 
     if (exactMatch) {
       setSelectedCustomerId(exactMatch.id);
-      return;
+      setCustomerSearch(fullName(exactMatch));
     }
+  }
 
-    const partialMatch = customers.find((customer) => {
-      const name = fullName(customer).toLowerCase();
-      return (
-        name.includes(keyword) ||
-        customer.customerCode?.toLowerCase().includes(keyword) ||
-        customer.mobileNumber?.includes(value)
-      );
-    });
-
-    if (partialMatch) {
-      setSelectedCustomerId(partialMatch.id);
-    }
+  function selectCustomer(customer: Customer) {
+    setSelectedCustomerId(customer.id);
+    setCustomerSearch(fullName(customer));
   }
 
   async function createSale() {
@@ -442,24 +464,6 @@ export default function SalesPage() {
         setSnackbar({
           open: true,
           message: "Please search and select an existing customer",
-          severity: "error",
-        });
-        return;
-      }
-
-      if (!selectedBarberId) {
-        setSnackbar({
-          open: true,
-          message: "Please select a barber",
-          severity: "error",
-        });
-        return;
-      }
-
-      if (!appointmentDate) {
-        setSnackbar({
-          open: true,
-          message: "Please select appointment date",
           severity: "error",
         });
         return;
@@ -483,9 +487,6 @@ export default function SalesPage() {
         },
         body: JSON.stringify({
           customerId: selectedCustomerId,
-          barberId: selectedBarberId,
-          appointmentDate,
-          startMinutes,
           method,
           discount: discountAmount,
           items: cart.map((item) => ({
@@ -545,7 +546,7 @@ export default function SalesPage() {
 
       setSnackbar({
         open: true,
-        message: "Payment confirmed. Appointment completed.",
+        message: "Payment confirmed successfully.",
         severity: "success",
       });
     } catch (error) {
@@ -640,13 +641,7 @@ export default function SalesPage() {
                       {sale.customer.customerCode}
                     </TableCell>
                     <TableCell sx={bodyCell}>{sale.customer.name}</TableCell>
-                    <TableCell sx={bodyCell}>
-                      {new Date(sale.createdAt).toLocaleDateString("en-US", {
-                        month: "long",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </TableCell>
+                    <TableCell sx={bodyCell}>{formatDate(sale.createdAt)}</TableCell>
                     <TableCell sx={bodyCell}>
                       {formatPeso(sale.totalAmount)}
                     </TableCell>
@@ -654,11 +649,7 @@ export default function SalesPage() {
                       {sale.source === "WALKIN" ? "Walk-In" : "Appointment"}
                     </TableCell>
                     <TableCell sx={bodyCell}>
-                      {sale.payment?.status === "PAID"
-                        ? "Paid"
-                        : sale.payment?.status === "PENDING"
-                        ? "Unpaid"
-                        : sale.payment?.status || "Unpaid"}
+                      {sale.payment?.status === "PAID" ? "Paid" : "Unpaid"}
                     </TableCell>
 
                     <TableCell align="center">
@@ -740,8 +731,7 @@ export default function SalesPage() {
         <Box sx={pageArrow}>›</Box>
       </Box>
 
-      {/* POS / CONFIRM PAYMENT VIEW */}
-      <Dialog open={openAdd} onClose={() => setOpenCancelConfirm(true)} fullScreen>
+      <Dialog open={openAdd} onClose={closePosAndReset} fullScreen>
         <DialogContent sx={{ p: 0, overflow: "hidden" }}>
           <Box sx={{ display: "flex", height: "100vh", bgcolor: "#fff" }}>
             <Box sx={{ flex: 1.35, px: 7, py: 5 }}>
@@ -807,13 +797,28 @@ export default function SalesPage() {
               }}
             >
               <IconButton
-                onClick={() => setOpenCancelConfirm(true)}
-                sx={{ position: "absolute", top: 18, right: 20, zIndex: 5 }}
+                onClick={closePosAndReset}
+                sx={{
+                  position: "absolute",
+                  top: 18,
+                  right: 18,
+                  zIndex: 20,
+                  bgcolor: "#f5f5f5",
+                  "&:hover": { bgcolor: "#e0e0e0" },
+                }}
               >
                 <CloseIcon />
               </IconButton>
 
-              <Box sx={{ flex: 1, overflowY: "auto", pr: 1 }}>
+              <Box
+                sx={{
+                  flex: 1,
+                  overflowY: "auto",
+                  pr: 4,
+                  mr: -2,
+                  scrollbarGutter: "stable",
+                }}
+              >
                 <Typography sx={{ fontWeight: 900, color: "#aaa", mb: 0.5 }}>
                   {selectedSale?.customer.customerCode ||
                     selectedCustomer?.customerCode ||
@@ -841,7 +846,7 @@ export default function SalesPage() {
 
                 {customerSearch &&
                   filteredCustomers.length > 0 &&
-                  !selectedCustomer &&
+                  !selectedCustomerId &&
                   !selectedSale && (
                     <Paper
                       sx={{
@@ -857,10 +862,7 @@ export default function SalesPage() {
                       {filteredCustomers.slice(0, 5).map((customer) => (
                         <Box
                           key={customer.id}
-                          onClick={() => {
-                            setSelectedCustomerId(customer.id);
-                            setCustomerSearch(fullName(customer));
-                          }}
+                          onClick={() => selectCustomer(customer)}
                           sx={{
                             px: 2,
                             py: 1,
@@ -883,12 +885,27 @@ export default function SalesPage() {
                   sx={{
                     display: "flex",
                     justifyContent: "space-between",
+                    alignItems: "flex-start",
                     mb: 2,
                   }}
                 >
-                  <Typography sx={{ fontWeight: 800, color: "#777" }}>
-                    {selectedSale?.saleCode || "TRX-New"}
-                  </Typography>
+                  <Box>
+                    <Typography sx={{ fontWeight: 800, color: "#777" }}>
+                      {selectedSale?.saleCode || "TRX-New"}
+                    </Typography>
+
+                    <Typography
+                      sx={{
+                        fontSize: 12,
+                        fontWeight: 800,
+                        color: "#999",
+                      }}
+                    >
+                      {selectedSale
+                        ? formatDate(selectedSale.createdAt)
+                        : formatToday()}
+                    </Typography>
+                  </Box>
 
                   <Box sx={{ textAlign: "right" }}>
                     <Typography sx={{ fontWeight: 900, color: "#777" }}>
@@ -903,6 +920,24 @@ export default function SalesPage() {
                     </Typography>
                   </Box>
                 </Box>
+
+                {!selectedSale && selectedCustomerId && (
+                  <Box
+                    sx={{
+                      bgcolor: "#fff8df",
+                      border: "1px solid #ffe08a",
+                      p: 1.5,
+                      mb: 2,
+                    }}
+                  >
+                    <Typography sx={{ fontWeight: 900, fontSize: 13 }}>
+                      Loyalty Stickers: {stickerCount}/10
+                    </Typography>
+                    <Typography sx={{ fontSize: 12, color: "#777", fontWeight: 700 }}>
+                      50% off requires 5 stickers. 100% off requires 10 stickers.
+                    </Typography>
+                  </Box>
+                )}
 
                 <Box sx={{ bgcolor: "#fff", mb: 3 }}>
                   <Box
@@ -1007,14 +1042,10 @@ export default function SalesPage() {
                   </Box>
 
                   <Box sx={summaryRow}>
-                    <Typography
-                      sx={{ textDecoration: "line-through", color: "#888" }}
-                    >
+                    <Typography sx={{ textDecoration: "line-through", color: "#888" }}>
                       Downpayment
                     </Typography>
-                    <Typography
-                      sx={{ textDecoration: "line-through", color: "#888" }}
-                    >
+                    <Typography sx={{ textDecoration: "line-through", color: "#888" }}>
                       {formatPeso(selectedSale?.payment?.downPayment || 0)}
                     </Typography>
                   </Box>
@@ -1054,59 +1085,18 @@ export default function SalesPage() {
                       value={discountPercent}
                       disabled={Boolean(selectedSale)}
                       onChange={(e) => setDiscountPercent(Number(e.target.value))}
-                      sx={{ width: 70 }}
+                      sx={{ width: 155 }}
                     >
-                      <MenuItem value={0}>0</MenuItem>
-                      <MenuItem value={10}>10</MenuItem>
-                      <MenuItem value={20}>20</MenuItem>
-                      <MenuItem value={50}>50</MenuItem>
+                      <MenuItem value={0}>0%</MenuItem>
+                      <MenuItem value={50} disabled={!canUse50Discount}>
+                        50% {canUse50Discount ? "" : "(Need 5 stickers)"}
+                      </MenuItem>
+                      <MenuItem value={100} disabled={!canUse100Discount}>
+                        100% {canUse100Discount ? "" : "(Need 10 stickers)"}
+                      </MenuItem>
                     </TextField>
                   </Box>
                 </Box>
-
-                {!selectedSale && (
-                  <Box sx={{ bgcolor: "#fff", p: 2, mt: 2 }}>
-                    <Box sx={summaryRow}>
-                      <Typography>Barber</Typography>
-                      <TextField
-                        select
-                        variant="standard"
-                        value={selectedBarberId}
-                        onChange={(e) => setSelectedBarberId(e.target.value)}
-                        sx={{ width: 150 }}
-                      >
-                        {barbers.map((barber) => (
-                          <MenuItem key={barber.id} value={barber.id}>
-                            {fullName(barber)}
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                    </Box>
-
-                    <Box sx={summaryRow}>
-                      <Typography>Date</Typography>
-                      <TextField
-                        variant="standard"
-                        type="date"
-                        value={appointmentDate}
-                        onChange={(e) => setAppointmentDate(e.target.value)}
-                        sx={{ width: 150 }}
-                      />
-                    </Box>
-
-                    <Box sx={summaryRow}>
-                      <Typography>Start</Typography>
-                      <TextField
-                        variant="standard"
-                        type="number"
-                        value={startMinutes}
-                        onChange={(e) => setStartMinutes(Number(e.target.value))}
-                        helperText={minutesToTime(Number(startMinutes || 0))}
-                        sx={{ width: 150 }}
-                      />
-                    </Box>
-                  </Box>
-                )}
               </Box>
 
               <Box
@@ -1155,7 +1145,11 @@ export default function SalesPage() {
                     "&:hover": { bgcolor: "#111" },
                   }}
                 >
-                  {saving ? "Saving..." : "Confirm Payment"}
+                  {saving
+                    ? "Saving..."
+                    : selectedSale
+                    ? "Confirm Payment"
+                    : "Add Transaction"}
                 </Button>
               </Box>
             </Box>
@@ -1163,7 +1157,6 @@ export default function SalesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* VIEW TRANSACTION */}
       <Dialog
         open={openViewTransaction}
         onClose={() => {
@@ -1265,7 +1258,9 @@ export default function SalesPage() {
                   {formatPeso(selectedSale.payment?.downPayment || 0)}
                 </Button>
               ) : (
-                <Typography>{formatPeso(selectedSale?.payment?.downPayment || 0)}</Typography>
+                <Typography>
+                  {formatPeso(selectedSale?.payment?.downPayment || 0)}
+                </Typography>
               )}
             </Box>
 
@@ -1294,7 +1289,6 @@ export default function SalesPage() {
         </Box>
       </Dialog>
 
-      {/* IMAGE VIEWER */}
       <Dialog
         open={imageViewerOpen}
         onClose={() => setImageViewerOpen(false)}
@@ -1346,7 +1340,6 @@ export default function SalesPage() {
         </Box>
       </Dialog>
 
-      {/* CONFIRM PAYMENT MODAL */}
       <Dialog
         open={openPayment}
         onClose={() => setOpenPayment(false)}
@@ -1434,7 +1427,6 @@ export default function SalesPage() {
         </Box>
       </Dialog>
 
-      {/* CANCEL TRANSACTION MODAL */}
       <Dialog
         open={openCancelConfirm}
         onClose={() => setOpenCancelConfirm(false)}
