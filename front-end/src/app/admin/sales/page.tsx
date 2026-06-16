@@ -1084,10 +1084,12 @@ export default function SalesPage() {
                       value={discountPercent}
                       disabled={Boolean(selectedSale)}
                       onChange={(e) => handleDiscountInput(e.target.value)}
-                      inputProps={{
-                        min: 0,
-                        max: 100,
-                        step: 1,
+                      slotProps={{
+                        htmlInput: {
+                          min: 0,
+                          max: 100,
+                          step: 1,
+                        },
                       }}
                       sx={{ width: 90 }}
                     />
