@@ -15,30 +15,22 @@ export async function PUT(
       !session?.user?.email ||
       !["OWNER", "RECEPTIONIST"].includes(session.user.role)
     ) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id } = await context.params;
+    const body = await req.json().catch(() => ({}));
 
     const sale = await db.sale.findUnique({
-      where: {
-        id,
-      },
+      where: { id },
       include: {
         payment: true,
         appointments: true,
-        customer: true,
       },
     });
 
     if (!sale) {
-      return NextResponse.json(
-        { error: "Sale not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Sale not found" }, { status: 404 });
     }
 
     if (!sale.payment) {
@@ -55,36 +47,44 @@ export async function PUT(
       });
     }
 
+    const subtotal = Number(sale.subtotal || 0);
+
+    const discount = Math.min(
+      Math.max(Number(body.discount ?? sale.discount ?? 0), 0),
+      subtotal
+    );
+
+    const totalAmount = Math.max(subtotal - discount, 0);
+
+    const method =
+      body.method === "GCASH" || body.method === "CASH"
+        ? body.method
+        : sale.payment.method;
+
     await db.$transaction(async (tx) => {
-      // Payment
       await tx.payment.update({
-        where: {
-          id: sale.payment!.id,
-        },
+        where: { id: sale.payment!.id },
         data: {
           status: "PAID",
+          amount: totalAmount,
+          discount,
+          method,
         },
       });
 
-      // Sale
       await tx.sale.update({
-        where: {
-          id: sale.id,
-        },
+        where: { id: sale.id },
         data: {
           status: "PAID",
+          discount,
+          totalAmount,
         },
       });
 
-      // Related appointments
       if (sale.appointments.length > 0) {
         await tx.appointment.updateMany({
-          where: {
-            saleId: sale.id,
-          },
-          data: {
-            status: "COMPLETED",
-          },
+          where: { saleId: sale.id },
+          data: { status: "COMPLETED" },
         });
       }
     });
@@ -94,6 +94,9 @@ export async function PUT(
       message: "Payment confirmed successfully",
       saleId: sale.id,
       paymentId: sale.payment.id,
+      discount,
+      totalAmount,
+      method,
     });
   } catch (error) {
     console.error("CONFIRM PAYMENT ERROR:", error);
@@ -101,10 +104,7 @@ export async function PUT(
     return NextResponse.json(
       {
         error: "Failed to confirm payment",
-        details:
-          error instanceof Error
-            ? error.message
-            : "Unknown error",
+        details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }
     );

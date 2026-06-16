@@ -206,6 +206,9 @@ export default function SalesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [loyaltyCards, setLoyaltyCards] = useState<LoyaltyCard[]>([]);
 
+  const rowsPerPage = 8;
+  const [page, setPage] = useState(1);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -310,6 +313,7 @@ export default function SalesPage() {
         ]);
 
       setSales(salesData.sales || []);
+      setPage(1);
       setServices(servicesData.services || []);
       setLoyaltyCards(loyaltyData.cards || []);
 
@@ -441,8 +445,6 @@ export default function SalesPage() {
   }
 
   function handleDiscountInput(value: string) {
-    if (selectedSale) return;
-
     if (value === "") {
       setDiscountPercent(0);
       return;
@@ -530,6 +532,14 @@ export default function SalesPage() {
         `/api/admin/sales/${selectedSale.id}/confirm-payment`,
         {
           method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            method,
+            discount: discountAmount,
+            totalAmount: total,
+          }),
         }
       );
 
@@ -558,6 +568,16 @@ export default function SalesPage() {
       setSaving(false);
     }
   }
+
+  const totalPages = Math.max(1, Math.ceil(sales.length / rowsPerPage));
+
+  const paginatedSales = sales.slice(
+    (page - 1) * rowsPerPage,
+    page * rowsPerPage
+  );
+
+  const showingFrom = sales.length === 0 ? 0 : (page - 1) * rowsPerPage + 1;
+  const showingTo = Math.min(page * rowsPerPage, sales.length);
 
   return (
     <Box sx={{ bgcolor: "#fff", minHeight: "100vh", px: 6, py: 5 }}>
@@ -624,7 +644,7 @@ export default function SalesPage() {
               </TableHead>
 
               <TableBody>
-                {sales.map((sale) => (
+                {paginatedSales.map((sale) => (
                   <TableRow
                     key={sale.id}
                     sx={{
@@ -711,7 +731,7 @@ export default function SalesPage() {
           color: "#333",
         }}
       >
-        Showing 1 to {sales.length} of {sales.length} Entries
+        Showing {showingFrom} to {showingTo} of {sales.length} Entries
       </Box>
 
       <Box
@@ -724,9 +744,50 @@ export default function SalesPage() {
           gap: 1,
         }}
       >
-        <Box sx={pageArrow}>‹</Box>
-        <Box sx={pageNumber}>1</Box>
-        <Box sx={pageArrow}>›</Box>
+        <Box
+          onClick={() => {
+            if (page > 1) setPage(page - 1);
+          }}
+          sx={{
+            ...pageArrow,
+            opacity: page === 1 ? 0.4 : 1,
+            cursor: page === 1 ? "default" : "pointer",
+          }}
+        >
+          ‹
+        </Box>
+
+        {Array.from({ length: totalPages }).map((_, index) => {
+          const pageNumberValue = index + 1;
+
+          return (
+            <Box
+              key={pageNumberValue}
+              onClick={() => setPage(pageNumberValue)}
+              sx={{
+                ...pageNumber,
+                bgcolor: page === pageNumberValue ? "#ffc107" : "#d9d9d9",
+                color: page === pageNumberValue ? "#000" : "#666",
+                cursor: "pointer",
+              }}
+            >
+              {pageNumberValue}
+            </Box>
+          );
+        })}
+
+        <Box
+          onClick={() => {
+            if (page < totalPages) setPage(page + 1);
+          }}
+          sx={{
+            ...pageArrow,
+            opacity: page === totalPages ? 0.4 : 1,
+            cursor: page === totalPages ? "default" : "pointer",
+          }}
+        >
+          ›
+        </Box>
       </Box>
 
       <Dialog open={openAdd} onClose={closePosAndReset} fullScreen>
@@ -794,6 +855,17 @@ export default function SalesPage() {
                 overflow: "hidden",
               }}
             >
+              <Typography
+                sx={{
+                  fontSize: 24,
+                  fontWeight: 900,
+                  mb: 3,
+                  pr: 5,
+                }}
+              >
+                {selectedSale ? "Payment Confirmation" : "Add New Transaction"}
+              </Typography>
+
               <IconButton
                 onClick={closePosAndReset}
                 sx={{
@@ -919,7 +991,7 @@ export default function SalesPage() {
                   </Box>
                 </Box>
 
-                {!selectedSale && selectedCustomerId && (
+                {selectedCustomerId && (
                   <Box
                     sx={{
                       bgcolor: "#fff8df",
@@ -1064,7 +1136,7 @@ export default function SalesPage() {
                       select
                       variant="standard"
                       value={method}
-                      disabled={Boolean(selectedSale)}
+                      disabled={false}
                       onChange={(e) =>
                         setMethod(e.target.value as "CASH" | "GCASH")
                       }
@@ -1082,7 +1154,7 @@ export default function SalesPage() {
                       variant="standard"
                       type="number"
                       value={discountPercent}
-                      disabled={Boolean(selectedSale)}
+                      disabled={false}
                       onChange={(e) => handleDiscountInput(e.target.value)}
                       slotProps={{
                         htmlInput: {
@@ -1095,7 +1167,7 @@ export default function SalesPage() {
                     />
                   </Box>
 
-                  {!selectedSale && (
+                  {selectedCustomerId && (
                     <Box sx={{ mt: 1 }}>
                       <Typography
                         sx={{

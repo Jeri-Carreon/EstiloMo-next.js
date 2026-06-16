@@ -15,7 +15,7 @@ function minutesToTime(minutes: number) {
 async function createSaleCode() {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const count = await db.sale.count();
-  return `SALE-${today}-${String(count + 1).padStart(4, "0")}`;
+  return `TRX-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 async function createPaymentCode() {
