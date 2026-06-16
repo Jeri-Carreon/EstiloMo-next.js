@@ -9,14 +9,16 @@ import Grid from '@mui/material/Grid';
 import Container from '@mui/material/Container';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
-
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
-import DialogTitle from '@mui/material/DialogTitle';
-import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
+import IconButton from '@mui/material/IconButton';
+import Divider from '@mui/material/Divider';
 
 import CloseIcon from '@mui/icons-material/Close';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import EmailIcon from '@mui/icons-material/Email';
+import PublicIcon from '@mui/icons-material/Public';
 
 const Item = styled(Paper)(({ theme }) => ({
   backgroundColor: '#fff',
@@ -29,13 +31,6 @@ const Item = styled(Paper)(({ theme }) => ({
   }),
   boxShadow: 'none',
 }));
-
-interface ContactUsMessage {
-  id: string;
-  name: string;
-  email: string;
-  message: string;
-}
 
 export default function ContactUs() {
   const [name, setName] = useState('');
@@ -70,14 +65,8 @@ export default function ContactUs() {
     try {
       const res = await fetch('/api/contact', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name,
-          email,
-          message,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, message }),
       });
 
       const data = await res.json();
@@ -88,11 +77,7 @@ export default function ContactUs() {
       }
 
       resetForm();
-
-      showStatusModal(
-        'Success',
-        'Your message has been sent successfully!'
-      );
+      showStatusModal('Success', 'Your message has been sent successfully!');
     } catch (error) {
       showStatusModal('Error', 'Something went wrong.');
     }
@@ -105,12 +90,7 @@ export default function ContactUs() {
     const trimmedEmail = email.trim();
     const trimmedMessage = message.trim();
 
-    // EMPTY FIELD VALIDATION
-    if (
-      !trimmedName ||
-      !trimmedEmail ||
-      !trimmedMessage
-    ) {
+    if (!trimmedName || !trimmedEmail || !trimmedMessage) {
       showStatusModal(
         'Incomplete Fields',
         'Please fill in all fields before continuing.'
@@ -118,14 +98,10 @@ export default function ContactUs() {
       return;
     }
 
-    // EMAIL VALIDATION
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!emailRegex.test(trimmedEmail)) {
-      showStatusModal(
-        'Invalid Email',
-        'Please enter a valid email address.'
-      );
+      showStatusModal('Invalid Email', 'Please enter a valid email address.');
       return;
     }
 
@@ -142,136 +118,200 @@ export default function ContactUs() {
         sx={{
           flexGrow: 1,
           backgroundColor: '#ffffff',
-          paddingTop: 5,
-          mt: 8,
+          pt: 1,
+          mt: 2,
+          pb: 4,
         }}
       >
-        <Grid container spacing={0}>
-          {/* LEFT SIDE */}
+        <Typography
+          sx={{
+            color: '#000',
+            textAlign: 'left',
+            fontSize: '2.2rem',
+            fontFamily: 'var(--font-nunito-sans)',
+            fontWeight: 800,
+            mb: 1,
+          }}
+        >
+          Contact Us!
+        </Typography>
+
+        <Divider
+          sx={{
+            width: 80,
+            height: 3,
+            backgroundColor: '#000',
+            mb: 4,
+          }}
+        />
+
+        <Grid
+          container
+          spacing={6}
+          sx={{
+            alignItems: 'flex-start',
+          }}
+        >
           <Grid size={{ xs: 12, md: 6 }}>
             <Item>
-              <h1
-                style={{
-                  color: '#000000',
-                  textAlign: 'left',
-                  fontSize: '3rem',
-                  fontFamily: 'var(--font-nunito-sans)',
-                  marginTop: 20,
-                }}
-              >
-                Location
-              </h1>
+              <Box sx={{ textAlign: 'left', pr: { xs: 0, md: 4 } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <LocationOnIcon sx={{ color: '#000', fontSize: 28 }} />
 
-              <h1
-                style={{
-                  color: '#000000',
-                  textAlign: 'left',
-                  fontSize: '1.5rem',
-                  fontFamily: 'var(--font-nunito-sans)',
-                  marginTop: 0,
-                }}
-              >
-                Unit F, Saranay Homes, Congressional Rd. cor
-                Malapitan Rd. Caloocan
-              </h1>
-
-              <h1
-                style={{
-                  color: '#000000',
-                  textAlign: 'left',
-                  fontSize: '3rem',
-                  fontFamily: 'var(--font-nunito-sans)',
-                  marginTop: 40,
-                }}
-              >
-                Follow Us!
-              </h1>
-
-              <Box
-                sx={{
-                  display: 'flex',
-                  justifyContent: 'left',
-                }}
-              >
-                <a
-                  href="https://www.facebook.com/thebarbsbro"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <img
-                    src="/facebook.svg"
-                    alt="Facebook"
-                    style={{
-                      width: 50,
-                      height: 50,
-                      marginRight: 20,
+                  <Typography
+                    sx={{
+                      color: '#000',
+                      fontSize: '1.65rem',
+                      fontFamily: 'var(--font-nunito-sans)',
+                      fontWeight: 800,
                     }}
-                  />
-                </a>
+                  >
+                    Location
+                  </Typography>
+                </Box>
 
-                <a
-                  href="https://www.tiktok.com/@thebarbsbro"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <Typography
+                  sx={{
+                    color: '#000',
+                    fontSize: '1rem',
+                    lineHeight: 1.7,
+                    fontFamily: 'var(--font-nunito-sans)',
+                    fontWeight: 500,
+                    mb: 4,
+                    maxWidth: 520,
+                  }}
                 >
-                  <img
-                    src="/tiktok.svg"
-                    alt="TikTok"
-                    style={{
-                      width: 50,
-                      height: 50,
-                      marginRight: 20,
-                    }}
-                  />
-                </a>
+                  Unit F, Saranay Homes
+                  <br />
+                  Congressional Rd. cor Malapitan Rd.
+                  <br />
+                  Caloocan City
+                </Typography>
 
-                <a
-                  href="https://www.instagram.com/thebarbsbro/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <img
-                    src="/instagram.svg"
-                    alt="Instagram"
-                    style={{
-                      width: 50,
-                      height: 50,
+                <Divider sx={{ width: 220, mb: 4, borderColor: '#d0d0d0' }} />
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <PublicIcon sx={{ color: '#000', fontSize: 28 }} />
+
+                  <Typography
+                    sx={{
+                      color: '#000',
+                      fontSize: '1.65rem',
+                      fontFamily: 'var(--font-nunito-sans)',
+                      fontWeight: 800,
                     }}
-                  />
-                </a>
+                  >
+                    Follow Us
+                  </Typography>
+                </Box>
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box
+                    component="a"
+                    href="https://www.facebook.com/thebarbsbro"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{
+                      display: 'inline-flex',
+                      transition: '0.25s',
+                      '&:hover': {
+                        transform: 'translateY(-4px) scale(1.08)',
+                      },
+                    }}
+                  >
+                    <Box
+                      component="img"
+                      src="/facebook.svg"
+                      alt="Facebook"
+                      sx={{ width: 38, height: 38 }}
+                    />
+                  </Box>
+
+                  <Box
+                    component="a"
+                    href="https://www.tiktok.com/@thebarbsbro"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{
+                      display: 'inline-flex',
+                      transition: '0.25s',
+                      '&:hover': {
+                        transform: 'translateY(-4px) scale(1.08)',
+                      },
+                    }}
+                  >
+                    <Box
+                      component="img"
+                      src="/tiktok.svg"
+                      alt="TikTok"
+                      sx={{ width: 38, height: 38 }}
+                    />
+                  </Box>
+
+                  <Box
+                    component="a"
+                    href="https://www.instagram.com/thebarbsbro/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{
+                      display: 'inline-flex',
+                      transition: '0.25s',
+                      '&:hover': {
+                        transform: 'translateY(-4px) scale(1.08)',
+                      },
+                    }}
+                  >
+                    <Box
+                      component="img"
+                      src="/instagram.svg"
+                      alt="Instagram"
+                      sx={{ width: 38, height: 38 }}
+                    />
+                  </Box>
+                </Box>
               </Box>
             </Item>
           </Grid>
 
-          {/* RIGHT SIDE */}
           <Grid size={{ xs: 12, md: 6 }}>
-            <Item>
-              <h1
-                style={{
-                  color: '#000000',
-                  textAlign: 'left',
-                  fontSize: '3rem',
-                  fontFamily: 'var(--font-nunito-sans)',
-                  margin: 0,
-                  marginTop: 20,
-                }}
-              >
-                Contact Form
-              </h1>
+            <Box
+              sx={{
+                backgroundColor: '#fff',
+                borderRadius: 4,
+                p: { xs: 2.5, md: 4 },
+                boxShadow: '0 8px 25px rgba(0,0,0,.08)',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+                <EmailIcon sx={{ color: '#000', fontSize: 28 }} />
+
+                <Typography
+                  sx={{
+                    color: '#000',
+                    textAlign: 'left',
+                    fontSize: '1.65rem',
+                    fontFamily: 'var(--font-nunito-sans)',
+                    fontWeight: 800,
+                  }}
+                >
+                  Contact Form
+                </Typography>
+              </Box>
 
               <Box
                 component="form"
                 sx={{
-                  '& > :not(style)': {
-                    m: 1,
-                    width: '100%',
+                  width: '100%',
+                  '& .MuiTextField-root': {
+                    mb: 2,
                   },
                 }}
                 autoComplete="off"
                 onSubmit={handleReviewMessage}
               >
-                {/* NAME */}
                 <TextField
+                  fullWidth
+                  size="small"
                   label="Enter Your Name"
                   placeholder="Juan Dela Cruz"
                   variant="outlined"
@@ -284,8 +324,9 @@ export default function ContactUs() {
                   }}
                 />
 
-                {/* EMAIL */}
                 <TextField
+                  fullWidth
+                  size="small"
                   label="Enter Your Email"
                   placeholder="juandelacruz@gmail.com"
                   variant="outlined"
@@ -293,15 +334,11 @@ export default function ContactUs() {
                   onChange={(e) => setEmail(e.target.value)}
                   error={
                     email.length > 0 &&
-                    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-                      email.trim()
-                    )
+                    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
                   }
                   helperText={
                     email.length > 0 &&
-                    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-                      email.trim()
-                    )
+                    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
                       ? 'Please enter a valid email address'
                       : ''
                   }
@@ -312,8 +349,9 @@ export default function ContactUs() {
                   }}
                 />
 
-                {/* MESSAGE */}
                 <TextField
+                  fullWidth
+                  size="small"
                   label="Enter Your Message"
                   placeholder="Enter Your Message"
                   variant="outlined"
@@ -328,18 +366,9 @@ export default function ContactUs() {
                   }}
                 />
 
-                {/* BUTTON */}
-                <Box
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'left',
-                    mt: 1,
-                  }}
-                >
+                <Box sx={{ display: 'flex', justifyContent: 'left', mt: 1 }}>
                   <Button
                     variant="contained"
-                    color="secondary"
-                    size="large"
                     type="submit"
                     sx={{
                       width: {
@@ -347,12 +376,17 @@ export default function ContactUs() {
                         sm: '100%',
                         md: '30%',
                       },
-                      p: 1,
+                      py: 1,
                       borderRadius: 10,
-                      fontSize: '1.2rem',
+                      fontSize: '0.95rem',
+                      fontWeight: 700,
                       textTransform: 'none',
+                      backgroundColor: '#000',
+                      color: '#fff',
+                      boxShadow: '0 4px 12px rgba(0,0,0,.15)',
                       '&:hover': {
-                        backgroundColor: 'accent.main',
+                        backgroundColor: '#111',
+                        transform: 'translateY(-1px)',
                       },
                     }}
                   >
@@ -360,12 +394,11 @@ export default function ContactUs() {
                   </Button>
                 </Box>
               </Box>
-            </Item>
+            </Box>
           </Grid>
         </Grid>
       </Box>
 
-      {/* STATUS MODAL */}
       <Dialog
         open={openStatusModal}
         onClose={() => setOpenStatusModal(false)}
@@ -389,7 +422,6 @@ export default function ContactUs() {
             boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
           }}
         >
-          {/* HEADER */}
           <Box
             sx={{
               display: 'flex',
@@ -399,51 +431,27 @@ export default function ContactUs() {
             }}
           >
             <Box>
-              <Typography
-                variant="h6"
-                sx={{ fontWeight: 700 }}
-              >
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
                 {statusTitle}
               </Typography>
 
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ mt: 0.5 }}
-              >
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                 Contact Us
               </Typography>
             </Box>
 
-            <IconButton
-              onClick={() => setOpenStatusModal(false)}
-              size="small"
-            >
+            <IconButton onClick={() => setOpenStatusModal(false)} size="small">
               <CloseIcon />
             </IconButton>
           </Box>
 
-          {/* CONTENT */}
           <DialogContent sx={{ p: 0 }}>
-            <Typography
-              sx={{
-                mb: 1,
-                color: '#333',
-              }}
-            >
+            <Typography sx={{ mb: 1, color: '#333' }}>
               {statusMessage}
             </Typography>
           </DialogContent>
 
-          {/* BUTTON */}
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              mt: 4,
-              mb: 2,
-            }}
-          >
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 4, mb: 2 }}>
             <Button
               variant="contained"
               onClick={() => setOpenStatusModal(false)}

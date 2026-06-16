@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+
 import { db } from "@/lib/db";
 import { authOptions } from "@/lib/auth";
 
@@ -17,8 +18,8 @@ export async function GET() {
       },
       include: {
         loyaltyCards: {
-          where: {
-            status: "ACTIVE",
+          orderBy: {
+            createdAt: "desc",
           },
           take: 1,
         },
@@ -48,23 +49,33 @@ export async function GET() {
 
     let loyaltyCard = customer.loyaltyCards[0];
 
-    const completedCount = customer.appointments.length;
-
     if (!loyaltyCard) {
       loyaltyCard = await db.loyaltyCard.create({
         data: {
           customerId: customer.id,
-          stars: Math.min(completedCount, 10),
-          status: completedCount >= 10 ? "COMPLETED" : "ACTIVE",
+          stars: 0,
+          status: "ACTIVE",
         },
       });
     }
 
     return NextResponse.json({
-      customer,
+      customer: {
+        id: customer.id,
+        customerCode: customer.customerCode,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        name: `${customer.firstName} ${customer.lastName}`,
+        email: customer.email,
+        mobileNumber: customer.mobileNumber,
+      },
       loyaltyCard: {
-        ...loyaltyCard,
+        id: loyaltyCard.id,
+        customerId: customer.id,
+        customerCode: customer.customerCode,
+        customerName: `${customer.firstName} ${customer.lastName}`,
         stars: Math.min(loyaltyCard.stars, 10),
+        status: loyaltyCard.status,
       },
       appointments: customer.appointments,
     });

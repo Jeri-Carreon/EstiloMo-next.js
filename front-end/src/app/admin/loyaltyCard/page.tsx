@@ -14,10 +14,8 @@ import Dialog from "@mui/material/Dialog";
 import MenuItem from "@mui/material/MenuItem";
 import CircularProgress from "@mui/material/CircularProgress";
 import InputAdornment from "@mui/material/InputAdornment";
-import Chip from "@mui/material/Chip";
 
 import SearchIcon from "@mui/icons-material/Search";
-import FilterListIcon from "@mui/icons-material/FilterList";
 import EditIcon from "@mui/icons-material/Edit";
 import SettingsIcon from "@mui/icons-material/Settings";
 import CloseIcon from "@mui/icons-material/Close";
@@ -29,6 +27,7 @@ type LoyaltyCard = {
   id: string;
   cardNumber: string;
   customerId: string;
+  customerCode: string;
   name: string;
   stickers: number;
   maxStickers: number;
@@ -57,7 +56,9 @@ export default function AdminLoyaltyCardPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [settings, setSettings] = useState<LoyaltySettings | null>(null);
 
-  const [search, setSearch] = useState("");
+  const [processedSearch, setProcessedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+
   const [loading, setLoading] = useState(true);
 
   const [editOpen, setEditOpen] = useState(false);
@@ -65,7 +66,9 @@ export default function AdminLoyaltyCardPage() {
 
   const [selectedCard, setSelectedCard] = useState<LoyaltyCard | null>(null);
   const [editStickers, setEditStickers] = useState(0);
-  const [editStatus, setEditStatus] = useState<"ACTIVE" | "COMPLETED">("ACTIVE");
+  const [editStatus, setEditStatus] = useState<"ACTIVE" | "COMPLETED">(
+    "ACTIVE"
+  );
 
   const [stickersPerTransaction, setStickersPerTransaction] = useState(1);
   const [fiveStickerReward, setFiveStickerReward] = useState("50% Off");
@@ -92,7 +95,7 @@ export default function AdminLoyaltyCardPage() {
 
       setCards(data.cards || []);
       setActivities(data.activities || []);
-      setSettings(data.settings);
+      setSettings(data.settings || null);
 
       if (data.settings) {
         setStickersPerTransaction(data.settings.stickersPerTransaction);
@@ -100,7 +103,7 @@ export default function AdminLoyaltyCardPage() {
         setTenStickerReward(data.settings.tenStickerReward);
       }
     } catch (error) {
-      console.error(error);
+      console.error("LOAD LOYALTY CARDS ERROR:", error);
     } finally {
       setLoading(false);
     }
@@ -120,20 +123,24 @@ export default function AdminLoyaltyCardPage() {
     }
 
     loadCards();
-  }, [session, status]);
+  }, [session, status, router]);
 
   const filteredCards = useMemo(() => {
     return cards.filter((card) => {
-      const value = search.toLowerCase();
+      const value = processedSearch.toLowerCase();
 
-      return (
+      const matchesSearch =
         card.cardNumber.toLowerCase().includes(value) ||
-        card.customerId.toLowerCase().includes(value) ||
+        card.customerCode.toLowerCase().includes(value) ||
         card.name.toLowerCase().includes(value) ||
-        card.status.toLowerCase().includes(value)
-      );
+        card.status.toLowerCase().includes(value);
+
+      const matchesStatus =
+        statusFilter === "ALL" || card.status.toUpperCase() === statusFilter;
+
+      return matchesSearch && matchesStatus;
     });
-  }, [cards, search]);
+  }, [cards, processedSearch, statusFilter]);
 
   const openEdit = (card: LoyaltyCard) => {
     setSelectedCard(card);
@@ -167,7 +174,7 @@ export default function AdminLoyaltyCardPage() {
       setSelectedCard(null);
       await loadCards();
     } catch (error) {
-      console.error(error);
+      console.error("UPDATE LOYALTY CARD ERROR:", error);
     }
   };
 
@@ -194,7 +201,7 @@ export default function AdminLoyaltyCardPage() {
       setSettingsOpen(false);
       await loadCards();
     } catch (error) {
-      console.error(error);
+      console.error("SAVE LOYALTY SETTINGS ERROR:", error);
     }
   };
 
@@ -232,42 +239,48 @@ export default function AdminLoyaltyCardPage() {
         </IconButton>
       </Box>
 
-      <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+      <Box
+        sx={{
+          display: "flex",
+          gap: 2,
+          mb: 3,
+          flexWrap: "wrap",
+        }}
+      >
         <TextField
           size="small"
-          placeholder="Search Card"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          sx={{
-            width: 320,
-            "& .MuiOutlinedInput-root": {
-              borderRadius: 2,
-              bgcolor: "#fff",
-            },
-          }}
+          placeholder="Search loyalty cards..."
+          value={processedSearch}
+          onChange={(e) => setProcessedSearch(e.target.value)}
           slotProps={{
             input: {
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
+                  <SearchIcon sx={{ color: "#999" }} />
                 </InputAdornment>
               ),
             },
           }}
+          sx={{
+            flex: 1,
+            maxWidth: 320,
+          }}
         />
 
-        <Button
-          variant="outlined"
-          startIcon={<FilterListIcon />}
+        <TextField
+          select
+          size="small"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
           sx={{
-            color: "#777",
-            borderColor: "#ddd",
-            textTransform: "none",
-            borderRadius: 2,
+            width: 170,
+            bgcolor: "#fff",
           }}
         >
-          Filter
-        </Button>
+          <MenuItem value="ALL">All Status</MenuItem>
+          <MenuItem value="ACTIVE">Active</MenuItem>
+          <MenuItem value="COMPLETED">Completed</MenuItem>
+        </TextField>
       </Box>
 
       <Box sx={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 3 }}>
@@ -301,51 +314,67 @@ export default function AdminLoyaltyCardPage() {
             <Typography sx={{ fontWeight: 800 }}>Action</Typography>
           </Box>
 
-          {filteredCards.map((card) => (
-            <Box
-              key={card.id}
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 2fr 1fr 1fr 1fr",
-                px: 2,
-                py: 1.4,
-                borderBottom: "1px solid #eee",
-                alignItems: "center",
-              }}
-            >
-              <Typography sx={{ fontWeight: 800, color: "#777" }}>
-                {card.cardNumber}
+          {filteredCards.length === 0 ? (
+            <Box sx={{ p: 3, textAlign: "center" }}>
+              <Typography sx={{ color: "text.secondary" }}>
+                No loyalty cards found.
               </Typography>
-
-              <Typography sx={{ fontWeight: 800, color: "#777" }}>
-                {card.customerId}
-              </Typography>
-
-              <Typography sx={{ fontWeight: 800, color: "#777" }}>
-                {card.name}
-              </Typography>
-
-              <Typography sx={{ fontWeight: 900 }}>
-                {card.stickers}/{card.maxStickers}
-              </Typography>
-
-              <Typography sx={{ fontWeight: 900 }}>
-                {card.status === "COMPLETED" ? "Completed" : "Active"}
-              </Typography>
-
-              <IconButton
-                onClick={() => openEdit(card)}
+            </Box>
+          ) : (
+            filteredCards.map((card) => (
+              <Box
+                key={card.id}
                 sx={{
-                  width: 30,
-                  height: 30,
-                  bgcolor: "#ddd",
-                  "&:hover": { bgcolor: "#ccc" },
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr 2fr 1fr 1fr 1fr",
+                  px: 2,
+                  py: 1.4,
+                  borderBottom: "1px solid #eee",
+                  alignItems: "center",
+                  "&:hover": {
+                    bgcolor: "#fafafa",
+                  },
                 }}
               >
-                <EditIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Box>
-          ))}
+                <Typography sx={{ fontWeight: 800, color: "#777" }}>
+                  {card.cardNumber}
+                </Typography>
+
+                <Typography sx={{ fontWeight: 800, color: "#777" }}>
+                  {card.customerCode}
+                </Typography>
+
+                <Typography sx={{ fontWeight: 800, color: "#777" }}>
+                  {card.name}
+                </Typography>
+
+                <Typography sx={{ fontWeight: 900 }}>
+                  {card.stickers}/{card.maxStickers}
+                </Typography>
+
+                <Typography
+                  sx={{
+                    fontWeight: 900,
+                    color: card.status === "COMPLETED" ? "green" : "#2563eb",
+                  }}
+                >
+                  {card.status === "COMPLETED" ? "Completed" : "Active"}
+                </Typography>
+
+                <IconButton
+                  onClick={() => openEdit(card)}
+                  sx={{
+                    width: 30,
+                    height: 30,
+                    bgcolor: "#ddd",
+                    "&:hover": { bgcolor: "#ccc" },
+                  }}
+                >
+                  <EditIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Box>
+            ))
+          )}
 
           <Box sx={{ flex: 1 }} />
 
@@ -359,7 +388,8 @@ export default function AdminLoyaltyCardPage() {
             }}
           >
             <Typography>
-              Showing 1 to {filteredCards.length} of {filteredCards.length} Entries
+              Showing 1 to {filteredCards.length} of {filteredCards.length}{" "}
+              Entries
             </Typography>
 
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -402,45 +432,51 @@ export default function AdminLoyaltyCardPage() {
             Recent Activity
           </Typography>
 
-          {activities.map((activity) => (
-            <Box
-              key={activity.id}
-              sx={{
-                display: "flex",
-                gap: 1.5,
-                mb: 2,
-                alignItems: "flex-start",
-              }}
-            >
+          {activities.length === 0 ? (
+            <Typography sx={{ color: "text.secondary", fontSize: 13 }}>
+              No recent activity.
+            </Typography>
+          ) : (
+            activities.map((activity) => (
               <Box
+                key={activity.id}
                 sx={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 1,
-                  bgcolor: "#ffe8a3",
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  gap: 1.5,
+                  mb: 2,
+                  alignItems: "flex-start",
                 }}
               >
-                <LoyaltyIcon sx={{ fontSize: 17, color: "#d6a100" }} />
+                <Box
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 1,
+                    bgcolor: "#ffe8a3",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <LoyaltyIcon sx={{ fontSize: 17, color: "#d6a100" }} />
+                </Box>
+
+                <Box>
+                  <Typography sx={{ fontWeight: 900, fontSize: 13 }}>
+                    {activity.customerName}
+                  </Typography>
+
+                  <Typography sx={{ fontSize: 12 }}>
+                    {activity.message}
+                  </Typography>
+
+                  <Typography sx={{ fontSize: 11, color: "#777" }}>
+                    {new Date(activity.createdAt).toLocaleString()}
+                  </Typography>
+                </Box>
               </Box>
-
-              <Box>
-                <Typography sx={{ fontWeight: 900, fontSize: 13 }}>
-                  {activity.customerName}
-                </Typography>
-
-                <Typography sx={{ fontSize: 12 }}>
-                  {activity.message}
-                </Typography>
-
-                <Typography sx={{ fontSize: 11, color: "#777" }}>
-                  {new Date(activity.createdAt).toLocaleString()}
-                </Typography>
-              </Box>
-            </Box>
-          ))}
+            ))
+          )}
         </Paper>
       </Box>
 
@@ -476,7 +512,7 @@ export default function AdminLoyaltyCardPage() {
           <TextField
             fullWidth
             disabled
-            value={selectedCard?.customerId || ""}
+            value={selectedCard?.customerCode || ""}
             sx={{ mb: 2, bgcolor: "#fff" }}
           />
 
@@ -539,7 +575,6 @@ export default function AdminLoyaltyCardPage() {
         </Box>
       </Dialog>
 
-      {/* Settings Modal */}
       <Dialog
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
@@ -568,7 +603,10 @@ export default function AdminLoyaltyCardPage() {
           </Typography>
 
           <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
-            Stickers Per Transaction <Box component="span" sx={{ color: "red" }}>*</Box>
+            Stickers Per Transaction{" "}
+            <Box component="span" sx={{ color: "red" }}>
+              *
+            </Box>
           </Typography>
 
           <TextField
@@ -584,7 +622,10 @@ export default function AdminLoyaltyCardPage() {
           </TextField>
 
           <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
-            5 Stickers Reward <Box component="span" sx={{ color: "red" }}>*</Box>
+            5 Stickers Reward{" "}
+            <Box component="span" sx={{ color: "red" }}>
+              *
+            </Box>
           </Typography>
 
           <TextField
@@ -599,7 +640,10 @@ export default function AdminLoyaltyCardPage() {
           </TextField>
 
           <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
-            10 Stickers Reward <Box component="span" sx={{ color: "red" }}>*</Box>
+            10 Stickers Reward{" "}
+            <Box component="span" sx={{ color: "red" }}>
+              *
+            </Box>
           </Typography>
 
           <TextField

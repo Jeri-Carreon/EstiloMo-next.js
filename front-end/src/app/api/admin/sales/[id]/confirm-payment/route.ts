@@ -26,6 +26,14 @@ export async function PUT(
       include: {
         payment: true,
         appointments: true,
+        customer: {
+          include: {
+            loyaltyCards: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+            },
+          },
+        },
       },
     });
 
@@ -61,6 +69,40 @@ export async function PUT(
         ? body.method
         : sale.payment.method;
 
+    const loyaltyRewardType =
+      body.loyaltyRewardType === "FREE" ||
+      body.loyaltyRewardType === "FIFTY_PERCENT"
+        ? body.loyaltyRewardType
+        : "NONE";
+
+    const loyaltyCard = sale.customer.loyaltyCards[0];
+
+    if (
+      loyaltyRewardType === "FIFTY_PERCENT" &&
+      (!loyaltyCard || loyaltyCard.stars !== 5)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "50% discount can only be redeemed once after earning exactly 5 stickers.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (
+      loyaltyRewardType === "FREE" &&
+      (!loyaltyCard || loyaltyCard.stars < 10)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Free discount can only be redeemed once after earning at least 10 stickers.",
+        },
+        { status: 400 }
+      );
+    }
+
     await db.$transaction(async (tx) => {
       await tx.payment.update({
         where: { id: sale.payment!.id },
@@ -87,6 +129,24 @@ export async function PUT(
           data: { status: "COMPLETED" },
         });
       }
+
+      if (loyaltyCard) {
+        let newStars = loyaltyCard.stars + 1;
+
+        if (loyaltyRewardType === "FREE") {
+          newStars = 1;
+        } else {
+          newStars = Math.min(newStars, 10);
+        }
+
+        await tx.loyaltyCard.update({
+          where: { id: loyaltyCard.id },
+          data: {
+            stars: newStars,
+            status: "ACTIVE",
+          },
+        });
+      }
     });
 
     return NextResponse.json({
@@ -97,6 +157,7 @@ export async function PUT(
       discount,
       totalAmount,
       method,
+      loyaltyRewardType,
     });
   } catch (error) {
     console.error("CONFIRM PAYMENT ERROR:", error);

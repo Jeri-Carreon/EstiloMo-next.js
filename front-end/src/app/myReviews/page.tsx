@@ -15,7 +15,6 @@ import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
-import Chip from "@mui/material/Chip";
 
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -345,18 +344,6 @@ export default function MyReviewsPage() {
                       {serviceName}
                     </Typography>
 
-                    <Chip
-                      size="small"
-                      label={review.status}
-                      color={
-                        review.status === "COMPLETED"
-                          ? "success"
-                          : review.status === "REJECTED" ||
-                              review.status === "HIDDEN"
-                            ? "error"
-                            : "warning"
-                      }
-                    />
                   </Box>
 
                   <Typography

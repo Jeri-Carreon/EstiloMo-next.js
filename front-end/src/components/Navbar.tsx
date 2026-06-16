@@ -116,7 +116,7 @@ export default function Navbar() {
           </Box>
 
 
-          {/* 🔥 RIGHT SIDE CONTAINER (PAGES + AUTH) */}
+          {/* RIGHT SIDE CONTAINER (PAGES + AUTH) */}
           <Box
             sx={{
               flexGrow: 1,
@@ -178,7 +178,7 @@ export default function Navbar() {
                       Edit Profile
                     </MenuItem>
 
-                    <MenuItem component={Link} href="/profile">
+                    <MenuItem component={Link} href="/myAppointments">
                       My Appointments
                     </MenuItem>
 

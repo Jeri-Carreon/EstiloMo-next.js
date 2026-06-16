@@ -247,9 +247,7 @@ export default function SalesPage() {
   );
 
   const selectedLoyaltyCard = loyaltyCards.find(
-    (card) =>
-      card.customerId === selectedCustomer?.customerCode ||
-      card.cardNumber === selectedCustomer?.customerCode
+    (card) => card.customerId === selectedCustomer?.id
   );
 
   const stickerCount = selectedLoyaltyCard?.stickers || 0;
@@ -539,6 +537,12 @@ export default function SalesPage() {
             method,
             discount: discountAmount,
             totalAmount: total,
+            loyaltyRewardType:
+              discountPercent === 100
+                ? "FREE"
+                : discountPercent === 50
+                ? "FIFTY_PERCENT"
+                : "NONE",
           }),
         }
       );
@@ -644,9 +648,9 @@ export default function SalesPage() {
               </TableHead>
 
               <TableBody>
-                {paginatedSales.map((sale) => (
+                {paginatedSales.map((sale, index) => (
                   <TableRow
-                    key={sale.id}
+                    key={`${sale.id}-${index}`}
                     sx={{
                       "& td": {
                         borderBottom: "1px solid #e8e8e8",
@@ -810,9 +814,9 @@ export default function SalesPage() {
               >
                 {services
                   .filter((service) => service.isAvailable)
-                  .map((service) => (
+                  .map((service, index) => (
                     <Button
-                      key={service.id}
+                      key={`${service.id}-${index}`}
                       disabled={Boolean(selectedSale)}
                       onClick={() => addServiceToCart(service)}
                       sx={{
@@ -929,9 +933,9 @@ export default function SalesPage() {
                         overflowY: "auto",
                       }}
                     >
-                      {filteredCustomers.slice(0, 5).map((customer) => (
+                      {filteredCustomers.slice(0, 5).map((customer, index) => (
                         <Box
-                          key={customer.id}
+                          key={`${customer.id}-${index}`}
                           onClick={() => selectCustomer(customer)}
                           sx={{
                             px: 2,
@@ -1033,9 +1037,9 @@ export default function SalesPage() {
                   </Box>
 
                   <Box sx={{ minHeight: 150, maxHeight: 190, overflowY: "auto" }}>
-                    {cart.map((item) => (
+                    {cart.map((item, index) => (
                       <Box
-                        key={item.serviceId}
+                        key={`${item.serviceId}-${index}`}
                         sx={{
                           display: "grid",
                           gridTemplateColumns: "1fr auto",
@@ -1343,9 +1347,9 @@ export default function SalesPage() {
           </Typography>
 
           <Box sx={{ bgcolor: "#fff", border: "1px solid #eee", mb: 2 }}>
-            {selectedSale?.items.map((item) => (
+            {selectedSale?.items.map((item, index) => (
               <Box
-                key={item.id}
+                key={`${item.id}-${item.serviceId}-${index}`}
                 sx={{
                   display: "flex",
                   justifyContent: "space-between",

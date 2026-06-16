@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+
 import { db } from "@/lib/db";
 import { authOptions } from "@/lib/auth";
 
@@ -7,10 +8,7 @@ export async function GET() {
   try {
     const session = await getServerSession(authOptions);
 
-    if (
-      !session ||
-      !["OWNER", "RECEPTIONIST"].includes(session.user.role)
-    ) {
+    if (!session || !["OWNER", "RECEPTIONIST"].includes(session.user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -19,32 +17,24 @@ export async function GET() {
       orderBy: { createdAt: "asc" },
       include: {
         loyaltyCards: {
-          orderBy: { createdAt: "desc" },
+          orderBy: {
+            createdAt: "desc",
+          },
           take: 1,
-        },
-        appointments: {
-          where: {
-            status: "COMPLETED",
-          },
-          select: {
-            id: true,
-          },
         },
       },
     });
 
     const cards = await Promise.all(
       customers.map(async (customer) => {
-        const completedCount = customer.appointments.length;
-
         let card = customer.loyaltyCards[0];
 
         if (!card) {
           card = await db.loyaltyCard.create({
             data: {
               customerId: customer.id,
-              stars: Math.min(completedCount, 10),
-              status: completedCount >= 10 ? "COMPLETED" : "ACTIVE",
+              stars: 0,
+              status: "ACTIVE",
             },
           });
         }
@@ -52,11 +42,12 @@ export async function GET() {
         return {
           id: card.id,
           cardNumber: customer.customerCode,
-          customerId: customer.customerCode,
+          customerId: customer.id,
+          customerCode: customer.customerCode,
           name: `${customer.firstName} ${customer.lastName}`,
-          stickers: Math.min(completedCount, 10),
+          stickers: Math.min(card.stars, 10),
           maxStickers: 10,
-          status: completedCount >= 10 ? "COMPLETED" : "ACTIVE",
+          status: card.status,
         };
       })
     );
@@ -105,10 +96,7 @@ export async function PUT(req: Request) {
     const fiveStickerReward = String(body.fiveStickerReward || "").trim();
     const tenStickerReward = String(body.tenStickerReward || "").trim();
 
-    if (
-      Number.isNaN(stickersPerTransaction) ||
-      stickersPerTransaction < 1
-    ) {
+    if (Number.isNaN(stickersPerTransaction) || stickersPerTransaction < 1) {
       return NextResponse.json(
         { error: "Invalid stickers per transaction" },
         { status: 400 }

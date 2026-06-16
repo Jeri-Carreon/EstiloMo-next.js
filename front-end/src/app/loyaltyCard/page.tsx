@@ -232,11 +232,9 @@ export default function CustomerLoyaltyCardPage() {
 
             <RewardBox
               label="50%"
-              onClick={() =>
-                stars >= 4 &&
-                appointments[3] &&
-                setSelectedAppointment(appointments[3])
-              }
+              unlocked={stars >= 5}
+              appointment={appointments[4]}
+              onClick={() => setSelectedAppointment(appointments[4])}
             />
 
             {/* Bottom row: stamp 5, 6, 7, 8, FREE */}
@@ -258,11 +256,9 @@ export default function CustomerLoyaltyCardPage() {
 
             <RewardBox
               label="FREE"
-              onClick={() =>
-                stars >= 8 &&
-                appointments[7] &&
-                setSelectedAppointment(appointments[7])
-              }
+              unlocked={stars >= 10}
+              appointment={appointments[9]}
+              onClick={() => setSelectedAppointment(appointments[9])}
             />
           </Box>
 
@@ -459,32 +455,68 @@ function StampBox({
 
 function RewardBox({
   label,
+  unlocked,
+  appointment,
   onClick,
 }: {
   label: "50%" | "FREE";
+  unlocked: boolean;
+  appointment?: Appointment;
   onClick: () => void;
 }) {
   return (
     <Box
-      onClick={onClick}
+      onClick={() => unlocked && appointment && onClick()}
       sx={{
         width: { xs: 56, sm: 88, md: 110 },
         height: { xs: 56, sm: 88, md: 110 },
         borderRadius: { xs: 2.5, md: 4 },
-        bgcolor: "#fff",
+        bgcolor: unlocked ? "#e8e8e8" : "#fff",
         border: { xs: "2px solid #111", md: "3px solid #111" },
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        fontWeight: 900,
-        fontSize:
-          label === "FREE"
-            ? { xs: "0.85rem", sm: "1.25rem", md: "1.8rem" }
-            : { xs: "1rem", sm: "1.5rem", md: "2rem" },
-        cursor: "pointer",
+        cursor: unlocked && appointment ? "pointer" : "default",
+        transition: "0.2s ease",
+        boxShadow: unlocked ? "0 4px 10px rgba(0,0,0,0.15)" : "none",
+        "&:hover": {
+          transform: unlocked && appointment ? "scale(1.05)" : "none",
+        },
       }}
     >
-      {label}
+      {unlocked ? (
+        <Box
+          sx={{
+            width: { xs: 34, sm: 48, md: 58 },
+            height: { xs: 34, sm: 48, md: 58 },
+            borderRadius: "50%",
+            bgcolor: "#111",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 3px 8px rgba(0,0,0,0.25)",
+          }}
+        >
+          <ContentCutIcon
+            sx={{
+              color: "#ffdc73",
+              fontSize: { xs: 20, sm: 28, md: 32 },
+            }}
+          />
+        </Box>
+      ) : (
+        <Typography
+          sx={{
+            fontWeight: 900,
+            fontSize:
+              label === "FREE"
+                ? { xs: "0.85rem", sm: "1.25rem", md: "1.8rem" }
+                : { xs: "1rem", sm: "1.5rem", md: "2rem" },
+          }}
+        >
+          {label}
+        </Typography>
+      )}
     </Box>
   );
 }
