@@ -119,17 +119,22 @@ export async function POST(req: NextRequest) {
       }
 
       const serviceIds = cartItems.map((item: any) => item.serviceId);
+      const uniqueServiceIds = [...new Set(serviceIds)];
 
       const services = await tx.service.findMany({
         where: {
           id: {
-            in: serviceIds,
+            in: uniqueServiceIds,
           },
         },
       });
 
-      if (services.length !== serviceIds.length) {
-        throw new Error("One or more services were not found");
+      if (services.length !== uniqueServiceIds.length) {
+        // Log which IDs are missing to help debug
+        const foundIds = new Set(services.map((s) => s.id));
+        const missingIds = uniqueServiceIds.filter((id) => !foundIds.has(id));
+        console.error("Missing service IDs:", missingIds);
+        throw new Error(`Services not found: ${missingIds.join(", ")}`);
       }
 
       const subtotal = cartItems.reduce((sum: number, item: any) => {
