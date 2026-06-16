@@ -297,24 +297,6 @@ export default function SalesPage() {
     );
   }, [selectedSale]);
 
-  useEffect(() => {
-    if (selectedSale) return;
-
-    if (discountPercent === 100 && !canUse100Discount) {
-      setDiscountPercent(0);
-    }
-
-    if (discountPercent === 50 && !canUse50Discount) {
-      setDiscountPercent(0);
-    }
-  }, [
-    selectedCustomerId,
-    discountPercent,
-    canUse50Discount,
-    canUse100Discount,
-    selectedSale,
-  ]);
-
   async function loadData() {
     try {
       setLoading(true);
@@ -456,6 +438,22 @@ export default function SalesPage() {
   function selectCustomer(customer: Customer) {
     setSelectedCustomerId(customer.id);
     setCustomerSearch(fullName(customer));
+  }
+
+  function handleDiscountInput(value: string) {
+    if (selectedSale) return;
+
+    if (value === "") {
+      setDiscountPercent(0);
+      return;
+    }
+
+    const parsedValue = Number(value);
+
+    if (Number.isNaN(parsedValue)) return;
+
+    const safeValue = Math.min(Math.max(parsedValue, 0), 100);
+    setDiscountPercent(safeValue);
   }
 
   async function createSale() {
@@ -1079,23 +1077,86 @@ export default function SalesPage() {
 
                   <Box sx={summaryRow}>
                     <Typography>Discount %</Typography>
+
                     <TextField
-                      select
                       variant="standard"
+                      type="number"
                       value={discountPercent}
                       disabled={Boolean(selectedSale)}
-                      onChange={(e) => setDiscountPercent(Number(e.target.value))}
-                      sx={{ width: 155 }}
-                    >
-                      <MenuItem value={0}>0%</MenuItem>
-                      <MenuItem value={50} disabled={!canUse50Discount}>
-                        50% {canUse50Discount ? "" : "(Need 5 stickers)"}
-                      </MenuItem>
-                      <MenuItem value={100} disabled={!canUse100Discount}>
-                        100% {canUse100Discount ? "" : "(Need 10 stickers)"}
-                      </MenuItem>
-                    </TextField>
+                      onChange={(e) => handleDiscountInput(e.target.value)}
+                      inputProps={{
+                        min: 0,
+                        max: 100,
+                        step: 1,
+                      }}
+                      sx={{ width: 90 }}
+                    />
                   </Box>
+
+                  {!selectedSale && (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography
+                        sx={{
+                          fontSize: 12,
+                          color: "#777",
+                          fontWeight: 800,
+                          mb: 1,
+                        }}
+                      >
+                        Manual promo discount is allowed. Loyalty shortcuts are
+                        disabled if the customer is not eligible.
+                      </Typography>
+
+                      <Box sx={{ display: "flex", gap: 1 }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => setDiscountPercent(0)}
+                          sx={{
+                            minWidth: 52,
+                            color: "#111",
+                            borderColor: "#ccc",
+                            textTransform: "none",
+                            fontWeight: 800,
+                          }}
+                        >
+                          0%
+                        </Button>
+
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={!canUse50Discount}
+                          onClick={() => setDiscountPercent(50)}
+                          sx={{
+                            minWidth: 72,
+                            color: "#111",
+                            borderColor: "#ccc",
+                            textTransform: "none",
+                            fontWeight: 800,
+                          }}
+                        >
+                          50%
+                        </Button>
+
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={!canUse100Discount}
+                          onClick={() => setDiscountPercent(100)}
+                          sx={{
+                            minWidth: 78,
+                            color: "#111",
+                            borderColor: "#ccc",
+                            textTransform: "none",
+                            fontWeight: 800,
+                          }}
+                        >
+                          100%
+                        </Button>
+                      </Box>
+                    </Box>
+                  )}
                 </Box>
               </Box>
 
