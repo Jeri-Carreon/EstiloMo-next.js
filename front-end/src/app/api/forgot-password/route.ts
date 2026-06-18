@@ -4,7 +4,15 @@ import crypto from "crypto";
 //Email API (Resend)
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY!);
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("Missing RESEND_API_KEY");
+  }
+
+  return new Resend(apiKey);
+}
 
 export async function POST(req: Request) {
   const { email } = await req.json();
@@ -29,7 +37,7 @@ export async function POST(req: Request) {
   // TODO: send email with link
   const resetLink = `http://localhost:3000/reset-password?token=${token}`;
 
-  await resend.emails.send({
+  await getResendClient().emails.send({
     from: "The Barbs Bro Support <onboarding@resend.dev>",
     to: email,
     subject: "Reset Your Password",

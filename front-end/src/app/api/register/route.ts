@@ -3,7 +3,15 @@ import crypto from "crypto";
 import { db } from "@/lib/db";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY!);
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("Missing RESEND_API_KEY");
+  }
+
+  return new Resend(apiKey);
+}
 
 export async function POST(req: Request) {
   try {
@@ -75,12 +83,12 @@ export async function POST(req: Request) {
     // Creates verification link
     const verifyLink = `${process.env.NEXT_PUBLIC_APP_URL}/verify-email?token=${rawToken}`;
 
-    await resend.emails.send({
-    from: "The Barbs Bro Support <onboarding@resend.dev>",
-    to: email,
-    subject: "Verify your email",
+    await getResendClient().emails.send({
+      from: "The Barbs Bro Support <onboarding@resend.dev>",
+      to: email,
+      subject: "Verify your email",
 
-    html: `
+      html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6;">
         <h2>Welcome to The Barbs Bro</h2>
 
@@ -95,7 +103,7 @@ export async function POST(req: Request) {
         </p>
       </div>
     `,
-  });
+    });
 
     const { password: _, ...safeUser } = user;
 
