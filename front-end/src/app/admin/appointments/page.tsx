@@ -1046,6 +1046,34 @@ export default function AppointmentsPage() {
         </IconButton>
       </Box>
 
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          mb: 4,
+        }}
+      >
+        <Button
+          startIcon={<AddIcon />}
+          onClick={() => setOpenAddModal(true)}
+          sx={{
+            backgroundColor: '#000',
+            color: '#fff',
+            px: 3,
+            py: 1,
+            textTransform: 'none',
+            fontWeight: 700,
+            borderRadius: 2,
+            '&:hover': {
+              backgroundColor: '#222',
+            },
+          }}
+        >
+          Add Appointment
+        </Button>
+      </Box>
+      
+
       {error && (
         <Typography color="error" sx={{ mb: 2 }}>
           {error}
@@ -1074,24 +1102,6 @@ export default function AppointmentsPage() {
           Pending appointments
         </Typography>
 
-        <Button
-          startIcon={<AddIcon />}
-          onClick={() => setOpenAddModal(true)}
-          sx={{
-            backgroundColor: '#000',
-            color: '#fff',
-            px: 3,
-            py: 1,
-            textTransform: 'none',
-            fontWeight: 700,
-            borderRadius: 2,
-            '&:hover': {
-              backgroundColor: '#222',
-            },
-          }}
-        >
-          Add Appointment
-        </Button>
       </Box>
 
           {renderAppointmentTable(paginatedPendingAppointments)}

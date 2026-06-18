@@ -39,6 +39,8 @@ type DashboardData = {
   scheduledAppointments: number;
   cancellations: number;
   completedAppointments: number;
+  completedTransactions: number;
+  noShows: number;
   revenueByService: { service: string; revenue: number; count: number }[];
   revenueByBarber: { name: string; revenue: number; services: number }[];
   paymentMethods: { method: string; percentage: number }[];
@@ -48,71 +50,39 @@ type DashboardData = {
   topCustomers: { rank: number; name: string; visits: number; revenue: number }[];
 };
 
-// ─── Mock ─────────────────────────────────────────────────────────────────────
-
-const MOCK: DashboardData = {
-  pendingAppointments: 5,
-  todaySales: 8000,
-  newAppointments: 5,
-  scheduledAppointments: 10,
-  cancellations: 1,
-  completedAppointments: 15,
-  revenueByService: [
-    { service: "Signature Haircut", revenue: 3900, count: 12 },
-    { service: "Scalp Treatment", revenue: 3200, count: 8 },
-    { service: "Shampoo", revenue: 2600, count: 6 },
-    { service: "Charcoal Mask", revenue: 1400, count: 3 },
-    { service: "Shave", revenue: 2900, count: 5 },
-    { service: "Scalp Massage", revenue: 900, count: 2 },
-  ],
-  revenueByBarber: [
-    { name: "Dwight Ramos", revenue: 1200, services: 4 },
-    { name: "Rico Blanco", revenue: 1000, services: 3 },
-    { name: "Chris Brown", revenue: 800, services: 2 },
-    { name: "Chris Newsome", revenue: 500, services: 2 },
-  ],
-  paymentMethods: [
-    { method: "Cash", percentage: 65 },
-    { method: "GCash", percentage: 35 },
-  ],
-  walkInVsAppointments: [
-    { type: "Walk-in", customers: 4, revenue: 1300 },
-    { type: "Appointments", customers: 9, revenue: 3000 },
-  ],
-  peakHours: [
-    { hour: "10 AM", customers: 3 },
-    { hour: "11 AM", customers: 4 },
-    { hour: "12 PM", customers: 4 },
-    { hour: "1 PM", customers: 5 },
-    { hour: "2 PM", customers: 6 },
-    { hour: "3 PM", customers: 7 },
-    { hour: "4 PM", customers: 8 },
-    { hour: "5 PM", customers: 12 },
-    { hour: "6 PM", customers: 10 },
-    { hour: "7 PM", customers: 7 },
-    { hour: "8 PM", customers: 3 },
-  ],
-  visitFrequency: [
-    { frequency: "Weekly", customers: 5, percentage: 7 },
-    { frequency: "Bi-weekly", customers: 11, percentage: 18 },
-    { frequency: "Monthly", customers: 29, percentage: 47 },
-    { frequency: "Quarterly", customers: 18, percentage: 28 },
-  ],
-  topCustomers: [
-    { rank: 1, name: "Ryoshio Utsumi", visits: 10, revenue: 6000 },
-    { rank: 2, name: "Ivan Marquilencia", visits: 8, revenue: 3000 },
-    { rank: 3, name: "Alex Arenas", visits: 5, revenue: 2500 },
-    { rank: 4, name: "Jeri Carreon", visits: 4, revenue: 2000 },
-    { rank: 5, name: "Nikko Sycayco", visits: 3, revenue: 1800 },
-  ],
-};
-
 // ─── Colors ───────────────────────────────────────────────────────────────────
 
 const BARBER_COLORS = ["#00bcd4", "#4caf50", "#ffc400", "#f44336"];
 const PIE_COLORS = ["#2196f3", "#4caf50"];
 const WALKIN_COLORS = ["#ffc400", "#2196f3"];
 const FREQ_COLORS = ["#2196f3", "#ff9800", "#f44336", "#4caf50"];
+
+// ─── Date filter helper ────────────────────────────────────────────────────────
+// Generic period filter so the same logic applies to both sales (createdAt)
+// and appointments (appointmentDate) without duplicating the day/week/month math.
+
+function isInPeriod(date: Date, now: Date, period: "Day" | "Week" | "Month"): boolean {
+  if (period === "Day") {
+    return (
+      date.getDate() === now.getDate() &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear()
+    );
+  }
+  if (period === "Week") {
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999);
+    return date >= startOfWeek && date <= endOfWeek;
+  }
+  if (period === "Month") {
+    return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+  }
+  return true;
+}
 
 // ─── Metric Card ──────────────────────────────────────────────────────────────
 
@@ -194,74 +164,118 @@ export default function AdminDashboardPage() {
       try {
         setLoading(true);
 
-        const [servicesRes, appointmentsRes] = await Promise.all([
-          fetch("/api/admin/services", { cache: "no-store" }),
+        const [appointmentsRes, salesRes] = await Promise.all([
           fetch("/api/admin/appointments", { cache: "no-store" }),
+          fetch("/api/admin/sales", { cache: "no-store" }),
         ]);
 
-        if (servicesRes.status === 403 || appointmentsRes.status === 403) {
+        if (appointmentsRes.status === 403 || salesRes.status === 403) {
           router.push("/unauthorized");
           return;
         }
 
-        const [, appointmentsData] = await Promise.all([
-          servicesRes.json(),
+        const [appointmentsData, salesData] = await Promise.all([
           appointmentsRes.json(),
+          salesRes.json(),
         ]);
 
         const appts: any[] = appointmentsData?.appointments ?? [];
+        const sales: any[] = salesData?.sales ?? [];
         const now = new Date();
 
-        const filteredAppts = appts.filter((appt: any) => {
-          const apptDate = new Date(appt.appointmentDate);
-          if (period === "Day") {
-            return (
-              apptDate.getDate() === now.getDate() &&
-              apptDate.getMonth() === now.getMonth() &&
-              apptDate.getFullYear() === now.getFullYear()
-            );
+        // ── Appointments: filtered by appointmentDate ──
+        // Used for status counts, peak hours, walk-in vs appointment counts.
+        const filteredAppts = appts.filter((appt: any) =>
+          isInPeriod(new Date(appt.appointmentDate), now, period)
+        );
+
+        // newAppointments intentionally counts ALL pending appts (not period-filtered),
+        // matching original behavior — "pending to confirm" is an all-time queue, not a period stat.
+        const newAppointments = appts.filter((a) => a.status === "PENDING").length;
+        const scheduledAppointments = filteredAppts.filter((a) => a.status === "SCHEDULED").length;
+
+        // ── Sales: filtered by createdAt ──
+        // Used for revenue, revenue by service, revenue by barber, payment methods.
+        const filteredSales = sales.filter((sale: any) => {
+          if (sale.source === "WALKIN") {
+            return isInPeriod(new Date(sale.createdAt), now, period);
           }
-          if (period === "Week") {
-            const startOfWeek = new Date(now);
-            startOfWeek.setDate(now.getDate() - now.getDay());
-            const endOfWeek = new Date(startOfWeek);
-            endOfWeek.setDate(startOfWeek.getDate() + 6);
-            return apptDate >= startOfWeek && apptDate <= endOfWeek;
+
+          // BOOKING: use the appointment date(s), not createdAt
+          const apptDates: Date[] = (sale.appointments ?? []).map((a: any) => new Date(a.appointmentDate));
+          if (apptDates.length === 0) {
+            // safety fallback if a booking sale somehow has no linked appointments
+            return isInPeriod(new Date(sale.createdAt), now, period);
           }
-          if (period === "Month") {
-            return (
-              apptDate.getMonth() === now.getMonth() &&
-              apptDate.getFullYear() === now.getFullYear()
-            );
-          }
-          return true;
+          return apptDates.some((d) => isInPeriod(d, now, period));
         });
 
-        const todaySales = filteredAppts
-          .filter((a) => a.status === "COMPLETED")
-          .reduce((total, appt) => total + Number(appt.payment?.amount ?? 0), 0);
+        const paidSales = filteredSales.filter((s) => s.status === "PAID");
 
-        const newAppointments = appts.filter((a) => a.status === "PENDING").length;
+        const todaySales = paidSales.reduce(
+          (total, sale) => total + Number(sale.totalAmount ?? 0),
+          0
+        );
+
+        const completedAppointments = filteredSales.filter((a) => a.status === "PAID" && a.source === "BOOKING").length;
+        const completedTransactions = filteredSales.filter((a) => a.status === "PAID").length;
         const cancellations = filteredAppts.filter((a) => a.status === "CANCELLED").length;
-        const scheduledAppointments = filteredAppts.filter((a) => a.status === "SCHEDULED").length;
-        const completedAppointments = filteredAppts.filter((a) => a.status === "COMPLETED").length;
+        const noShows = filteredAppts.filter((a) => a.status === "NOSHOW").length;
 
-        const gcashCount = filteredAppts.filter((a) => a.payment?.method === "GCASH").length;
-        const cashCount = filteredAppts.filter((a) => a.payment?.method === "CASH").length;
-        const totalPayments = gcashCount + cashCount;
+        const walkInAppts = paidSales.filter((a: any) => a.source === "WALKIN");
+        const bookedAppts = paidSales.filter((a: any) => a.source !== "WALKIN");
+        const walkInVsAppointments = [
+          {
+            type: "Walk-in",
+            customers: walkInAppts.length,
+            revenue: walkInAppts.reduce((s: number, a: any) => s + Number(a.payment?.amount ?? 0), 0),
+          },
+          {
+            type: "Appointments",
+            customers: bookedAppts.length,
+            revenue: bookedAppts.reduce((s: number, a: any) => s + Number(a.payment?.amount ?? 0), 0),
+          },
+        ];
 
-        const serviceMap = new Map();
-        filteredAppts.forEach((appt: any) => {
-          if (appt.status !== "COMPLETED") return;
-          const serviceName = appt.service?.name ?? "Unknown";
-          const amount = Number(appt.payment?.amount ?? 0);
-          if (!serviceMap.has(serviceName))
-            serviceMap.set(serviceName, { service: serviceName, revenue: 0, count: 0 });
-          const e = serviceMap.get(serviceName);
-          e.revenue += amount; e.count += 1;
+        // Revenue by service: built from sale.items[], not appointments —
+        // a single sale can contain multiple service line items.
+        const serviceMap = new Map<string, { service: string; revenue: number; count: number }>();
+        paidSales.forEach((sale: any) => {
+          (sale.items ?? []).forEach((item: any) => {
+            const serviceName = item.serviceName ?? "Unknown";
+            const amount = Number(item.subtotal ?? item.price ?? 0);
+            if (!serviceMap.has(serviceName)) {
+              serviceMap.set(serviceName, { service: serviceName, revenue: 0, count: 0 });
+            }
+            const e = serviceMap.get(serviceName)!;
+            e.revenue += amount;
+            e.count += Number(item.quantity ?? 1);
+          });
         });
         const revenueByService = Array.from(serviceMap.values());
 
+        // Revenue by barber: from sale.barber, attributing the sale's totalAmount.
+        const barberMap = new Map<string, { name: string; revenue: number; services: number }>();
+        paidSales.forEach((sale: any) => {
+          const barberName = sale.barber?.name ?? "Unknown";
+          const amount = Number(sale.totalAmount ?? 0);
+          const itemCount = (sale.items ?? []).reduce(
+            (s: number, i: any) => s + Number(i.quantity ?? 1),
+            0
+          );
+          if (!barberMap.has(barberName)) {
+            barberMap.set(barberName, { name: barberName, revenue: 0, services: 0 });
+          }
+          const e = barberMap.get(barberName)!;
+          e.revenue += amount;
+          e.services += itemCount;
+        });
+        const revenueByBarber = Array.from(barberMap.values()).sort((a, b) => b.revenue - a.revenue);
+
+        // Payment methods: from sale.payment.method, counted per paid sale.
+        const gcashCount = paidSales.filter((s) => s.payment?.method === "GCASH").length;
+        const cashCount = paidSales.filter((s) => s.payment?.method === "CASH").length;
+        const totalPayments = gcashCount + cashCount;
         const paymentMethods = totalPayments
           ? [
               { method: "GCASH", percentage: Math.round((gcashCount / totalPayments) * 100) },
@@ -269,29 +283,20 @@ export default function AdminDashboardPage() {
             ]
           : [];
 
-        const barberMap = new Map();
-        filteredAppts.forEach((appt: any) => {
-          if (appt.status !== "COMPLETED") return;
-          const barberName = appt.barber?.name ?? "Unknown";
-          const amount = Number(appt.payment?.amount ?? 0);
-          if (!barberMap.has(barberName))
-            barberMap.set(barberName, { name: barberName, revenue: 0, services: 0 });
-          const e = barberMap.get(barberName);
-          e.revenue += amount; e.services += 1;
-        });
-        const revenueByBarber = Array.from(barberMap.values()).sort((a, b) => b.revenue - a.revenue);
-
-        const walkInAppts = filteredAppts.filter((a: any) => a.type === "WALK_IN");
-        const bookedAppts = filteredAppts.filter((a: any) => a.type !== "WALK_IN");
-        const walkInVsAppointments = [
-          { type: "Walk-in", customers: walkInAppts.length, revenue: walkInAppts.reduce((s: number, a: any) => s + Number(a.payment?.amount ?? 0), 0) },
-          { type: "Appointments", customers: bookedAppts.length, revenue: bookedAppts.reduce((s: number, a: any) => s + Number(a.payment?.amount ?? 0), 0) },
-        ];
-
+        // Peak hours: based on appointment start time, all statuses (matches original).
         const hourMap = new Map<string, number>();
         filteredAppts.forEach((appt: any) => {
           if (appt.startMinutes == null) return;
           const h = Math.floor(appt.startMinutes / 60);
+          const label = h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
+          hourMap.set(label, (hourMap.get(label) ?? 0) + 1);
+        });
+
+        // Walk-in sales — bucket by the hour they were created, since there's no separate appointment.
+        const walkInSales = filteredSales.filter((s: any) => s.source === "WALKIN");
+        walkInSales.forEach((sale: any) => {
+          const created = new Date(sale.createdAt);
+          const h = created.getHours();
           const label = h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
           hourMap.set(label, (hourMap.get(label) ?? 0) + 1);
         });
@@ -305,14 +310,88 @@ export default function AdminDashboardPage() {
             return toMin(a.hour) - toMin(b.hour);
           });
 
+        // Visit Frequency — computed from ALL paid sales (not period-filtered), since
+        // "frequency" describes a customer's long-term pattern, not their activity in
+        // the currently selected Day/Week/Month window.
+        const customerVisits = new Map<string, Date[]>();
+        sales
+          .filter((s: any) => s.status === "PAID")
+          .forEach((sale: any) => {
+            const customerId = sale.customer?.id ?? "unknown";
+            const date = new Date(sale.createdAt);
+            if (!customerVisits.has(customerId)) customerVisits.set(customerId, []);
+            customerVisits.get(customerId)!.push(date);
+          });
+
+        const frequencyBuckets = {
+          Weekly: 0,
+          "Bi-weekly": 0,
+          Monthly: 0,
+          Quarterly: 0,
+        };
+
+        customerVisits.forEach((dates) => {
+          if (dates.length < 2) return; // need at least 2 visits to measure a gap; one-time customers excluded from this chart
+          const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
+          const gaps: number[] = [];
+          for (let i = 1; i < sorted.length; i++) {
+            const days = (sorted[i].getTime() - sorted[i - 1].getTime()) / (1000 * 60 * 60 * 24);
+            gaps.push(days);
+          }
+          const avgGapDays = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+
+          if (avgGapDays <= 10) frequencyBuckets.Weekly += 1;
+          else if (avgGapDays <= 20) frequencyBuckets["Bi-weekly"] += 1;
+          else if (avgGapDays <= 45) frequencyBuckets.Monthly += 1;
+          else frequencyBuckets.Quarterly += 1;
+        });
+
+        const totalReturningCustomers = Object.values(frequencyBuckets).reduce((a, b) => a + b, 0);
+
+        const visitFrequency = Object.entries(frequencyBuckets).map(([frequency, customers]) => ({
+          frequency,
+          customers,
+          percentage: totalReturningCustomers ? Math.round((customers / totalReturningCustomers) * 100) : 0,
+        }));
+
+        // Top Customers (By Revenue) — from ALL paid sales, not period-filtered,
+        // so rankings reflect lifetime value rather than just the selected window.
+        const customerRevenueMap = new Map<string, { name: string; visits: number; revenue: number }>();
+        sales
+          .filter((s: any) => s.status === "PAID")
+          .forEach((sale: any) => {
+            const customerId = sale.customer?.id ?? "unknown";
+            const customerName = sale.customer?.name ?? "Unknown";
+            const amount = Number(sale.totalAmount ?? 0);
+            if (!customerRevenueMap.has(customerId)) {
+              customerRevenueMap.set(customerId, { name: customerName, visits: 0, revenue: 0 });
+            }
+            const entry = customerRevenueMap.get(customerId)!;
+            entry.visits += 1;
+            entry.revenue += amount;
+          });
+
+        const topCustomers = Array.from(customerRevenueMap.values())
+          .sort((a, b) => b.revenue - a.revenue)
+          .slice(0, 5)
+          .map((c, i) => ({ rank: i + 1, ...c }));
+
         setData({
           pendingAppointments: newAppointments,
-          todaySales, newAppointments, cancellations,
-          scheduledAppointments, completedAppointments,
-          revenueByBarber, paymentMethods, revenueByService,
-          walkInVsAppointments, peakHours,
-          visitFrequency: MOCK.visitFrequency,
-          topCustomers: MOCK.topCustomers,
+          todaySales,
+          newAppointments,
+          cancellations,
+          scheduledAppointments,
+          completedAppointments,
+          noShows,
+          completedTransactions,
+          revenueByBarber,
+          paymentMethods,
+          revenueByService,
+          walkInVsAppointments,
+          peakHours,
+          visitFrequency,
+          topCustomers,
         });
       } catch (error) {
         console.error(error);
@@ -338,13 +417,11 @@ export default function AdminDashboardPage() {
   const busiestHour = data.peakHours.find((h) => h.customers === maxPeakCustomers);
   const slowestHour = data.peakHours.find((h) => h.customers === minPeakCustomers);
 
-  // Responsive grid: 1 col on mobile, 2 on desktop
   const twoColGrid = { display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 3 };
 
   return (
     <Box sx={{ p: { xs: 2, md: 4 }, bgcolor: "#fff", minHeight: "100vh", maxWidth: "100%", overflowX: "hidden" }}>
 
-      {/* ── Header ── */}
       <Typography sx={{ fontSize: { xs: 26, md: 34 }, fontWeight: 900, mb: 0.5 }}>
         Dashboard
       </Typography>
@@ -364,7 +441,6 @@ export default function AdminDashboardPage() {
         </Box>
       )}
 
-      {/* ── Period Toggle ── */}
       <Box sx={{ display: "flex", mb: 3, width: "fit-content" }}>
         {(["Day", "Week", "Month"] as const).map((p) => (
           <Button
@@ -383,19 +459,24 @@ export default function AdminDashboardPage() {
         ))}
       </Box>
 
-      {/* ── Metric Cards ── */}
+      <Box sx={{ display: "flex", gap: 2, mb: 4, flexWrap: "wrap" }}>
+        <MetricCard label="New Appointments" value={data.newAppointments} icon={<PersonAddIcon sx={{ color: "#ff9800", fontSize: 20 }} />} iconBg="#fff3e0" />
+        <MetricCard label="Scheduled Appointments" value={data.scheduledAppointments} icon={<CalendarTodayIcon sx={{ color: "#2196f3", fontSize: 20 }} />} iconBg="#e3f2fd" />
+        <MetricCard label="Completed Appointments" value={data.completedAppointments} icon={<CheckCircleOutlineIcon sx={{ color: "#4caf50", fontSize: 20 }} />} iconBg="#e8f5e9" />
+        <MetricCard label="Cancelled Appointments" value={data.cancellations} icon={<CancelIcon sx={{ color: "#f44336", fontSize: 20 }} />} iconBg="#fdecea" />
+        <MetricCard label="No-Show Appointments" value={data.noShows} icon={<CancelIcon sx={{ color: "#f44336", fontSize: 20 }} />} iconBg="#fdecea" />
+
+      </Box>
       <Box sx={{ display: "flex", gap: 2, mb: 4, flexWrap: "wrap" }}>
         <MetricCard label="Sales" value={`₱ ${data.todaySales.toLocaleString()}`} icon={<AttachMoneyIcon sx={{ color: "#4caf50", fontSize: 20 }} />} iconBg="#e8f5e9" />
         <MetricCard label="New Appointments" value={data.newAppointments} icon={<PersonAddIcon sx={{ color: "#ff9800", fontSize: 20 }} />} iconBg="#fff3e0" />
-        <MetricCard label="Scheduled" value={data.scheduledAppointments} icon={<CalendarTodayIcon sx={{ color: "#2196f3", fontSize: 20 }} />} iconBg="#e3f2fd" />
-        <MetricCard label="Completed" value={data.completedAppointments} icon={<CheckCircleOutlineIcon sx={{ color: "#4caf50", fontSize: 20 }} />} iconBg="#e8f5e9" />
-        <MetricCard label="Cancellations" value={data.cancellations} icon={<CancelIcon sx={{ color: "#f44336", fontSize: 20 }} />} iconBg="#fdecea" />
+        <MetricCard label="Scheduled Appointments" value={data.scheduledAppointments} icon={<CalendarTodayIcon sx={{ color: "#2196f3", fontSize: 20 }} />} iconBg="#e3f2fd" />
+        <MetricCard label="Completed Transactions" value={data.completedTransactions} icon={<CheckCircleOutlineIcon sx={{ color: "#4caf50", fontSize: 20 }} />} iconBg="#e8f5e9" />
+        <MetricCard label="Cancelled Transactions" value={data.cancellations} icon={<CancelIcon sx={{ color: "#f44336", fontSize: 20 }} />} iconBg="#fdecea" />
       </Box>
 
-      {/* ── Financial Analytics ── */}
       <SectionTitle>Financial Analytics</SectionTitle>
 
-      {/* Revenue by Service — horizontal scroll on mobile so bars aren't squished */}
       <Paper elevation={0} sx={{ border: "1px solid #e5e7eb", borderRadius: 2, p: { xs: 2, md: 3 }, mb: 3 }}>
         <Typography sx={{ fontWeight: 800, mb: 2 }}>Revenue by Service Type</Typography>
         <ResponsiveContainer width="99%" height={260}>
@@ -418,7 +499,6 @@ export default function AdminDashboardPage() {
         </Box>
       </Paper>
 
-      {/* Revenue per Barber + Payment Methods */}
       <Box sx={{ ...twoColGrid, mb: 5 }}>
         <Paper elevation={0} sx={{ border: "1px solid #e5e7eb", borderRadius: 2, p: { xs: 2, md: 3 } }}>
           <Typography sx={{ fontWeight: 800, mb: 2 }}>Revenue Per Barber</Typography>
@@ -463,11 +543,9 @@ export default function AdminDashboardPage() {
         </Paper>
       </Box>
 
-      {/* ── Operational Analytics ── */}
       <SectionTitle>Operational Analytics</SectionTitle>
 
       <Box sx={{ ...twoColGrid, mb: 5 }}>
-        {/* Walk-in vs Appointments */}
         <Paper elevation={0} sx={{ border: "1px solid #e5e7eb", borderRadius: 2, p: { xs: 2, md: 3 } }}>
           <Typography sx={{ fontWeight: 800, mb: 2 }}>Walk-in vs Appointments</Typography>
           <Box sx={{ display: "flex", justifyContent: "center" }}>
@@ -495,7 +573,6 @@ export default function AdminDashboardPage() {
           </Box>
         </Paper>
 
-        {/* Peak Hours */}
         <Paper elevation={0} sx={{ border: "1px solid #e5e7eb", borderRadius: 2, p: { xs: 2, md: 3 } }}>
           <Typography sx={{ fontWeight: 800, mb: 2 }}>Peak Hours</Typography>
           <ResponsiveContainer width="99%" height={200}>
@@ -524,11 +601,9 @@ export default function AdminDashboardPage() {
         </Paper>
       </Box>
 
-      {/* ── Customer Analytics ── */}
       <SectionTitle>Customer Analytics</SectionTitle>
 
       <Box sx={twoColGrid}>
-        {/* Visit Frequency */}
         <Paper elevation={0} sx={{ border: "1px solid #e5e7eb", borderRadius: 2, p: { xs: 2, md: 3 } }}>
           <Typography sx={{ fontWeight: 800, mb: 2 }}>Visit Frequency Distribution</Typography>
           <ResponsiveContainer width="99%" height={200}>
@@ -555,7 +630,6 @@ export default function AdminDashboardPage() {
           </Box>
         </Paper>
 
-        {/* Top Customers */}
         <Paper elevation={0} sx={{ border: "1px solid #e5e7eb", borderRadius: 2, p: { xs: 2, md: 3 } }}>
           <Typography sx={{ fontWeight: 800, mb: 2 }}>Top Customers (By Revenue)</Typography>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
