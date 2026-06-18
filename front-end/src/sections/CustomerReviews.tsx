@@ -22,6 +22,14 @@ interface Review {
   };
 }
 
+const formatReviewDate = (value: string) =>
+  new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(value));
+
 export default function ReviewsPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [filteredReviews, setFilteredReviews] = useState<Review[]>([]);
@@ -220,7 +228,7 @@ export default function ReviewsPage() {
 
                 {/* META */}
                 <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>
-                  Reviewed on {new Date(review.createdAt).toLocaleDateString()}
+                  Reviewed on {formatReviewDate(review.createdAt)}
                 </Typography>
 
                 <Typography sx={{ fontSize: 14, color: 'text.secondary', mb: 2 }}>

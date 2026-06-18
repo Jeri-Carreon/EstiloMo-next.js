@@ -46,6 +46,14 @@ const ratingLabels: Record<string, string> = {
   '5': 'Excellent',
 };
 
+const formatReviewDate = (value: string) =>
+  new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(value));
+
 export default function MyReviewsPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [service, setService] = useState(availableServices[0]);
@@ -194,7 +202,7 @@ export default function MyReviewsPage() {
               >
                 <Typography sx={{ fontWeight: 700 }}>{review.service}</Typography>
                 <Typography sx={{ color: 'text.secondary', mb: 1 }}>
-                  Reviewed on {new Date(review.createdAt).toLocaleDateString()}
+                  Reviewed on {formatReviewDate(review.createdAt)}
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                   <Rating precision={0.5} value={review.rating} readOnly size="small" />
