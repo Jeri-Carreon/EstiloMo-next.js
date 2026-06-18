@@ -44,6 +44,11 @@ type Service = {
   durationMinutes: number;
   price: number;
   isAvailable: boolean;
+
+  assignedStaff?: {
+    id: string;
+    name: string;
+  }[];
 };
 
 type Sale = {
@@ -72,6 +77,16 @@ type Sale = {
     quantity: number;
     price: number;
     subtotal: number;
+  }[];
+  appointments: {
+    id: string;
+    appointmentCode: string;
+    status: string;
+    serviceName: string;
+    appointmentDate: string;
+    startMinutes: number;
+    endMinutes: number;
+    schedule: string;
   }[];
   payment: {
     id: string;
@@ -157,6 +172,26 @@ const summaryRow = {
   },
 };
 
+const detailRow = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  py: 0.8,
+  borderBottom: "1px solid #f0f0f0",
+};
+
+const detailLabel = {
+  fontWeight: 700,
+  color: "#777",
+  fontSize: 13,
+};
+
+const detailValue = {
+  fontWeight: 900,
+  color: "#111",
+  fontSize: 13,
+};
+
 function formatPeso(value: number) {
   return `₱ ${Number(value || 0).toLocaleString("en-PH", {
     maximumFractionDigits: 0,
@@ -173,6 +208,16 @@ function formatDate(value: string | Date) {
 
 function formatToday() {
   return formatDate(new Date());
+}
+
+function getSaleDisplayDate(sale: Sale | null | undefined) {
+  if (!sale) return formatToday();
+
+  if (sale.source === "BOOKING" && sale.appointments?.length) {
+    return formatDate(sale.appointments[0].appointmentDate);
+  }
+
+  return formatDate(sale.createdAt);
 }
 
 function fullName(person: any) {
@@ -217,6 +262,8 @@ export default function SalesPage() {
   const [openCancelConfirm, setOpenCancelConfirm] = useState(false);
   const [openViewTransaction, setOpenViewTransaction] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [selectedBarberId, setSelectedBarberId] = useState("");
+  const [selectedBarber, setSelectedBarber] = useState<Barber | null>(null);
 
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
   const [imageViewerUrl, setImageViewerUrl] = useState("");
@@ -228,6 +275,13 @@ export default function SalesPage() {
   const [discountPercent, setDiscountPercent] = useState(0);
   const [cart, setCart] = useState<CartItem[]>([]);
 
+  type Barber = {
+  id: string;
+  name: string;
+};
+
+const [barbers, setBarbers] = useState<Barber[]>([]);
+
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: "",
@@ -238,6 +292,18 @@ export default function SalesPage() {
     () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
     [cart]
   );
+
+  const filteredServices = useMemo(() => {
+  const active = services.filter((s) => s.isAvailable);
+
+  if (!selectedBarberId) return active;
+
+  return active.filter((service) =>
+    service.assignedStaff?.some(
+      (barber) => barber.id === selectedBarberId
+    )
+  );
+}, [services, selectedBarberId]);
 
   const discountAmount = Math.round(subtotal * (discountPercent / 100));
   const total = Math.max(subtotal - discountAmount, 0);
@@ -302,18 +368,25 @@ export default function SalesPage() {
     try {
       setLoading(true);
 
-      const [salesData, servicesData, customersData, loyaltyData] =
+      const [salesData, servicesData, customersData, loyaltyData, barbersData] =
         await Promise.all([
           fetchJson("/api/admin/sales"),
           fetchJson("/api/admin/services"),
           fetchJson("/api/customers"),
           fetchJson("/api/admin/loyaltyCard"),
+          fetchJson("/api/admin/barbers"),
         ]);
 
       setSales(salesData.sales || []);
-      setPage(1);
       setServices(servicesData.services || []);
+      setCustomers(customersData.customers || customersData.data || []);
       setLoyaltyCards(loyaltyData.cards || []);
+      setBarbers(
+        (barbersData.barbers || barbersData || []).map((b: any) => ({
+          id: b.id,
+          name: `${b.firstName ?? ""} ${b.lastName ?? ""}`.trim(),
+        }))
+      );
 
       const customerList =
         customersData.customers || customersData.data || customersData || [];
@@ -336,12 +409,20 @@ export default function SalesPage() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (barbers.length === 1) {
+      setSelectedBarberId(barbers[0].id);
+      setSelectedBarber(barbers[0]);
+    }
+  }, [barbers]);
+
   function resetForm() {
     setCustomerSearch("");
     setSelectedCustomerId("");
     setMethod("CASH");
     setDiscountPercent(0);
     setCart([]);
+    setSelectedBarberId(""); // 🔥 important
   }
 
   function closePosAndReset() {
@@ -354,6 +435,15 @@ export default function SalesPage() {
   }
 
   function addServiceToCart(service: Service) {
+    if (!selectedBarberId) {
+      setSnackbar({
+        open: true,
+        message: "Please select a barber first",
+        severity: "error",
+      });
+      return;
+    }
+    
     if (selectedSale) return;
 
     setCart((prev) => {
@@ -467,6 +557,15 @@ export default function SalesPage() {
         return;
       }
 
+      if (!selectedBarberId) {
+        setSnackbar({
+          open: true,
+          message: "Please select a barber first",
+          severity: "error",
+        });
+        return;
+      }
+
       if (cart.length < 1) {
         setSnackbar({
           open: true,
@@ -487,6 +586,7 @@ export default function SalesPage() {
           customerId: selectedCustomerId,
           method,
           discount: discountAmount,
+          barberId: selectedBarberId, // 🔥 ADD THIS
           items: cart.map((item) => ({
             serviceId: item.serviceId,
             quantity: item.quantity,
@@ -638,6 +738,7 @@ export default function SalesPage() {
                   <TableCell sx={headCell}>ID</TableCell>
                   <TableCell sx={headCell}>Name</TableCell>
                   <TableCell sx={headCell}>Date</TableCell>
+                  <TableCell sx={headCell}>Barber</TableCell>
                   <TableCell sx={headCell}>Total Amount</TableCell>
                   <TableCell sx={headCell}>Type</TableCell>
                   <TableCell sx={headCell}>Status</TableCell>
@@ -663,10 +764,9 @@ export default function SalesPage() {
                       {sale.customer.customerCode}
                     </TableCell>
                     <TableCell sx={bodyCell}>{sale.customer.name}</TableCell>
-                    <TableCell sx={bodyCell}>{formatDate(sale.createdAt)}</TableCell>
-                    <TableCell sx={bodyCell}>
-                      {formatPeso(sale.totalAmount)}
-                    </TableCell>
+                    <TableCell sx={bodyCell}>{getSaleDisplayDate(sale)}</TableCell>
+                    <TableCell sx={bodyCell}>{sale.barber?.name || "—"}</TableCell>
+                    <TableCell sx={bodyCell}>{formatPeso(sale.totalAmount)}</TableCell>
                     <TableCell sx={bodyCell}>
                       {sale.source === "WALKIN" ? "Walk-In" : "Appointment"}
                     </TableCell>
@@ -803,6 +903,39 @@ export default function SalesPage() {
               </Typography>
 
               <Typography sx={{ fontSize: 24, mb: 3 }}>Services</Typography>
+                            <Typography sx={{ fontSize: 14, fontWeight: 800, mb: 1, color: "#777" }}>
+                Select Barber
+              </Typography>
+
+              <TextField
+                select
+                fullWidth
+                variant="standard"
+                value={selectedBarberId}
+                onChange={(e) => {
+                  const id = e.target.value;
+
+                  setSelectedBarberId(id);
+
+                  const barber = barbers.find((b) => b.id === id) || null;
+                  setSelectedBarber(barber);
+
+                  setCart([]); // reset cart (correct)
+                }}
+                sx={{ mb: 3, width: 250 }}
+              >
+                {barbers.map((barber) => (
+                  <MenuItem key={barber.id} value={barber.id}>
+                    {barber.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              {selectedBarber && (
+                <Typography sx={{ fontSize: 14, fontWeight: 800, color: "#777", mb: 2 }}>
+                  Active Barber: {selectedBarber.name}
+                </Typography>
+              )}
 
               <Box
                 sx={{
@@ -812,9 +945,7 @@ export default function SalesPage() {
                   maxWidth: 620,
                 }}
               >
-                {services
-                  .filter((service) => service.isAvailable)
-                  .map((service, index) => (
+                {filteredServices.map((service, index) => (
                     <Button
                       key={`${service.id}-${index}`}
                       disabled={Boolean(selectedSale)}
@@ -976,7 +1107,7 @@ export default function SalesPage() {
                       }}
                     >
                       {selectedSale
-                        ? formatDate(selectedSale.createdAt)
+                        ? getSaleDisplayDate(selectedSale)
                         : formatToday()}
                     </Typography>
                   </Box>
@@ -1336,15 +1467,40 @@ export default function SalesPage() {
             View Transaction
           </Typography>
 
-          <Typography sx={{ fontWeight: 900 }}>
-            Transaction #: {selectedSale?.saleCode}
-          </Typography>
-          <Typography sx={{ fontWeight: 900 }}>
-            ID: {selectedSale?.customer.customerCode}
-          </Typography>
-          <Typography sx={{ fontWeight: 900, mb: 2 }}>
-            Name: {selectedSale?.customer.name}
-          </Typography>
+          <Box sx={{ mb: 2 }}>
+            <Box sx={detailRow}>
+              <Typography sx={detailLabel}>Transaction #</Typography>
+              <Typography sx={detailValue}>{selectedSale?.saleCode}</Typography>
+            </Box>
+
+            <Box sx={detailRow}>
+              <Typography sx={detailLabel}>Customer ID</Typography>
+              <Typography sx={detailValue}>
+                {selectedSale?.customer.customerCode}
+              </Typography>
+            </Box>
+
+            <Box sx={detailRow}>
+              <Typography sx={detailLabel}>Name</Typography>
+              <Typography sx={detailValue}>
+                {selectedSale?.customer.name}
+              </Typography>
+            </Box>
+
+            <Box sx={detailRow}>
+              <Typography sx={detailLabel}>Barber</Typography>
+              <Typography sx={detailValue}>
+                {selectedSale?.barber?.name || "—"}
+              </Typography>
+            </Box>
+
+            <Box sx={detailRow}>
+              <Typography sx={detailLabel}>Date</Typography>
+              <Typography sx={detailValue}>
+                {selectedSale ? getSaleDisplayDate(selectedSale) : formatToday()}
+              </Typography>
+            </Box>
+          </Box>
 
           <Box sx={{ bgcolor: "#fff", border: "1px solid #eee", mb: 2 }}>
             {selectedSale?.items.map((item, index) => (

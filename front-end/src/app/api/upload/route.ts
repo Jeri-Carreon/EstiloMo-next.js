@@ -10,6 +10,7 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
+    const bucket = (formData.get('bucket') as string | null) || 'after-service-photos';
 
     if (!file) {
       return NextResponse.json(
@@ -22,10 +23,10 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(bytes);
 
     const fileExt = file.name.split('.').pop() || 'jpg';
-    const fileName = `after-service-${Date.now()}.${fileExt}`;
+    const fileName = `${bucket === 'payment-screenshots' ? 'payment-' : 'after-service-'}${Date.now()}.${fileExt}`;
 
     const { error } = await supabase.storage
-      .from('after-service-photos')
+      .from(bucket)
       .upload(fileName, buffer, {
         contentType: file.type,
         upsert: false,
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
     }
 
     const { data } = supabase.storage
-      .from('after-service-photos')
+      .from(bucket)
       .getPublicUrl(fileName);
 
     return NextResponse.json({

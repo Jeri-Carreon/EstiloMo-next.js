@@ -329,7 +329,10 @@ export default function AppointmentsPage() {
               .filter(Boolean)
               .join(' ') ||
             '',
-          schedule: appointment.schedule?.formatted || '',
+          schedule:
+            appointment.schedule?.formatted ||
+            appointment.schedule ||
+            '',
           appointmentDate: appointment.appointmentDate || '',
           startMinutes: appointment.startMinutes,
           endMinutes: appointment.endMinutes,
@@ -600,6 +603,28 @@ export default function AppointmentsPage() {
     try {
       setSaving(true);
 
+      let paymentScreenshotUrl: string | null = null;
+
+      if (addProof) {
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', addProof);
+        uploadFormData.append('bucket', 'payment-screenshots');
+
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          body: uploadFormData,
+        });
+
+        const uploadData = await uploadRes.json();
+
+        if (!uploadRes.ok || !uploadData.url) {
+          showWarning(uploadData.error || 'Failed to upload proof image.');
+          return;
+        }
+
+        paymentScreenshotUrl = uploadData.url;
+      }
+
       const res = await fetch('/api/admin/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -610,6 +635,8 @@ export default function AppointmentsPage() {
           appointmentDate: addForm.appointmentDate,
           startMinutes: Number(addForm.startMinutes),
           endMinutes: Number(addForm.endMinutes),
+          paymentScreenshotUrl,
+          downPayment: 150,
           status: 'SCHEDULED',
         }),
       });

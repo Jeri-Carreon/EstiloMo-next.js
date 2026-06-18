@@ -140,6 +140,7 @@ export async function POST(req: Request) {
       items,
       discount = 0,
       method = "CASH",
+      barberId,
     } = body;
 
     if (!customerId) {
@@ -180,6 +181,7 @@ export async function POST(req: Request) {
         data: {
           saleCode,
           customerId,
+          barberId: barberId || null,
           source: "WALKIN",
           status: "PENDING",
           subtotal: 0,
