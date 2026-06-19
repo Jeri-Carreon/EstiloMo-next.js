@@ -54,7 +54,7 @@ interface ReportData {
   insights: InsightCard[];
   totalRevenue: number;
   avgRevenuePerDay: number;
-  completedAppointments: number;
+  completedTransactions: number;
   completionRate: number;
   revenueTrend: number;
   avgTrend: number;
@@ -64,6 +64,7 @@ interface ReportData {
   weeklyInsight: string;
   services: ServiceRow[];
   serviceRecommendation: string;
+  dailyRevenue: { date: string; revenue: number; transactions: number }[];
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -104,25 +105,37 @@ function buildCalDays(year: number, month: number): (number | null)[] {
 }
 
 function toCSV(data: ReportData): string {
+  // Escape a cell: wrap in quotes if it contains commas, quotes, or newlines
+  const cell = (value: string | number) => {
+    const str = String(value);
+    return str.includes(',') || str.includes('"') || str.includes('\n')
+      ? `"${str.replace(/"/g, '""')}"`
+      : str;
+  };
+
+  const row = (...cells: (string | number)[]) => cells.map(cell).join(',');
+
   const lines: string[] = [
-    `AI Business Data Report`,
-    `Date Range,${data.dateRange}`,
-    ``,
-    `Summary`,
-    `Total Revenue,₱${data.totalRevenue.toLocaleString()}`,
-    `Avg Revenue Per Day,₱${data.avgRevenuePerDay.toLocaleString()}`,
-    `Completed Appointments,${data.completedAppointments}`,
-    `Completion Rate,${data.completionRate}%`,
-    ``,
-    `Weekly Revenue & Transactions`,
-    `Week,Revenue,Transactions`,
-    ...data.weeklyData.map(w => `${w.week},${w.revenue},${w.transactions}`),
-    ``,
-    `Service Revenue Distribution`,
-    `Service,Count,Revenue`,
-    ...data.services.map(s => `${s.name},${s.count},₱${s.revenue.toLocaleString()}`),
+    row('AI Business Data Report'),
+    row('Date Range', data.dateRange),
+    row(''),
+    row('Summary'),
+    row('Total Revenue', `PHP ${data.totalRevenue.toLocaleString()}`),
+    row('Avg Revenue Per Day', `PHP ${data.avgRevenuePerDay.toLocaleString()}`),
+    row('Completed Transactions', data.completedTransactions),
+    row('Completion Rate', `${data.completionRate}%`),
+    row(''),
+    row('Weekly Revenue & Transactions'),
+    row('Week', 'Revenue', 'Transactions'),
+    ...data.weeklyData.map(w => row(w.week, `PHP ${w.revenue.toLocaleString()}`, w.transactions)),
+    row(''),
+    row('Service Revenue Distribution'),
+    row('Service', 'Count', 'Revenue'),
+    ...data.services.map(s => row(s.name, s.count, `PHP ${s.revenue.toLocaleString()}`)),
   ];
-  return lines.join('\n');
+
+  // BOM ensures Excel opens the file as UTF-8, fixing special character encoding
+  return '\uFEFF' + lines.join('\r\n');
 }
 
 // ─── Calendar sub-component ───────────────────────────────────────────────────
@@ -355,16 +368,17 @@ export default function ReportsPage() {
       insights: aiInsights.insights ?? [],
       totalRevenue: rawData.totalRevenue,
       avgRevenuePerDay: rawData.avgRevenuePerDay,
-      completedAppointments: rawData.completedAppointments,
+      completedTransactions: rawData.completedTransactions,
       completionRate: rawData.completionRate,
-      revenueTrend: aiInsights.revenueTrend ?? 0,
-      avgTrend: aiInsights.avgTrend ?? 0,
-      apptTrend: aiInsights.apptTrend ?? 0,
-      rateTrend: aiInsights.rateTrend ?? 0,
+      revenueTrend: rawData.revenueTrend ?? 0,
+      avgTrend: rawData.avgTrend ?? 0,
+      apptTrend: rawData.apptTrend ?? 0,
+      rateTrend: rawData.rateTrend ?? 0,
       weeklyData: rawData.weeklyData ?? [],
       weeklyInsight: aiInsights.weeklyInsight ?? '',
       services,
       serviceRecommendation: aiInsights.serviceRecommendation ?? '',
+      dailyRevenue: rawData.dailyRevenue ?? [],
     };
 
     setChatMsgs([{
@@ -414,6 +428,7 @@ export default function ReportsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           reportData,
+          dbData,
           deep,
           messages: newMsgs.map((m) => ({ role: m.role, content: m.text })),
         }),
@@ -429,7 +444,7 @@ export default function ReportsPage() {
 
   const handleExportCSV = () => {
     if (!reportData) return;
-    const blob = new Blob([toCSV(reportData)], { type: 'text/csv' });
+    const blob = new Blob([toCSV(reportData)], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = 'report.csv'; a.click();
@@ -469,7 +484,7 @@ export default function ReportsPage() {
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 2.5 }}>
           <StatCard icon="💵" value={`₱ ${reportData.totalRevenue.toLocaleString()}`} label="Total Revenue" trend={reportData.revenueTrend} />
           <StatCard icon="💵" value={`₱ ${reportData.avgRevenuePerDay.toLocaleString()}`} label="Average Revenue Per Day" trend={reportData.avgTrend} />
-          <StatCard icon="📅" value={String(reportData.completedAppointments)} label="Completed Appointments" trend={reportData.apptTrend} />
+          <StatCard icon="📅" value={String(reportData.completedTransactions)} label="Completed Transactions" trend={reportData.apptTrend} />
           <StatCard icon="👥" value={`${reportData.completionRate}%`} label="Completion Rate" trend={reportData.rateTrend} />
         </Box>
 

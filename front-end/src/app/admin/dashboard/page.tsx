@@ -37,7 +37,8 @@ type DashboardData = {
   todaySales: number;
   newAppointments: number;
   scheduledAppointments: number;
-  cancellations: number;
+  cancellationsAppointments: number;
+  cancellationsTotal: number;
   completedAppointments: number;
   completedTransactions: number;
   noShows: number;
@@ -219,7 +220,8 @@ export default function AdminDashboardPage() {
 
         const completedAppointments = filteredSales.filter((a) => a.status === "PAID" && a.source === "BOOKING").length;
         const completedTransactions = filteredSales.filter((a) => a.status === "PAID").length;
-        const cancellations = filteredAppts.filter((a) => a.status === "CANCELLED").length;
+        const cancellationsTotal = filteredSales.filter((a) => a.status === "CANCELLED").length;
+        const cancellationsAppointments = filteredAppts.filter((a) => a.status === "CANCELLED").length;
         const noShows = filteredAppts.filter((a) => a.status === "NOSHOW").length;
 
         const walkInAppts = paidSales.filter((a: any) => a.source === "WALKIN");
@@ -380,7 +382,8 @@ export default function AdminDashboardPage() {
           pendingAppointments: newAppointments,
           todaySales,
           newAppointments,
-          cancellations,
+          cancellationsAppointments,
+          cancellationsTotal,
           scheduledAppointments,
           completedAppointments,
           noShows,
@@ -463,16 +466,14 @@ export default function AdminDashboardPage() {
         <MetricCard label="New Appointments" value={data.newAppointments} icon={<PersonAddIcon sx={{ color: "#ff9800", fontSize: 20 }} />} iconBg="#fff3e0" />
         <MetricCard label="Scheduled Appointments" value={data.scheduledAppointments} icon={<CalendarTodayIcon sx={{ color: "#2196f3", fontSize: 20 }} />} iconBg="#e3f2fd" />
         <MetricCard label="Completed Appointments" value={data.completedAppointments} icon={<CheckCircleOutlineIcon sx={{ color: "#4caf50", fontSize: 20 }} />} iconBg="#e8f5e9" />
-        <MetricCard label="Cancelled Appointments" value={data.cancellations} icon={<CancelIcon sx={{ color: "#f44336", fontSize: 20 }} />} iconBg="#fdecea" />
+        <MetricCard label="Cancelled Appointments" value={data.cancellationsAppointments} icon={<CancelIcon sx={{ color: "#f44336", fontSize: 20 }} />} iconBg="#fdecea" />
         <MetricCard label="No-Show Appointments" value={data.noShows} icon={<CancelIcon sx={{ color: "#f44336", fontSize: 20 }} />} iconBg="#fdecea" />
 
       </Box>
       <Box sx={{ display: "flex", gap: 2, mb: 4, flexWrap: "wrap" }}>
         <MetricCard label="Sales" value={`₱ ${data.todaySales.toLocaleString()}`} icon={<AttachMoneyIcon sx={{ color: "#4caf50", fontSize: 20 }} />} iconBg="#e8f5e9" />
-        <MetricCard label="New Appointments" value={data.newAppointments} icon={<PersonAddIcon sx={{ color: "#ff9800", fontSize: 20 }} />} iconBg="#fff3e0" />
-        <MetricCard label="Scheduled Appointments" value={data.scheduledAppointments} icon={<CalendarTodayIcon sx={{ color: "#2196f3", fontSize: 20 }} />} iconBg="#e3f2fd" />
         <MetricCard label="Completed Transactions" value={data.completedTransactions} icon={<CheckCircleOutlineIcon sx={{ color: "#4caf50", fontSize: 20 }} />} iconBg="#e8f5e9" />
-        <MetricCard label="Cancelled Transactions" value={data.cancellations} icon={<CancelIcon sx={{ color: "#f44336", fontSize: 20 }} />} iconBg="#fdecea" />
+        <MetricCard label="Cancelled Transactions" value={data.cancellationsTotal} icon={<CancelIcon sx={{ color: "#f44336", fontSize: 20 }} />} iconBg="#fdecea" />
       </Box>
 
       <SectionTitle>Financial Analytics</SectionTitle>
