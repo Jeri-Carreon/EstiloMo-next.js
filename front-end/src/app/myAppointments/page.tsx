@@ -21,26 +21,41 @@ import Pagination from "@mui/material/Pagination";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import Dialog from "@mui/material/Dialog";
-import DialogContent from "@mui/material/DialogContent";
 
 import CloseIcon from "@mui/icons-material/Close";
 import SearchIcon from "@mui/icons-material/Search";
 import CancelIcon from "@mui/icons-material/Cancel";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
-import UploadFileIcon from "@mui/icons-material/UploadFile";
 import StarIcon from "@mui/icons-material/Star";
 
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ChatbotFloatingButton from "@/components/ChatbotFloatingButton";
 
-type Appointment = {
+type HistoryService = {
   id: string;
+  serviceId: string;
+  serviceName: string;
+  quantity: number;
+  price: number;
+  subtotal: number;
+};
+
+type CustomerHistory = {
+  id: string;
+  type: "APPOINTMENT" | "WALKIN";
+  saleId?: string | null;
+  appointmentId?: string | null;
   appointmentCode: string;
+  saleCode?: string | null;
   barberName: string;
   serviceName: string;
+  services: HistoryService[];
   appointmentDate: string;
   schedule: string;
+  subtotal: number;
+  discount: number;
+  discountPercent: number;
   totalAmount: number;
   status: string;
   paymentStatus: string;
@@ -50,28 +65,33 @@ type Appointment = {
 
 const itemsPerPage = 5;
 
+function formatAmount(amount: number) {
+  return `₱ ${Number(amount || 0).toFixed(2)}`;
+}
+
+function formatDisplayType(type: CustomerHistory["type"]) {
+  return type === "APPOINTMENT" ? "Appointment" : "Walk-in";
+}
+
 export default function MyAppointmentsPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [history, setHistory] = useState<CustomerHistory[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [typeFilter, setTypeFilter] = useState("ALL");
   const [page, setPage] = useState(1);
 
-  const [selectedAppointment, setSelectedAppointment] =
-    useState<Appointment | null>(null);
+  const [selectedItem, setSelectedItem] = useState<CustomerHistory | null>(null);
 
   const [receiptOpen, setReceiptOpen] = useState(false);
-  const [proofOpen, setProofOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
-
-  const [proofFile, setProofFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const loadAppointments = async () => {
+  const loadHistory = async () => {
     try {
       setLoading(true);
 
@@ -92,20 +112,20 @@ export default function MyAppointmentsPage() {
         data = text ? JSON.parse(text) : {};
       } catch {
         console.error("API returned non-JSON:", text);
-        setAppointments([]);
+        setHistory([]);
         return;
       }
 
       if (!res.ok) {
-        console.error("LOAD APPOINTMENTS ERROR:", data);
-        setAppointments([]);
+        console.error("LOAD CUSTOMER HISTORY ERROR:", data);
+        setHistory([]);
         return;
       }
 
-      setAppointments(data.appointments || []);
+      setHistory(data.appointments || []);
     } catch (error) {
-      console.error("LOAD APPOINTMENTS FETCH ERROR:", error);
-      setAppointments([]);
+      console.error("LOAD CUSTOMER HISTORY FETCH ERROR:", error);
+      setHistory([]);
     } finally {
       setLoading(false);
     }
@@ -119,68 +139,74 @@ export default function MyAppointmentsPage() {
       return;
     }
 
-    loadAppointments();
+    loadHistory();
   }, [session, status, router]);
 
-  const filteredAppointments = useMemo(() => {
-    return appointments.filter((appointment) => {
+  const filteredHistory = useMemo(() => {
+    return history.filter((item) => {
       const value = search.toLowerCase();
 
       const matchesSearch =
-        appointment.appointmentCode.toLowerCase().includes(value) ||
-        appointment.barberName.toLowerCase().includes(value) ||
-        appointment.serviceName.toLowerCase().includes(value) ||
-        appointment.schedule.toLowerCase().includes(value) ||
-        appointment.status.toLowerCase().includes(value);
+        item.appointmentCode.toLowerCase().includes(value) ||
+        (item.saleCode || "").toLowerCase().includes(value) ||
+        item.barberName.toLowerCase().includes(value) ||
+        item.serviceName.toLowerCase().includes(value) ||
+        item.schedule.toLowerCase().includes(value) ||
+        item.status.toLowerCase().includes(value) ||
+        formatDisplayType(item.type).toLowerCase().includes(value);
 
       const matchesStatus =
-        statusFilter === "ALL" ||
-        appointment.status.toUpperCase() === statusFilter;
+        statusFilter === "ALL" || item.status.toUpperCase() === statusFilter;
 
-      return matchesSearch && matchesStatus;
+      const matchesType = typeFilter === "ALL" || item.type === typeFilter;
+
+      return matchesSearch && matchesStatus && matchesType;
     });
-  }, [appointments, search, statusFilter]);
+  }, [history, search, statusFilter, typeFilter]);
 
-  const paginatedAppointments = filteredAppointments.slice(
+  const paginatedHistory = filteredHistory.slice(
     (page - 1) * itemsPerPage,
     page * itemsPerPage
   );
 
-  const totalPages = Math.ceil(filteredAppointments.length / itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(filteredHistory.length / itemsPerPage));
 
-  const getStatusColor = (appointmentStatus: string) => {
-    const value = appointmentStatus.toUpperCase();
+  const showingFrom =
+    filteredHistory.length === 0 ? 0 : (page - 1) * itemsPerPage + 1;
+
+  const showingTo = Math.min(page * itemsPerPage, filteredHistory.length);
+
+  const getStatusColor = (itemStatus: string) => {
+    const value = itemStatus.toUpperCase();
 
     if (value === "PENDING") return "#92400E";
     if (value === "SCHEDULED") return "#2563eb";
     if (value === "COMPLETED") return "green";
+    if (value === "PAID") return "green";
     if (value === "CANCELLED") return "#EA580C";
     if (value === "REJECTED") return "#DC2626";
     if (value === "NOSHOW") return "#1F2937";
+    if (value === "PARTIAL") return "#7C3AED";
+    if (value === "REFUNDED") return "#0F766E";
 
     return "#333";
   };
 
-  const formatAmount = (amount: number) => {
-    return `₱ ${Number(amount || 0).toFixed(2)}`;
-  };
-
-  const canCancel = (appointment: Appointment) => {
-    return ["PENDING", "SCHEDULED"].includes(appointment.status.toUpperCase());
-  };
-
-  const canUploadProof = (appointment: Appointment) => {
-    return appointment.status.toUpperCase() === "PENDING";
+  const canCancel = (item: CustomerHistory) => {
+    return (
+      item.type === "APPOINTMENT" &&
+      ["PENDING", "SCHEDULED"].includes(item.status.toUpperCase())
+    );
   };
 
   const handleCancelAppointment = async () => {
-    if (!selectedAppointment) return;
+    if (!selectedItem?.appointmentId) return;
 
     try {
       setSaving(true);
 
       const res = await fetch(
-        `/api/customers/appointments/${selectedAppointment.id}/cancel`,
+        `/api/customers/appointments/${selectedItem.appointmentId}/cancel`,
         {
           method: "PUT",
         }
@@ -195,45 +221,8 @@ export default function MyAppointmentsPage() {
       }
 
       setCancelOpen(false);
-      setSelectedAppointment(null);
-      await loadAppointments();
-    } catch (error) {
-      console.error(error);
-      alert("Something went wrong");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleUploadProof = async () => {
-    if (!selectedAppointment || !proofFile) return;
-
-    try {
-      setSaving(true);
-
-      const formData = new FormData();
-      formData.append("file", proofFile);
-
-      const res = await fetch(
-        `/api/customers/appointments/${selectedAppointment.id}/payment-proof`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : {};
-
-      if (!res.ok) {
-        alert(data.error || "Failed to upload proof");
-        return;
-      }
-
-      setProofOpen(false);
-      setProofFile(null);
-      setSelectedAppointment(null);
-      await loadAppointments();
+      setSelectedItem(null);
+      await loadHistory();
     } catch (error) {
       console.error(error);
       alert("Something went wrong");
@@ -292,7 +281,7 @@ export default function MyAppointmentsPage() {
         <Box sx={{ display: "flex", gap: 2, mb: 3, flexWrap: "wrap" }}>
           <TextField
             size="small"
-            placeholder="Search appointments..."
+            placeholder="Search history..."
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -327,6 +316,24 @@ export default function MyAppointmentsPage() {
             <MenuItem value="CANCELLED">Cancelled</MenuItem>
             <MenuItem value="NOSHOW">No Show</MenuItem>
             <MenuItem value="REJECTED">Rejected</MenuItem>
+            <MenuItem value="PAID">Paid</MenuItem>
+            <MenuItem value="PARTIAL">Partial</MenuItem>
+            <MenuItem value="REFUNDED">Refunded</MenuItem>
+          </TextField>
+
+          <TextField
+            select
+            size="small"
+            value={typeFilter}
+            onChange={(e) => {
+              setTypeFilter(e.target.value);
+              setPage(1);
+            }}
+            sx={{ width: 180, bgcolor: "#fff" }}
+          >
+            <MenuItem value="ALL">All Type</MenuItem>
+            <MenuItem value="APPOINTMENT">Appointment</MenuItem>
+            <MenuItem value="WALKIN">Walk-in</MenuItem>
           </TextField>
         </Box>
 
@@ -336,6 +343,9 @@ export default function MyAppointmentsPage() {
               <TableRow>
                 <TableCell sx={{ fontWeight: 900, color: "#888" }}>
                   Transaction #
+                </TableCell>
+                <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                  Type
                 </TableCell>
                 <TableCell sx={{ fontWeight: 900, color: "#888" }}>
                   Barber
@@ -349,54 +359,58 @@ export default function MyAppointmentsPage() {
             </TableHead>
 
             <TableBody>
-              {paginatedAppointments.length === 0 ? (
+              {paginatedHistory.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
-                    No appointments found.
+                  <TableCell colSpan={8} align="center">
+                    No history found.
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedAppointments.map((appointment) => (
-                  <TableRow key={appointment.id}>
+                paginatedHistory.map((item) => (
+                  <TableRow key={item.id}>
                     <TableCell sx={{ fontWeight: 900, color: "#888" }}>
-                      {appointment.appointmentCode}
+                      {item.saleCode || item.appointmentCode}
                     </TableCell>
 
                     <TableCell sx={{ fontWeight: 900, color: "#888" }}>
-                      {appointment.barberName}
+                      {formatDisplayType(item.type)}
+                    </TableCell>
+
+                    <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                      {item.barberName}
                     </TableCell>
 
                     <TableCell sx={{ fontWeight: 900 }}>
-                      {appointment.serviceName}
+                      {item.serviceName}
                     </TableCell>
 
                     <TableCell sx={{ fontWeight: 900 }}>
-                      {appointment.schedule || appointment.appointmentDate}
+                      {item.schedule || item.appointmentDate}
                     </TableCell>
 
                     <TableCell sx={{ fontWeight: 900 }}>
-                      {formatAmount(appointment.totalAmount)}
+                      {formatAmount(item.totalAmount)}
                     </TableCell>
 
                     <TableCell
                       sx={{
                         fontWeight: 900,
-                        color: getStatusColor(appointment.status),
+                        color: getStatusColor(item.status),
                       }}
                     >
-                      {appointment.status}
+                      {item.status}
                     </TableCell>
 
                     <TableCell>
                       <IconButton
                         size="small"
-                        disabled={!canCancel(appointment)}
+                        disabled={!canCancel(item)}
                         onClick={() => {
-                          setSelectedAppointment(appointment);
+                          setSelectedItem(item);
                           setCancelOpen(true);
                         }}
                         sx={{
-                          bgcolor: canCancel(appointment) ? "#ff5252" : "#ddd",
+                          bgcolor: canCancel(item) ? "#ff5252" : "#ddd",
                           width: 28,
                           height: 28,
                           mr: 0.5,
@@ -407,25 +421,8 @@ export default function MyAppointmentsPage() {
 
                       <IconButton
                         size="small"
-                        disabled={!canUploadProof(appointment)}
                         onClick={() => {
-                          setSelectedAppointment(appointment);
-                          setProofOpen(true);
-                        }}
-                        sx={{
-                          bgcolor: canUploadProof(appointment) ? "#ddd" : "#eee",
-                          width: 28,
-                          height: 28,
-                          mr: 0.5,
-                        }}
-                      >
-                        <UploadFileIcon sx={{ fontSize: 17 }} />
-                      </IconButton>
-
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          setSelectedAppointment(appointment);
+                          setSelectedItem(item);
                           setReceiptOpen(true);
                         }}
                         sx={{ bgcolor: "#ddd", width: 28, height: 28, mr: 0.5 }}
@@ -433,7 +430,7 @@ export default function MyAppointmentsPage() {
                         <ReceiptLongIcon sx={{ fontSize: 17 }} />
                       </IconButton>
 
-                      {appointment.status.toUpperCase() === "COMPLETED" && (
+                      {item.status.toUpperCase() === "COMPLETED" && (
                         <IconButton
                           size="small"
                           onClick={() => router.push("/myReviews")}
@@ -459,12 +456,11 @@ export default function MyAppointmentsPage() {
           }}
         >
           <Typography sx={{ fontSize: 14 }}>
-            Showing {paginatedAppointments.length} of{" "}
-            {filteredAppointments.length} Entries
+            Showing {showingFrom} to {showingTo} of {filteredHistory.length} Entries
           </Typography>
 
           <Pagination
-            count={totalPages || 1}
+            count={totalPages}
             page={page}
             onChange={(_, value) => setPage(value)}
             size="small"
@@ -474,21 +470,58 @@ export default function MyAppointmentsPage() {
 
       <Dialog open={receiptOpen} onClose={() => setReceiptOpen(false)} maxWidth="md" fullWidth>
         <Box sx={{ p: 4, bgcolor: "#f3f3f3", position: "relative" }}>
-          <IconButton
-            onClick={() => setReceiptOpen(false)}
-            sx={{ position: "absolute", right: 14, top: 12 }}
-          >
-            <CloseIcon />
-          </IconButton>
 
-          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
-            <Typography sx={{ fontSize: 22, fontWeight: 900 }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              mb: 3,
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: 22,
+                fontWeight: 900,
+              }}
+            >
               {session?.user?.name || "Customer"}
             </Typography>
 
-            <Typography sx={{ fontSize: 18, fontWeight: 900, color: "#888" }}>
-              {selectedAppointment?.appointmentCode}
-            </Typography>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+              }}
+            >
+              <Typography
+                sx={{
+                  fontSize: 18,
+                  fontWeight: 900,
+                  color: "#888",
+                }}
+              >
+                {selectedItem?.saleCode || selectedItem?.appointmentCode}
+              </Typography>
+
+              <IconButton
+                onClick={() => setReceiptOpen(false)}
+                sx={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: "50%",
+                  color: "#666",
+
+                  "&:hover": {
+                    bgcolor: "#e8e8e8",
+                    color: "#000",
+                  },
+                }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </Box>
           </Box>
 
           <TableContainer sx={{ bgcolor: "#fff", mb: 2 }}>
@@ -497,37 +530,44 @@ export default function MyAppointmentsPage() {
                 <TableRow>
                   <TableCell sx={{ fontWeight: 900, color: "#888" }}>Barber</TableCell>
                   <TableCell sx={{ fontWeight: 900, color: "#888" }}>Service Type</TableCell>
+                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>Qty</TableCell>
                   <TableCell sx={{ fontWeight: 900, color: "#888" }}>Date</TableCell>
                   <TableCell sx={{ fontWeight: 900, color: "#888" }}>Price</TableCell>
                 </TableRow>
               </TableHead>
 
               <TableBody>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>
-                    {selectedAppointment?.barberName}
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>
-                    {selectedAppointment?.serviceName}
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>
-                    {selectedAppointment?.schedule}
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>
-                    {formatAmount(selectedAppointment?.totalAmount || 0)}
-                  </TableCell>
-                </TableRow>
+                {(selectedItem?.services || []).map((service) => (
+                  <TableRow key={service.id}>
+                    <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                      {selectedItem?.barberName}
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                      {service.serviceName}
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                      {service.quantity}
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                      {selectedItem?.schedule}
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                      {formatAmount(service.subtotal)}
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </TableContainer>
 
           <Box sx={{ width: 400, mx: "auto" }}>
             {[
-              ["Subtotal", formatAmount(selectedAppointment?.totalAmount || 0)],
-              ["Discount", "₱ 0"],
-              ["Total Payment", formatAmount(selectedAppointment?.totalAmount || 0)],
-              ["Mode of Payment", selectedAppointment?.paymentMethod || "N/A"],
-              ["Payment Status", selectedAppointment?.paymentStatus || "N/A"],
+              ["Subtotal", formatAmount(selectedItem?.subtotal || 0)],
+              ["Discount", formatAmount(selectedItem?.discount || 0)],
+              ["Discount %", `${Number(selectedItem?.discountPercent || 0)}%`],
+              ["Total Payment", formatAmount(selectedItem?.totalAmount || 0)],
+              ["Mode of Payment", selectedItem?.paymentMethod || "N/A"],
+              ["Payment Status", selectedItem?.paymentStatus || "N/A"],
             ].map(([label, value]) => (
               <Box
                 key={label}
@@ -548,75 +588,6 @@ export default function MyAppointmentsPage() {
               </Box>
             ))}
           </Box>
-        </Box>
-      </Dialog>
-
-      <Dialog open={proofOpen} onClose={() => setProofOpen(false)} maxWidth="sm" fullWidth>
-        <Box sx={{ p: 4, bgcolor: "#f3f3f3", position: "relative" }}>
-          <IconButton
-            onClick={() => setProofOpen(false)}
-            sx={{ position: "absolute", right: 14, top: 12 }}
-          >
-            <CloseIcon />
-          </IconButton>
-
-          <Typography sx={{ fontSize: 22, fontWeight: 900, mb: 3 }}>
-            Proof of Payment
-          </Typography>
-
-          {selectedAppointment?.paymentScreenshotUrl ? (
-            <Box
-              component="img"
-              src={selectedAppointment.paymentScreenshotUrl}
-              sx={{
-                display: "block",
-                maxWidth: "100%",
-                maxHeight: 520,
-                mx: "auto",
-                objectFit: "contain",
-              }}
-            />
-          ) : (
-            <>
-              <Button
-                component="label"
-                sx={{
-                  bgcolor: "#fff",
-                  color: "#777",
-                  justifyContent: "flex-start",
-                  textTransform: "none",
-                  py: 1.3,
-                  width: "100%",
-                  mb: 3,
-                }}
-              >
-                + {proofFile ? proofFile.name : "Upload Payment Screenshot"}
-                <input
-                  hidden
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setProofFile(e.target.files?.[0] || null)}
-                />
-              </Button>
-
-              <Box sx={{ display: "flex", justifyContent: "center" }}>
-                <Button
-                  disabled={saving || !proofFile}
-                  onClick={handleUploadProof}
-                  sx={{
-                    bgcolor: "#000",
-                    color: "#ffc400",
-                    width: 160,
-                    py: 1.3,
-                    textTransform: "none",
-                    "&:hover": { bgcolor: "#111" },
-                  }}
-                >
-                  {saving ? "Uploading..." : "Upload"}
-                </Button>
-              </Box>
-            </>
-          )}
         </Box>
       </Dialog>
 
@@ -641,7 +612,7 @@ export default function MyAppointmentsPage() {
 
           <Typography sx={{ fontSize: 22, fontWeight: 900, mb: 2 }}>
             Are you sure you want to cancel your booking appointment #
-            {selectedAppointment?.appointmentCode}?
+            {selectedItem?.appointmentCode}?
           </Typography>
 
           <Typography sx={{ color: "#888", mb: 3 }}>

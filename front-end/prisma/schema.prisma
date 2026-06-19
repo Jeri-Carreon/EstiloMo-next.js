@@ -186,6 +186,7 @@ model Appointment {
   service            Service             @relation(fields: [serviceId], references: [id])
   payment            Payment?
   review             Review?
+  loyaltyActivities LoyaltyCardActivity[]
 
   @@index([customerId])
   @@index([serviceId])
@@ -225,6 +226,7 @@ model Sale {
   appointments Appointment[]
   payment      Payment?
   cancelReason String?
+  loyaltyActivities LoyaltyCardActivity[]
   barber       Barber?       @relation(fields: [barberId], references: [id])
   customer     Customer      @relation(fields: [customerId], references: [id])
   items        SaleItem[]
@@ -273,6 +275,7 @@ model LoyaltyCard {
   updatedAt  DateTime @updatedAt
   customerId String   @unique(map: "loyaltycard_customerid_key")
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  fiveRewardRedeemed  Boolean  @default(false)
 }
 
 model LoyaltyCardSetting {
@@ -285,14 +288,26 @@ model LoyaltyCardSetting {
 }
 
 model LoyaltyCardActivity {
-  id           String    @id @default(cuid())
-  customerName String
-  message      String
-  createdAt    DateTime  @default(now())
-  customerId   String?
-  serviceId    String?
-  Customer     Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "loyaltycardactivity_customerid_fkey")
-  Service      Service?  @relation(fields: [serviceId], references: [id], onUpdate: NoAction, map: "loyaltycardactivity_serviceid_fkey")
+  id            String   @id @default(cuid())
+  customerName  String
+  message       String
+  createdAt     DateTime @default(now())
+
+  customerId    String?
+  serviceId     String?
+  saleId        String?
+  appointmentId String?
+  stickerNumber Int?
+  rewardUsed    String   @default("NONE")
+
+  Customer      Customer?    @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "loyaltycardactivity_customerid_fkey")
+  Service       Service?     @relation(fields: [serviceId], references: [id], onUpdate: NoAction, map: "loyaltycardactivity_serviceid_fkey")
+  sale          Sale?        @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@index([saleId])
+  @@index([appointmentId])
 }
 
 model Service {
@@ -344,6 +359,7 @@ enum SaleSource {
 enum SaleStatus {
   PENDING
   PAID
+  PARTIAL
   CANCELLED
   REFUNDED
 }

@@ -25,6 +25,7 @@ export async function PUT(
             user: true,
           },
         },
+        sale: true,
       },
     });
 
@@ -51,11 +52,27 @@ export async function PUT(
       );
     }
 
-    const updatedAppointment = await db.appointment.update({
-      where: { id },
-      data: {
-        status: "CANCELLED",
-      },
+    const updatedAppointment = await db.$transaction(async (tx) => {
+      const updated = await tx.appointment.update({
+        where: { id },
+        data: {
+          status: "CANCELLED",
+        },
+      });
+
+      if (appointment.saleId) {
+        await tx.sale.update({
+          where: {
+            id: appointment.saleId,
+          },
+          data: {
+            status: "PARTIAL",
+            cancelReason: "Customer cancelled appointment",
+          },
+        });
+      }
+
+      return updated;
     });
 
     return NextResponse.json({

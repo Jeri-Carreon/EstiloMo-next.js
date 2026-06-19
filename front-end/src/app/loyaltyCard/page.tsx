@@ -23,11 +23,13 @@ type CustomerLoyaltyCard = {
   stars: number;
   status: "ACTIVE" | "COMPLETED";
   customerId: string;
+  fiveRewardRedeemed: boolean;
 };
 
 type Appointment = {
   id: string;
   appointmentCode: string;
+  type: "Appointment" | "Walk-in";
   appointmentDate: string;
   startMinutes: number;
   endMinutes: number;
@@ -37,15 +39,25 @@ type Appointment = {
   };
   service: {
     name: string;
-    price: string;
+    price: string | number;
   };
   payment?: {
-    amount: string;
-    downPayment: string;
+    amount: string | number;
+    downPayment: string | number;
     method: string;
     status: string;
   } | null;
+  subtotal: number;
+  discount: number;
+  totalAmount: number;
+  discountPercent: number;
 };
+
+function formatPeso(value: string | number | null | undefined) {
+  return `₱ ${Number(value || 0).toLocaleString("en-PH", {
+    maximumFractionDigits: 0,
+  })}`;
+}
 
 export default function CustomerLoyaltyCardPage() {
   const router = useRouter();
@@ -96,7 +108,7 @@ export default function CustomerLoyaltyCardPage() {
       return;
     }
 
-    if (session.user.role !== "CUSTOMER") {
+    if ((session.user as any).role !== "CUSTOMER") {
       router.push("/unauthorized");
       return;
     }
@@ -123,9 +135,19 @@ export default function CustomerLoyaltyCardPage() {
     return <Typography sx={{ p: 4 }}>No loyalty card found.</Typography>;
   }
 
-  const stars = Math.min(loyaltyCard.stars, 8);
+  const stars = Math.min(loyaltyCard.stars, 10);
 
-  const stampIndexes = [0, 1, 2, 3, 4, 5, 6, 7];
+  const isNormalStampFilled = (stampNumber: number) => {
+    if (stampNumber <= 4) return stars >= stampNumber;
+    return stars >= stampNumber + 1;
+  };
+
+  const getNormalStampAppointment = (stampNumber: number) => {
+    if (stampNumber <= 4) return appointments[stampNumber - 1];
+    return appointments[stampNumber];
+  };
+
+  const normalStamps = [1, 2, 3, 4, 5, 6, 7, 8];
 
   return (
     <>
@@ -213,14 +235,13 @@ export default function CustomerLoyaltyCardPage() {
               alignItems: "center",
             }}
           >
-            {/* Top row: stamp 1, 2, 3, 4, 50% */}
-            {stampIndexes.slice(0, 4).map((index) => {
-              const appointment = appointments[index];
-              const filled = index < stars;
+            {normalStamps.slice(0, 4).map((stampNumber) => {
+              const appointment = getNormalStampAppointment(stampNumber);
+              const filled = isNormalStampFilled(stampNumber);
 
               return (
                 <StampBox
-                  key={index}
+                  key={stampNumber}
                   filled={filled}
                   appointment={appointment}
                   onClick={() =>
@@ -233,18 +254,20 @@ export default function CustomerLoyaltyCardPage() {
             <RewardBox
               label="50%"
               unlocked={stars >= 5}
+              redeemed={loyaltyCard.fiveRewardRedeemed}
               appointment={appointments[4]}
-              onClick={() => setSelectedAppointment(appointments[4])}
+              onClick={() => {
+                if (appointments[4]) setSelectedAppointment(appointments[4]);
+              }}
             />
 
-            {/* Bottom row: stamp 5, 6, 7, 8, FREE */}
-            {stampIndexes.slice(4, 8).map((index) => {
-              const appointment = appointments[index];
-              const filled = index < stars;
+            {normalStamps.slice(4, 8).map((stampNumber) => {
+              const appointment = getNormalStampAppointment(stampNumber);
+              const filled = isNormalStampFilled(stampNumber);
 
               return (
                 <StampBox
-                  key={index}
+                  key={stampNumber}
                   filled={filled}
                   appointment={appointment}
                   onClick={() =>
@@ -258,7 +281,9 @@ export default function CustomerLoyaltyCardPage() {
               label="FREE"
               unlocked={stars >= 10}
               appointment={appointments[9]}
-              onClick={() => setSelectedAppointment(appointments[9])}
+              onClick={() => {
+                if (appointments[9]) setSelectedAppointment(appointments[9]);
+              }}
             />
           </Box>
 
@@ -327,8 +352,8 @@ export default function CustomerLoyaltyCardPage() {
                 color: "#777",
               }}
             >
-              <Typography>Barber</Typography>
-              <Typography>Service Type</Typography>
+              <Typography>Type</Typography>
+              <Typography>Service</Typography>
               <Typography>Date</Typography>
               <Typography>Price</Typography>
             </Box>
@@ -342,10 +367,7 @@ export default function CustomerLoyaltyCardPage() {
                 borderBottom: "1px solid #eee",
               }}
             >
-              <Typography>
-                {selectedAppointment.barber.firstName}{" "}
-                {selectedAppointment.barber.lastName}
-              </Typography>
+              <Typography>{selectedAppointment.type}</Typography>
 
               <Typography>{selectedAppointment.service.name}</Typography>
 
@@ -355,9 +377,7 @@ export default function CustomerLoyaltyCardPage() {
                 ).toLocaleDateString()}
               </Typography>
 
-              <Typography>
-                ₱ {Number(selectedAppointment.service.price).toLocaleString()}
-              </Typography>
+              <Typography>{formatPeso(selectedAppointment.service.price)}</Typography>
             </Box>
 
             <Box
@@ -372,23 +392,28 @@ export default function CustomerLoyaltyCardPage() {
             >
               <ReceiptRow
                 label="Subtotal"
-                value={`₱ ${Number(
-                  selectedAppointment.service.price
-                ).toLocaleString()}`}
+                value={formatPeso(selectedAppointment.subtotal)}
               />
-              <ReceiptRow label="Discount" value="₱ 0" />
+
+              <ReceiptRow
+                label="Discount"
+                value={formatPeso(selectedAppointment.discount)}
+              />
+
               <ReceiptRow
                 label="Total Payment"
-                value={`₱ ${Number(
-                  selectedAppointment.payment?.amount ||
-                    selectedAppointment.service.price
-                ).toLocaleString()}`}
+                value={formatPeso(selectedAppointment.totalAmount)}
               />
+
               <ReceiptRow
                 label="Mode of Payment"
                 value={selectedAppointment.payment?.method || "Cash"}
               />
-              <ReceiptRow label="Discount %" value="0" />
+
+              <ReceiptRow
+                label="Discount %"
+                value={`${selectedAppointment.discountPercent}%`}
+              />
             </Box>
           </Box>
         )}
@@ -456,11 +481,13 @@ function StampBox({
 function RewardBox({
   label,
   unlocked,
+  redeemed = false,
   appointment,
   onClick,
 }: {
   label: "50%" | "FREE";
   unlocked: boolean;
+  redeemed?: boolean;
   appointment?: Appointment;
   onClick: () => void;
 }) {
@@ -484,7 +511,21 @@ function RewardBox({
         },
       }}
     >
-      {unlocked ? (
+      {redeemed ? (
+        <Typography
+          sx={{
+            fontWeight: 900,
+            fontSize: {
+              xs: "0.65rem",
+              sm: "0.85rem",
+              md: "1rem",
+            },
+            textTransform: "uppercase",
+          }}
+        >
+          Redeemed
+        </Typography>
+      ) : unlocked ? (
         <Box
           sx={{
             width: { xs: 34, sm: 48, md: 58 },

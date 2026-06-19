@@ -61,7 +61,7 @@ type Sale = {
   id: string;
   saleCode: string;
   source: "WALKIN" | "BOOKING";
-  status: "PENDING" | "PAID" | "CANCELLED" | "REFUNDED";
+  status: "PENDING" | "PAID" | "PARTIAL" | "CANCELLED" | "REFUNDED";
   subtotal: number;
   discount: number;
   totalAmount: number;
@@ -100,7 +100,7 @@ type Sale = {
     amount: number;
     downPayment: number;
     method: "CASH" | "GCASH";
-    status: "PENDING" | "PAID" | "REJECTED";
+    status: "PENDING" | "PAID";
     screenshotUrl: string | null;
   } | null;
 };
@@ -218,6 +218,7 @@ function formatToday() {
 
 function getSaleStatusLabel(status: Sale["status"]) {
   if (status === "PAID") return "Paid";
+  if (status === "PARTIAL") return "Partial";
   if (status === "CANCELLED") return "Cancelled";
   if (status === "REFUNDED") return "Refunded";
   return "Unpaid";
@@ -296,7 +297,8 @@ export default function SalesPage() {
   const [salesSearch, setSalesSearch] = useState("");
   const [salesStatusFilter, setSalesStatusFilter] = useState("ALL");
   const [salesTypeFilter, setSalesTypeFilter] = useState("ALL");
-  const [cancelReason, setCancelReason] = useState<"" | "CANCELLED" | "REFUNDED">("");
+  const [cancelReason, setCancelReason] = useState<"" | "PARTIAL" | "CANCELLED" | "REFUNDED">("");
+  const [appointmentCancelStatus, setAppointmentCancelStatus] = useState<"" | "CANCELLED" | "NOSHOW">("");
 
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -486,6 +488,7 @@ export default function SalesPage() {
     setSelectedBarberId("");
     setSelectedBarber(null);
     setCancelReason("");
+    setAppointmentCancelStatus("");
   }
 
   function setSaleData(sale: Sale) {
@@ -774,6 +777,33 @@ export default function SalesPage() {
         return;
       }
 
+      if (selectedSale.source === "BOOKING" && cancelReason === "CANCELLED") {
+        setSnackbar({
+          open: true,
+          message: "Cancelled status is only for walk-in transactions. Use Partial for appointment bookings.",
+          severity: "error",
+        });
+        return;
+      }
+
+      if (selectedSale.source === "WALKIN" && cancelReason === "PARTIAL") {
+        setSnackbar({
+          open: true,
+          message: "Partial status is only for appointment bookings.",
+          severity: "error",
+        });
+        return;
+      }
+
+      if (selectedSale.source === "BOOKING" && cancelReason === "PARTIAL" && !appointmentCancelStatus) {
+        setSnackbar({
+          open: true,
+          message: "Please select if the appointment was cancelled or no-show.",
+          severity: "error",
+        });
+        return;
+      }
+
       setSaving(true);
 
       const res = await fetch(`/api/admin/sales/${selectedSale.id}/cancel`, {
@@ -783,6 +813,8 @@ export default function SalesPage() {
         },
         body: JSON.stringify({
           reason: cancelReason,
+          appointmentStatus:
+            cancelReason === "PARTIAL" ? appointmentCancelStatus : undefined,
         }),
       });
 
@@ -887,9 +919,9 @@ export default function SalesPage() {
           <MenuItem value="ALL">All Status</MenuItem>
           <MenuItem value="PENDING">Unpaid</MenuItem>
           <MenuItem value="PAID">Paid</MenuItem>
+          <MenuItem value="PARTIAL">Partial</MenuItem>
           <MenuItem value="CANCELLED">Cancelled</MenuItem>
           <MenuItem value="REFUNDED">Refunded</MenuItem>
-          <MenuItem value="REJECTED">Rejected</MenuItem>
         </TextField>
 
         <TextField
@@ -2027,14 +2059,44 @@ export default function SalesPage() {
             select
             fullWidth
             value={cancelReason}
-            onChange={(e) =>
-              setCancelReason(e.target.value as "" | "CANCELLED" | "REFUNDED")
-            }
+            onChange={(e) => {
+              const value = e.target.value as "" | "PARTIAL" | "CANCELLED" | "REFUNDED";
+              setCancelReason(value);
+
+              if (value !== "PARTIAL") {
+                setAppointmentCancelStatus("");
+              }
+            }}
             sx={{ mb: 3 }}
           >
-            <MenuItem value="CANCELLED">Cancelled</MenuItem>
+            {selectedSale?.source === "BOOKING" && (
+              <MenuItem value="PARTIAL">
+                Partial - Cancelled Appointment / No-show Appointment
+              </MenuItem>
+            )}
+
+            {selectedSale?.source === "WALKIN" && (
+              <MenuItem value="CANCELLED">Cancelled - Walk-in Only</MenuItem>
+            )}
+
             <MenuItem value="REFUNDED">Refunded</MenuItem>
           </TextField>
+
+          {selectedSale?.source === "BOOKING" && cancelReason === "PARTIAL" && (
+            <TextField
+              select
+              fullWidth
+              label="Appointment Result"
+              value={appointmentCancelStatus}
+              onChange={(e) =>
+                setAppointmentCancelStatus(e.target.value as "" | "CANCELLED" | "NOSHOW")
+              }
+              sx={{ mb: 3 }}
+            >
+              <MenuItem value="CANCELLED">Cancelled Appointment</MenuItem>
+              <MenuItem value="NOSHOW">No-show Appointment</MenuItem>
+            </TextField>
+          )}
 
           <Typography sx={{ fontWeight: 900 }}>
             ID: {selectedSale?.saleCode || "TRX-New"}
