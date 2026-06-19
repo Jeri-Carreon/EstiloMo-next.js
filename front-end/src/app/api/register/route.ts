@@ -184,6 +184,9 @@ export async function POST(req: Request) {
     // ========================
     // SEND EMAIL
     // ========================
+
+    const resend = getResendClient();
+
     await resend.emails.send({
       from: "The Barbs Bro Support <onboarding@resend.dev>",
       to: email,
