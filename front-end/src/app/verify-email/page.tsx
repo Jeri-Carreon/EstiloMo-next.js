@@ -8,3 +8,27 @@ export default function Page() {
     </Suspense>
   );
 }
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense
+      fallback={
+        <Box
+          sx={{
+            minHeight: "100vh",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <CircularProgress />
+          <Typography>Verifying your email...</Typography>
+        </Box>
+      }
+    >
+      <VerifyEmailContent />
+    </Suspense>
+  );
+}

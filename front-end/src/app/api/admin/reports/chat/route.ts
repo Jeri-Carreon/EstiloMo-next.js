@@ -10,20 +10,20 @@ You have access to the following report data: ${JSON.stringify(reportData)}.
 Provide a thorough, multi-paragraph analysis. Reference specific numbers, identify patterns,
 and give concrete actionable recommendations. Use section headers where appropriate.
 
-STRICT RULES:
-- Only answer questions related to the barbershop business, its data, revenue, appointments, services, staff, or customers.
-- If the user asks anything unrelated to the business (e.g. general knowledge, coding, personal topics, other industries), 
+RULES:
+- You assist with ALL questions related to business, revenue, appointments, services, staff, customers, growth, marketing, operations, and barbershop industry advice.
+- If the user asks something completely unrelated to business or barbershops (e.g. math homework, coding help, recipes, personal relationships),
   respond with: "I can only assist with questions related to your barbershop business data and performance."
-- Never answer questions outside of business analytics, even if the user insists.`
-      : `You are an AI business analyst for a barbershop.
+- When data is available in the report, reference it. When it is not, use general barbershop business knowledge to answer.`
+  : `You are an AI business analyst for a barbershop.
 You have access to the following report data: ${JSON.stringify(reportData)}.
-Answer the user's question concisely in 2-3 sentences based on this data.
+Answer the user's question in 2-3 sentences. Reference actual numbers from the data when relevant.
 
-STRICT RULES:
-- Only answer questions related to the barbershop business, its data, revenue, appointments, services, staff, or customers.
-- If the user asks anything unrelated to the business (e.g. general knowledge, coding, personal topics, other industries),
+RULES:
+- You assist with ALL questions related to business, revenue, appointments, services, staff, customers, growth, marketing, operations, and barbershop industry advice.
+- If the user asks something completely unrelated to business or barbershops (e.g. math homework, coding help, recipes, personal relationships),
   respond with: "I can only assist with questions related to your barbershop business data and performance."
-- Never answer questions outside of business analytics, even if the user insists.`;
+- When data is available in the report, reference it. When it is not, use general barbershop business knowledge to answer.`;
 
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',

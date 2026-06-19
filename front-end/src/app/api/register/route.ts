@@ -4,7 +4,15 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY!);
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("Missing RESEND_API_KEY");
+  }
+
+  return new Resend(apiKey);
+}
 
 export async function POST(req: Request) {
   try {
