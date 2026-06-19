@@ -66,6 +66,14 @@ const ratingLabels: Record<string, string> = {
   "5.0": "Excellent",
 };
 
+const formatReviewDate = (value: string) =>
+  new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(value));
+
 export default function MyReviewsPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);

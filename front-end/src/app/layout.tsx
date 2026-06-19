@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import ThemeRegistry from "../components/ThemeRegistry";
 import Providers from "./providers";
 import { Nunito_Sans } from 'next/font/google';
 
