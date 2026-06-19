@@ -1,9 +1,65 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+
+type Message = {
+  id: string;
+  role: "user" | "bot";
+  text: string;
+};
 
 export default function ChatbotFloatingButton() {
   const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [showQuickOptions, setShowQuickOptions] = useState(true);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollTop = messagesEndRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const handleOptionClick = (label: string) => {
+    const userMessage: Message = {
+      id: `${Date.now()}-user`,
+      role: "user",
+      text: label,
+    };
+
+    let botText = "Okay!";
+    switch (label) {
+      case "Book an Appointment":
+        botText = "Let's get you booked in!";
+        break;
+      case "Barber Availability":
+        botText = "Checking availability now!";
+        break;
+      case "Shop Location & Operating Hours":
+        botText = "We are located at:\nUnit F, Saranay Homes, Congressional Rd. cor Malapitan Rd. Caloocan City.\n\nWe are open from:\n10am to 8pm, Monday to Sunday!";
+        break;
+      case "Services & Prices":
+        botText = "Here are our services and prices:\n\nHaircut - ₱150\nBeard Trim - ₱100\nHaircut + Beard Trim - ₱220\nKids Haircut - ₱120\nSenior Citizen Haircut - ₱130";
+        break;
+      case "Talk to Receptionist":
+        botText = "Connecting you to reception!";
+        break;
+      case "Social Media":
+        botText = "Social Media:\n\nFacebook - The Barbs Bro\nInstagram - @thebarbsbro\nTwitter - @thebarbsbro";
+        break;
+      default:
+        botText = "Okay!";
+    }
+
+    const botMessage: Message = {
+      id: `${Date.now()}-bot`,
+      role: "bot",
+      text: botText,
+    };
+
+    setMessages((prev) => [...prev, userMessage, botMessage]);
+    setShowQuickOptions(false);
+  };
 
   return (
     <div style={{ position: "fixed", right: 24, bottom: 24, zIndex: 1200 }}>
@@ -85,32 +141,80 @@ export default function ChatbotFloatingButton() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                {[
-                  "Book an Appointment",
-                  "Barber Availability",
-                  "Shop Location & Operating Hours",
-                  "Services & Prices",
-                  "Talk to Receptionist",
-                  "Social Media",
-                ].map((label) => (
+              <div ref={messagesEndRef} style={{ display: "flex", flexDirection: "column", gap: 12, maxHeight: 230, overflowY: "auto" }}>
+                {messages.length > 0 ? (
+                  messages.map((message) => (
+                    <div
+                      key={message.id}
+                      style={{
+                        alignSelf: message.role === "bot" ? "flex-start" : "flex-end",
+                        maxWidth: "80%",
+                        padding: "12px 14px",
+                        borderRadius: 18,
+                        backgroundColor: message.role === "bot" ? "#f1f1f1" : "#111",
+                        color: message.role === "bot" ? "#111" : "#fff",
+                        fontSize: 13,
+                        lineHeight: 1.5,
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
+                      {message.text}
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ fontSize: 13, color: "#666", lineHeight: 1.6 }}>
+                    Choose one of the quick options below to get started.
+                  </div>
+                )}
+              </div>
+
+              {showQuickOptions ? (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                  {[
+                    "Book an Appointment",
+                    "Barber Availability",
+                    "Shop Location & Operating Hours",
+                    "Services & Prices",
+                    "Talk to Receptionist",
+                    "Social Media",
+                  ].map((label) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => handleOptionClick(label)}
+                      style={{
+                        border: "1px solid #ddd",
+                        borderRadius: 999,
+                        backgroundColor: "#fff",
+                        color: "#111",
+                        padding: "10px 14px",
+                        fontSize: 13,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ width: "100%", display: "flex", justifyContent: "center" }}>
                   <button
-                    key={label}
                     type="button"
+                    onClick={() => setShowQuickOptions(true)}
                     style={{
-                      border: "1px solid #ddd",
+                      border: "1px solid #111",
                       borderRadius: 999,
-                      backgroundColor: "#fff",
-                      color: "#111",
-                      padding: "10px 14px",
+                      backgroundColor: "#111",
+                      color: "#fff",
+                      padding: "12px 18px",
                       fontSize: 13,
                       cursor: "pointer",
                     }}
                   >
-                    {label}
+                    Any more questions?
                   </button>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
           </div>
 

@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Account {
@@ -26,13 +27,6 @@ model Account {
   @@index([userId])
 }
 
-enum Role {
-  CUSTOMER
-  OWNER
-  RECEPTIONIST
-  BARBER
-}
-
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
@@ -43,23 +37,92 @@ model Session {
   @@index([userId])
 }
 
+model Counter {
+  id    String @id
+  value Int
+}
+
 model User {
   id            String    @id @default(cuid())
-  email         String?   @unique
-  emailVerified Boolean   @default(false)
+  email         String    @unique
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   password      String
-  role          Role    @default(CUSTOMER)
+  firstName     String
+  lastName      String
   lockedUntil   DateTime?
   loginAttempts Int       @default(0)
-  firstName     String?
-  lastName      String?
-  mobileNumber  String?
+  mobileNumber  String    @db.VarChar(11)
+  role          Role      @default(CUSTOMER)
+  emailVerified Boolean   @default(false)
+  userCode      String    @unique
+  isActive      Boolean   @default(true)
   accounts      Account[] @relation("accounts")
-  sessions      Session[]
+  barber        Barber?
+  customer      Customer?
   reviews       Review[]
+  sessions      Session[]
+}
+
+model Customer {
+  userId        String?       @unique
+  customerType  CustomerType  @default(CASUAL)
+  createdAt     DateTime      @default(now())
+  email         String?       @unique
+  firstName     String
+  id            String        @id @default(cuid())
+  lastName      String
+  loyaltyPoints Int           @default(0)
+  mobileNumber  String        @db.VarChar(11)
+  updatedAt     DateTime      @updatedAt
+  customerCode  String        @unique
+  isActive      Boolean       @default(true)
+  appointments  Appointment[]
+  user          User?         @relation(fields: [userId], references: [id])
+  loyaltyCards  LoyaltyCard[]
+  sales         Sale[]
+}
+
+model Barber {
+  id               String           @id @default(cuid())
+  barberCode       String           @unique
+  firstName        String
+  lastName         String
+  mobileNumber     String
+  email            String
+  userId           String           @unique
+  appointments     Appointment[]
+  user             User             @relation(fields: [userId], references: [id])
+  absence          BarberAbsent[]
+  schedules        BarberSchedule[]
+  sales            Sale[]
+  assignedServices Service[]        @relation("StaffServices")
+}
+
+model BarberSchedule {
+  id        String   @id @default(cuid())
+  barberId  String
+  dayOfWeek Int
+  startTime Int
+  endTime   Int
+  isDayOff  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
+
+  @@unique([barberId, dayOfWeek])
+}
+
+model BarberAbsent {
+  id        String   @id @default(cuid())
+  barberId  String
+  date      DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+  barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
+
+  @@unique([barberId, date])
 }
 
 model PasswordResetToken {
@@ -70,10 +133,10 @@ model PasswordResetToken {
 }
 
 model VerificationToken {
-  id        String   @id @default(cuid())
-  email     String
-  token     String   @unique
-  expires   DateTime
+  token   String   @unique
+  expires DateTime
+  email   String
+  id      String   @id @default(cuid())
 }
 
 model ContactUsMessages {
@@ -85,14 +148,232 @@ model ContactUsMessages {
 }
 
 model Review {
-  id        String   @id @default(cuid())
-  service   String
-  rating    Int
-  comment   String?
-  createdAt DateTime @default(now())
-
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
+  id            String       @id @default(cuid())
+  service       String
+  rating        Int
+  comment       String?
+  createdAt     DateTime     @default(now())
+  userId        String
+  appointmentId String?      @unique
+  isVisible     Boolean      @default(false)
+  status        ReviewStatus @default(PENDING)
+  updatedAt     DateTime     @updatedAt
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("Review")
+}
+
+model Appointment {
+  id                 String              @id @default(cuid())
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  customerId         String
+  serviceId          String
+  appointmentCode    String              @unique
+  barberId           String
+  status             AppointmentStatus   @default(PENDING)
+  appointmentDate    DateTime
+  endMinutes         Int
+  startMinutes       Int
+  saleId             String?
+  source             AppointmentSource   @default(BOOKING)
+  afterServicePhotos AfterServicePhoto[]
+  barber             Barber              @relation(fields: [barberId], references: [id])
+  customer           Customer            @relation(fields: [customerId], references: [id])
+  sale               Sale?               @relation(fields: [saleId], references: [id])
+  service            Service             @relation(fields: [serviceId], references: [id])
+  payment            Payment?
+  review             Review?
+
+  @@index([customerId])
+  @@index([serviceId])
+  @@index([barberId])
+  @@index([saleId])
+}
+
+model AppointmentSetting {
+  id                 String   @id @default(cuid())
+  bookingCutoffHours Int      @default(1)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model AfterServicePhoto {
+  id            String      @id @default(cuid())
+  appointmentId String
+  imageUrl      String
+  createdAt     DateTime    @default(now())
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([appointmentId])
+}
+
+model Sale {
+  id           String        @id @default(cuid())
+  saleCode     String        @unique
+  customerId   String
+  barberId     String?
+  source       SaleSource    @default(WALKIN)
+  status       SaleStatus    @default(PENDING)
+  subtotal     Decimal       @default(0) @db.Decimal(10, 2)
+  discount     Decimal       @default(0) @db.Decimal(10, 2)
+  totalAmount  Decimal       @default(0) @db.Decimal(10, 2)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  appointments Appointment[]
+  payment      Payment?
+  barber       Barber?       @relation(fields: [barberId], references: [id])
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  items        SaleItem[]
+
+  @@index([customerId])
+  @@index([barberId])
+}
+
+model SaleItem {
+  id        String  @id @default(cuid())
+  saleId    String
+  serviceId String
+  quantity  Int     @default(1)
+  price     Decimal @db.Decimal(10, 2)
+  subtotal  Decimal @db.Decimal(10, 2)
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  @@index([saleId])
+  @@index([serviceId])
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  appointmentId String?       @unique
+  amount        Decimal       @db.Decimal(10, 2)
+  downPayment   Decimal       @default(0) @db.Decimal(10, 2)
+  method        PaymentMethod @default(CASH)
+  status        PaymentStatus @default(PENDING)
+  screenshotUrl String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  discount      Decimal       @default(0) @db.Decimal(10, 2)
+  paymentCode   String?       @unique
+  saleId        String?       @unique
+  appointment   Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  sale          Sale?         @relation(fields: [saleId], references: [id], onDelete: Cascade)
+}
+
+model LoyaltyCard {
+  id         String   @id @default(cuid())
+  stars      Int      @default(0)
+  status     Status   @default(ACTIVE)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+model LoyaltyCardSetting {
+  id                     String   @id @default(cuid())
+  stickersPerTransaction Int      @default(1)
+  fiveStickerReward      String   @default("50% Off")
+  tenStickerReward       String   @default("100% Off")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model LoyaltyCardActivity {
+  id           String   @id @default(cuid())
+  customerName String
+  message      String
+  createdAt    DateTime @default(now())
+}
+
+model Service {
+  id               String           @id @default(cuid())
+  name             String
+  description      String?
+  category         ServiceCategory?
+  durationMinutes  Int
+  price            Decimal          @db.Decimal(10, 2)
+  isAvailable      Boolean          @default(true)
+  requiresApproval Boolean          @default(false)
+  cancellationFee  Decimal?         @db.Decimal(10, 2)
+  totalBookings    Int              @default(0)
+  totalRevenue     Decimal          @default(0) @db.Decimal(12, 2)
+  isFeatured       Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  serviceCode      String           @unique
+  sortOrder        Int              @default(0)
+  appointments     Appointment[]
+  saleItems        SaleItem[]
+  assignedStaff    Barber[]         @relation("StaffServices")
+}
+
+enum ReviewStatus {
+  PENDING
+  COMPLETED
+  REJECTED
+  HIDDEN
+}
+
+enum PaymentMethod {
+  GCASH
+  CASH
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REJECTED
+}
+
+enum SaleSource {
+  BOOKING
+  WALKIN
+}
+
+enum SaleStatus {
+  PENDING
+  PAID
+  CANCELLED
+  REFUNDED
+}
+
+enum AppointmentSource {
+  BOOKING
+  WALKIN
+}
+
+enum Role {
+  CUSTOMER
+  OWNER
+  RECEPTIONIST
+  BARBER
+}
+
+enum CustomerType {
+  CASUAL
+  REGULAR
+}
+
+enum AppointmentStatus {
+  PENDING
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NOSHOW
+  REJECTED
+}
+
+enum Status {
+  ACTIVE
+  COMPLETED
+}
+
+enum ServiceCategory {
+  SIGNATURE_HAIRCUT
+  KIDS_HAIRCUT
+  SHAVE
+  SCALP_MASSAGE
 }

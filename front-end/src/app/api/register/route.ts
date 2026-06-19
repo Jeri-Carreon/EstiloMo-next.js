@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import crypto from "crypto";
+import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { Resend } from "resend";
 
@@ -18,30 +19,64 @@ export async function POST(req: Request) {
     let { firstName, lastName, email, password, mobileNumber } =
       await req.json();
 
+    firstName = (firstName ?? "").trim();
+    lastName = (lastName ?? "").trim();
+    email = (email ?? "").toLowerCase().trim();
+    mobileNumber = (mobileNumber ?? "").replace(/\D/g, "");
+    password = password ?? "";
+
+    // ========================
+    // VALIDATION
+    // ========================
     if (!firstName || !lastName || !email || !password || !mobileNumber) {
-      return Response.json(
+      return NextResponse.json(
         { ok: false, error: "Missing fields" },
         { status: 400 }
       );
     }
 
-    firstName = firstName.trim();
-    lastName = lastName.trim();
-    email = email.toLowerCase().trim();
-    mobileNumber = mobileNumber.trim();
-
-    const existingUser = await db.user.findUnique({
-      where: { email },
-    });
-
-    if (existingUser) {
-      return Response.json(
-        { ok: false, error: "Email already registered" },
+    if (firstName.length > 50 || lastName.length > 50) {
+      return NextResponse.json(
+        { ok: false, error: "Name too long" },
         { status: 400 }
       );
     }
 
-    // Password Strength
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { ok: false, error: "Invalid email format" },
+        { status: 400 }
+      );
+    } 
+
+    if (email.length > 100) {
+      return NextResponse.json(
+        { ok: false, error: "Email is too long" },
+        { status: 400 }
+      );
+    }
+
+    // PH mobile format validation
+    const mobileRegex = /^09\d{9}$/;
+    if (!mobileRegex.test(mobileNumber)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Mobile number must be valid (09123456789 format)",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (password.length > 72) {
+      return NextResponse.json(
+        { ok: false, error: "Password too long" }, 
+        { status: 400 });
+    }
+    
+    // Password strength
     const strongPassword =
       password.length >= 8 &&
       /[a-zA-Z]/.test(password) &&
@@ -49,69 +84,135 @@ export async function POST(req: Request) {
       /[!@#$%^&*(),.?":{}|<>]/.test(password);
 
     if (!strongPassword) {
-      return Response.json(
+      return NextResponse.json(
         { ok: false, error: "Weak password" },
+        { status: 400 }
+      );
+    }
+
+    // ========================
+    // CHECK EXISTING USER
+    // ========================
+    const existingUser = await db.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      return NextResponse.json(
+        { ok: false, error: "Email already registered" },
         { status: 400 }
       );
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await db.user.create({
-      data: {
-        firstName,
-        lastName,
-        email,
-        password: hashedPassword,
-        mobileNumber,
-        role: "CUSTOMER",
-        emailVerified: false,
-      },
+    const user = await db.$transaction(async (tx) => {
+
+      // UserCode 
+      const userCounter = await tx.counter.update({
+        where: { id: "userCode" },
+        data: {
+          value: { increment: 1 },
+        },
+      });
+
+    const userCode = String(userCounter.value).padStart(3, "0");
+      const newUser = await tx.user.create({
+        data: {
+          userCode,
+          firstName,
+          lastName,
+          email,
+          password: hashedPassword,
+          mobileNumber,
+          role: "CUSTOMER",
+          emailVerified: false,
+        },
+      });
+
+      // customerCode
+      const customerCounter = await tx.counter.update({
+        where: { id: "customerCode" },
+        data: {
+          value: { increment: 1 },
+        },
+      });
+
+      const customerCode = String(customerCounter.value).padStart(3, "0");
+
+      await tx.customer.create({
+        data: {
+          userId: newUser.id,
+          firstName,
+          lastName,
+          email,
+          customerCode,
+          mobileNumber,
+          customerType: "CASUAL",
+
+          loyaltyCards: {
+            create: {
+              stars: 0,
+              status: "ACTIVE",
+            },
+          },
+        },
+      });
+
+      return newUser;
     });
 
+    // ========================
+    // EMAIL VERIFICATION TOKEN
+    // ========================
     const rawToken = crypto.randomBytes(32).toString("hex");
-    const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(rawToken)
+      .digest("hex");
 
     await db.verificationToken.create({
       data: {
         email,
         token: hashedToken,
-        expires: new Date(Date.now() + 1000 * 60 * 30), // 30 mins
+        expires: new Date(Date.now() + 1000 * 60 * 30),
       },
     });
 
-    // Creates verification link
     const verifyLink = `${process.env.NEXT_PUBLIC_APP_URL}/verify-email?token=${rawToken}`;
 
-    await getResendClient().emails.send({
+    // ========================
+    // SEND EMAIL
+    // ========================
+    await resend.emails.send({
       from: "The Barbs Bro Support <onboarding@resend.dev>",
       to: email,
       subject: "Verify your email",
-
       html: `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-        <h2>Welcome to The Barbs Bro</h2>
-
-        <p>Hi ${user.firstName},</p>
-
-        <p>Please verify your email by clicking the link below:</p>
-
-        <p> ${verifyLink} </p>
-
-        <p>
-          This link will expire in 30 minutes.
-        </p>
-      </div>
-    `,
+        <div style="font-family: Arial, sans-serif;">
+          <h2>Welcome to The Barbs Bro</h2>
+          <p>Hi ${firstName},</p>
+          <p>Click below to verify your email:</p>
+          <p>${verifyLink}</p>
+          <p>This link expires in 30 minutes.</p>
+        </div>
+      `,
     });
 
+    // ========================
+    // RESPONSE (match admin style)
+    // ========================
     const { password: _, ...safeUser } = user;
 
-    return Response.json({ok: true, message: "Verification email sent", user: safeUser,});
+    return NextResponse.json({
+      ok: true,
+      message: "Verification email sent",
+      user: safeUser,
+    });
   } catch (error) {
     console.error("Registration error:", error);
 
-    return Response.json(
+    return NextResponse.json(
       { ok: false, error: "Registration failed" },
       { status: 500 }
     );

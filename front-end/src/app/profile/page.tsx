@@ -170,10 +170,10 @@ export default function ProfilePage() {
                 }}
               >
                 <Box>
-                  <Box sx={{ fontSize: 18, fontWeight: 700, color: "#111" }}>
+                  <Box sx={{ fontSize: 18, fontFamily: 'var(--font-nunito-sans)', fontWeight: 700, color: "#111" }}>
                     {fullName || "User"}
                   </Box>
-                  <Box sx={{ fontSize: 13, color: "#888", mt: 0.5 }}>
+                  <Box sx={{ fontSize: 13, fontFamily: 'var(--font-nunito-sans)',  color: "#888", mt: 0.5 }}>
                     {email}
                   </Box>
                 </Box>
@@ -189,6 +189,7 @@ export default function ProfilePage() {
                   sx={{
                     backgroundColor: isEditing ? "#ff9800" : "#e0e0e0",
                     color: "#111",
+                    fontFamily: 'var(--font-nunito-sans)',
                     textTransform: "none",
                     fontSize: 13,
                     fontWeight: 600,
@@ -216,7 +217,7 @@ export default function ProfilePage() {
               {/* Form Fields */}
               <Stack spacing={3}>
                 <Box>
-                  <Box sx={{ fontSize: 13, fontWeight: 600, mb: 1, color: "#333" }}>
+                  <Box sx={{ fontSize: 13, fontFamily: 'var(--font-nunito-sans)', fontWeight: 600, mb: 1, color: "#333" }}>
                     First Name
                   </Box>
                   <TextField
@@ -240,7 +241,7 @@ export default function ProfilePage() {
                 </Box>
 
                 <Box>
-                  <Box sx={{ fontSize: 13, fontWeight: 600, mb: 1, color: "#333" }}>
+                  <Box sx={{ fontSize: 13, fontFamily: 'var(--font-nunito-sans)', fontWeight: 600, mb: 1, color: "#333" }}>
                     Last Name
                   </Box>
                   <TextField
@@ -264,7 +265,7 @@ export default function ProfilePage() {
                 </Box>
 
                 <Box>
-                  <Box sx={{ fontSize: 13, fontWeight: 600, mb: 1, color: "#333" }}>
+                  <Box sx={{ fontSize: 13, fontFamily: 'var(--font-nunito-sans)', fontWeight: 600, mb: 1, color: "#333" }}>
                     Mobile Number
                   </Box>
                   <TextField
@@ -289,7 +290,7 @@ export default function ProfilePage() {
                 </Box>
 
                 <Box>
-                  <Box sx={{ fontSize: 14, fontWeight: 600, mb: 2, color: "#333" }}>
+                  <Box sx={{ fontSize: 14, fontFamily: 'var(--font-nunito-sans)', fontWeight: 600, mb: 2, color: "#333" }}>
                     Email Address
                   </Box>
                   <TextField
@@ -297,7 +298,7 @@ export default function ProfilePage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     variant="outlined"
-                    disabled={!isEditing}
+                    disabled
                     sx={{
                       "& .MuiOutlinedInput-root": {
                         backgroundColor: isEditing ? "#fff" : "#e8e8e8",
@@ -322,6 +323,7 @@ export default function ProfilePage() {
                         backgroundColor: "#4CAF50",
                         color: "#fff",
                         textTransform: "none",
+                        fontFamily: 'var(--font-nunito-sans)',
                         fontSize: 13,
                         fontWeight: 600,
                         "&:hover": { backgroundColor: "#45a049" },
@@ -337,6 +339,7 @@ export default function ProfilePage() {
                         border: "1px solid #ddd",
                         color: "#666",
                         textTransform: "none",
+                        fontFamily: 'var(--font-nunito-sans)',
                         fontSize: 13,
                         fontWeight: 600,
                         "&:hover": { backgroundColor: "#f9f9f9" },

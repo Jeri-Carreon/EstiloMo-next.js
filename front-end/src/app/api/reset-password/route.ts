@@ -12,6 +12,20 @@ export async function POST(req: Request) {
     return new Response("Invalid or expired token", { status: 400 });
   }
 
+  // Password Strength
+    const strongPassword =
+      password.length >= 8 &&
+      /[a-zA-Z]/.test(password) &&
+      /[0-9]/.test(password) &&
+      /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+    if (!strongPassword) {
+      return Response.json(
+        { ok: false, error: "Weak password" },
+        { status: 400 }
+      );
+    }
+    
   const hashedPassword = await bcrypt.hash(password, 10);
 
   await db.user.update({

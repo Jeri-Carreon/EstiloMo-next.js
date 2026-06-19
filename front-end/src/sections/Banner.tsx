@@ -20,11 +20,11 @@ export default function Banner() {
       }}
     >
       <Container maxWidth="lg">
-        <Typography variant="h1" sx={{ fontWeight: 'bold' }}>
+        <Typography variant="h1" sx={{ fontWeight: 'bold', fontFamily: 'var(--font-nunito-sans)', }}>
           The Barbs Bro
         </Typography>
 
-        <Typography variant="h5" sx={{ mt: 5 }}>
+        <Typography variant="h5" sx={{ mt: 5, fontFamily: 'var(--font-nunito-sans)', }}>
           Sharp Cuts. Solid Confidence. We provide quality and affordable haircuts and services. The Barbs Bro. Undeniable excellence.
         </Typography>
 
@@ -40,18 +40,13 @@ export default function Banner() {
             }
             }}>
           <Button variant="contained" color="secondary" size="large" sx={{
-            width: {
-              xs: '100%', // full width on small screens
-              sm: '100%',  // 80% width on medium screens
-              md: 'auto%',  // 60% width on large screens
-            },
+            fontSize: '1.1rem', 
             borderRadius: 10,
-            fontSize: '1.1rem',
-            textTransform: 'none', // to keep the text as it is without uppercase
+            width: '80%', 
+            textTransform: 'none',
             '&:hover': {
-                      backgroundColor: 'accent.main',
-                    },
-            
+            backgroundColor: 'accent.main',}, 
+            fontFamily: 'var(--font-nunito-sans)',
           }}
           href="/appointment"
           >
@@ -65,6 +60,7 @@ export default function Banner() {
             textTransform: 'none',
             '&:hover': {
             backgroundColor: 'accent.main',}, 
+            fontFamily: 'var(--font-nunito-sans)',
           }}
           href="/download"
           >

@@ -41,8 +41,22 @@ export default function ResetPasswordPage() {
   const [openInvReset, setOpenInvReset] = useState(false);
   const [openNoInput, setOpenNoInput] = useState(false);
   const [openDiffPass, setOpenDiffPass] = useState(false);
+  const [openWeakPass, setOpenWeakPass] = useState(false);
   const [openSuccess, setOpenSuccess] = useState(false);
 
+  const validatePassword = (password: string) => {
+  const minLength = /.{8,}/;
+  const hasNumber = /[0-9]/;
+  const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/;
+  const hasLetter = /[a-zA-Z]/;
+
+  return (
+    minLength.test(password) &&
+    hasNumber.test(password) &&
+    hasSpecial.test(password) &&
+    hasLetter.test(password)
+  );
+};
 
   const handleReset = async (e: FormEvent<HTMLFormElement>) => { // handleReset send token and new password
     e.preventDefault();
@@ -59,6 +73,11 @@ export default function ResetPasswordPage() {
 
     if (password !== confirmPassword) {
       setOpenDiffPass(true)
+      return;
+    }
+
+    if (!validatePassword(password)) {
+      setOpenWeakPass(true)
       return;
     }
 
@@ -245,8 +264,42 @@ export default function ResetPasswordPage() {
               Passwords do not match
             </DialogContent>
       </Dialog>
+      
+      {/*Password Weak*/}
+        <Dialog open={openWeakPass} onClose={() => setOpenWeakPass(false)}>
+          <IconButton onClick={() => setOpenWeakPass(false)}
+          sx={{ position: "absolute", right: 8, top: 8}}
+          >
+            <CloseIcon />
+          </IconButton>
 
-            {/*Success*/}
+          <DialogContent 
+            sx={{
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 1,
+              mt: 5
+            }}
+            >
+            <ErrorIcon sx={{ fontSize: 80, color: "red"}} />
+          </DialogContent>
+          
+          <DialogTitle sx={{ textAlign: "center", position: "relative"}}>Password is Weak</DialogTitle>
+          <DialogContent>
+            Password must meet the following requirements:
+            <ul style={{ marginTop: 10, paddingLeft: 20 }}>
+              <li>At least 8 characters long</li>
+              <li>Contains at least 1 letter (A–Z)</li>
+              <li>Contains at least 1 number (0–9)</li>
+              <li>Contains at least 1 special character (!@#$%^&*)</li>
+            </ul>
+          </DialogContent>
+
+        </Dialog>
+
+      {/*Success*/}
       <Dialog open={openSuccess} onClose={() => setOpenSuccess(false)}>
           {/*<IconButton onClick={() => setOpenSuccess(false)}
           sx={{ position: "absolute", right: 8, top: 8}}

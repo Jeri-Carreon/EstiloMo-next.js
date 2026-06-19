@@ -17,7 +17,6 @@ import Link from "next/link";
 
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import page from "@/app/signUp/page";
 
 const pages = [
   { label: "Home", path: "/" },
@@ -100,7 +99,7 @@ export default function Navbar() {
             sx={{
               mr: 2,
               display: { xs: "none", md: "flex" },
-              fontFamily: "monospace",
+              fontFamily: 'var(--font-nunito-sans)',
               fontWeight: 700,
               color: "inherit",
               textDecoration: "none",
@@ -117,7 +116,7 @@ export default function Navbar() {
           </Box>
 
 
-          {/* 🔥 RIGHT SIDE CONTAINER (PAGES + AUTH) */}
+          {/* RIGHT SIDE CONTAINER (PAGES + AUTH) */}
           <Box
             sx={{
               flexGrow: 1,
@@ -179,7 +178,7 @@ export default function Navbar() {
                       Edit Profile
                     </MenuItem>
 
-                    <MenuItem component={Link} href="/profile">
+                    <MenuItem component={Link} href="/myAppointments">
                       My Appointments
                     </MenuItem>
 
@@ -187,7 +186,7 @@ export default function Navbar() {
                       My Reviews
                     </MenuItem>
 
-                    <MenuItem component={Link} href="/profile">
+                    <MenuItem component={Link} href="/loyaltyCard">
                       Loyalty Card
                     </MenuItem>
 
