@@ -28,10 +28,7 @@ export async function PUT(
         appointments: true,
         customer: {
           include: {
-            loyaltyCards: {
-              orderBy: { createdAt: "desc" },
-              take: 1,
-            },
+            loyaltyCards: true,
           },
         },
       },
@@ -69,38 +66,24 @@ export async function PUT(
         ? body.method
         : sale.payment.method;
 
-    const loyaltyRewardType =
-      body.loyaltyRewardType === "FREE" ||
-      body.loyaltyRewardType === "FIFTY_PERCENT"
-        ? body.loyaltyRewardType
-        : "NONE";
+    const loyaltyCard = sale.customer.loyaltyCards;
 
-    const loyaltyCard = sale.customer.loyaltyCards[0];
+    let loyaltyRewardType: "NONE" | "FIFTY_PERCENT" | "FREE" = "NONE";
 
     if (
-      loyaltyRewardType === "FIFTY_PERCENT" &&
-      (!loyaltyCard || loyaltyCard.stars !== 5)
+      body.loyaltyRewardType === "FIFTY_PERCENT" &&
+      loyaltyCard &&
+      loyaltyCard.stars === 5
     ) {
-      return NextResponse.json(
-        {
-          error:
-            "50% discount can only be redeemed once after earning exactly 5 stickers.",
-        },
-        { status: 400 }
-      );
+      loyaltyRewardType = "FIFTY_PERCENT";
     }
 
     if (
-      loyaltyRewardType === "FREE" &&
-      (!loyaltyCard || loyaltyCard.stars < 10)
+      body.loyaltyRewardType === "FREE" &&
+      loyaltyCard &&
+      loyaltyCard.stars >= 10
     ) {
-      return NextResponse.json(
-        {
-          error:
-            "Free discount can only be redeemed once after earning at least 10 stickers.",
-        },
-        { status: 400 }
-      );
+      loyaltyRewardType = "FREE";
     }
 
     await db.$transaction(async (tx) => {
@@ -111,6 +94,7 @@ export async function PUT(
           amount: totalAmount,
           discount,
           method,
+          gcashRefNo: method === "GCASH" ? body.gcashRefNo : null,
         },
       });
 
@@ -126,21 +110,25 @@ export async function PUT(
       if (sale.appointments.length > 0) {
         await tx.appointment.updateMany({
           where: { saleId: sale.id },
-          data: { status: "COMPLETED" },
+          data: {
+            status: "COMPLETED",
+          },
         });
       }
 
       if (loyaltyCard) {
-        let newStars = loyaltyCard.stars + 1;
+        let newStars = loyaltyCard.stars;
 
         if (loyaltyRewardType === "FREE") {
           newStars = 1;
         } else {
-          newStars = Math.min(newStars, 10);
+          newStars = Math.min(loyaltyCard.stars + 1, 10);
         }
 
         await tx.loyaltyCard.update({
-          where: { id: loyaltyCard.id },
+          where: {
+            id: loyaltyCard.id,
+          },
           data: {
             stars: newStars,
             status: "ACTIVE",
@@ -158,6 +146,7 @@ export async function PUT(
       totalAmount,
       method,
       loyaltyRewardType,
+      currentStars: loyaltyCard?.stars ?? 0,
     });
   } catch (error) {
     console.error("CONFIRM PAYMENT ERROR:", error);

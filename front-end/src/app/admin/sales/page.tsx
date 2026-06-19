@@ -14,6 +14,7 @@ import IconButton from "@mui/material/IconButton";
 import Alert from "@mui/material/Alert";
 import Snackbar from "@mui/material/Snackbar";
 import CircularProgress from "@mui/material/CircularProgress";
+import InputAdornment from "@mui/material/InputAdornment";
 
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -27,6 +28,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import PaymentIcon from "@mui/icons-material/Payment";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import CloseIcon from "@mui/icons-material/Close";
+import SearchIcon from "@mui/icons-material/Search";
 
 type Customer = {
   id: string;
@@ -37,6 +39,11 @@ type Customer = {
   mobileNumber: string;
 };
 
+type Barber = {
+  id: string;
+  name: string;
+};
+
 type Service = {
   id: string;
   serviceCode: string;
@@ -44,7 +51,6 @@ type Service = {
   durationMinutes: number;
   price: number;
   isAvailable: boolean;
-
   assignedStaff?: {
     id: string;
     name: string;
@@ -210,6 +216,14 @@ function formatToday() {
   return formatDate(new Date());
 }
 
+function getSaleStatusLabel(status: Sale["status"]) {
+  if (status === "PAID") return "Paid";
+  if (status === "CANCELLED") return "Cancelled";
+  if (status === "REFUNDED") return "Refunded";
+  return "Unpaid";
+}
+
+
 function getSaleDisplayDate(sale: Sale | null | undefined) {
   if (!sale) return formatToday();
 
@@ -250,6 +264,7 @@ export default function SalesPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loyaltyCards, setLoyaltyCards] = useState<LoyaltyCard[]>([]);
+  const [barbers, setBarbers] = useState<Barber[]>([]);
 
   const rowsPerPage = 8;
   const [page, setPage] = useState(1);
@@ -261,6 +276,7 @@ export default function SalesPage() {
   const [openPayment, setOpenPayment] = useState(false);
   const [openCancelConfirm, setOpenCancelConfirm] = useState(false);
   const [openViewTransaction, setOpenViewTransaction] = useState(false);
+
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [selectedBarberId, setSelectedBarberId] = useState("");
   const [selectedBarber, setSelectedBarber] = useState<Barber | null>(null);
@@ -269,18 +285,18 @@ export default function SalesPage() {
   const [imageViewerUrl, setImageViewerUrl] = useState("");
   const [imageViewerTitle, setImageViewerTitle] = useState("");
 
+  const [gcashRefNo, setGcashRefNo] = useState("");
+
   const [customerSearch, setCustomerSearch] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [method, setMethod] = useState<"CASH" | "GCASH">("CASH");
   const [discountPercent, setDiscountPercent] = useState(0);
   const [cart, setCart] = useState<CartItem[]>([]);
 
-  type Barber = {
-  id: string;
-  name: string;
-};
-
-const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [salesSearch, setSalesSearch] = useState("");
+  const [salesStatusFilter, setSalesStatusFilter] = useState("ALL");
+  const [salesTypeFilter, setSalesTypeFilter] = useState("ALL");
+  const [cancelReason, setCancelReason] = useState<"" | "CANCELLED" | "REFUNDED">("");
 
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -293,17 +309,18 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
     [cart]
   );
 
-  const filteredServices = useMemo(() => {
-  const active = services.filter((s) => s.isAvailable);
+  const displayedServices = useMemo(() => {
+    return services.filter((service) => service.isAvailable);
+  }, [services]);
 
-  if (!selectedBarberId) return active;
+  function isServiceSelectable(service: Service) {
+    if (selectedSale) return false;
+    if (!selectedBarberId) return false;
 
-  return active.filter((service) =>
-    service.assignedStaff?.some(
-      (barber) => barber.id === selectedBarberId
-    )
-  );
-}, [services, selectedBarberId]);
+    return Boolean(
+      service.assignedStaff?.some((barber) => barber.id === selectedBarberId)
+    );
+  }
 
   const discountAmount = Math.round(subtotal * (discountPercent / 100));
   const total = Math.max(subtotal - discountAmount, 0);
@@ -334,11 +351,51 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
     );
   });
 
+  const filteredSales = sales.filter((sale) => {
+    const searchValue = salesSearch.toLowerCase();
+
+    const matchesSearch =
+      sale.saleCode.toLowerCase().includes(searchValue) ||
+      sale.customer.customerCode.toLowerCase().includes(searchValue) ||
+      sale.customer.name.toLowerCase().includes(searchValue) ||
+      (sale.barber?.name || "").toLowerCase().includes(searchValue) ||
+      sale.source.toLowerCase().includes(searchValue) ||
+      sale.status.toLowerCase().includes(searchValue) ||
+      getSaleStatusLabel(sale.status).toLowerCase().includes(searchValue) ||
+      (sale.payment?.status || "").toLowerCase().includes(searchValue);
+
+    const matchesStatus =
+      salesStatusFilter === "ALL" ||
+      sale.status === salesStatusFilter ||
+      sale.payment?.status?.toUpperCase() === salesStatusFilter;
+
+    const matchesType =
+      salesTypeFilter === "ALL" || sale.source === salesTypeFilter;
+
+    return matchesSearch && matchesStatus && matchesType;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredSales.length / rowsPerPage));
+
+  const paginatedSales = filteredSales.slice(
+    (page - 1) * rowsPerPage,
+    page * rowsPerPage
+  );
+
+  const showingFrom =
+    filteredSales.length === 0 ? 0 : (page - 1) * rowsPerPage + 1;
+
+  const showingTo = Math.min(page * rowsPerPage, filteredSales.length);
+
   const openImageViewer = (title: string, imageUrl?: string | null) => {
     setImageViewerTitle(title);
     setImageViewerUrl(imageUrl || "");
     setImageViewerOpen(true);
   };
+
+  useEffect(() => {
+    setPage(1);
+  }, [salesSearch, salesStatusFilter, salesTypeFilter]);
 
   useEffect(() => {
     if (!selectedSale) return;
@@ -379,19 +436,22 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
 
       setSales(salesData.sales || []);
       setServices(servicesData.services || []);
-      setCustomers(customersData.customers || customersData.data || []);
       setLoyaltyCards(loyaltyData.cards || []);
-      setBarbers(
-        (barbersData.barbers || barbersData || []).map((b: any) => ({
-          id: b.id,
-          name: `${b.firstName ?? ""} ${b.lastName ?? ""}`.trim(),
-        }))
-      );
 
       const customerList =
         customersData.customers || customersData.data || customersData || [];
 
       setCustomers(Array.isArray(customerList) ? customerList : []);
+
+      setBarbers(
+        (barbersData.barbers || barbersData || []).map((b: any) => ({
+          id: b.id,
+          name:
+            b.name ||
+            `${b.firstName ?? ""} ${b.lastName ?? ""}`.trim() ||
+            "Unknown Barber",
+        }))
+      );
     } catch (error) {
       console.error("LOAD SALES DATA ERROR:", error);
       setSnackbar({
@@ -422,7 +482,16 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
     setMethod("CASH");
     setDiscountPercent(0);
     setCart([]);
-    setSelectedBarberId(""); // 🔥 important
+    setGcashRefNo("");
+    setSelectedBarberId("");
+    setSelectedBarber(null);
+    setCancelReason("");
+  }
+
+  function setSaleData(sale: Sale) {
+    setSelectedSale(sale);
+    setSelectedBarberId(sale.barber?.id || "");
+    setSelectedBarber(sale.barber || null);
   }
 
   function closePosAndReset() {
@@ -435,16 +504,14 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
   }
 
   function addServiceToCart(service: Service) {
-    if (!selectedBarberId) {
+    if (!isServiceSelectable(service)) {
       setSnackbar({
         open: true,
-        message: "Please select a barber first",
+        message: "Please select a barber assigned to this service first",
         severity: "error",
       });
       return;
     }
-    
-    if (selectedSale) return;
 
     setCart((prev) => {
       const existing = prev.find((item) => item.serviceId === service.id);
@@ -586,7 +653,7 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
           customerId: selectedCustomerId,
           method,
           discount: discountAmount,
-          barberId: selectedBarberId, // 🔥 ADD THIS
+          barberId: selectedBarberId,
           items: cart.map((item) => ({
             serviceId: item.serviceId,
             quantity: item.quantity,
@@ -626,6 +693,17 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
 
       setSaving(true);
 
+      if (method === "GCASH") {
+        if (!gcashRefNo || gcashRefNo.length !== 6) {
+          setSnackbar({
+            open: true,
+            message: "GCash reference must be exactly 6 digits",
+            severity: "error",
+          });
+          return;
+        }
+      }
+
       const res = await fetch(
         `/api/admin/sales/${selectedSale.id}/confirm-payment`,
         {
@@ -637,6 +715,7 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
             method,
             discount: discountAmount,
             totalAmount: total,
+            gcashRefNo: method === "GCASH" ? gcashRefNo : null,
             loyaltyRewardType:
               discountPercent === 100
                 ? "FREE"
@@ -647,7 +726,8 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
         }
       );
 
-      const data = await res.json();
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to confirm payment");
@@ -673,18 +753,67 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
     }
   }
 
-  const totalPages = Math.max(1, Math.ceil(sales.length / rowsPerPage));
+  async function cancelTransaction() {
+    try {
+      if (!selectedSale && !openAdd) {
+        closePosAndReset();
+        return;
+      }
 
-  const paginatedSales = sales.slice(
-    (page - 1) * rowsPerPage,
-    page * rowsPerPage
-  );
+      if (!cancelReason) {
+        setSnackbar({
+          open: true,
+          message: "Please select a reason for cancellation",
+          severity: "error",
+        });
+        return;
+      }
 
-  const showingFrom = sales.length === 0 ? 0 : (page - 1) * rowsPerPage + 1;
-  const showingTo = Math.min(page * rowsPerPage, sales.length);
+      if (!selectedSale) {
+        closePosAndReset();
+        return;
+      }
+
+      setSaving(true);
+
+      const res = await fetch(`/api/admin/sales/${selectedSale.id}/cancel`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          reason: cancelReason,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to cancel transaction");
+      }
+
+      closePosAndReset();
+      await loadData();
+
+      setSnackbar({
+        open: true,
+        message: "Transaction cancelled successfully.",
+        severity: "success",
+      });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message:
+          error instanceof Error ? error.message : "Failed to cancel transaction",
+        severity: "error",
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
-    <Box sx={{ bgcolor: "#fff", minHeight: "100vh", px: 6, py: 5 }}>
+    <Box sx={{ bgcolor: "#fff", minHeight: "100vh", px: 6, py: 5, pb: 8 }}>
       <Box
         sx={{
           display: "flex",
@@ -724,175 +853,236 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
         </Button>
       </Box>
 
+      <Box sx={{ display: "flex", gap: 2, mb: 4, flexWrap: "wrap" }}>
+        <TextField
+          size="small"
+          placeholder="Search sales..."
+          value={salesSearch}
+          onChange={(e) => setSalesSearch(e.target.value)}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: "#999" }} />
+                </InputAdornment>
+              ),
+            },
+          }}
+          sx={{
+            flex: 1,
+            maxWidth: 300,
+          }}
+        />
+
+        <TextField
+          select
+          size="small"
+          value={salesStatusFilter}
+          onChange={(e) => setSalesStatusFilter(e.target.value)}
+          sx={{
+            width: 170,
+            bgcolor: "#fff",
+          }}
+        >
+          <MenuItem value="ALL">All Status</MenuItem>
+          <MenuItem value="PENDING">Unpaid</MenuItem>
+          <MenuItem value="PAID">Paid</MenuItem>
+          <MenuItem value="CANCELLED">Cancelled</MenuItem>
+          <MenuItem value="REFUNDED">Refunded</MenuItem>
+          <MenuItem value="REJECTED">Rejected</MenuItem>
+        </TextField>
+
+        <TextField
+          select
+          size="small"
+          value={salesTypeFilter}
+          onChange={(e) => setSalesTypeFilter(e.target.value)}
+          sx={{
+            width: 170,
+            bgcolor: "#fff",
+          }}
+        >
+          <MenuItem value="ALL">All Type</MenuItem>
+          <MenuItem value="WALKIN">Walk-In</MenuItem>
+          <MenuItem value="BOOKING">Appointment</MenuItem>
+        </TextField>
+      </Box>
+
       <Paper elevation={0} sx={{ bgcolor: "transparent" }}>
         {loading ? (
           <Box sx={{ py: 8, textAlign: "center" }}>
             <CircularProgress />
           </Box>
         ) : (
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={headCell}>Transaction #</TableCell>
-                  <TableCell sx={headCell}>ID</TableCell>
-                  <TableCell sx={headCell}>Name</TableCell>
-                  <TableCell sx={headCell}>Date</TableCell>
-                  <TableCell sx={headCell}>Barber</TableCell>
-                  <TableCell sx={headCell}>Total Amount</TableCell>
-                  <TableCell sx={headCell}>Type</TableCell>
-                  <TableCell sx={headCell}>Status</TableCell>
-                  <TableCell sx={headCell} align="center">
-                    Actions
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-
-              <TableBody>
-                {paginatedSales.map((sale, index) => (
-                  <TableRow
-                    key={`${sale.id}-${index}`}
-                    sx={{
-                      "& td": {
-                        borderBottom: "1px solid #e8e8e8",
-                        py: 1.5,
-                      },
-                    }}
-                  >
-                    <TableCell sx={bodyCell}>{sale.saleCode}</TableCell>
-                    <TableCell sx={bodyCell}>
-                      {sale.customer.customerCode}
-                    </TableCell>
-                    <TableCell sx={bodyCell}>{sale.customer.name}</TableCell>
-                    <TableCell sx={bodyCell}>{getSaleDisplayDate(sale)}</TableCell>
-                    <TableCell sx={bodyCell}>{sale.barber?.name || "—"}</TableCell>
-                    <TableCell sx={bodyCell}>{formatPeso(sale.totalAmount)}</TableCell>
-                    <TableCell sx={bodyCell}>
-                      {sale.source === "WALKIN" ? "Walk-In" : "Appointment"}
-                    </TableCell>
-                    <TableCell sx={bodyCell}>
-                      {sale.payment?.status === "PAID" ? "Paid" : "Unpaid"}
-                    </TableCell>
-
-                    <TableCell align="center">
-                      <Box
-                        sx={{
-                          display: "flex",
-                          gap: 1,
-                          justifyContent: "center",
-                        }}
-                      >
-                        <IconButton
-                          size="small"
-                          disabled={sale.payment?.status === "PAID"}
-                          onClick={() => {
-                            setSelectedSale(sale);
-                            setOpenAdd(true);
-                          }}
-                          sx={{
-                            ...actionIcon,
-                            opacity: sale.payment?.status === "PAID" ? 0.5 : 1,
-                          }}
-                        >
-                          <PaymentIcon sx={{ fontSize: 16 }} />
-                        </IconButton>
-
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            setSelectedSale(sale);
-                            setOpenViewTransaction(true);
-                          }}
-                          sx={actionIcon}
-                        >
-                          <ReceiptLongIcon sx={{ fontSize: 16 }} />
-                        </IconButton>
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
-
-                {sales.length === 0 && (
+          <>
+            <TableContainer sx={{ overflowX: "auto" }}>
+              <Table>
+                <TableHead>
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
-                      No sales found.
+                    <TableCell sx={headCell}>Transaction #</TableCell>
+                    <TableCell sx={headCell}>ID</TableCell>
+                    <TableCell sx={headCell}>Name</TableCell>
+                    <TableCell sx={headCell}>Date</TableCell>
+                    <TableCell sx={headCell}>Barber</TableCell>
+                    <TableCell sx={headCell}>Total Amount</TableCell>
+                    <TableCell sx={headCell}>Type</TableCell>
+                    <TableCell sx={headCell}>Status</TableCell>
+                    <TableCell sx={headCell} align="center">
+                      Actions
                     </TableCell>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
-      </Paper>
+                </TableHead>
 
-      <Box
-        sx={{
-          position: "fixed",
-          bottom: 70,
-          left: 280,
-          fontSize: 14,
-          fontWeight: 600,
-          color: "#333",
-        }}
-      >
-        Showing {showingFrom} to {showingTo} of {sales.length} Entries
-      </Box>
+                <TableBody>
+                  {paginatedSales.map((sale, index) => (
+                    <TableRow
+                      key={`${sale.id}-${index}`}
+                      sx={{
+                        "& td": {
+                          borderBottom: "1px solid #e8e8e8",
+                          py: 1.5,
+                        },
+                      }}
+                    >
+                      <TableCell sx={bodyCell}>{sale.saleCode}</TableCell>
+                      <TableCell sx={bodyCell}>
+                        {sale.customer.customerCode}
+                      </TableCell>
+                      <TableCell sx={bodyCell}>{sale.customer.name}</TableCell>
+                      <TableCell sx={bodyCell}>
+                        {getSaleDisplayDate(sale)}
+                      </TableCell>
+                      <TableCell sx={bodyCell}>
+                        {sale.barber?.name || "—"}
+                      </TableCell>
+                      <TableCell sx={bodyCell}>
+                        {formatPeso(sale.totalAmount)}
+                      </TableCell>
+                      <TableCell sx={bodyCell}>
+                        {sale.source === "WALKIN" ? "Walk-In" : "Appointment"}
+                      </TableCell>
+                      <TableCell sx={bodyCell}>{getSaleStatusLabel(sale.status)}</TableCell>
 
-      <Box
-        sx={{
-          position: "fixed",
-          bottom: 65,
-          right: 90,
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-        }}
-      >
-        <Box
-          onClick={() => {
-            if (page > 1) setPage(page - 1);
-          }}
-          sx={{
-            ...pageArrow,
-            opacity: page === 1 ? 0.4 : 1,
-            cursor: page === 1 ? "default" : "pointer",
-          }}
-        >
-          ‹
-        </Box>
+                      <TableCell align="center">
+                        <Box
+                          sx={{
+                            display: "flex",
+                            gap: 1,
+                            justifyContent: "center",
+                          }}
+                        >
+                          <IconButton
+                            size="small"
+                            disabled={sale.status !== "PENDING"}
+                            onClick={() => {
+                              setSaleData(sale);
+                              setOpenAdd(true);
+                            }}
+                            sx={{
+                              ...actionIcon,
+                              opacity: sale.status !== "PENDING" ? 0.5 : 1,
+                            }}
+                          >
+                            <PaymentIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
 
-        {Array.from({ length: totalPages }).map((_, index) => {
-          const pageNumberValue = index + 1;
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setSelectedSale(sale);
+                              setOpenViewTransaction(true);
+                            }}
+                            sx={actionIcon}
+                          >
+                            <ReceiptLongIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))}
 
-          return (
+                  {filteredSales.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={9} align="center" sx={{ py: 6 }}>
+                        No sales found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
             <Box
-              key={pageNumberValue}
-              onClick={() => setPage(pageNumberValue)}
               sx={{
-                ...pageNumber,
-                bgcolor: page === pageNumberValue ? "#ffc107" : "#d9d9d9",
-                color: page === pageNumberValue ? "#000" : "#666",
-                cursor: "pointer",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                mt: 3,
+                mb: 2,
               }}
             >
-              {pageNumberValue}
-            </Box>
-          );
-        })}
+              <Typography
+                sx={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "#333",
+                }}
+              >
+                Showing {showingFrom} to {showingTo} of{" "}
+                {filteredSales.length} Entries
+              </Typography>
 
-        <Box
-          onClick={() => {
-            if (page < totalPages) setPage(page + 1);
-          }}
-          sx={{
-            ...pageArrow,
-            opacity: page === totalPages ? 0.4 : 1,
-            cursor: page === totalPages ? "default" : "pointer",
-          }}
-        >
-          ›
-        </Box>
-      </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box
+                  onClick={() => {
+                    if (page > 1) setPage(page - 1);
+                  }}
+                  sx={{
+                    ...pageArrow,
+                    opacity: page === 1 ? 0.4 : 1,
+                    cursor: page === 1 ? "default" : "pointer",
+                  }}
+                >
+                  ‹
+                </Box>
+
+                {Array.from({ length: totalPages }).map((_, index) => {
+                  const pageNumberValue = index + 1;
+
+                  return (
+                    <Box
+                      key={pageNumberValue}
+                      onClick={() => setPage(pageNumberValue)}
+                      sx={{
+                        ...pageNumber,
+                        bgcolor:
+                          page === pageNumberValue ? "#ffc107" : "#d9d9d9",
+                        color: page === pageNumberValue ? "#000" : "#666",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {pageNumberValue}
+                    </Box>
+                  );
+                })}
+
+                <Box
+                  onClick={() => {
+                    if (page < totalPages) setPage(page + 1);
+                  }}
+                  sx={{
+                    ...pageArrow,
+                    opacity: page === totalPages ? 0.4 : 1,
+                    cursor: page === totalPages ? "default" : "pointer",
+                  }}
+                >
+                  ›
+                </Box>
+              </Box>
+            </Box>
+          </>
+        )}
+      </Paper>
 
       <Dialog open={openAdd} onClose={closePosAndReset} fullScreen>
         <DialogContent sx={{ p: 0, overflow: "hidden" }}>
@@ -903,7 +1093,10 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
               </Typography>
 
               <Typography sx={{ fontSize: 24, mb: 3 }}>Services</Typography>
-                            <Typography sx={{ fontSize: 14, fontWeight: 800, mb: 1, color: "#777" }}>
+
+              <Typography
+                sx={{ fontSize: 14, fontWeight: 800, mb: 1, color: "#777" }}
+              >
                 Select Barber
               </Typography>
 
@@ -913,16 +1106,23 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
                 variant="standard"
                 value={selectedBarberId}
                 onChange={(e) => {
-                  const id = e.target.value;
+                  if (selectedSale) return;
 
+                  const id = e.target.value;
                   setSelectedBarberId(id);
 
                   const barber = barbers.find((b) => b.id === id) || null;
                   setSelectedBarber(barber);
 
-                  setCart([]); // reset cart (correct)
+                  setCart([]);
                 }}
-                sx={{ mb: 3, width: 250 }}
+                disabled={Boolean(selectedSale)}
+                sx={{
+                  mb: 3,
+                  width: 250,
+                  pointerEvents: selectedSale ? "none" : "auto",
+                  opacity: selectedSale ? 0.7 : 1,
+                }}
               >
                 {barbers.map((barber) => (
                   <MenuItem key={barber.id} value={barber.id}>
@@ -930,12 +1130,6 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
                   </MenuItem>
                 ))}
               </TextField>
-
-              {selectedBarber && (
-                <Typography sx={{ fontSize: 14, fontWeight: 800, color: "#777", mb: 2 }}>
-                  Active Barber: {selectedBarber.name}
-                </Typography>
-              )}
 
               <Box
                 sx={{
@@ -945,22 +1139,29 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
                   maxWidth: 620,
                 }}
               >
-                {filteredServices.map((service, index) => (
+                {displayedServices.map((service, index) => {
+                  const selectable = isServiceSelectable(service);
+
+                  return (
                     <Button
                       key={`${service.id}-${index}`}
-                      disabled={Boolean(selectedSale)}
+                      disabled={!selectable}
                       onClick={() => addServiceToCart(service)}
                       sx={{
                         height: 72,
-                        bgcolor: "#e9e9e9",
-                        color: "#111",
+                        bgcolor: selectable ? "#e9e9e9" : "#d1d1d1",
+                        color: selectable ? "#111" : "#888",
                         borderRadius: 1,
                         textTransform: "none",
                         display: "flex",
                         flexDirection: "column",
                         fontWeight: 900,
-                        opacity: selectedSale ? 0.55 : 1,
-                        "&:hover": { bgcolor: "#dedede" },
+                        opacity: selectable ? 1 : 0.45,
+                        cursor: selectable ? "pointer" : "not-allowed",
+                        border: selectable ? "none" : "1px dashed #aaa",
+                        "&:hover": {
+                          bgcolor: selectable ? "#dedede" : "#d1d1d1",
+                        },
                       }}
                     >
                       <Typography
@@ -972,7 +1173,8 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
                         {formatPeso(service.price)}
                       </Typography>
                     </Button>
-                  ))}
+                  );
+                })}
               </Box>
             </Box>
 
@@ -1119,9 +1321,7 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
                         : "Walk-in"}
                     </Typography>
                     <Typography sx={{ fontWeight: 900, color: "#777" }}>
-                      {selectedSale?.payment?.status === "PAID"
-                        ? "Paid"
-                        : "Unpaid"}
+                      {selectedSale ? getSaleStatusLabel(selectedSale.status) : "Unpaid"}
                     </Typography>
                   </Box>
                 </Box>
@@ -1138,8 +1338,11 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
                     <Typography sx={{ fontWeight: 900, fontSize: 13 }}>
                       Loyalty Stickers: {stickerCount}/10
                     </Typography>
-                    <Typography sx={{ fontSize: 12, color: "#777", fontWeight: 700 }}>
-                      50% off requires 5 stickers. 100% off requires 10 stickers.
+                    <Typography
+                      sx={{ fontSize: 12, color: "#777", fontWeight: 700 }}
+                    >
+                      50% off requires 5 stickers. 100% off requires 10
+                      stickers.
                     </Typography>
                   </Box>
                 )}
@@ -1192,7 +1395,9 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
                           {item.serviceName}
                         </Typography>
 
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+                        <Box
+                          sx={{ display: "flex", alignItems: "center", gap: 0.8 }}
+                        >
                           <Button
                             size="small"
                             disabled={Boolean(selectedSale)}
@@ -1247,10 +1452,14 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
                   </Box>
 
                   <Box sx={summaryRow}>
-                    <Typography sx={{ textDecoration: "line-through", color: "#888" }}>
+                    <Typography
+                      sx={{ textDecoration: "line-through", color: "#888" }}
+                    >
                       Downpayment
                     </Typography>
-                    <Typography sx={{ textDecoration: "line-through", color: "#888" }}>
+                    <Typography
+                      sx={{ textDecoration: "line-through", color: "#888" }}
+                    >
                       {formatPeso(selectedSale?.payment?.downPayment || 0)}
                     </Typography>
                   </Box>
@@ -1271,7 +1480,6 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
                       select
                       variant="standard"
                       value={method}
-                      disabled={false}
                       onChange={(e) =>
                         setMethod(e.target.value as "CASH" | "GCASH")
                       }
@@ -1282,6 +1490,38 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
                     </TextField>
                   </Box>
 
+                  {selectedSale && method === "GCASH" && (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography sx={{ fontSize: 12, fontWeight: 800, mb: 1 }}>
+                        GCash Reference No (Last 6 digits)
+                      </Typography>
+
+                      <TextField
+                        fullWidth
+                        variant="standard"
+                        value={gcashRefNo}
+                        onChange={(e) => {
+                          const val = e.target.value
+                            .replace(/\D/g, "")
+                            .slice(0, 6);
+                          setGcashRefNo(val);
+                        }}
+                        placeholder="Enter last 6 digits"
+                        error={gcashRefNo.length > 0 && gcashRefNo.length !== 6}
+                        helperText={
+                          gcashRefNo.length > 0 && gcashRefNo.length !== 6
+                            ? "Must be exactly 6 digits"
+                            : ""
+                        }
+                        slotProps={{
+                          htmlInput: {
+                            maxLength: 6,
+                          },
+                        }}
+                      />
+                    </Box>
+                  )}
+
                   <Box sx={summaryRow}>
                     <Typography>Discount %</Typography>
 
@@ -1289,7 +1529,6 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
                       variant="standard"
                       type="number"
                       value={discountPercent}
-                      disabled={false}
                       onChange={(e) => handleDiscountInput(e.target.value)}
                       slotProps={{
                         htmlInput: {
@@ -1431,7 +1670,6 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
         open={openViewTransaction}
         onClose={() => {
           setOpenViewTransaction(false);
-          setSelectedSale(null);
         }}
         maxWidth={false}
         slotProps={{
@@ -1566,7 +1804,32 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
 
             <Box sx={summaryRow}>
               <Typography>Total Payment</Typography>
-              <Typography>{formatPeso(selectedSale?.totalAmount || 0)}</Typography>
+
+              {selectedSale?.source === "WALKIN" &&
+              selectedSale?.payment?.screenshotUrl ? (
+                <Button
+                  onClick={() =>
+                    openImageViewer(
+                      "Proof of Full Payment",
+                      selectedSale.payment?.screenshotUrl
+                    )
+                  }
+                  sx={{
+                    p: 0,
+                    minWidth: 0,
+                    color: "#1976d2",
+                    fontWeight: 900,
+                    textTransform: "none",
+                    textDecoration: "underline",
+                  }}
+                >
+                  {formatPeso(selectedSale?.totalAmount || 0)}
+                </Button>
+              ) : (
+                <Typography>
+                  {formatPeso(selectedSale?.totalAmount || 0)}
+                </Typography>
+              )}
             </Box>
 
             <Box sx={summaryRow}>
@@ -1577,7 +1840,7 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
             <Box sx={summaryRow}>
               <Typography>Status</Typography>
               <Typography>
-                {selectedSale?.payment?.status === "PAID" ? "Paid" : "Unpaid"}
+                {selectedSale ? getSaleStatusLabel(selectedSale.status) : "Unpaid"}
               </Typography>
             </Box>
           </Box>
@@ -1729,7 +1992,7 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
         slotProps={{
           paper: {
             sx: {
-              width: 420,
+              width: 460,
               borderRadius: 0,
               p: 3,
               boxShadow: "none",
@@ -1756,9 +2019,22 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
             Cancel Transaction
           </Typography>
 
-          <Typography sx={{ fontSize: 14, color: "#777", fontWeight: 700 }}>
-            Are you sure you want to Cancel Transaction?
+          <Typography sx={{ fontSize: 14, color: "#777", fontWeight: 700, mb: 1 }}>
+            Reason for Cancellation:
           </Typography>
+
+          <TextField
+            select
+            fullWidth
+            value={cancelReason}
+            onChange={(e) =>
+              setCancelReason(e.target.value as "" | "CANCELLED" | "REFUNDED")
+            }
+            sx={{ mb: 3 }}
+          >
+            <MenuItem value="CANCELLED">Cancelled</MenuItem>
+            <MenuItem value="REFUNDED">Refunded</MenuItem>
+          </TextField>
 
           <Typography sx={{ fontWeight: 900 }}>
             ID: {selectedSale?.saleCode || "TRX-New"}
@@ -1773,7 +2049,8 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
           <Box sx={{ display: "flex", justifyContent: "center", gap: 3, mt: 4 }}>
             <Button
               variant="contained"
-              onClick={closePosAndReset}
+              onClick={cancelTransaction}
+              disabled={saving}
               sx={{
                 bgcolor: "#777",
                 color: "#ffc107",
@@ -1784,7 +2061,7 @@ const [barbers, setBarbers] = useState<Barber[]>([]);
                 "&:hover": { bgcolor: "#666", boxShadow: "none" },
               }}
             >
-              Delete
+              {saving ? "Saving..." : "Confirm"}
             </Button>
 
             <Button

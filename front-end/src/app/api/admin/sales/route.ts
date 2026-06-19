@@ -9,32 +9,32 @@ function minutesToTime(minutes: number) {
   const m = minutes % 60;
   const ampm = h >= 12 ? "PM" : "AM";
   const hour = h % 12 || 12;
+
   return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
 async function createSaleCode() {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const count = await db.sale.count();
+
   return `TRX-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 async function createPaymentCode() {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const count = await db.payment.count();
-  return `PAY-${today}-${String(count + 1).padStart(4, "0")}`;
-}
 
-async function createAppointmentCode(tx: any) {
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const count = await tx.appointment.count();
-  return `APT-${today}-${String(count + 1).padStart(4, "0")}`;
+  return `PAY-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user?.email || !["OWNER", "RECEPTIONIST"].includes(session.user.role)) {
+    if (
+      !session?.user?.email ||
+      !["OWNER", "RECEPTIONIST"].includes(session.user.role)
+    ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -52,6 +52,7 @@ export async function GET() {
           include: {
             service: true,
             barber: true,
+            payment: true,
           },
         },
       },
@@ -73,13 +74,17 @@ export async function GET() {
         customer: {
           id: sale.customer.id,
           customerCode: sale.customer.customerCode,
-          name: [sale.customer.firstName, sale.customer.lastName].filter(Boolean).join(" "),
+          name: [sale.customer.firstName, sale.customer.lastName]
+            .filter(Boolean)
+            .join(" "),
           mobileNumber: sale.customer.mobileNumber,
         },
         barber: sale.barber
           ? {
               id: sale.barber.id,
-              name: [sale.barber.firstName, sale.barber.lastName].filter(Boolean).join(" "),
+              name: [sale.barber.firstName, sale.barber.lastName]
+                .filter(Boolean)
+                .join(" "),
             }
           : null,
         items: sale.items.map((item) => ({
@@ -99,6 +104,7 @@ export async function GET() {
               discount: Number(sale.payment.discount),
               method: sale.payment.method,
               status: sale.payment.status,
+              gcashRefNo: sale.payment.gcashRefNo,
               screenshotUrl: sale.payment.screenshotUrl,
             }
           : null,
@@ -113,12 +119,29 @@ export async function GET() {
           schedule: `${appointment.appointmentDate.toLocaleDateString()} ${minutesToTime(
             appointment.startMinutes
           )} - ${minutesToTime(appointment.endMinutes)}`,
+          payment: appointment.payment
+            ? {
+                id: appointment.payment.id,
+                paymentCode: appointment.payment.paymentCode,
+                amount: Number(appointment.payment.amount),
+                downPayment: Number(appointment.payment.downPayment),
+                discount: Number(appointment.payment.discount),
+                method: appointment.payment.method,
+                status: appointment.payment.status,
+                gcashRefNo: appointment.payment.gcashRefNo,
+                screenshotUrl: appointment.payment.screenshotUrl,
+              }
+            : null,
         })),
       })),
     });
   } catch (error) {
     console.error("GET SALES ERROR:", error);
-    return NextResponse.json({ error: "Failed to fetch sales" }, { status: 500 });
+
+    return NextResponse.json(
+      { error: "Failed to fetch sales" },
+      { status: 500 }
+    );
   }
 }
 
@@ -135,13 +158,7 @@ export async function POST(req: Request) {
 
     const body = await req.json();
 
-    const {
-      customerId,
-      items,
-      discount = 0,
-      method = "CASH",
-      barberId,
-    } = body;
+    const { customerId, items, discount = 0, method = "CASH", barberId } = body;
 
     if (!customerId) {
       return NextResponse.json({ error: "Missing customer" }, { status: 400 });
@@ -192,6 +209,7 @@ export async function POST(req: Request) {
 
       for (const rawItem of items) {
         const service = services.find((s) => s.id === rawItem.serviceId);
+
         if (!service) continue;
 
         const quantity = Number(rawItem.quantity || 1);
@@ -231,7 +249,7 @@ export async function POST(req: Request) {
           discount: parsedDiscount,
           method,
           status: "PENDING",
-          screenshotUrl: null,
+          gcashRefNo: null,
         },
       });
 
@@ -240,9 +258,19 @@ export async function POST(req: Request) {
         include: {
           customer: true,
           barber: true,
-          items: { include: { service: true } },
+          items: {
+            include: {
+              service: true,
+            },
+          },
           payment: true,
-          appointments: true,
+          appointments: {
+            include: {
+              service: true,
+              barber: true,
+              payment: true,
+            },
+          },
         },
       });
     });
@@ -253,6 +281,7 @@ export async function POST(req: Request) {
     );
   } catch (error) {
     console.error("CREATE SALE ERROR:", error);
+
     return NextResponse.json(
       { error: "Failed to create sale" },
       { status: 500 }
