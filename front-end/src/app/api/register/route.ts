@@ -184,10 +184,7 @@ export async function POST(req: Request) {
     // ========================
     // SEND EMAIL
     // ========================
-
-    const resend = getResendClient();
-
-    await resend.emails.send({
+    await getResendClient().emails.send({
       from: "The Barbs Bro Support <onboarding@resend.dev>",
       to: email,
       subject: "Verify your email",

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
       .substring(2)}.${fileExt}`;
 
     const filePath = `payments/${fileName}`;
+    const supabase = getSupabase();
 
     const { error: uploadError } = await supabase.storage
       .from("payment-screenshots")
