@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build ",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate"
@@ -26,6 +26,7 @@
     "next": "^16.2.6",
     "next-auth": "^4.24.14",
     "node-mailjet": "^6.0.11",
+    "openai": "^6.44.0",
     "postcss": "^8.5.14",
     "prisma": "^6.19.3",
     "rate-limiter-flexible": "^11.1.0",

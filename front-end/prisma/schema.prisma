@@ -166,27 +166,27 @@ model Review {
 }
 
 model Appointment {
-  id                 String              @id @default(cuid())
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  customerId         String
-  serviceId          String
-  appointmentCode    String              @unique
-  barberId           String
-  status             AppointmentStatus   @default(PENDING)
-  appointmentDate    DateTime
-  endMinutes         Int
-  startMinutes       Int
-  saleId             String?
-  source             AppointmentSource   @default(BOOKING)
-  afterServicePhotos AfterServicePhoto[]
-  barber             Barber              @relation(fields: [barberId], references: [id])
-  customer           Customer            @relation(fields: [customerId], references: [id])
-  sale               Sale?               @relation(fields: [saleId], references: [id])
-  service            Service             @relation(fields: [serviceId], references: [id])
-  payment            Payment?
-  review             Review?
-  loyaltyActivities LoyaltyCardActivity[]
+  id                  String                @id @default(cuid())
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  customerId          String
+  serviceId           String
+  appointmentCode     String                @unique
+  barberId            String
+  status              AppointmentStatus     @default(PENDING)
+  appointmentDate     DateTime
+  endMinutes          Int
+  startMinutes        Int
+  saleId              String?
+  source              AppointmentSource     @default(BOOKING)
+  afterServicePhotos  AfterServicePhoto[]
+  barber              Barber                @relation(fields: [barberId], references: [id])
+  customer            Customer              @relation(fields: [customerId], references: [id])
+  sale                Sale?                 @relation(fields: [saleId], references: [id])
+  service             Service               @relation(fields: [serviceId], references: [id])
+  LoyaltyCardActivity LoyaltyCardActivity[]
+  payment             Payment?
+  review              Review?
 
   @@index([customerId])
   @@index([serviceId])
@@ -212,24 +212,24 @@ model AfterServicePhoto {
 }
 
 model Sale {
-  id           String        @id @default(cuid())
-  saleCode     String        @unique
-  customerId   String
-  barberId     String?
-  source       SaleSource    @default(WALKIN)
-  status       SaleStatus    @default(PENDING)
-  subtotal     Decimal       @default(0) @db.Decimal(10, 2)
-  discount     Decimal       @default(0) @db.Decimal(10, 2)
-  totalAmount  Decimal       @default(0) @db.Decimal(10, 2)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  appointments Appointment[]
-  payment      Payment?
-  cancelReason String?
-  loyaltyActivities LoyaltyCardActivity[]
-  barber       Barber?       @relation(fields: [barberId], references: [id])
-  customer     Customer      @relation(fields: [customerId], references: [id])
-  items        SaleItem[]
+  id                  String                @id @default(cuid())
+  saleCode            String                @unique
+  customerId          String
+  barberId            String?
+  source              SaleSource            @default(WALKIN)
+  status              SaleStatus            @default(PENDING)
+  subtotal            Decimal               @default(0) @db.Decimal(10, 2)
+  discount            Decimal               @default(0) @db.Decimal(10, 2)
+  totalAmount         Decimal               @default(0) @db.Decimal(10, 2)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  cancelReason        String?
+  appointments        Appointment[]
+  LoyaltyCardActivity LoyaltyCardActivity[]
+  payment             Payment?
+  barber              Barber?               @relation(fields: [barberId], references: [id])
+  customer            Customer              @relation(fields: [customerId], references: [id])
+  items               SaleItem[]
 
   @@index([customerId])
   @@index([barberId])
@@ -257,25 +257,25 @@ model Payment {
   method        PaymentMethod @default(CASH)
   status        PaymentStatus @default(PENDING)
   screenshotUrl String?
-  gcashRefNo    String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   discount      Decimal       @default(0) @db.Decimal(10, 2)
   paymentCode   String?       @unique
   saleId        String?       @unique
+  gcashRefNo    String?
   appointment   Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   sale          Sale?         @relation(fields: [saleId], references: [id], onDelete: Cascade)
 }
 
 model LoyaltyCard {
-  id         String   @id @default(cuid())
-  stars      Int      @default(0)
-  status     Status   @default(ACTIVE)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  customerId String   @unique(map: "loyaltycard_customerid_key")
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  fiveRewardRedeemed  Boolean  @default(false)
+  id                 String   @id @default(cuid())
+  stars              Int      @default(0)
+  status             Status   @default(ACTIVE)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  customerId         String   @unique(map: "loyaltycard_customerid_key")
+  fiveRewardRedeemed Boolean  @default(false)
+  customer           Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 }
 
 model LoyaltyCardSetting {
@@ -288,26 +288,24 @@ model LoyaltyCardSetting {
 }
 
 model LoyaltyCardActivity {
-  id            String   @id @default(cuid())
+  id            String       @id @default(cuid())
   customerName  String
   message       String
-  createdAt     DateTime @default(now())
-
+  createdAt     DateTime     @default(now())
   customerId    String?
   serviceId     String?
-  saleId        String?
   appointmentId String?
+  rewardUsed    String       @default("NONE")
+  saleId        String?
   stickerNumber Int?
-  rewardUsed    String   @default("NONE")
-
+  Appointment   Appointment? @relation(fields: [appointmentId], references: [id])
+  Sale          Sale?        @relation(fields: [saleId], references: [id], onDelete: Cascade)
   Customer      Customer?    @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "loyaltycardactivity_customerid_fkey")
   Service       Service?     @relation(fields: [serviceId], references: [id], onUpdate: NoAction, map: "loyaltycardactivity_serviceid_fkey")
-  sale          Sale?        @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
+  @@index([appointmentId])
   @@index([customerId])
   @@index([saleId])
-  @@index([appointmentId])
 }
 
 model Service {
@@ -362,6 +360,7 @@ enum SaleStatus {
   PARTIAL
   CANCELLED
   REFUNDED
+  PARTIAL
 }
 
 enum AppointmentSource {
