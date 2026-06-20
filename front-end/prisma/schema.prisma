@@ -66,22 +66,23 @@ model User {
 }
 
 model Customer {
-  userId        String?       @unique
-  customerType  CustomerType  @default(CASUAL)
-  createdAt     DateTime      @default(now())
-  email         String?       @unique
-  firstName     String
-  id            String        @id @default(cuid())
-  lastName      String
-  loyaltyPoints Int           @default(0)
-  mobileNumber  String        @db.VarChar(11)
-  updatedAt     DateTime      @updatedAt
-  customerCode  String        @unique
-  isActive      Boolean       @default(true)
-  appointments  Appointment[]
-  user          User?         @relation(fields: [userId], references: [id])
-  loyaltyCards  LoyaltyCard[]
-  sales         Sale[]
+  userId              String?               @unique
+  customerType        CustomerType          @default(CASUAL)
+  createdAt           DateTime              @default(now())
+  email               String?               @unique
+  firstName           String
+  id                  String                @id @default(cuid())
+  lastName            String
+  loyaltyPoints       Int                   @default(0)
+  mobileNumber        String                @db.VarChar(11)
+  updatedAt           DateTime              @updatedAt
+  customerCode        String                @unique
+  isActive            Boolean               @default(true)
+  appointments        Appointment[]
+  user                User?                 @relation(fields: [userId], references: [id])
+  loyaltyCards        LoyaltyCard?
+  LoyaltyCardActivity LoyaltyCardActivity[]
+  sales               Sale[]
 }
 
 model Barber {
@@ -223,6 +224,7 @@ model Sale {
   updatedAt    DateTime      @updatedAt
   appointments Appointment[]
   payment      Payment?
+  cancelReason String?
   barber       Barber?       @relation(fields: [barberId], references: [id])
   customer     Customer      @relation(fields: [customerId], references: [id])
   items        SaleItem[]
@@ -253,6 +255,7 @@ model Payment {
   method        PaymentMethod @default(CASH)
   status        PaymentStatus @default(PENDING)
   screenshotUrl String?
+  gcashRefNo    String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   discount      Decimal       @default(0) @db.Decimal(10, 2)
@@ -268,7 +271,7 @@ model LoyaltyCard {
   status     Status   @default(ACTIVE)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  customerId String
+  customerId String   @unique(map: "loyaltycard_customerid_key")
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 }
 
@@ -282,32 +285,37 @@ model LoyaltyCardSetting {
 }
 
 model LoyaltyCardActivity {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   customerName String
   message      String
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
+  customerId   String?
+  serviceId    String?
+  Customer     Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "loyaltycardactivity_customerid_fkey")
+  Service      Service?  @relation(fields: [serviceId], references: [id], onUpdate: NoAction, map: "loyaltycardactivity_serviceid_fkey")
 }
 
 model Service {
-  id               String           @id @default(cuid())
-  name             String
-  description      String?
-  category         ServiceCategory?
-  durationMinutes  Int
-  price            Decimal          @db.Decimal(10, 2)
-  isAvailable      Boolean          @default(true)
-  requiresApproval Boolean          @default(false)
-  cancellationFee  Decimal?         @db.Decimal(10, 2)
-  totalBookings    Int              @default(0)
-  totalRevenue     Decimal          @default(0) @db.Decimal(12, 2)
-  isFeatured       Boolean          @default(false)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  serviceCode      String           @unique
-  sortOrder        Int              @default(0)
-  appointments     Appointment[]
-  saleItems        SaleItem[]
-  assignedStaff    Barber[]         @relation("StaffServices")
+  id                  String                @id @default(cuid())
+  name                String
+  description         String?
+  category            ServiceCategory?
+  durationMinutes     Int
+  price               Decimal               @db.Decimal(10, 2)
+  isAvailable         Boolean               @default(true)
+  requiresApproval    Boolean               @default(false)
+  cancellationFee     Decimal?              @db.Decimal(10, 2)
+  totalBookings       Int                   @default(0)
+  totalRevenue        Decimal               @default(0) @db.Decimal(12, 2)
+  isFeatured          Boolean               @default(false)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  serviceCode         String                @unique
+  sortOrder           Int                   @default(0)
+  appointments        Appointment[]
+  LoyaltyCardActivity LoyaltyCardActivity[]
+  saleItems           SaleItem[]
+  assignedStaff       Barber[]              @relation("StaffServices")
 }
 
 enum ReviewStatus {

@@ -13,21 +13,20 @@ export async function GET() {
     }
 
     const customers = await db.customer.findMany({
-      where: { isActive: true },
-      orderBy: { createdAt: "asc" },
+      where: {
+        isActive: true,
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
       include: {
-        loyaltyCards: {
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 1,
-        },
+        loyaltyCards: true,
       },
     });
 
     const cards = await Promise.all(
       customers.map(async (customer) => {
-        let card = customer.loyaltyCards[0];
+        let card = customer.loyaltyCards;
 
         if (!card) {
           card = await db.loyaltyCard.create({

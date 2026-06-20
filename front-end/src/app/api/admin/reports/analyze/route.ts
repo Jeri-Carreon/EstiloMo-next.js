@@ -1,25 +1,29 @@
-// front-end/src/app/api/admin/reports/deep-analyze/route.ts
+// front-end/src/app/api/admin/reports/analyze/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { dbData, dateRange } = body;
 
-  const prompt = `You are a senior business consultant specializing in barbershop analytics. 
-Perform a deep-dive analysis of this barbershop's data for ${dateRange}.
+  const prompt = `You are a business analyst for a barbershop. Analyze this data for ${dateRange} and respond ONLY with a valid JSON object, no markdown, no backticks, no explanation.
 
 Data:
 ${JSON.stringify(dbData, null, 2)}
 
-Provide a comprehensive report covering:
-1. Revenue performance and patterns
-2. Appointment trends and completion rate analysis
-3. Top-performing and underperforming services
-4. Customer behavior insights
-5. Operational efficiency observations
-6. Specific, actionable recommendations for improvement
-
-Be specific, reference actual numbers, and provide 4-6 sentences per section. Format your response clearly with section headers.`;
+Return exactly this JSON structure:
+{
+  "insights": [
+    { "icon": "💡", "title": "string", "body": "string" },
+    { "icon": "📈", "title": "string", "body": "string" },
+    { "icon": "🎯", "title": "string", "body": "string" }
+  ],
+  "revenueTrend": <number, positive or negative integer>,
+  "avgTrend": <number>,
+  "apptTrend": <number>,
+  "rateTrend": <number>,
+  "weeklyInsight": "<one sentence about the revenue/transaction trend>",
+  "serviceRecommendation": "<one sentence recommending which service to focus on>"
+}`;
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -28,13 +32,28 @@ Be specific, reference actual numbers, and provide 4-6 sentences per section. Fo
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'gpt-4o',
-      max_tokens: 2000,
+      model: 'gpt-4o-mini',
+      max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     }),
   });
 
   const data = await res.json();
-  const text = data.choices?.[0]?.message?.content ?? 'Unable to generate analysis.';
-  return NextResponse.json({ analysis: text });
+  const text = data.choices?.[0]?.message?.content ?? '{}';
+
+  try {
+    const clean = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    return NextResponse.json(parsed);
+  } catch {
+    return NextResponse.json({
+      insights: [],
+      revenueTrend: 0,
+      avgTrend: 0,
+      apptTrend: 0,
+      rateTrend: 0,
+      weeklyInsight: '',
+      serviceRecommendation: '',
+    });
+  }
 }

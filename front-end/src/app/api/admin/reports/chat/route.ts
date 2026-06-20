@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, reportData, deep } = await req.json();
+    const { messages, reportData, dbData, deep } = await req.json();
 
     const systemPrompt = deep
       ? `You are a senior business consultant specializing in barbershop analytics.
@@ -10,20 +10,44 @@ You have access to the following report data: ${JSON.stringify(reportData)}.
 Provide a thorough, multi-paragraph analysis. Reference specific numbers, identify patterns,
 and give concrete actionable recommendations. Use section headers where appropriate.
 
+REPORT SUMMARY:
+${JSON.stringify(reportData)}
+
+RAW BUSINESS DATA (individual sales, appointments, services):
+${JSON.stringify(dbData)}
+
+Daily Revenue Breakdown:
+${dbData.dailyRevenue?.map((d: any) =>
+  `${d.date}: PHP ${d.revenue} (${d.transactions} transactions)`
+).join('\n') ?? 'No daily data available'}
+
 RULES:
 - You assist with ALL questions related to business, revenue, appointments, services, staff, customers, growth, marketing, operations, and barbershop industry advice.
 - If the user asks something completely unrelated to business or barbershops (e.g. math homework, coding help, recipes, personal relationships),
   respond with: "I can only assist with questions related to your barbershop business data and performance."
 - When data is available in the report, reference it. When it is not, use general barbershop business knowledge to answer.`
   : `You are an AI business analyst for a barbershop.
-You have access to the following report data: ${JSON.stringify(reportData)}.
+- Always use ₱ as currency unless prompted for another currency.
+
+REPORT SUMMARY:
+${JSON.stringify(reportData)}
+
+RAW BUSINESS DATA (individual sales, appointments, services):
+${JSON.stringify(dbData)}
+
+Daily Revenue Breakdown:
+${dbData.dailyRevenue?.map((d: any) =>
+  `${d.date}: PHP ${d.revenue} (${d.transactions} transactions)`
+).join('\n') ?? 'No daily data available'}
+
 Answer the user's question in 2-3 sentences. Reference actual numbers from the data when relevant.
 
 RULES:
 - You assist with ALL questions related to business, revenue, appointments, services, staff, customers, growth, marketing, operations, and barbershop industry advice.
 - If the user asks something completely unrelated to business or barbershops (e.g. math homework, coding help, recipes, personal relationships),
   respond with: "I can only assist with questions related to your barbershop business data and performance."
-- When data is available in the report, reference it. When it is not, use general barbershop business knowledge to answer.`;
+- When data is available in the report, reference it. When it is not, use general barbershop business knowledge to answer.
+- Always use ₱ as currency unless prompted for another currency.`;
 
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
