@@ -1,5 +1,6 @@
 'use client';
 
+import { createClient } from '@/lib/supabase/client';
 import { useState, useRef, useEffect } from 'react';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -27,6 +28,7 @@ import {
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'; // deep analysis icon
 import ReactMarkdown from 'react-markdown';
 import { PieChart, Pie, Cell, Legend } from 'recharts';
+import { useRouter } from 'next/navigation';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -296,6 +298,9 @@ export default function ReportsPage() {
 
   // Report state
   const [reportData, setReportData] = useState<ReportData | null>(null);
+  // session
+  const router = useRouter()
+  const supabase = createClient()
   const [loading, setLoading] = useState(false);
 
   // Chat state
@@ -307,6 +312,26 @@ export default function ReportsPage() {
   const [deepAnalysis, setDeepAnalysis] = useState<string | null>(null);
   const [deepLoading, setDeepLoading] = useState(false);
   const [dbData, setDbData] = useState<any>(null);
+
+  useEffect(() => {
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/login')
+        return
+      }
+
+      const res = await fetch('/api/user/role')
+      const data = await res.json()
+
+      if (!['OWNER'].includes(data.role)) {
+        router.push('/unauthorized')
+        return
+      }
+    }
+
+    init()
+  }, [router])
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMsgs]);
 

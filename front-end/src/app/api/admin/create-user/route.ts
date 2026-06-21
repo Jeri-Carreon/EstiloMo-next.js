@@ -1,18 +1,15 @@
 import bcrypt from "bcrypt";
 import { db } from "@/lib/db";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
+import { getAdminUser } from "@/lib/supabase/getUser";
+import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    // AUTH CHECK
-    const session = await getServerSession(authOptions);
-
-    if (!session || session.user.role !== "OWNER") {
-      return Response.json(
-        { ok: false, error: "Forbidden" },
-        { status: 403 }
-      );
+    const user = await getAdminUser()
+    console.log('getAdminUser result:', user)
+    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+      return NextResponse.json({error: "Forbidden" }, { status: 403 });
     }
 
     // REQUEST BODY
@@ -134,7 +131,7 @@ export async function POST(req: Request) {
     // HASH PASSWORD
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await db.$transaction(async (tx) => {
+    const result = await db.$transaction(async (tx) => {
       // GENERATE USER CODE
       const userCounter = await tx.counter.update({
         where: {

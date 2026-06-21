@@ -1,5 +1,6 @@
 "use client";
 
+import { createClient } from "@/lib/supabase/client";
 import { useEffect, useMemo, useState } from "react";
 
 import Box from "@mui/material/Box";
@@ -58,6 +59,9 @@ type Review = {
 
 export default function AdminReviewsPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
+
+  // session
+  const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [successOpen, setSuccessOpen] = useState(false);

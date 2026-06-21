@@ -25,7 +25,7 @@ import { useRouter } from "next/navigation";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 
-import { signIn } from "next-auth/react";
+import { signupAction } from "./actions";
 import { FormEvent, useState } from "react";
 
 const Item = styled(Paper)(({ theme }) => ({
@@ -107,34 +107,22 @@ export default function SignupPage() {
       return;
     }
 
-    const res = await fetch("/api/register", { // await = pause execution until fetch request is complete, then continue with the rest of the function
-    method: "POST",
-    headers: {"Content-Type": "application/json",},
-    body: JSON.stringify({ 
+    const result = await signupAction({
       firstName: trimmedFirstName,
       lastName: trimmedLastName,
-      password,
       email: trimmedEmail,
+      password,
       mobileNumber: trimmedMobileNumber,
-    }),
-  }); 
+    })
+    console.log('signupAction result:', result)
+    if (!result.ok) {
+      setServerErrorMsg(result.error ?? "Registration failed")
+      setOpenServerError(true)
+      return
+    }
 
-  const data = await res.json();
-
-  if (!res.ok) {
-    setServerErrorMsg(data.error || "Registration failed")
-    setOpenServerError(true)
-    return;
-  }
-
-  // Modal
-  if (data.ok) {
-    setOpenSuccess(true);
-
-    setTimeout(() => {
-        router.push("/login"); // router.push = redirects user to url assigned"
-      }, 5000);
-  } 
+    setOpenSuccess(true)
+    setTimeout(() => router.push("/login"), 5000)
 };
 
   return (

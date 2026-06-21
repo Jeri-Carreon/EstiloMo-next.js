@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getAdminUser } from "@/lib/supabase/getUser";
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session || !["OWNER", "RECEPTIONIST"].includes(session.user.role)) {
+    const user = await getAdminUser()
+    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json(
         { ok: false, error: "Forbidden" },
         { status: 403 }

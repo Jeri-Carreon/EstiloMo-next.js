@@ -1,24 +1,19 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-type Params = {
-  params: { id: string };
-};
+import { getAdminUser } from "@/lib/supabase/getUser";
 
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email || (session.user as any).role !== "OWNER") {
+    const adminUser = await getAdminUser()
+    if (!adminUser || !["OWNER"].includes(adminUser.role)){
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params; // 🔥 SAME FIX
+    const { id } = await params; 
 
     if (!id) {
       return NextResponse.json(
@@ -57,9 +52,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email || (session.user as any).role !== "OWNER") {
+    const adminUser = await getAdminUser()
+    if (!adminUser || !["OWNER"].includes(adminUser.role)){
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

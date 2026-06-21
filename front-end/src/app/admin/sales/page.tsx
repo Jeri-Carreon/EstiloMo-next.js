@@ -1,5 +1,6 @@
 "use client";
 
+import { createClient } from "@/lib/supabase/client";
 import { useEffect, useMemo, useState } from "react";
 
 import Box from "@mui/material/Box";
@@ -270,6 +271,7 @@ export default function SalesPage() {
   const rowsPerPage = 8;
   const [page, setPage] = useState(1);
 
+  const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 

@@ -1,8 +1,7 @@
 'use client';
 
+import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
-
-import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
 import Box from '@mui/material/Box';
@@ -51,11 +50,13 @@ interface Service {
 }
 
 export default function ServicesPage() {
-  const { data: session, status } = useSession();
   const router = useRouter();
 
   const [services, setServices] = useState<Service[]>([]);
+
+  // session
   const [loading, setLoading] = useState(true);
+  const supabase = createClient()
   const [error, setError] = useState('');
 
   // ADD MODAL
@@ -106,44 +107,53 @@ export default function ServicesPage() {
   };
 
   useEffect(() => {
-    if (status === 'loading') return;
-
-    const role = (session?.user as { role?: string })?.role;
-
-    if (
-      !session?.user?.email ||
-      !['OWNER', 'RECEPTIONIST'].includes(role || '')
-    ) {
-      router.push('/unauthorized');
-      return;
-    }
-
     const loadServices = async () => {
       try {
-        const res = await fetch('/api/admin/services');
+        const res = await fetch('/api/admin/services')
 
         if (res.status === 403) {
-          router.push('/unauthorized');
+          router.push('/unauthorized')
           return;
         }
 
-        const data = await res.json();
+        const data = await res.json()
 
         if (!res.ok) {
-          setError(data.error || 'Unable to load services.');
+          setError(data.error || 'Unable to load services.')
           setServices([]);
         } else {
-          setServices(data.services || []);
+          setServices(data.services || [])
         }
       } catch (err) {
-        setError('Unable to load services.');
+        setError('Unable to load services.')
+      } finally {
+        setLoading(false)
       }
+    }
 
-      setLoading(false);
-    };
+    const init = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/login')
+          return
+        }
 
-    loadServices();
-  }, [session, status, router]);
+        const res = await fetch('/api/user/role')
+        const data = await res.json()
+
+        if (!['OWNER'].includes(data.role)) {
+          router.push('/unauthorized')
+          return
+        }
+
+        await loadServices()
+      } catch (err) {
+        console.error("Initialization failed:", err)
+      }
+    }
+    init()
+  }, [router]);
 
   // Loads Barbers For Add and Edit
   useEffect(() => {
@@ -153,7 +163,6 @@ export default function ServicesPage() {
         const data = await res.json();
         setStaffList(data.staff || []);
       } catch (err) {
-        console.error('Failed to load staff', err);
       }
     };
 
