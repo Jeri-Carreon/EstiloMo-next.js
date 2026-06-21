@@ -1,39 +1,32 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableContainer from '@mui/material/TableContainer';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
-import Paper from '@mui/material/Paper';
-import CircularProgress from '@mui/material/CircularProgress';
-import IconButton from '@mui/material/IconButton';
-import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
-import TextField from '@mui/material/TextField';
-import InputAdornment from '@mui/material/InputAdornment';
-import Button from '@mui/material/Button';
-import Dialog from '@mui/material/Dialog';
-import DialogContent from '@mui/material/DialogContent';
-import CloseIcon from '@mui/icons-material/Close';
-import Pagination from '@mui/material/Pagination';
-
-import SearchIcon from '@mui/icons-material/Search';
-import TuneIcon from '@mui/icons-material/Tune';
-import AddIcon from '@mui/icons-material/Add';
-import GetAppIcon from '@mui/icons-material/GetApp';
-
-import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
-import Chip from '@mui/material/Chip';
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import Paper from "@mui/material/Paper";
+import CircularProgress from "@mui/material/CircularProgress";
+import IconButton from "@mui/material/IconButton";
+import EditIcon from "@mui/icons-material/Edit";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
+import Button from "@mui/material/Button";
+import Dialog from "@mui/material/Dialog";
+import DialogContent from "@mui/material/DialogContent";
+import CloseIcon from "@mui/icons-material/Close";
+import Pagination from "@mui/material/Pagination";
+import SearchIcon from "@mui/icons-material/Search";
+import AddIcon from "@mui/icons-material/Add";
+import MenuItem from "@mui/material/MenuItem";
+import ImageIcon from "@mui/icons-material/Image";
 
 interface Service {
   id: string;
@@ -48,6 +41,26 @@ interface Service {
   }[];
   isAvailable: boolean;
   sortOrder: number;
+  imageUrl?: string | null;
+}
+
+async function uploadServiceImage(file: File) {
+  const uploadFormData = new FormData();
+  uploadFormData.append("file", file);
+  uploadFormData.append("bucket", "service-images");
+
+  const uploadRes = await fetch("/api/upload", {
+    method: "POST",
+    body: uploadFormData,
+  });
+
+  const uploadData = await uploadRes.json();
+
+  if (!uploadRes.ok || !uploadData.url) {
+    throw new Error(uploadData.error || "Failed to upload service image.");
+  }
+
+  return uploadData.url as string;
 }
 
 export default function ServicesPage() {
@@ -56,382 +69,299 @@ export default function ServicesPage() {
 
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
-  // ADD MODAL
   const [openAdd, setOpenAdd] = useState(false);
-
-  const [serviceName, setServiceName] = useState('');
-
-  const [serviceDescription, setServiceDescription] = useState('');
-
-  const [serviceDuration, setServiceDuration] = useState('');
-
-  const [servicePrice, setServicePrice] = useState('');
-  
+  const [serviceName, setServiceName] = useState("");
+  const [serviceDescription, setServiceDescription] = useState("");
+  const [serviceDuration, setServiceDuration] = useState("");
+  const [servicePrice, setServicePrice] = useState("");
   const [staffList, setStaffList] = useState<{ id: string; name: string }[]>([]);
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
   const [serviceAvailability, setServiceAvailability] = useState(true);
+  const [serviceImageFile, setServiceImageFile] = useState<File | null>(null);
+  const [serviceImagePreview, setServiceImagePreview] = useState("");
 
-  // DELETE
-  const [openDel, setOpenDel] = useState(false);
-
-  // EDIT
   const [openEdit, setOpenEdit] = useState(false);
-
   const [selectedService, setSelectedService] = useState<Service | null>(null);
-
-  const [editServiceName, setEditServiceName] = useState('');
-  const [editServiceDescription, setEditServiceDescription] = useState('');
+  const [editServiceName, setEditServiceName] = useState("");
+  const [editServiceDescription, setEditServiceDescription] = useState("");
   const [editDuration, setEditDuration] = useState(0);
   const [editPrice, setEditPrice] = useState(0);
   const [editSelectedStaffIds, setEditSelectedStaffIds] = useState<string[]>([]);
   const [editAvailability, setEditAvailability] = useState(true);
   const [editOriginalSortOrder, setEditOriginalSortOrder] = useState(0);
+  const [editServiceImageFile, setEditServiceImageFile] = useState<File | null>(null);
+  const [editServiceImagePreview, setEditServiceImagePreview] = useState("");
 
-  // STATUS MODAL
+  const [openImage, setOpenImage] = useState(false);
+  const [imageToView, setImageToView] = useState("");
+
   const [openStatusModal, setOpenStatusModal] = useState(false);
+  const [statusTitle, setStatusTitle] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
 
-  const [statusTitle, setStatusTitle] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [serviceFilter, setServiceFilter] = useState("ALL");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc" | "">("");
+  const [page, setPage] = useState(1);
+  const [saving, setSaving] = useState(false);
 
-  const [statusMessage, setStatusMessage] = useState('');
+  const itemsPerPage = 5;
 
-  const showStatusModal = (
-    title: string,
-    message: string
-  ) => {
+  const showStatusModal = (title: string, message: string) => {
     setStatusTitle(title);
     setStatusMessage(message);
     setOpenStatusModal(true);
   };
 
+  const loadServices = async () => {
+    try {
+      const res = await fetch("/api/admin/services", {
+        cache: "no-store",
+      });
+
+      if (res.status === 403) {
+        router.push("/unauthorized");
+        return;
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Unable to load services.");
+        setServices([]);
+      } else {
+        setError("");
+        setServices(data.services || []);
+      }
+    } catch {
+      setError("Unable to load services.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (status === 'loading') return;
+    if (status === "loading") return;
 
     const role = (session?.user as { role?: string })?.role;
 
-    if (
-      !session?.user?.email ||
-      !['OWNER', 'RECEPTIONIST'].includes(role || '')
-    ) {
-      router.push('/unauthorized');
+    if (!session?.user?.email || !["OWNER", "RECEPTIONIST"].includes(role || "")) {
+      router.push("/unauthorized");
       return;
     }
-
-    const loadServices = async () => {
-      try {
-        const res = await fetch('/api/admin/services');
-
-        if (res.status === 403) {
-          router.push('/unauthorized');
-          return;
-        }
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          setError(data.error || 'Unable to load services.');
-          setServices([]);
-        } else {
-          setServices(data.services || []);
-        }
-      } catch (err) {
-        setError('Unable to load services.');
-      }
-
-      setLoading(false);
-    };
 
     loadServices();
   }, [session, status, router]);
 
-  // Loads Barbers For Add and Edit
   useEffect(() => {
     const loadStaff = async () => {
       try {
-        const res = await fetch('/api/admin/staff');
+        const res = await fetch("/api/admin/staff");
         const data = await res.json();
         setStaffList(data.staff || []);
       } catch (err) {
-        console.error('Failed to load staff', err);
+        console.error("Failed to load staff", err);
       }
     };
 
     loadStaff();
   }, []);
 
-  // Search and Filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [serviceFilter, setServiceFilter] = useState('ALL')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | ''>('');
-
-  const [page, setPage] = useState(1);
-  const itemsPerPage = 5;
-  
-  const filteredServices = services.filter(
-    (service) => {
+  const filteredServices = services
+    .filter((service) => {
       const searchValue = searchTerm.toLowerCase();
 
-      const matchesSearch = 
-      service.id.toLowerCase().includes(searchValue) ||
-      service.name.toLowerCase().includes(searchValue) ||
-      service.isAvailable.toString().toLowerCase().includes(searchValue) ||
-      service.assignedStaff.some((staff) =>
-        staff.name.toLowerCase().includes(searchValue)
-      );
-    
+      const matchesSearch =
+        service.id.toLowerCase().includes(searchValue) ||
+        service.serviceCode.toLowerCase().includes(searchValue) ||
+        service.name.toLowerCase().includes(searchValue) ||
+        service.isAvailable.toString().toLowerCase().includes(searchValue) ||
+        service.assignedStaff.some((staff) =>
+          staff.name.toLowerCase().includes(searchValue)
+        );
+
       const matchesFilter =
-        serviceFilter === 'ALL' ||
-        (serviceFilter === 'AVAILABLE' && service.isAvailable === true) ||
-        (serviceFilter === 'UNAVAILABLE' && service.isAvailable === false);
+        serviceFilter === "ALL" ||
+        (serviceFilter === "AVAILABLE" && service.isAvailable) ||
+        (serviceFilter === "UNAVAILABLE" && !service.isAvailable);
 
-    return matchesSearch && matchesFilter;
-  })
-  .sort((a, b) => {
-    if (sortOrder === 'asc') return a.sortOrder - b.sortOrder;
-    if (sortOrder === 'desc') return b.sortOrder - a.sortOrder;
-    return 0;
-  });
-    const paginatedServices = filteredServices.slice(
-      (page - 1) * itemsPerPage,
-      page * itemsPerPage
-    );
+      return matchesSearch && matchesFilter;
+    })
+    .sort((a, b) => {
+      if (sortOrder === "asc") return a.sortOrder - b.sortOrder;
+      if (sortOrder === "desc") return b.sortOrder - a.sortOrder;
+      return 0;
+    });
 
-    const totalPages = Math.ceil(
-      filteredServices.length / itemsPerPage
-    );
+  const paginatedServices = filteredServices.slice(
+    (page - 1) * itemsPerPage,
+    page * itemsPerPage
+  );
 
-  const handleCreateService = async ({
-    name,
-    description,
-    durationMinutes,
-    price,
-    isAvailable,
-  }: {
-    name: string;
-    description: string;
-    durationMinutes: number;
-    price: number;
-    isAvailable: boolean;
-  }) => {
-  try {
-    const res = await fetch(
-      '/api/admin/services',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name,
-          description,
-          durationMinutes,
-          price,
-          assignedStaffIds: selectedStaffIds,
-          isAvailable,
-        }),
-      }
-    );
+  const totalPages = Math.max(1, Math.ceil(filteredServices.length / itemsPerPage));
 
-    const data = await res.json();
+  const resetAddForm = () => {
+    setServiceName("");
+    setServiceDescription("");
+    setServiceDuration("");
+    setServicePrice("");
+    setSelectedStaffIds([]);
+    setServiceAvailability(true);
+    setServiceImageFile(null);
+    setServiceImagePreview("");
+  };
 
-    if (!res.ok) {
-      showStatusModal('Error', data.error || 'Failed to create service');
+  const handleCreateService = async () => {
+    const trimmedName = serviceName.trim();
+    const trimmedDesc = serviceDescription.trim();
+    const duration = Number(serviceDuration);
+    const price = Number(servicePrice);
+
+    if (!trimmedName || !trimmedDesc || !serviceDuration || !servicePrice) {
+      showStatusModal("Incomplete Fields", "Please complete all fields.");
       return;
     }
 
-    // await loadServices(); pagisipan if dadagdag pa toh
+    if (serviceAvailability && selectedStaffIds.length < 1) {
+      showStatusModal("Incomplete Fields", "Please assign at least 1 staff member.");
+      return;
+    }
 
+    if (!serviceImageFile) {
+      showStatusModal("Incomplete Fields", "Please upload a service image.");
+      return;
+    }
 
-    setServices((prev) => [...prev, data.service]);
+    if (Number.isNaN(duration) || duration < 1 || duration > 999) {
+      showStatusModal("Error", "Duration must only be 3 digits (Minutes).");
+      return;
+    }
 
-    setOpenAdd(false);
-
-    setServiceName('');
-    setServiceDescription('');
-    setServiceDuration('');
-    setServicePrice('');
-    setSelectedStaffIds([]);
-    setServiceAvailability(false);
-
-    showStatusModal('Success', 'Service created successfully!');
-  } catch (error) {
-    showStatusModal('Error', 'Something went wrong.');
-  }
-};
-
-  const handleReviewService = () => {
-  const trimmedName = serviceName.trim();
-  const trimmedDesc = serviceDescription.trim();
-
-  if (
-    !trimmedName ||
-    !trimmedDesc ||
-    !serviceDuration ||
-    !servicePrice
-  ) {
-    showStatusModal(
-      "Incomplete Fields",
-      "Please complete all fields."
-    );
-    return;
-  }
-
-  const hasStaff = Array.isArray(selectedStaffIds) && selectedStaffIds.length > 0;
-
-  if (serviceAvailability && !hasStaff) {
-    showStatusModal(
-      "Incomplete Fields",
-      "Please assign at least 1 staff member."
-    );
-    return;
-  }
-  
-  const duration = Number(serviceDuration);
-  const price = Number(servicePrice);
-
-  if (Number.isNaN(duration) || duration < 1 || duration > 999) {
-    showStatusModal("Error", "Duration must only be 3 digits(Minutes)");
-    return;
-  }
-
-  if (Number.isNaN(price) || price < 1 || price > 99999) {
-    showStatusModal("Error", "Price must only be 5 digits(Pesos)");
-    return;
-  }
-
-  setOpenAdd(false);
-
-  handleCreateService({
-    name: trimmedName,
-    description: trimmedDesc,
-    durationMinutes: duration,
-    price: price,
-    isAvailable: serviceAvailability,
-  });
-};
-  const handleDeleteService = async () => {
-    if (!selectedService) return;
+    if (Number.isNaN(price) || price < 1 || price > 99999) {
+      showStatusModal("Error", "Price must only be 5 digits (Pesos).");
+      return;
+    }
 
     try {
-      const res = await fetch(
-        `/api/admin/services/${selectedService.id}`,
-        {
-          method: 'DELETE',
-        }
-      );
+      setSaving(true);
+
+      const res = await fetch("/api/admin/services", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: trimmedName,
+          description: trimmedDesc,
+          durationMinutes: duration,
+          price,
+          assignedStaffIds: selectedStaffIds,
+          isAvailable: serviceAvailability,
+          imageUrl: null,
+        }),
+      });
 
       const data = await res.json();
 
       if (!res.ok) {
-        showStatusModal(
-          'Error',
-          data.error || 'Delete failed'
-        );
+        showStatusModal("Error", data.error || "Failed to create service.");
         return;
       }
 
-      setServices((prev) =>
-        prev.filter((s) => s.id !== selectedService.id)
-      );
+      let createdService: Service = data.service;
 
-      setOpenDel(false);
+      if (serviceImageFile) {
+        const imageUrl = await uploadServiceImage(serviceImageFile);
 
-      showStatusModal(
-        'Success',
-        'Service deleted successfully!'
-      );
-    } catch (err) {
-      showStatusModal(
-        'Error',
-        'Something went wrong.'
-      );
+        const updateRes = await fetch(`/api/admin/services/${createdService.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: createdService.name,
+            description: createdService.description,
+            durationMinutes: createdService.durationMinutes,
+            price: createdService.price,
+            isAvailable: createdService.isAvailable,
+            sortOrder: createdService.sortOrder,
+            assignedStaffIds: createdService.assignedStaff.map((staff) => staff.id),
+            imageUrl,
+          }),
+        });
+
+        const updateData = await updateRes.json();
+
+        if (updateRes.ok) {
+          createdService = updateData.service;
+        }
+      }
+
+      setServices((prev) => [...prev, createdService]);
+      setOpenAdd(false);
+      resetAddForm();
+      showStatusModal("Success", "Service created successfully!");
+    } catch (error) {
+      console.error(error);
+      showStatusModal("Error", "Something went wrong.");
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleUpdateService = async () => {
-  if (!selectedService) return;
+    if (!selectedService) return;
 
-  const trimmedName = editServiceName.trim();
-  const trimmedDesc = editServiceDescription.trim();
+    const trimmedName = editServiceName.trim();
+    const trimmedDesc = editServiceDescription.trim();
 
-  // REQUIRED FIELDS
-  if (
-    !trimmedName ||
-    !trimmedDesc ||
-    !editDuration ||
-    !editPrice ||
-    !editOriginalSortOrder === null
-  ) {
-    showStatusModal(
-      'Incomplete Fields',
-      'Please complete all fields.'
-    );
-    return;
-  }
+    if (
+      !trimmedName ||
+      !trimmedDesc ||
+      !editDuration ||
+      !editPrice ||
+      editOriginalSortOrder === null ||
+      Number.isNaN(editOriginalSortOrder)
+    ) {
+      showStatusModal("Incomplete Fields", "Please complete all fields.");
+      return;
+    }
 
-  // MAX LENGTH CHECKS
-  if (trimmedName.length > 50) {
-    showStatusModal(
-      'Error',
-      'Service name must only be 50 characters.'
-    );
-    return;
-  }
+    if (editAvailability && editSelectedStaffIds.length < 1) {
+      showStatusModal("Incomplete Fields", "Please assign at least 1 staff member.");
+      return;
+    }
 
-  if (trimmedDesc.length > 150) {
-    showStatusModal(
-      'Error',
-      'Description must only be 150 characters.'
-    );
-    return;
-  }
+    if (!selectedService.imageUrl && !editServiceImageFile) {
+      showStatusModal("Incomplete Fields", "Please upload a service image.");
+      return;
+    }
 
-  // STAFF VALIDATION
-  const hasStaff =
-    Array.isArray(editSelectedStaffIds) &&
-    editSelectedStaffIds.length > 0;
+    if (Number.isNaN(editDuration) || editDuration < 1 || editDuration > 999) {
+      showStatusModal("Error", "Duration must only be 3 digits (Minutes).");
+      return;
+    }
 
-  if (editAvailability && !hasStaff) {
-    showStatusModal(
-      'Incomplete Fields',
-      'Please assign at least 1 staff member.'
-    );
-    return;
-  }
+    if (Number.isNaN(editPrice) || editPrice < 1 || editPrice > 99999) {
+      showStatusModal("Error", "Price must only be 5 digits (Pesos).");
+      return;
+    }
 
-  // NUMBER VALIDATION
-  if (
-    Number.isNaN(editDuration) ||
-    editDuration < 1 ||
-    editDuration > 999
-  ) {
-    showStatusModal(
-      'Error',
-      'Duration must only be 3 digits (Minutes)'
-    );
-    return;
-  }
+    try {
+      setSaving(true);
 
-  if (
-    Number.isNaN(editPrice) ||
-    editPrice < 1 ||
-    editPrice > 99999
-  ) {
-    showStatusModal(
-      'Error',
-      'Price must only be 5 digits (Pesos)'
-    );
-    return;
-  }
+      let finalImageUrl = selectedService.imageUrl || null;
 
-  try {
-    const res = await fetch(
-      `/api/admin/services/${selectedService.id}`,
-      {
-        method: 'PUT',
+      if (editServiceImageFile) {
+        finalImageUrl = await uploadServiceImage(editServiceImageFile);
+      }
+
+      const res = await fetch(`/api/admin/services/${selectedService.id}`, {
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           name: trimmedName,
@@ -441,100 +371,46 @@ export default function ServicesPage() {
           isAvailable: editAvailability,
           sortOrder: editOriginalSortOrder,
           assignedStaffIds: editSelectedStaffIds,
+          imageUrl: finalImageUrl,
         }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showStatusModal("Error", data.error || "Update failed.");
+        return;
       }
-    );
 
-    const data = await res.json();
-
-    if (!res.ok) {
-      showStatusModal(
-        'Error',
-        data.error || 'Update failed'
+      setServices((prev) =>
+        prev.map((service) =>
+          service.id === selectedService.id ? data.service : service
+        )
       );
-      return;
+
+      setOpenEdit(false);
+      setSelectedService(null);
+      setEditServiceImageFile(null);
+      setEditServiceImagePreview("");
+      showStatusModal("Success", "Service updated successfully!");
+    } catch (error) {
+      console.error(error);
+      showStatusModal("Error", "Something went wrong.");
+    } finally {
+      setSaving(false);
     }
-
-    setServices((prev) =>
-      prev.map((service) =>
-        service.id === selectedService.id
-          ? {
-              ...service,
-              name: trimmedName,
-              description: trimmedDesc,
-              durationMinutes: editDuration,
-              price: editPrice,
-              assignedStaff: staffList
-                .filter((staff) =>
-                  editSelectedStaffIds.includes(
-                    staff.id
-                  )
-                )
-                .map((staff) => ({
-                  id: staff.id,
-                  name: staff.name,
-                })),
-              isAvailable: editAvailability,
-              sortOrder: editOriginalSortOrder,
-            }
-          : service
-      )
-    );
-
-    setOpenEdit(false);
-
-    showStatusModal(
-      'Success',
-      'Service updated successfully!'
-    );
-  } catch (err) {
-    showStatusModal(
-      'Error',
-      'Something went wrong.'
-    );
-  }
-};
-
+  };
 
   return (
-    <Box
-      sx={{
-        flex: 1,
-        p: 4,
-        backgroundColor: '#fff',
-      }}
-    >
-      {/* HEADER */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          mb: 4,
-        }}
-      >
-        <Typography
-          variant="h3"
-          sx={{
-            mb: 0,
-            fontWeight: 700,
-          }}
-        >
+    <Box sx={{ flex: 1, p: 4, backgroundColor: "#fff" }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 4 }}>
+        <Typography variant="h3" sx={{ mb: 0, fontWeight: 700 }}>
           Services
         </Typography>
-
         <Box sx={{ width: 112 }} />
       </Box>
 
-      {/* SEARCH */}
-      <Box
-        sx={{
-          display: 'flex',
-          gap: 2,
-          mb: 4,
-          alignItems: 'center',
-        }}
-      >
+      <Box sx={{ display: "flex", gap: 2, mb: 4, alignItems: "center" }}>
         <TextField
           placeholder="Search Service..."
           size="small"
@@ -547,17 +423,14 @@ export default function ServicesPage() {
             input: {
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon sx={{ color: '#999' }} />
+                  <SearchIcon sx={{ color: "#999" }} />
                 </InputAdornment>
               ),
             },
           }}
-          sx={{
-            flex: 1,
-            maxWidth: 300,
-          }}
+          sx={{ flex: 1, maxWidth: 300 }}
         />
-        
+
         <TextField
           select
           size="small"
@@ -566,10 +439,7 @@ export default function ServicesPage() {
             setServiceFilter(e.target.value);
             setPage(1);
           }}
-          sx={{
-            width: 170,
-            bgcolor: '#fff',
-          }}
+          sx={{ width: 170, bgcolor: "#fff" }}
         >
           <MenuItem value="ALL">ALL</MenuItem>
           <MenuItem value="AVAILABLE">Available Services</MenuItem>
@@ -581,25 +451,11 @@ export default function ServicesPage() {
           size="small"
           value={sortOrder}
           onChange={(e) => {
-            setSortOrder(e.target.value as 'asc' | 'desc' | '');
+            setSortOrder(e.target.value as "asc" | "desc" | "");
             setPage(1);
           }}
-          sx={{
-            width: 200,
-            bgcolor: '#fff',
-          }}
-          slotProps={{
-            select: {
-              displayEmpty: true,
-            renderValue: (value) => {
-              if (value === '') return <span style={{ color: '#000000' }}>Default Order</span>;
-              if (value === 'asc') return 'Sort Order (Asc)';
-              if (value === 'desc') return 'Sort Order (Desc)';
-            },
-            }
-          }}
-          >
-        
+          sx={{ width: 200, bgcolor: "#fff" }}
+        >
           <MenuItem value="">Default Order</MenuItem>
           <MenuItem value="asc">Sort Order (Asc)</MenuItem>
           <MenuItem value="desc">Sort Order (Desc)</MenuItem>
@@ -611,901 +467,334 @@ export default function ServicesPage() {
           startIcon={<AddIcon />}
           variant="contained"
           onClick={() => setOpenAdd(true)}
-          sx={{
-              textTransform: 'none',
-          }}
+          sx={{ textTransform: "none" }}
         >
-        Add
+          Add
         </Button>
       </Box>
 
-      {/* ERROR */}
-      {error && (
-        <Typography
-          color="error"
-          sx={{ mb: 2 }}
-        >
-          {error}
-        </Typography>
-      )}
+      {error && <Typography color="error" sx={{ mb: 2 }}>{error}</Typography>}
 
-      {/* LOADING */}
       {loading ? (
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            py: 6,
-          }}
-        >
+        <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
           <CircularProgress />
         </Box>
       ) : services.length === 0 ? (
-        <Typography
-          sx={{
-            textAlign: 'center',
-            color: 'text.secondary',
-          }}
-        >
+        <Typography sx={{ textAlign: "center", color: "text.secondary" }}>
           No services found.
         </Typography>
       ) : (
         <>
-          {/* TABLE */}
           <TableContainer component={Paper}>
             <Table>
-              <TableHead
-                sx={{
-                  backgroundColor: '#f5f5f5',
-                }}
-              >
+              <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 700 }}>
-                    ID
-                  </TableCell>
-
-                  <TableCell sx={{ fontWeight: 700 }}>
-                    Sort Order
-                  </TableCell>
-
-                  <TableCell sx={{ fontWeight: 700 }}>
-                    Service Name
-                  </TableCell>
-
-                  <TableCell sx={{ fontWeight: 700 }}>
-                    Duration
-                  </TableCell>
-
-                  <TableCell sx={{ fontWeight: 700 }}>
-                    Price
-                  </TableCell>
-
-                  <TableCell sx={{ fontWeight: 700 }}>
-                    Assigned Staff
-                  </TableCell>
-
-                  <TableCell sx={{ fontWeight: 700 }}>
-                    Availability
-                  </TableCell>
-
-                  <TableCell sx={{ fontWeight: 700 }}>
-                    Actions
-                  </TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>ID</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Image</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Sort Order</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Service Name</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Duration</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Price</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Assigned Staff</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Availability</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
 
               <TableBody>
-                {paginatedServices.map(
-                  (service, index) => (
-                    <TableRow
-                      key={service.id}
-                      sx={{
-                        '&:hover': {
-                          backgroundColor: '#fafafa',
-                        },
-                      }}
-                    >
-                      <TableCell>
-                        {service.serviceCode}
-                      </TableCell>
-
-                      <TableCell>
-                        {service.sortOrder}
-                      </TableCell>
-
-                      <TableCell>
-                        {service.name}
-                      </TableCell>
-
-                      <TableCell>
-                        {service.durationMinutes} mins
-                      </TableCell>
-
-                      <TableCell>
-                        ₱ {service.price}
-                      </TableCell>
-
-                      <TableCell>
-                        {service.assignedStaff
-                          .length > 0
-                          ? service.assignedStaff
-                              .map(
-                                (staff) =>
-                                  staff.name
-                              )
-                              .join(', ')
-                          : 'No Staff'}
-                      </TableCell>
-
-                      <TableCell>
-                        <Typography
+                {paginatedServices.map((service) => (
+                  <TableRow key={service.id} sx={{ "&:hover": { backgroundColor: "#fafafa" } }}>
+                    <TableCell>{service.serviceCode}</TableCell>
+                    <TableCell>
+                      {service.imageUrl ? (
+                        <Box
+                          component="img"
+                          src={service.imageUrl}
+                          alt={service.name}
+                          onClick={() => {
+                            setImageToView(service.imageUrl || "");
+                            setOpenImage(true);
+                          }}
                           sx={{
-                            color:
-                              service.isAvailable
-                                ? 'success.main'
-                                : 'error.main',
-                            fontWeight: 600,
+                            width: 70,
+                            height: 45,
+                            objectFit: "cover",
+                            borderRadius: 1,
+                            cursor: "pointer",
+                            border: "1px solid #ddd",
                           }}
-                        >
-                          {service.isAvailable
-                            ? 'Available'
-                            : 'Unavailable'}
-                        </Typography>
-                      </TableCell>
-
-                      <TableCell>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => {
-                            setSelectedService(
-                              service
-                            );
-
-                            setOpenDel(true);
-                          }}
-                        >
-                          <DeleteIcon fontSize="small" />
+                        />
+                      ) : (
+                        <IconButton disabled>
+                          <ImageIcon />
                         </IconButton>
-
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={() => {
-                            setSelectedService(
-                              service
-                            );
-
-                            setEditOriginalSortOrder(
-                              service.sortOrder
-                            );
-
-                            setEditServiceName(
-                              service.name
-                            );
-
-                            setEditServiceDescription(
-                              service.description || ''
-                            )
-                            setEditDuration(
-                              service.durationMinutes
-                            );
-
-                            setEditPrice(
-                              service.price
-                            );
-
-                            setEditSelectedStaffIds(
-                              service.assignedStaff.map(s => s.id)
-                            );
-
-                            setEditAvailability(
-                              service.isAvailable
-                            );
-
-                            setOpenEdit(true);
-                          }}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  )
-                )}
+                      )}
+                    </TableCell>
+                    <TableCell>{service.sortOrder}</TableCell>
+                    <TableCell>{service.name}</TableCell>
+                    <TableCell>{service.durationMinutes} mins</TableCell>
+                    <TableCell>₱ {service.price}</TableCell>
+                    <TableCell>
+                      {service.assignedStaff.length > 0
+                        ? service.assignedStaff.map((staff) => staff.name).join(", ")
+                        : "No Staff"}
+                    </TableCell>
+                    <TableCell>
+                      <Typography sx={{ color: service.isAvailable ? "success.main" : "error.main", fontWeight: 600 }}>
+                        {service.isAvailable ? "Available" : "Unavailable"}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => {
+                          setSelectedService(service);
+                          setEditOriginalSortOrder(service.sortOrder);
+                          setEditServiceName(service.name);
+                          setEditServiceDescription(service.description || "");
+                          setEditDuration(service.durationMinutes);
+                          setEditPrice(service.price);
+                          setEditSelectedStaffIds(service.assignedStaff.map((s) => s.id));
+                          setEditAvailability(service.isAvailable);
+                          setEditServiceImageFile(null);
+                          setEditServiceImagePreview(service.imageUrl || "");
+                          setOpenEdit(true);
+                        }}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </TableContainer>
 
-          {/* FOOTER */}
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              mt: 4,
-            }}
-          >
-            <Typography
-              sx={{
-                color: 'text.secondary',
-                fontSize: 14,
-              }}
-            >
-              Showing 1 to{' '}
-              {paginatedServices.length} of{' '}
-              {filteredServices.length}{' '}
-              Entries
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 4 }}>
+            <Typography sx={{ color: "text.secondary", fontSize: 14 }}>
+              Showing {(page - 1) * itemsPerPage + 1} to {Math.min(page * itemsPerPage, filteredServices.length)} of {filteredServices.length} Entries
             </Typography>
-
-            <Box
-              sx={{
-                display: 'flex',
-                gap: 2,
-                alignItems: 'center',
-              }}
-            >
-              <Pagination
-                count={totalPages}
-                page={page}
-                onChange={(_, value) =>
-                  setPage(value)
-                }
-                size="small"
-              />
-
-            </Box>
+            <Pagination count={totalPages} page={page} onChange={(_, value) => setPage(value)} size="small" />
           </Box>
         </>
       )}
 
-    {/* ADD MODAL */}
-    <Dialog
-    open={openAdd}
-    onClose={() => setOpenAdd(false)}
-    maxWidth="sm"
-    fullWidth
-    sx={{
-        '& .MuiPaper-root': {
-        borderRadius: 4,
-        bgcolor: '#f2f2f2',
-        overflow: 'visible',
-        },
-    }}
-    >
-    <Box
-        sx={{
-        m: 2,
-        bgcolor: '#fff',
-        borderRadius: 4,
-        p: 3,
-        pb: 2,
-        boxShadow:
-            '0 10px 40px rgba(0,0,0,0.08)',
-        }}
-    >
-        {/* HEADER */}
-        <Box
-        sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            mb: 2,
-        }}
-        >
-        <Box>
-            <Typography
-            variant="h6"
-            sx={{ fontWeight: 700 }}
-            >
-            Add New Service
-            </Typography>
+      <Dialog open={openAdd} onClose={() => setOpenAdd(false)} maxWidth="sm" fullWidth>
+        <Box sx={{ p: 4 }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>Add New Service</Typography>
+            <IconButton onClick={() => setOpenAdd(false)} size="small"><CloseIcon /></IconButton>
+          </Box>
 
-            <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ mt: 0.5 }}
-            >
-            Service Management
-            </Typography>
-        </Box>
+          <DialogContent sx={{ p: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+            <TextField label="Service Name *" fullWidth value={serviceName} onChange={(e) => setServiceName(e.target.value)} slotProps={{ htmlInput: { maxLength: 50 } }} />
+            <TextField label="Description  *" fullWidth multiline minRows={3} value={serviceDescription} onChange={(e) => setServiceDescription(e.target.value)} slotProps={{ htmlInput: { maxLength: 150 } }} />
+            <TextField label="Duration (Minutes)  *" type="number" fullWidth value={serviceDuration} onChange={(e) => e.target.value.length <= 3 && setServiceDuration(e.target.value)} />
+            <TextField label="Price  *" type="number" fullWidth value={servicePrice} onChange={(e) => e.target.value.length <= 5 && setServicePrice(e.target.value)} />
+            <TextField select label="Availability  *" fullWidth value={serviceAvailability ? "true" : "false"} onChange={(e) => setServiceAvailability(e.target.value === "true")}>
+              <MenuItem value="true">Available</MenuItem>
+              <MenuItem value="false">Unavailable</MenuItem>
+            </TextField>
 
-        <IconButton
-            onClick={() => setOpenAdd(false)}
-            size="small"
-        >
-            <CloseIcon />
-        </IconButton>
-        </Box>
+            <Button variant="outlined" component="label">
+              Upload Service Image *
+              <input
+                hidden
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setServiceImageFile(file);
+                  setServiceImagePreview(URL.createObjectURL(file));
+                }}
+              />
+            </Button>
 
-        {/* CONTENT */}
-        <DialogContent
-        sx={{
-            p: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
-            maxHeight: '60vh',
-            overflowY: 'auto',
-        }}
-        >
-        <TextField
-            label={
-              <>
-                Service Name <span style={{ color: 'red' }}>*</span>
-              </>}
-            placeholder="Enter service name"
-            fullWidth
-            value={serviceName}
-            onChange={(e) =>
-            setServiceName(e.target.value)
-            }
-            slotProps={{
-                htmlInput: {
-                  maxLength: 50,
-                },
-              }}
-            sx={{
-            bgcolor: '#f6f6f6',
-            borderRadius: 2,
-            }}
-        />
-
-        <TextField
-            label={
-              <>
-                Description <span style={{ color: 'red' }}>*</span>
-              </>}
-            placeholder="Enter description"
-            fullWidth
-            multiline
-            minRows={3}
-            value={serviceDescription}
-            onChange={(e) =>
-            setServiceDescription(e.target.value)
-            }
-            slotProps={{
-                htmlInput: {
-                  maxLength: 150,
-                },
-              }}
-            sx={{
-            bgcolor: '#f6f6f6',
-            borderRadius: 2,
-            }}
-        />
-
-        <TextField
-            label={
-              <>
-                Duration (Minutes) <span style={{ color: 'red' }}>*</span>
-              </>}
-            type="number"
-            fullWidth
-            value={serviceDuration}
-            onChange={(e) => {
-            const value = e.target.value;
-
-              // only allow digits + max 3 chars
-              if (value.length <= 3) {
-                setServiceDuration(value);
-              }
-            }}
-            slotProps={{
-              htmlInput: {
-                inputMode: 'numeric',
-                pattern: '[0-9]*',
-                maxLength: 3,
-              }
-            }}
-            sx={{
-            bgcolor: '#f6f6f6',
-            borderRadius: 2,
-            }}
-        />
-
-        <TextField
-            label={
-              <>
-                Price <span style={{ color: 'red' }}>*</span>
-              </>}
-            type="number"
-            fullWidth
-            value={servicePrice}
-            onChange={(e) => {
-            const value = e.target.value;
-
-              // only allow digits + max 3 chars
-              if (value.length <= 5) {
-                setServicePrice(value);
-              }
-            }}
-            slotProps={{
-              htmlInput: {
-                inputMode: 'numeric',
-                pattern: '[0-9]*',
-                maxLength: 5,
-              }
-            }}
-            sx={{
-            bgcolor: '#f6f6f6',
-            borderRadius: 2,
-            }}
-        />
-
-        <TextField
-          select
-          label="Availability"
-          fullWidth
-          value={serviceAvailability ? 'true' : 'false'}
-          onChange={(e) =>
-            setServiceAvailability(e.target.value === 'true')
-          }
-          slotProps={{
-            select: {
-              native: true,
-            },
-          }}
-        >
-          <option value="true">Available</option>
-          <option value="false">Unavailable</option>
-        </TextField>
-
-        {serviceAvailability && (
-          <Box>
-          <Typography
-            sx={{
-              mb: 1,
-              fontWeight: 600,
-              fontSize: 14,
-            }}
-          >
-            Assign Barbers <span style={{ color: 'red' }}>*</span>
-          </Typography>
-
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 1,
-              maxHeight: 160,
-              overflowY: 'auto',
-              p: 1,
-              border: '1px solid #ddd',
-              borderRadius: 2,
-              bgcolor: '#f6f6f6',
-            }}
-          >
-            {staffList.length === 0 ? (
-              <Typography
-                variant="body2"
-                color="text.secondary"
-              >
-                No staff available
-              </Typography>
-            ) : (
-              staffList.map((staff) => (
-                <Box
-                  key={staff.id}
+            {serviceImagePreview && (
+              <Box>
+                <Button
+                  onClick={() => {
+                    setImageToView(serviceImagePreview);
+                    setOpenImage(true);
+                  }}
                   sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
+                    p: 0,
+                    color: "#3b82f6",
+                    textTransform: "none",
+                    fontSize: 13,
+                    mb: 1,
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedStaffIds.includes(staff.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedStaffIds((prev) => [
-                          ...prev,
-                          staff.id,
-                        ]);
-                      } else {
-                        setSelectedStaffIds((prev) =>
-                          prev.filter(
-                            (id) => id !== staff.id
-                          )
-                        );
-                      }
-                    }}
-                  />
+                  View Image
+                </Button>
 
-                  <Typography>
-                    {staff.name}
-                  </Typography>
-                </Box>
-              ))
-            )}
-          </Box>
-        </Box>
-        )}
-
-        </DialogContent>
-
-        {/* BUTTONS */}
-        <Box
-        sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 1,
-            mt: 3,
-            mb: 2,
-        }}
-        >
-        <Button
-            onClick={() => setOpenAdd(false)}
-            sx={{
-            backgroundColor: '#6d6d6d',
-            color: '#f7c948',
-            textTransform: 'none',
-            minWidth: 120,
-            py: 1.25,
-            ':hover': {
-                backgroundColor: '#5a5a5a',
-            },
-            }}
-        >
-            Cancel
-        </Button>
-
-        <Button
-            variant="contained"
-            onClick={handleReviewService}
-            sx={{
-            backgroundColor: '#000',
-            color: '#fff',
-            textTransform: 'none',
-            minWidth: 120,
-            py: 1.25,
-            ':hover': {
-                backgroundColor: '#111',
-            },
-            }}
-        >
-            Add
-        </Button>
-        </Box>
-    </Box>
-    </Dialog>
-      {/* DELETE MODAL */}
-      <Dialog
-        open={openDel}
-        onClose={() => setOpenDel(false)}
-      >
-        <Box
-          sx={{
-            p: 4,
-            width: 400,
-          }}
-        >
-          <Typography
-            variant="h6"
-            sx={{ fontWeight: 700 }}
-          >
-            Delete Service
-          </Typography>
-
-          <DialogContent sx={{ p: 0, mt: 2 }}>
-            <Typography>
-              Are you sure you want to delete:
-            </Typography>
-
-            <Typography sx={{ mt: 2 }}>
-              <strong>Name:</strong>{' '}
-              {selectedService?.name}
-            </Typography>
-          </DialogContent>
-
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              mt: 4,
-            }}
-          >
-            <Button
-              variant="contained"
-              color="error"
-              onClick={handleDeleteService}
-            >
-              Delete
-            </Button>
-
-            <Button
-              onClick={() =>
-                setOpenDel(false)
-              }
-            >
-              Cancel
-            </Button>
-          </Box>
-        </Box>
-      </Dialog>
-
-      {/* EDIT MODAL */}
-      <Dialog
-        open={openEdit}
-        onClose={() => setOpenEdit(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <Box sx={{ p: 4 }}>
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent:
-                'space-between',
-              alignItems: 'center',
-              mb: 2,
-            }}
-          >
-            <Typography
-              variant="h6"
-              sx={{ fontWeight: 700 }}
-            >
-              Edit Service
-            </Typography>
-
-            <IconButton
-              onClick={() =>
-                setOpenEdit(false)
-              }
-            >
-              <CloseIcon />
-            </IconButton>
-          </Box>
-
-          <DialogContent
-            sx={{
-              p: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2,
-            }}
-          >
-            <TextField
-              label={
-              <>
-                Sort Order <span style={{ color: 'red' }}>*</span>
-              </>}
-              type="number"
-              value={editOriginalSortOrder ?? ''}
-              onChange={(e) => {
-                const value = e.target.value;
-
-                if (value.length <= 3) {
-                  setEditOriginalSortOrder(
-                    value === '' ? 0 : Number(value)
-                  );
-                }
-              }}
-              fullWidth
-              slotProps={{
-                htmlInput: {
-                  inputMode: 'numeric',
-                  pattern: '[0-9]*',
-                  maxLength: 3,
-                },
-              }}
-            />
-            <TextField
-              label={
-              <>
-                Service Name <span style={{ color: 'red' }}>*</span>
-              </>}
-              value={editServiceName}
-              onChange={(e) => {
-                if (e.target.value.length <= 50) {
-                  setEditServiceName(e.target.value);
-                }
-              }}
-              fullWidth
-              slotProps={{
-                htmlInput: {
-                  maxLength: 50,
-                },
-              }}
-            />
-
-            <TextField
-             label={
-              <>
-                Description <span style={{ color: 'red' }}>*</span>
-              </>}
-              value={editServiceDescription}
-              onChange={(e) => {
-                if (e.target.value.length <= 150) {
-                  setEditServiceDescription(e.target.value);
-                }
-              }}
-              fullWidth
-              multiline
-              minRows={3}
-              slotProps={{
-                htmlInput: {
-                  maxLength: 150,
-                },
-              }}
-            />
-
-            <TextField
-              label={
-              <>
-                Duration <span style={{ color: 'red' }}>*</span>
-              </>}
-              type="number"
-              value={editDuration || ''}
-              onChange={(e) => {
-                const value = e.target.value;
-
-                if (value.length <= 3) {
-                  setEditDuration(
-                    value === '' ? 0 : Number(value)
-                  );
-                }
-              }}
-              fullWidth
-              slotProps={{
-                htmlInput: {
-                  inputMode: 'numeric',
-                  pattern: '[0-9]*',
-                  maxLength: 3,
-                },
-              }}
-            />
-
-            <TextField
-              label={
-              <>
-                Price <span style={{ color: 'red' }}>*</span>
-              </>}
-              type="number"
-              value={editPrice || ''}
-              onChange={(e) => {
-                const value = e.target.value;
-
-                if (value.length <= 5) {
-                  setEditPrice(
-                    value === '' ? 0 : Number(value)
-                  );
-                }
-              }}
-              fullWidth
-              slotProps={{
-                htmlInput: {
-                  inputMode: 'numeric',
-                  pattern: '[0-9]*',
-                  maxLength: 5,
-                },
-              }}
-            />
-
-            <TextField
-              select
-              label="Availability"
-              fullWidth
-              value={editAvailability ? 'true' : 'false'}
-              onChange={(e) =>
-                setEditAvailability(e.target.value === 'true')
-              }
-              slotProps={{
-                select: {
-                  native: true,
-                },
-              }}
-            >
-              <option value="true">Available</option>
-              <option value="false">Unavailable</option>
-            </TextField>
-          {editAvailability && (
-            <Box>
-              <Typography sx={{ mb: 1, fontWeight: 600, fontSize: 14 }}>
-                Assign Barbers <span style={{ color: 'red '}}>*</span>
-              </Typography>
-
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 1,
-                  maxHeight: 160,
-                  overflowY: 'auto',
-                  p: 1,
-                  border: '1px solid #ddd',
-                  borderRadius: 2,
-                  bgcolor: '#f6f6f6',
-                }}
-              >
-                {staffList.map((staff) => (
-                  <Box
-                    key={staff.id}
-                    sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={editSelectedStaffIds.includes(staff.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setEditSelectedStaffIds((prev) => [...prev, staff.id]);
-                        } else {
-                          setEditSelectedStaffIds((prev) =>
-                            prev.filter((id) => id !== staff.id)
-                          );
-                        }
-                      }}
-                    />
-
-                    <Typography>{staff.name}</Typography>
-                  </Box>
-                ))}
+                <Box
+                  component="img"
+                  src={serviceImagePreview}
+                  onClick={() => {
+                    setImageToView(serviceImagePreview);
+                    setOpenImage(true);
+                  }}
+                  sx={{
+                    width: "100%",
+                    height: 180,
+                    objectFit: "cover",
+                    borderRadius: 2,
+                    border: "1px solid #ddd",
+                    cursor: "pointer",
+                  }}
+                />
               </Box>
-            </Box>
-          )}
+            )}
+
+            {serviceAvailability && (
+              <Box>
+                <Typography sx={{ mb: 1, fontWeight: 600, fontSize: 14 }}>Assign Barbers</Typography>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, maxHeight: 160, overflowY: "auto", p: 1, border: "1px solid #ddd", borderRadius: 2 }}>
+                  {staffList.map((staff) => (
+                    <Box key={staff.id} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedStaffIds.includes(staff.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedStaffIds((prev) => [...prev, staff.id]);
+                          else setSelectedStaffIds((prev) => prev.filter((id) => id !== staff.id));
+                        }}
+                      />
+                      <Typography>{staff.name}</Typography>
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            )}
           </DialogContent>
 
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent:
-                'space-between',
-              mt: 4,
-            }}
-          >
-            <Button
-              onClick={() =>
-                setOpenEdit(false)
-              }
-            >
-              Cancel
-            </Button>
-
-            <Button
-              variant="contained"
-              onClick={handleUpdateService}
-            >
-              Save
-            </Button>
+          <Box sx={{ display: "flex", justifyContent: "space-between", mt: 3 }}>
+            <Button onClick={() => setOpenAdd(false)}>Cancel</Button>
+            <Button variant="contained" onClick={handleCreateService} disabled={saving}>{saving ? "Saving..." : "Add"}</Button>
           </Box>
         </Box>
       </Dialog>
 
-      {/* STATUS MODAL */}
-      <Dialog
-        open={openStatusModal}
-        onClose={() =>
-          setOpenStatusModal(false)
-        }
-      >
+      <Dialog open={openEdit} onClose={() => setOpenEdit(false)} maxWidth="sm" fullWidth>
         <Box sx={{ p: 4 }}>
-          <Typography
-            variant="h6"
-            sx={{ fontWeight: 700 }}
-          >
-            {statusTitle}
-          </Typography>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>Edit Service</Typography>
+            <IconButton onClick={() => setOpenEdit(false)}><CloseIcon /></IconButton>
+          </Box>
 
-          <DialogContent sx={{ p: 0, mt: 2 }}>
-            <Typography>
-              {statusMessage}
-            </Typography>
+          <DialogContent sx={{ p: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+            <TextField label="Sort Order" type="number" value={editOriginalSortOrder || ""} onChange={(e) => e.target.value.length <= 3 && setEditOriginalSortOrder(e.target.value === "" ? 0 : Number(e.target.value))} fullWidth />
+            <TextField label="Service Name" value={editServiceName} onChange={(e) => e.target.value.length <= 50 && setEditServiceName(e.target.value)} fullWidth />
+            <TextField label="Description" value={editServiceDescription} onChange={(e) => e.target.value.length <= 150 && setEditServiceDescription(e.target.value)} fullWidth multiline minRows={3} />
+            <TextField label="Duration" type="number" value={editDuration || ""} onChange={(e) => e.target.value.length <= 3 && setEditDuration(e.target.value === "" ? 0 : Number(e.target.value))} fullWidth />
+            <TextField label="Price" type="number" value={editPrice || ""} onChange={(e) => e.target.value.length <= 5 && setEditPrice(e.target.value === "" ? 0 : Number(e.target.value))} fullWidth />
+            <TextField select label="Availability" fullWidth value={editAvailability ? "true" : "false"} onChange={(e) => setEditAvailability(e.target.value === "true")}>
+              <MenuItem value="true">Available</MenuItem>
+              <MenuItem value="false">Unavailable</MenuItem>
+            </TextField>
+
+            <Button variant="outlined" component="label">
+              Upload New Image
+              <input
+                hidden
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setEditServiceImageFile(file);
+                  setEditServiceImagePreview(URL.createObjectURL(file));
+                }}
+              />
+            </Button>
+
+            {editServiceImagePreview && (
+              <Box>
+                <Button
+                  onClick={() => {
+                    setImageToView(editServiceImagePreview);
+                    setOpenImage(true);
+                  }}
+                  sx={{
+                    p: 0,
+                    color: "#3b82f6",
+                    textTransform: "none",
+                    fontSize: 13,
+                    mb: 1,
+                  }}
+                >
+                  View Image
+                </Button>
+
+                <Box
+                  component="img"
+                  src={editServiceImagePreview}
+                  onClick={() => {
+                    setImageToView(editServiceImagePreview);
+                    setOpenImage(true);
+                  }}
+                  sx={{
+                    width: "100%",
+                    height: 180,
+                    objectFit: "cover",
+                    borderRadius: 2,
+                    border: "1px solid #ddd",
+                    cursor: "pointer",
+                  }}
+                />
+              </Box>
+            )}
+
+            {editAvailability && (
+              <Box>
+                <Typography sx={{ mb: 1, fontWeight: 600, fontSize: 14 }}>Assign Barbers</Typography>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, maxHeight: 160, overflowY: "auto", p: 1, border: "1px solid #ddd", borderRadius: 2 }}>
+                  {staffList.map((staff) => (
+                    <Box key={staff.id} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <input
+                        type="checkbox"
+                        checked={editSelectedStaffIds.includes(staff.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) setEditSelectedStaffIds((prev) => [...prev, staff.id]);
+                          else setEditSelectedStaffIds((prev) => prev.filter((id) => id !== staff.id));
+                        }}
+                      />
+                      <Typography>{staff.name}</Typography>
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            )}
           </DialogContent>
 
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              mt: 4,
-            }}
-          >
-            <Button
-              variant="contained"
-              onClick={() =>
-                setOpenStatusModal(false)
-              }
-            >
-              OK
-            </Button>
+          <Box sx={{ display: "flex", justifyContent: "space-between", mt: 4 }}>
+            <Button onClick={() => setOpenEdit(false)}>Cancel</Button>
+            <Button variant="contained" onClick={handleUpdateService} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
+          </Box>
+        </Box>
+      </Dialog>
+
+      <Dialog open={openImage} onClose={() => setOpenImage(false)} maxWidth="md" fullWidth>
+        <Box sx={{ p: 2 }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>Service Image</Typography>
+            <IconButton onClick={() => setOpenImage(false)}><CloseIcon /></IconButton>
+          </Box>
+          {imageToView && (
+            <Box component="img" src={imageToView} sx={{ width: "100%", maxHeight: "75vh", objectFit: "contain", borderRadius: 2 }} />
+          )}
+        </Box>
+      </Dialog>
+
+      <Dialog open={openStatusModal} onClose={() => setOpenStatusModal(false)}>
+        <Box sx={{ p: 4 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>{statusTitle}</Typography>
+          <DialogContent sx={{ p: 0, mt: 2 }}><Typography>{statusMessage}</Typography></DialogContent>
+          <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 4 }}>
+            <Button variant="contained" onClick={() => setOpenStatusModal(false)}>OK</Button>
           </Box>
         </Box>
       </Dialog>

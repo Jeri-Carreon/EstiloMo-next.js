@@ -26,6 +26,15 @@ type CustomerLoyaltyCard = {
   fiveRewardRedeemed: boolean;
 };
 
+type AppointmentService = {
+  id: string;
+  serviceId: string;
+  name: string;
+  quantity: number;
+  price: number;
+  subtotal: number;
+};
+
 type Appointment = {
   id: string;
   appointmentCode: string;
@@ -51,12 +60,21 @@ type Appointment = {
   discount: number;
   totalAmount: number;
   discountPercent: number;
+  services: AppointmentService[];
 };
 
 function formatPeso(value: string | number | null | undefined) {
   return `₱ ${Number(value || 0).toLocaleString("en-PH", {
     maximumFractionDigits: 0,
   })}`;
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("en-PH", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
 }
 
 export default function CustomerLoyaltyCardPage() {
@@ -148,6 +166,22 @@ export default function CustomerLoyaltyCardPage() {
   };
 
   const normalStamps = [1, 2, 3, 4, 5, 6, 7, 8];
+
+  const selectedServices =
+    selectedAppointment?.services && selectedAppointment.services.length > 0
+      ? selectedAppointment.services
+      : selectedAppointment
+      ? [
+          {
+            id: selectedAppointment.id,
+            serviceId: selectedAppointment.id,
+            name: selectedAppointment.service.name,
+            quantity: 1,
+            price: Number(selectedAppointment.service.price || 0),
+            subtotal: Number(selectedAppointment.service.price || 0),
+          },
+        ]
+      : [];
 
   return (
     <>
@@ -304,87 +338,152 @@ export default function CustomerLoyaltyCardPage() {
       <Dialog
         open={!!selectedAppointment}
         onClose={() => setSelectedAppointment(null)}
-        maxWidth="sm"
+        maxWidth="lg"
         fullWidth
         slotProps={{
           paper: {
             sx: {
               borderRadius: 2,
-              p: 3,
+              p: { xs: 2, sm: 3 },
+              width: "100%",
+              maxWidth: 980,
+              overflow: "hidden",
             },
           },
         }}
       >
         {selectedAppointment && (
           <Box>
-            <IconButton
-              onClick={() => setSelectedAppointment(null)}
-              sx={{ position: "absolute", right: 8, top: 8 }}
-            >
-              <CloseIcon />
-            </IconButton>
-
             <Box
               sx={{
                 display: "flex",
                 justifyContent: "space-between",
-                mb: 2,
-                pr: 4,
+                alignItems: "center",
+                gap: 2,
+                mb: 2.5,
               }}
             >
-              <Typography sx={{ fontWeight: 900 }}>
+              <Typography sx={{ fontWeight: 900, fontSize: 18 }}>
                 {customerInfo.firstName} {customerInfo.lastName}
               </Typography>
 
-              <Typography sx={{ fontWeight: 800, color: "#777" }}>
-                {selectedAppointment.appointmentCode}
-              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Typography
+                  sx={{
+                    fontWeight: 800,
+                    color: "#777",
+                    fontSize: { xs: 14, sm: 18 },
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {selectedAppointment.appointmentCode}
+                </Typography>
+
+                <IconButton
+                  onClick={() => setSelectedAppointment(null)}
+                  sx={{
+                    width: 38,
+                    height: 38,
+                    color: "#666",
+                    flexShrink: 0,
+                    "&:hover": {
+                      bgcolor: "#ececec",
+                      color: "#000",
+                    },
+                  }}
+                >
+                  <CloseIcon />
+                </IconButton>
+              </Box>
             </Box>
 
             <Box
               sx={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr 1fr",
-                bgcolor: "#f5f5f5",
-                py: 1,
-                textAlign: "center",
-                fontWeight: 800,
-                color: "#777",
+                bgcolor: "#fff",
+                border: "1px solid #eee",
+                borderRadius: 1,
+                overflowX: "auto",
               }}
             >
-              <Typography>Type</Typography>
-              <Typography>Service</Typography>
-              <Typography>Date</Typography>
-              <Typography>Price</Typography>
-            </Box>
+              <Box sx={{ minWidth: 700 }}>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "90px minmax(220px, 1fr) 60px 150px 130px",
+                    bgcolor: "#f5f5f5",
+                    py: 1.2,
+                    px: 1.5,
+                    columnGap: 1.5,
+                    color: "#777",
+                    fontWeight: 900,
+                    alignItems: "center",
+                  }}
+                >
+                  <Typography>Type</Typography>
+                  <Typography>Service</Typography>
+                  <Typography sx={{ textAlign: "center" }}>Qty</Typography>
+                  <Typography sx={{ textAlign: "center" }}>Date</Typography>
+                  <Typography sx={{ textAlign: "right" }}>Price</Typography>
+                </Box>
 
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr 1fr",
-                py: 1.5,
-                textAlign: "center",
-                borderBottom: "1px solid #eee",
-              }}
-            >
-              <Typography>{selectedAppointment.type}</Typography>
+                {selectedServices.map((service) => (
+                  <Box
+                    key={service.id}
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "90px minmax(220px, 1fr) 60px 150px 130px",
+                      py: 1.3,
+                      px: 1.5,
+                      columnGap: 1.5,
+                      alignItems: "center",
+                      borderTop: "1px solid #eee",
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        whiteSpace: "normal",
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {selectedAppointment.type}
+                    </Typography>
 
-              <Typography>{selectedAppointment.service.name}</Typography>
+                    <Typography
+                      sx={{
+                        fontWeight: 800,
+                        whiteSpace: "normal",
+                        wordBreak: "break-word",
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {service.name}
+                    </Typography>
 
-              <Typography>
-                {new Date(
-                  selectedAppointment.appointmentDate
-                ).toLocaleDateString()}
-              </Typography>
+                    <Typography sx={{ textAlign: "center" }}>
+                      {service.quantity}
+                    </Typography>
 
-              <Typography>{formatPeso(selectedAppointment.service.price)}</Typography>
+                    <Typography sx={{ textAlign: "center", whiteSpace: "nowrap" }}>
+                      {formatDate(selectedAppointment.appointmentDate)}
+                    </Typography>
+
+                    <Typography
+                      sx={{ textAlign: "right", fontWeight: 800, whiteSpace: "nowrap" }}
+                    >
+                      {formatPeso(service.subtotal)}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
             </Box>
 
             <Box
               sx={{
                 mt: 3,
                 mx: "auto",
-                width: 280,
+                width: { xs: "100%", sm: 360 },
                 bgcolor: "#f7f7f7",
                 borderRadius: 2,
                 p: 2,

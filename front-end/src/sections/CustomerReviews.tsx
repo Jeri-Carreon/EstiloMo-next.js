@@ -16,11 +16,14 @@ interface Review {
   rating: number;
   comment: string | null;
   createdAt: string;
+  isAnonymous?: boolean;
+
   user?: {
     firstName?: string | null;
     lastName?: string | null;
     email?: string | null;
   };
+
   appointment?: {
     service?: {
       name: string;
@@ -29,6 +32,19 @@ interface Review {
       firstName: string;
       lastName: string;
     };
+  };
+
+  sale?: {
+    barber?: {
+      firstName: string;
+      lastName: string;
+    } | null;
+
+    items?: {
+      service?: {
+        name: string;
+      };
+    }[];
   };
 }
 
@@ -106,11 +122,30 @@ export default function CustomerReviews() {
   }, [search, ratingFilter, reviews]);
 
   const getRatingLabel = (rating: number) => {
-    if (rating <= 1) return "Poor";
-    if (rating <= 2) return "Average";
-    if (rating <= 3) return "Good";
-    if (rating <= 4) return "Very Good";
-    return "Excellent";
+    switch (rating) {
+      case 5:
+        return "Excellent";
+      case 4.5:
+        return "Excellent";
+      case 4:
+        return "Very Good";
+      case 3.5:
+        return "Good";
+      case 3:
+        return "Good";
+      case 2.5:
+        return "Average";
+      case 2:
+        return "Average";
+      case 1.5:
+        return "Poor";
+      case 1:
+        return "Poor";
+      case 0.5:
+        return "Very Poor";
+      default:
+        return "";
+    }
   };
 
   return (
@@ -156,11 +191,16 @@ export default function CustomerReviews() {
           }}
         >
           <MenuItem value="all">All Ratings</MenuItem>
-          <MenuItem value="5">5 - Excellent</MenuItem>
-          <MenuItem value="4">4 - Very Good</MenuItem>
-          <MenuItem value="3">3 - Good</MenuItem>
-          <MenuItem value="2">2 - Average</MenuItem>
-          <MenuItem value="1">1 - Poor</MenuItem>
+          <MenuItem value="5">5 ★</MenuItem>
+          <MenuItem value="4.5">4.5 ★</MenuItem>
+          <MenuItem value="4">4 ★</MenuItem>
+          <MenuItem value="3.5">3.5 ★</MenuItem>
+          <MenuItem value="3">3 ★</MenuItem>
+          <MenuItem value="2.5">2.5 ★</MenuItem>
+          <MenuItem value="2">2 ★</MenuItem>
+          <MenuItem value="1.5">1.5 ★</MenuItem>
+          <MenuItem value="1">1 ★</MenuItem>
+          <MenuItem value="0.5">0.5 ★</MenuItem>
         </TextField>
       </Box>
 
@@ -207,18 +247,26 @@ export default function CustomerReviews() {
           </Typography>
         ) : (
           filteredReviews.map((review) => {
-            const reviewer =
-              [review.user?.firstName, review.user?.lastName]
+            const reviewer = review.isAnonymous
+            ? "Anonymous"
+            : [review.user?.firstName, review.user?.lastName]
                 .filter(Boolean)
                 .join(" ") ||
               review.user?.email ||
               "Customer";
 
             const serviceName =
-              review.appointment?.service?.name || review.service;
+              review.appointment?.service?.name ||
+              review.sale?.items
+                ?.map((item) => item.service?.name)
+                .filter(Boolean)
+                .join(", ") ||
+              review.service;
 
             const barberName = review.appointment?.barber
               ? `${review.appointment.barber.firstName} ${review.appointment.barber.lastName}`
+              : review.sale?.barber
+              ? `${review.sale.barber.firstName} ${review.sale.barber.lastName}`
               : "";
 
             return (
@@ -238,7 +286,7 @@ export default function CustomerReviews() {
                   sx={{ alignItems: "center", mb: 2 }}
                 >
                   <Avatar sx={{ width: 40, height: 40 }}>
-                    {reviewer.charAt(0).toUpperCase()}
+                    {(review.isAnonymous ? "A" : reviewer.charAt(0)).toUpperCase()}
                   </Avatar>
 
                   <Typography
@@ -267,7 +315,7 @@ export default function CustomerReviews() {
                     Rating:
                   </Typography>
 
-                  <Rating value={Number(review.rating)} readOnly size="medium" />
+                  <Rating value={Number(review.rating)} precision={0.5} readOnly size="medium"/>
 
                   <Typography
                     sx={{

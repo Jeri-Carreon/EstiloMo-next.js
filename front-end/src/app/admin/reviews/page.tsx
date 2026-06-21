@@ -37,6 +37,7 @@ type Review = {
   comment: string | null;
   status: ReviewStatus;
   isVisible: boolean;
+  isAnonymous?: boolean;
   createdAt: string;
   user?: {
     firstName?: string | null;
@@ -53,7 +54,20 @@ type Review = {
     service?: {
       name: string;
     };
-  };
+  } | null;
+  sale?: {
+    saleCode?: string;
+    source?: "WALKIN" | "BOOKING";
+    barber?: {
+      firstName: string;
+      lastName: string;
+    } | null;
+    items?: {
+      service?: {
+        name: string;
+      } | null;
+    }[];
+  } | null;
 };
 
 export default function AdminReviewsPage() {
@@ -100,6 +114,55 @@ export default function AdminReviewsPage() {
     loadReviews();
   }, []);
 
+  const getCustomerName = (review: Review) => {
+    if (review.isAnonymous) return "Anonymous";
+
+    return (
+      [review.user?.firstName, review.user?.lastName]
+        .filter(Boolean)
+        .join(" ") ||
+      review.user?.email ||
+      "Customer"
+    );
+  };
+
+  const getBarberName = (review: Review) => {
+    if (review.appointment?.barber) {
+      return `${review.appointment.barber.firstName} ${review.appointment.barber.lastName}`;
+    }
+
+    if (review.sale?.barber) {
+      return `${review.sale.barber.firstName} ${review.sale.barber.lastName}`;
+    }
+
+    return "N/A";
+  };
+
+  const getServiceName = (review: Review) => {
+    if (review.appointment?.service?.name) {
+      return review.appointment.service.name;
+    }
+
+    const saleServices =
+      review.sale?.items
+        ?.map((item) => item.service?.name)
+        .filter(Boolean)
+        .join(", ") || "";
+
+    return saleServices || review.service || "N/A";
+  };
+
+  const getTransactionNo = (review: Review) => {
+    return review.appointment?.appointmentCode || review.sale?.saleCode || "N/A";
+  };
+
+  const getTransactionType = (review: Review) => {
+    if (review.sale?.source === "WALKIN") return "Walk-in";
+    if (review.appointment || review.sale?.source === "BOOKING")
+      return "Appointment";
+    return "N/A";
+  };
+
   const filteredReviews = useMemo(() => {
     let result = [...reviews];
 
@@ -107,25 +170,18 @@ export default function AdminReviewsPage() {
       const keyword = search.toLowerCase();
 
       result = result.filter((review) => {
-        const customerName =
-          [review.user?.firstName, review.user?.lastName]
-            .filter(Boolean)
-            .join(" ") ||
-          review.user?.email ||
-          "";
-
-        const barberName = review.appointment?.barber
-          ? `${review.appointment.barber.firstName} ${review.appointment.barber.lastName}`
-          : "";
-
-        const serviceName = review.appointment?.service?.name || review.service;
-        const transactionNo = review.appointment?.appointmentCode || "";
+        const customerName = getCustomerName(review);
+        const barberName = getBarberName(review);
+        const serviceName = getServiceName(review);
+        const transactionNo = getTransactionNo(review);
+        const transactionType = getTransactionType(review);
 
         return (
           customerName.toLowerCase().includes(keyword) ||
           barberName.toLowerCase().includes(keyword) ||
           serviceName.toLowerCase().includes(keyword) ||
           transactionNo.toLowerCase().includes(keyword) ||
+          transactionType.toLowerCase().includes(keyword) ||
           (review.comment || "").toLowerCase().includes(keyword)
         );
       });
@@ -137,26 +193,6 @@ export default function AdminReviewsPage() {
 
     return result;
   }, [reviews, search, statusFilter]);
-
-  const getCustomerName = (review: Review) => {
-    return (
-      [review.user?.firstName, review.user?.lastName]
-        .filter(Boolean)
-        .join(" ") ||
-      review.user?.email ||
-      "Customer"
-    );
-  };
-
-  const getBarberName = (review: Review) => {
-    return review.appointment?.barber
-      ? `${review.appointment.barber.firstName} ${review.appointment.barber.lastName}`
-      : "N/A";
-  };
-
-  const getServiceName = (review: Review) => {
-    return review.appointment?.service?.name || review.service || "N/A";
-  };
 
   const getStatusColor = (status: ReviewStatus) => {
     if (status === "COMPLETED") return "success";
@@ -242,7 +278,7 @@ export default function AdminReviewsPage() {
       <Box sx={{ display: "flex", gap: 2, mb: 2, flexWrap: "wrap" }}>
         <TextField
           size="small"
-          placeholder="Search by Service"
+          placeholder="Search reviews..."
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           sx={{ width: 280 }}
@@ -276,6 +312,7 @@ export default function AdminReviewsPage() {
             <TableRow>
               <TableCell>Review #</TableCell>
               <TableCell>Transaction #</TableCell>
+              <TableCell>Type</TableCell>
               <TableCell>Name</TableCell>
               <TableCell>Barber</TableCell>
               <TableCell>Service/s</TableCell>
@@ -289,13 +326,13 @@ export default function AdminReviewsPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={9} align="center" sx={{ py: 5 }}>
+                <TableCell colSpan={10} align="center" sx={{ py: 5 }}>
                   <CircularProgress size={28} />
                 </TableCell>
               </TableRow>
             ) : filteredReviews.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} align="center" sx={{ py: 5 }}>
+                <TableCell colSpan={10} align="center" sx={{ py: 5 }}>
                   No reviews found.
                 </TableCell>
               </TableRow>
@@ -304,9 +341,9 @@ export default function AdminReviewsPage() {
                 <TableRow key={review.id} hover>
                   <TableCell>{String(index + 1).padStart(4, "0")}</TableCell>
 
-                  <TableCell>
-                    {review.appointment?.appointmentCode || "N/A"}
-                  </TableCell>
+                  <TableCell>{getTransactionNo(review)}</TableCell>
+
+                  <TableCell>{getTransactionType(review)}</TableCell>
 
                   <TableCell sx={{ fontWeight: 700 }}>
                     {getCustomerName(review)}
@@ -317,11 +354,7 @@ export default function AdminReviewsPage() {
                   <TableCell>{getServiceName(review)}</TableCell>
 
                   <TableCell>
-                    <Rating
-                      value={Number(review.rating)}
-                      readOnly
-                      size="small"
-                    />
+                    <Rating value={Number(review.rating)} precision={0.5} readOnly size="small"/>
                   </TableCell>
 
                   <TableCell>
@@ -385,7 +418,11 @@ export default function AdminReviewsPage() {
 
             <DialogContent>
               <Typography sx={{ mb: 1, fontWeight: 700 }}>
-                Transaction #: {viewReview.appointment?.appointmentCode || "N/A"}
+                Transaction #: {getTransactionNo(viewReview)}
+              </Typography>
+
+              <Typography sx={{ mb: 1, fontWeight: 700 }}>
+                Type: {getTransactionType(viewReview)}
               </Typography>
 
               <Typography sx={{ mb: 1, fontWeight: 700 }}>
@@ -396,9 +433,9 @@ export default function AdminReviewsPage() {
                 Barber: {getBarberName(viewReview)} | Rating:{" "}
                 <Rating
                   value={Number(viewReview.rating)}
+                  precision={0.5}
                   readOnly
                   size="small"
-                  sx={{ verticalAlign: "middle" }}
                 />
               </Typography>
 
@@ -406,9 +443,9 @@ export default function AdminReviewsPage() {
                 Selected Service/s: {getServiceName(viewReview)} | Rating:{" "}
                 <Rating
                   value={Number(viewReview.rating)}
+                  precision={0.5}
                   readOnly
                   size="small"
-                  sx={{ verticalAlign: "middle" }}
                 />
               </Typography>
 
@@ -421,6 +458,7 @@ export default function AdminReviewsPage() {
                 Overall Service Rating:{" "}
                 <Rating
                   value={Number(viewReview.rating)}
+                  precision={0.5}
                   readOnly
                   size="small"
                   sx={{ verticalAlign: "middle" }}

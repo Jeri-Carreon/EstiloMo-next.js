@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 import Box from "@mui/material/Box";
@@ -28,7 +27,7 @@ type RecommendedService = {
   id: string;
   name: string;
   price: number;
-  image: string;
+  image: string | null;
   reason: string;
 };
 
@@ -415,11 +414,19 @@ export default function CustomerLandingPage() {
                   bgcolor: "#ccc",
                 }}
               >
-                <Image
-                  src={service.image}
+                <Box
+                  component="img"
+                  src={service.image || "/images/service-placeholder.jpg"}
                   alt={service.name}
-                  fill
-                  style={{ objectFit: "cover" }}
+                  onError={(event) => {
+                    event.currentTarget.src = "/images/service-placeholder.jpg";
+                  }}
+                  sx={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    display: "block",
+                  }}
                 />
               </Box>
 

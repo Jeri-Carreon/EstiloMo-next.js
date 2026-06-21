@@ -15,12 +15,17 @@ import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Checkbox from "@mui/material/Checkbox";
 
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
-type Appointment = {
+type ReviewableItem = {
   id: string;
+  sourceType: "BOOKING" | "WALKIN";
+  appointmentId: string | null;
+  saleId: string | null;
   appointmentCode: string;
   appointmentDate: string;
   service: {
@@ -37,6 +42,7 @@ type Review = {
   service: string;
   rating: number;
   comment: string | null;
+  isAnonymous?: boolean;
   status: "PENDING" | "COMPLETED" | "REJECTED" | "HIDDEN";
   isVisible: boolean;
   createdAt: string;
@@ -50,6 +56,19 @@ type Review = {
       firstName: string;
       lastName: string;
     };
+  };
+  sale?: {
+    saleCode: string;
+    createdAt: string;
+    barber?: {
+      firstName: string;
+      lastName: string;
+    } | null;
+    items?: {
+      service?: {
+        name: string;
+      };
+    }[];
   };
 };
 
@@ -66,21 +85,14 @@ const ratingLabels: Record<string, string> = {
   "5.0": "Excellent",
 };
 
-const formatReviewDate = (value: string) =>
-  new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(value));
-
 export default function MyReviewsPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [reviewables, setReviewables] = useState<ReviewableItem[]>([]);
 
-  const [appointmentId, setAppointmentId] = useState("");
+  const [selectedReviewableId, setSelectedReviewableId] = useState("");
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
+  const [isAnonymous, setIsAnonymous] = useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -110,7 +122,7 @@ export default function MyReviewsPage() {
     }
   };
 
-  const loadCompletedAppointments = async () => {
+  const loadReviewables = async () => {
     try {
       const res = await fetch("/api/reviews?completedAppointments=true", {
         cache: "no-store",
@@ -119,19 +131,19 @@ export default function MyReviewsPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setAppointments([]);
+        setReviewables([]);
         return;
       }
 
-      setAppointments(data.appointments || []);
+      setReviewables(data.appointments || []);
     } catch {
-      setAppointments([]);
+      setReviewables([]);
     }
   };
 
   useEffect(() => {
     loadMyReviews();
-    loadCompletedAppointments();
+    loadReviewables();
   }, []);
 
   const handleOpenDialog = () => {
@@ -139,7 +151,8 @@ export default function MyReviewsPage() {
     setSuccess("");
     setComment("");
     setRating(5);
-    setAppointmentId(appointments[0]?.id || "");
+    setIsAnonymous(false);
+    setSelectedReviewableId(reviewables[0]?.id || "");
     setIsDialogOpen(true);
   };
 
@@ -154,8 +167,12 @@ export default function MyReviewsPage() {
     setError("");
     setSuccess("");
 
-    if (!appointmentId) {
-      setError("Please select a completed appointment.");
+    const selectedItem = reviewables.find(
+      (item) => item.id === selectedReviewableId
+    );
+
+    if (!selectedItem) {
+      setError("Please select a completed appointment or paid sale.");
       return;
     }
 
@@ -171,9 +188,12 @@ export default function MyReviewsPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          appointmentId,
+          sourceType: selectedItem.sourceType,
+          appointmentId: selectedItem.appointmentId,
+          saleId: selectedItem.saleId,
           rating,
           comment: comment.trim(),
+          isAnonymous,
         }),
       });
 
@@ -189,13 +209,14 @@ export default function MyReviewsPage() {
       }
 
       setReviews((current) => [data.review, ...current]);
-      setAppointments((current) =>
-        current.filter((appointment) => appointment.id !== appointmentId)
+      setReviewables((current) =>
+        current.filter((item) => item.id !== selectedReviewableId)
       );
 
       setComment("");
-      setAppointmentId("");
+      setSelectedReviewableId("");
       setRating(5);
+      setIsAnonymous(false);
       setSuccess("Review submitted successfully. Waiting for admin approval.");
       setIsDialogOpen(false);
     } catch {
@@ -224,7 +245,7 @@ export default function MyReviewsPage() {
           <Button
             variant="contained"
             onClick={handleOpenDialog}
-            disabled={appointments.length === 0}
+            disabled={reviewables.length === 0}
             sx={{
               fontFamily: "var(--font-nunito-sans)",
               textTransform: "none",
@@ -243,7 +264,7 @@ export default function MyReviewsPage() {
           </Button>
         </Box>
 
-        {appointments.length === 0 && (
+        {reviewables.length === 0 && (
           <Typography
             sx={{
               mb: 3,
@@ -252,8 +273,8 @@ export default function MyReviewsPage() {
               fontFamily: "var(--font-nunito-sans)",
             }}
           >
-            You can only review completed appointments that have not been
-            reviewed yet.
+            You can only review completed appointments or paid sales that have
+            not been reviewed yet.
           </Typography>
         )}
 
@@ -302,7 +323,7 @@ export default function MyReviewsPage() {
                 color: "text.secondary",
               }}
             >
-              Complete an appointment first before reviewing.
+              Complete an appointment or paid transaction first before reviewing.
             </Typography>
           </Box>
         ) : (
@@ -319,9 +340,17 @@ export default function MyReviewsPage() {
 
             {reviews.map((review) => {
               const serviceName =
-                review.appointment?.service?.name || review.service;
+                review.appointment?.service?.name ||
+                review.sale?.items
+                  ?.map((item) => item.service?.name)
+                  .filter(Boolean)
+                  .join(", ") ||
+                review.service;
+
               const barberName = review.appointment?.barber
                 ? `${review.appointment.barber.firstName} ${review.appointment.barber.lastName}`
+                : review.sale?.barber
+                ? `${review.sale.barber.firstName} ${review.sale.barber.lastName}`
                 : "N/A";
 
               return (
@@ -335,24 +364,15 @@ export default function MyReviewsPage() {
                     backgroundColor: "#fff",
                   }}
                 >
-                  <Box
+                  <Typography
                     sx={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 2,
-                      mb: 1,
+                      fontFamily: "var(--font-nunito-sans)",
+                      fontWeight: 700,
+                      mb: 0.5,
                     }}
                   >
-                    <Typography
-                      sx={{
-                        fontFamily: "var(--font-nunito-sans)",
-                        fontWeight: 700,
-                      }}
-                    >
-                      {serviceName}
-                    </Typography>
-
-                  </Box>
+                    {serviceName}
+                  </Typography>
 
                   <Typography
                     sx={{
@@ -368,11 +388,20 @@ export default function MyReviewsPage() {
                     sx={{
                       color: "text.secondary",
                       fontFamily: "var(--font-nunito-sans)",
+                      mb: 0.5,
+                    }}
+                  >
+                    Display name: {review.isAnonymous ? "Anonymous" : "Your name"}
+                  </Typography>
+
+                  <Typography
+                    sx={{
+                      color: "text.secondary",
+                      fontFamily: "var(--font-nunito-sans)",
                       mb: 1,
                     }}
                   >
-                    Reviewed on{" "}
-                    {new Date(review.createdAt).toLocaleDateString()}
+                    Reviewed on {new Date(review.createdAt).toLocaleDateString()}
                   </Typography>
 
                   <Box
@@ -395,12 +424,7 @@ export default function MyReviewsPage() {
                     </Typography>
                   </Box>
 
-                  <Typography
-                    sx={{
-                      fontFamily: "var(--font-nunito-sans)",
-                      mt: 1,
-                    }}
-                  >
+                  <Typography sx={{ fontFamily: "var(--font-nunito-sans)", mt: 1 }}>
                     {review.comment || "No comment provided."}
                   </Typography>
                 </Box>
@@ -439,37 +463,30 @@ export default function MyReviewsPage() {
 
             <Box component="form" onSubmit={handleSubmit}>
               <FormControl fullWidth sx={{ mb: 2, mt: 1 }}>
-                <InputLabel id="appointment-select-label">
-                  Completed Appointment
+                <InputLabel id="reviewable-select-label">
+                  Completed Appointment / Paid Sale
                 </InputLabel>
 
                 <Select
-                  labelId="appointment-select-label"
-                  value={appointmentId}
-                  label="Completed Appointment"
-                  onChange={(event) => setAppointmentId(event.target.value)}
+                  labelId="reviewable-select-label"
+                  value={selectedReviewableId}
+                  label="Completed Appointment / Paid Sale"
+                  onChange={(event) =>
+                    setSelectedReviewableId(event.target.value)
+                  }
                 >
-                  {appointments.map((appointment) => (
-                    <MenuItem key={appointment.id} value={appointment.id}>
-                      {appointment.appointmentCode} - {appointment.service.name}{" "}
-                      with {appointment.barber.firstName}{" "}
-                      {appointment.barber.lastName} -{" "}
-                      {new Date(
-                        appointment.appointmentDate
-                      ).toLocaleDateString()}
+                  {reviewables.map((item) => (
+                    <MenuItem key={item.id} value={item.id}>
+                      {item.appointmentCode} - {item.service.name} with{" "}
+                      {item.barber.firstName} {item.barber.lastName} -{" "}
+                      {new Date(item.appointmentDate).toLocaleDateString()}{" "}
+                      ({item.sourceType === "WALKIN" ? "Walk-in" : "Appointment"})
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
 
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 1,
-                  mb: 2,
-                }}
-              >
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mb: 2 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                   <Typography
                     sx={{
@@ -506,6 +523,17 @@ export default function MyReviewsPage() {
                 label="Review comment"
                 value={comment}
                 onChange={(event) => setComment(event.target.value)}
+                sx={{ mb: 1 }}
+              />
+
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={isAnonymous}
+                    onChange={(event) => setIsAnonymous(event.target.checked)}
+                  />
+                }
+                label="Post as anonymous"
                 sx={{ mb: 2 }}
               />
 
@@ -526,6 +554,7 @@ export default function MyReviewsPage() {
                   sx={{
                     fontFamily: "var(--font-nunito-sans)",
                     textTransform: "none",
+                    backgroundColor: "#000",
                   }}
                 >
                   Submit Review
