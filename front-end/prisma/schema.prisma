@@ -43,26 +43,27 @@ model Counter {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
+  id            String        @id @default(cuid())
+  email         String        @unique
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
   password      String
   firstName     String
   lastName      String
   lockedUntil   DateTime?
-  loginAttempts Int       @default(0)
-  mobileNumber  String    @db.VarChar(11)
-  role          Role      @default(CUSTOMER)
-  emailVerified Boolean   @default(false)
-  userCode      String    @unique
-  isActive      Boolean   @default(true)
-  accounts      Account[] @relation("accounts")
+  loginAttempts Int           @default(0)
+  mobileNumber  String        @db.VarChar(11)
+  role          Role          @default(CUSTOMER)
+  emailVerified Boolean       @default(false)
+  userCode      String        @unique
+  isActive      Boolean       @default(true)
+  accounts      Account[]     @relation("accounts")
   barber        Barber?
   customer      Customer?
   reviews       Review[]
   sessions      Session[]
+  securityLogs  SecurityLog[]
 }
 
 model Customer {
@@ -255,21 +256,21 @@ model SaleItem {
 }
 
 model Payment {
-  id            String        @id @default(cuid())
-  appointmentId String?       @unique
-  amount        Decimal       @db.Decimal(10, 2)
-  downPayment   Decimal       @default(0) @db.Decimal(10, 2)
+  id            String         @id @default(cuid())
+  appointmentId String?        @unique
+  amount        Decimal        @db.Decimal(10, 2)
+  downPayment   Decimal        @default(0) @db.Decimal(10, 2)
   method        PaymentMethod?
-  status        PaymentStatus @default(PENDING)
+  status        PaymentStatus  @default(PENDING)
   screenshotUrl String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  discount      Decimal       @default(0) @db.Decimal(10, 2)
-  paymentCode   String?       @unique
-  saleId        String?       @unique
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  discount      Decimal        @default(0) @db.Decimal(10, 2)
+  paymentCode   String?        @unique
+  saleId        String?        @unique
   gcashRefNo    String?
-  appointment   Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  sale          Sale?         @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  appointment   Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  sale          Sale?          @relation(fields: [saleId], references: [id], onDelete: Cascade)
 }
 
 model LoyaltyCard {
@@ -335,6 +336,25 @@ model Service {
   saleItems           SaleItem[]
   assignedStaff       Barber[]              @relation("StaffServices")
   imageUrl            String?
+}
+
+model SecurityLog {
+  id String @id @default(cuid())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  userName  String?
+  section   String
+  action    String
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([section])
+  @@index([createdAt])
 }
 
 model ChatbotSetting {

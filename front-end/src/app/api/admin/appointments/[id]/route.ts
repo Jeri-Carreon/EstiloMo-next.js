@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-
 import { getAdminUser } from "@/lib/supabase/getUser";
+
+import {
+  logAppointmentEdited,
+  logAppointmentCancelled,
+} from "@/lib/securityLogEvents";
 
 export async function PUT(
   req: Request,
@@ -37,7 +41,10 @@ export async function PUT(
 
     const existingAppointment = await db.appointment.findUnique({
       where: { id },
-      select: { status: true },
+      select: {
+        status: true,
+        appointmentCode: true,
+      },
     });
 
     if (!existingAppointment) {
@@ -49,17 +56,9 @@ export async function PUT(
 
     const data: any = {};
 
-    if (barberId) {
-      data.barber = { connect: { id: barberId } };
-    }
-
-    if (serviceId) {
-      data.service = { connect: { id: serviceId } };
-    }
-
-    if (appointmentDate) {
-      data.appointmentDate = new Date(appointmentDate);
-    }
+    if (barberId) data.barber = { connect: { id: barberId } };
+    if (serviceId) data.service = { connect: { id: serviceId } };
+    if (appointmentDate) data.appointmentDate = new Date(appointmentDate);
 
     if (startMinutes !== undefined && startMinutes !== "") {
       data.startMinutes = Number(startMinutes);
@@ -132,12 +131,14 @@ export async function PUT(
         service: true,
         payment: true,
         afterServicePhotos: {
-          orderBy: {
-            createdAt: "desc",
-          },
+          orderBy: { createdAt: "desc" },
         },
       },
     });
+
+    if (updatedAppointment) {
+      await logAppointmentEdited(req, user, updatedAppointment.appointmentCode);
+    }
 
     return NextResponse.json({
       success: true,
@@ -179,9 +180,23 @@ export async function DELETE(
       );
     }
 
+    const appointment = await db.appointment.findUnique({
+      where: { id },
+      select: { appointmentCode: true },
+    });
+
+    if (!appointment) {
+      return NextResponse.json(
+        { error: "Appointment not found" },
+        { status: 404 }
+      );
+    }
+
     await db.appointment.delete({
       where: { id },
     });
+
+    await logAppointmentCancelled(req, user, appointment.appointmentCode);
 
     return NextResponse.json({
       success: true,

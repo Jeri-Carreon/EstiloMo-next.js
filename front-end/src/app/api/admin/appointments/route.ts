@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-
-import { getAdminUser } from "@/lib/supabase/getUser"
+import { getAdminUser } from "@/lib/supabase/getUser";
+import { logAppointmentCreated } from "@/lib/securityLogEvents";
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -20,7 +20,8 @@ function createCode(prefix: string) {
 
 export async function GET() {
   try {
-    const user = await getAdminUser()
+    const user = await getAdminUser();
+
     if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -57,14 +58,18 @@ export async function GET() {
           ? {
               id: a.customer.id,
               customerCode: a.customer.customerCode,
-              name: `${a.customer.firstName ?? ""} ${a.customer.lastName ?? ""}`.trim(),
+              name: `${a.customer.firstName ?? ""} ${
+                a.customer.lastName ?? ""
+              }`.trim(),
             }
           : null,
 
         barber: a.barber
           ? {
               id: a.barber.id,
-              name: `${a.barber.firstName ?? ""} ${a.barber.lastName ?? ""}`.trim(),
+              name: `${a.barber.firstName ?? ""} ${
+                a.barber.lastName ?? ""
+              }`.trim(),
             }
           : null,
 
@@ -80,7 +85,9 @@ export async function GET() {
             month: "long",
             day: "numeric",
             year: "numeric",
-          })} ${minutesToTime(a.startMinutes)} - ${minutesToTime(a.endMinutes)}`,
+          })} ${minutesToTime(a.startMinutes)} - ${minutesToTime(
+            a.endMinutes
+          )}`,
           date: appointmentDate.toLocaleDateString("en-US", {
             month: "numeric",
             day: "numeric",
@@ -90,10 +97,12 @@ export async function GET() {
           endTime: minutesToTime(a.endMinutes),
         },
 
-       payment: {
+        payment: {
           id: payment?.id ?? null,
           amount: Number(a.service?.price ?? 0),
-          saleAmount: Number(payment?.amount ?? a.sale?.totalAmount ?? a.service?.price ?? 0),
+          saleAmount: Number(
+            payment?.amount ?? a.sale?.totalAmount ?? a.service?.price ?? 0
+          ),
           downPayment: Number(payment?.downPayment ?? 0),
           method: payment?.method ?? "GCASH",
           status: payment?.status ?? "PENDING",
@@ -117,6 +126,7 @@ export async function GET() {
     return NextResponse.json({ appointments: result, settings });
   } catch (error) {
     console.error("Error fetching appointments:", error);
+
     return NextResponse.json(
       { error: "Failed to fetch appointments" },
       { status: 500 }
@@ -126,12 +136,14 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const user = await getAdminUser()
+    const user = await getAdminUser();
+
     if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await req.json();
+
     const {
       customerId,
       barberId,
@@ -151,17 +163,25 @@ export async function POST(req: Request) {
       startMinutes === undefined ||
       endMinutes === undefined
     ) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
     }
 
     const start = Number(startMinutes);
     const end = Number(endMinutes);
 
     if (Number.isNaN(start) || Number.isNaN(end) || end <= start) {
-      return NextResponse.json({ error: "Invalid appointment time" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid appointment time" },
+        { status: 400 }
+      );
     }
 
-    const service = await db.service.findUnique({ where: { id: serviceId } });
+    const service = await db.service.findUnique({
+      where: { id: serviceId },
+    });
 
     if (!service) {
       return NextResponse.json({ error: "Service not found" }, { status: 404 });
@@ -237,9 +257,17 @@ export async function POST(req: Request) {
       });
     });
 
-    return NextResponse.json({ success: true, appointment: result }, { status: 201 });
+    if (result) {
+      await logAppointmentCreated(req, user, result.appointmentCode);
+    }
+
+    return NextResponse.json(
+      { success: true, appointment: result },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Error creating appointment:", error);
+
     return NextResponse.json(
       { error: "Failed to create appointment" },
       { status: 500 }
@@ -249,7 +277,8 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    const user = await getAdminUser()
+    const user = await getAdminUser();
+
     if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -258,7 +287,10 @@ export async function PUT(req: Request) {
     const bookingCutoffHours = Number(body.bookingCutoffHours);
 
     if (Number.isNaN(bookingCutoffHours) || bookingCutoffHours < 0) {
-      return NextResponse.json({ error: "Invalid bookingCutoffHours value" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid bookingCutoffHours value" },
+        { status: 400 }
+      );
     }
 
     let settings = await db.appointmentSetting.findFirst();
@@ -277,6 +309,7 @@ export async function PUT(req: Request) {
     return NextResponse.json({ settings });
   } catch (error) {
     console.error("Admin appointment settings PUT error:", error);
+
     return NextResponse.json(
       { error: "Failed to save appointment settings" },
       { status: 500 }
