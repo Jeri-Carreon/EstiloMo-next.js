@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-
 import { db } from "@/lib/db";
-import { authOptions } from "@/lib/auth";
+
+import { getAdminUser } from "@/lib/supabase/getUser";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session || !["OWNER", "RECEPTIONIST"].includes(session.user.role)) {
+    const user = await getAdminUser()
+    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -83,9 +81,8 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session || session.user.role !== "OWNER") {
+    const user = await getAdminUser()
+    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

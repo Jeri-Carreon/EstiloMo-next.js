@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-
 import { db } from "@/lib/db";
-import { authOptions } from "@/lib/auth";
+
+import { getAdminUser } from "@/lib/supabase/getUser";
 
 type CancelReason = "PARTIAL" | "CANCELLED" | "REFUNDED";
 type AppointmentCancelStatus = "CANCELLED" | "NOSHOW";
@@ -12,13 +11,9 @@ export async function PUT(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (
-      !session?.user?.email ||
-      !["OWNER", "RECEPTIONIST"].includes(session.user.role)
-    ) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getAdminUser()
+    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { id } = await context.params;

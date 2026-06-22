@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { getAdminUser } from '@/lib/supabase/getUser';
+
 export async function POST(req: NextRequest) {
   try {
+    const user = await getAdminUser()
+    if (!user || !["OWNER"].includes(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    
     const { messages, reportData, dbData, deep } = await req.json();
 
     const systemPrompt = deep

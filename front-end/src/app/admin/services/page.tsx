@@ -1,32 +1,38 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { createClient } from '@/lib/supabase/client';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import Paper from "@mui/material/Paper";
-import CircularProgress from "@mui/material/CircularProgress";
-import IconButton from "@mui/material/IconButton";
-import EditIcon from "@mui/icons-material/Edit";
-import TextField from "@mui/material/TextField";
-import InputAdornment from "@mui/material/InputAdornment";
-import Button from "@mui/material/Button";
-import Dialog from "@mui/material/Dialog";
-import DialogContent from "@mui/material/DialogContent";
-import CloseIcon from "@mui/icons-material/Close";
-import Pagination from "@mui/material/Pagination";
-import SearchIcon from "@mui/icons-material/Search";
-import AddIcon from "@mui/icons-material/Add";
-import MenuItem from "@mui/material/MenuItem";
-import ImageIcon from "@mui/icons-material/Image";
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import Paper from '@mui/material/Paper';
+import CircularProgress from '@mui/material/CircularProgress';
+import IconButton from '@mui/material/IconButton';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
+import TextField from '@mui/material/TextField';
+import InputAdornment from '@mui/material/InputAdornment';
+import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import CloseIcon from '@mui/icons-material/Close';
+import Pagination from '@mui/material/Pagination';
+
+import SearchIcon from '@mui/icons-material/Search';
+import TuneIcon from '@mui/icons-material/Tune';
+import AddIcon from '@mui/icons-material/Add';
+import GetAppIcon from '@mui/icons-material/GetApp';
+
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import Chip from '@mui/material/Chip';
 
 interface Service {
   id: string;
@@ -64,12 +70,14 @@ async function uploadServiceImage(file: File) {
 }
 
 export default function ServicesPage() {
-  const { data: session, status } = useSession();
   const router = useRouter();
 
   const [services, setServices] = useState<Service[]>([]);
+
+  // session
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const supabase = createClient()
+  const [error, setError] = useState('');
 
   const [openAdd, setOpenAdd] = useState(false);
   const [serviceName, setServiceName] = useState("");
@@ -115,45 +123,54 @@ export default function ServicesPage() {
     setOpenStatusModal(true);
   };
 
-  const loadServices = async () => {
-    try {
-      const res = await fetch("/api/admin/services", {
-        cache: "no-store",
-      });
-
-      if (res.status === 403) {
-        router.push("/unauthorized");
-        return;
-      }
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Unable to load services.");
-        setServices([]);
-      } else {
-        setError("");
-        setServices(data.services || []);
-      }
-    } catch {
-      setError("Unable to load services.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    if (status === "loading") return;
+    const loadServices = async () => {
+      try {
+        const res = await fetch('/api/admin/services')
 
-    const role = (session?.user as { role?: string })?.role;
+        if (res.status === 403) {
+          router.push('/unauthorized')
+          return;
+        }
 
-    if (!session?.user?.email || !["OWNER", "RECEPTIONIST"].includes(role || "")) {
-      router.push("/unauthorized");
-      return;
+        const data = await res.json()
+
+        if (!res.ok) {
+          setError(data.error || 'Unable to load services.')
+          setServices([]);
+        } else {
+          setServices(data.services || [])
+        }
+      } catch (err) {
+        setError('Unable to load services.')
+      } finally {
+        setLoading(false)
+      }
     }
 
-    loadServices();
-  }, [session, status, router]);
+    const init = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/login')
+          return
+        }
+
+        const res = await fetch('/api/user/role')
+        const data = await res.json()
+
+        if (!['OWNER'].includes(data.role)) {
+          router.push('/unauthorized')
+          return
+        }
+
+        await loadServices()
+      } catch (err) {
+        console.error("Initialization failed:", err)
+      }
+    }
+    init()
+  }, [router]);
 
   useEffect(() => {
     const loadStaff = async () => {

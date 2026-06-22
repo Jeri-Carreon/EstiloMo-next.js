@@ -1,7 +1,14 @@
 // front-end/src/app/api/admin/reports/analyze/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
+import { getAdminUser } from '@/lib/supabase/getUser';
+
 export async function POST(req: NextRequest) {
+  const user = await getAdminUser()
+    if (!user || !["OWNER"].includes(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
   const body = await req.json();
   const { dbData, dateRange } = body;
 
@@ -38,6 +45,12 @@ Return exactly this JSON structure:
     }),
   });
 
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error('OpenAI error:', errText);
+    return NextResponse.json({ error: 'OpenAI request failed' }, { status: 500 });
+  }
+  
   const data = await res.json();
   const text = data.choices?.[0]?.message?.content ?? '{}';
 

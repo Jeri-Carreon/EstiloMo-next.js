@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+import { getAdminUser } from '@/lib/supabase/getUser';
+
 export async function GET(req: NextRequest) {
+  const user = await getAdminUser()
+    if (!user || !["OWNER"].includes(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    
   const { searchParams } = new URL(req.url);
   const from = searchParams.get('from');
   const to = searchParams.get('to');

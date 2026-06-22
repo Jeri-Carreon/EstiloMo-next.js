@@ -1,8 +1,7 @@
 'use client';
 
+import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
-
-import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 import Box from "@mui/material/Box";
@@ -45,10 +44,10 @@ interface User {
 }
 
 export default function AdminPage() {
-  const { data: session, status } = useSession();
   const router = useRouter();
 
   const [users, setUsers] = useState<User[]>([]);
+  const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -139,17 +138,29 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    if (status === "loading") return;
+      const init = async () => {
+        try {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (!user) {
+            router.push('/login')
+            return
+          }
 
-    const role = (session?.user as { role?: string })?.role;
+          const res = await fetch('/api/user/role')
+          const data = await res.json()
 
-    if (!session?.user?.email || role !== "OWNER") {
-      router.push("/unauthorized");
-      return;
-    }
+          if (!['OWNER'].includes(data.role)) {
+            router.push('/unauthorized')
+            return
+          }
 
-    loadUsers();
-  }, [session, status, router]);
+          await loadUsers()
+        } catch (err) {
+          console.error("Initialization failed:", err)
+        }
+      }
+      init()
+  }, [router]);
 
   const handleCreateUser = async ({
     firstName,
