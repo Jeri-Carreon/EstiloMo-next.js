@@ -1,8 +1,8 @@
 "use client";
 
+import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
@@ -79,7 +79,7 @@ function formatDate(value: string) {
 
 export default function CustomerLoyaltyCardPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const supabase = createClient();
 
   const [loyaltyCard, setLoyaltyCard] =
     useState<CustomerLoyaltyCard | null>(null);
@@ -119,22 +119,21 @@ export default function CustomerLoyaltyCardPage() {
   };
 
   useEffect(() => {
-    if (status === "loading") return;
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
 
-    if (!session) {
-      router.push("/login");
-      return;
-    }
+            if (!user) {
+              router.push("/login");
+              return;
+            }
 
-    if ((session.user as any).role !== "CUSTOMER") {
-      router.push("/unauthorized");
-      return;
-    }
+          loadLoyaltyCard();
+      };
+        init();
+    }, []);
+    
 
-    loadLoyaltyCard();
-  }, [session, status]);
-
-  if (loading || status === "loading") {
+  if (loading) {
     return (
       <Box
         sx={{

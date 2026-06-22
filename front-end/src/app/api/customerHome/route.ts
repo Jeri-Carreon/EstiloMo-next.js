@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-
 import { db } from "@/lib/db";
-import { authOptions } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -28,19 +26,20 @@ function saleDisplayStatus(status: string) {
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!session?.user?.email) {
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const customer = await db.customer.findFirst({
       where: {
         OR: [
-          { email: session.user.email },
+          { email: user.email },
           {
             user: {
-              email: session.user.email,
+              email: user.email,
             },
           },
         ],
@@ -217,18 +216,10 @@ export async function GET() {
         },
       },
       orderBy: [
-        {
-          totalBookings: "desc",
-        },
-        {
-          isFeatured: "desc",
-        },
-        {
-          sortOrder: "asc",
-        },
-        {
-          createdAt: "desc",
-        },
+        { totalBookings: "desc" },
+        { isFeatured: "desc" },
+        { sortOrder: "asc" },
+        { createdAt: "desc" },
       ],
       take: 3,
       select: {
@@ -240,9 +231,7 @@ export async function GET() {
     });
 
     if (recommendedServices.length < 3) {
-      const currentRecommendedIds = recommendedServices.map(
-        (service) => service.id
-      );
+      const currentRecommendedIds = recommendedServices.map((s) => s.id);
 
       const fallbackServices = await db.service.findMany({
         where: {
@@ -258,15 +247,9 @@ export async function GET() {
           },
         },
         orderBy: [
-          {
-            isFeatured: "desc",
-          },
-          {
-            sortOrder: "asc",
-          },
-          {
-            createdAt: "desc",
-          },
+          { isFeatured: "desc" },
+          { sortOrder: "asc" },
+          { createdAt: "desc" },
         ],
         take: 3 - recommendedServices.length,
         select: {
@@ -292,15 +275,9 @@ export async function GET() {
           },
         },
         orderBy: [
-          {
-            isFeatured: "desc",
-          },
-          {
-            totalBookings: "desc",
-          },
-          {
-            sortOrder: "asc",
-          },
+          { isFeatured: "desc" },
+          { totalBookings: "desc" },
+          { sortOrder: "asc" },
         ],
         take: 3,
         select: {
@@ -316,9 +293,7 @@ export async function GET() {
       customer: {
         firstName: customer.firstName || "Customer",
       },
-
       latestTransaction,
-
       recommendedServices: recommendedServices.map((service) => ({
         id: service.id,
         name: service.name,
@@ -332,7 +307,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("CUSTOMER HOME GET ERROR:", error);
-
     return NextResponse.json(
       { error: "Failed to fetch customer" },
       { status: 500 }

@@ -21,7 +21,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${nunitoSans.className} ${nunitoSans.variable}`}>
+      <body className={`${nunitoSans.className} ${nunitoSans.variable}`}
+        suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>

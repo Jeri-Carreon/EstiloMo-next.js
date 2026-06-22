@@ -33,6 +33,7 @@ import GetAppIcon from '@mui/icons-material/GetApp';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Chip from '@mui/material/Chip';
+import { Image } from "@mui/icons-material";
 
 interface Service {
   id: string;
@@ -543,7 +544,7 @@ export default function ServicesPage() {
                         />
                       ) : (
                         <IconButton disabled>
-                          <ImageIcon />
+                          <Image />
                         </IconButton>
                       )}
                     </TableCell>

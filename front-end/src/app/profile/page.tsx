@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { createClient } from "@/lib/supabase/client";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Paper from "@mui/material/Paper";
@@ -15,9 +15,11 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 export default function ProfilePage() {
-  const { data: session, status } = useSession();
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
+
+  const [authLoading, setAuthLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -35,50 +37,51 @@ export default function ProfilePage() {
   });
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login");
-    }
-  }, [status, router]);
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
 
-  useEffect(() => {
-    if (status === "authenticated") {
-      const loadProfile = async () => {
-        setLoading(true);
-        try {
-          const res = await fetch("/api/profile");
-          if (!res.ok) {
-            const data = await res.json();
-            setError(data.error || "Failed to load profile");
-            setLoading(false);
-            return;
-          }
+      if (!user) {
+        router.push("/login");
+        return;
+      }
 
+      setAuthLoading(false);
+      setLoading(true);
+
+      try {
+        const res = await fetch("/api/profile");
+        if (!res.ok) {
           const data = await res.json();
-          const user = data.user;
-          const first = user.firstName || (user.name ? user.name.split(" ")[0] : "");
-          const last = user.lastName || (user.name ? user.name.split(" ").slice(1).join(" ") : "");
-
-          setFirstName(first);
-          setLastName(last);
-          setEmail(user.email || "");
-          setFullName(`${first} ${last}`.trim() || user.email || "User");
-          setMobileNumber(user.mobileNumber || "");
-          setSavedProfile({
-            firstName: first,
-            lastName: last,
-            email: user.email || "",
-            mobileNumber: user.mobileNumber || "",
-          });
+          setError(data.error || "Failed to load profile");
           setLoading(false);
-        } catch (err) {
-          setError("Unable to load profile information");
-          setLoading(false);
+          return;
         }
-      };
 
-      loadProfile();
-    }
-  }, [status]);
+        const data = await res.json();
+        const u = data.user;
+        const first = u.firstName || (u.name ? u.name.split(" ")[0] : "");
+        const last = u.lastName || (u.name ? u.name.split(" ").slice(1).join(" ") : "");
+
+        setFirstName(first);
+        setLastName(last);
+        setEmail(u.email || "");
+        setFullName(`${first} ${last}`.trim() || u.email || "User");
+        setMobileNumber(u.mobileNumber || "");
+        setSavedProfile({
+          firstName: first,
+          lastName: last,
+          email: u.email || "",
+          mobileNumber: u.mobileNumber || "",
+        });
+      } catch {
+        setError("Unable to load profile information");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    init();
+  }, []);
 
   const handleSave = async () => {
     try {
@@ -89,12 +92,7 @@ export default function ProfilePage() {
       const res = await fetch("/api/profile/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          firstName,
-          lastName,
-          email,
-          mobileNumber,
-        }),
+        body: JSON.stringify({ firstName, lastName, email, mobileNumber }),
       });
 
       if (!res.ok) {
@@ -105,20 +103,20 @@ export default function ProfilePage() {
       }
 
       const data = await res.json();
-      const user = data.user;
+      const u = data.user;
       setSavedProfile({
-        firstName: user.firstName || "",
-        lastName: user.lastName || "",
-        email: user.email || "",
-        mobileNumber: user.mobileNumber || "",
+        firstName: u.firstName || "",
+        lastName: u.lastName || "",
+        email: u.email || "",
+        mobileNumber: u.mobileNumber || "",
       });
-      setFullName(`${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "User");
-      setEmail(user.email || "");
+      setFullName(`${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email || "User");
+      setEmail(u.email || "");
       setSuccess("Profile updated successfully!");
       setIsEditing(false);
-      setLoading(false);
-    } catch (err) {
+    } catch {
       setError("An error occurred while updating your profile");
+    } finally {
       setLoading(false);
     }
   };
@@ -132,7 +130,7 @@ export default function ProfilePage() {
     setIsEditing(false);
   };
 
-  if (status === "loading" || loading) {
+  if (authLoading || loading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}>
         <CircularProgress />
@@ -140,24 +138,13 @@ export default function ProfilePage() {
     );
   }
 
-  if (!session?.user) {
-    return null;
-  }
-
   return (
     <>
       <Navbar />
       <Container maxWidth="md" sx={{ py: 6 }}>
         <Box sx={{ display: "flex", justifyContent: "center" }}>
-          {/* Main Content */}
           <Box sx={{ flex: 1, maxWidth: 720 }}>
-            <Paper
-              sx={{
-                p: 3,
-                border: "1px solid #ddd",
-                backgroundColor: "#fff",
-              }}
-            >
+            <Paper sx={{ p: 3, border: "1px solid #ddd", backgroundColor: "#fff" }}>
               {/* Profile Header */}
               <Box
                 sx={{
@@ -170,32 +157,24 @@ export default function ProfilePage() {
                 }}
               >
                 <Box>
-                  <Box sx={{ fontSize: 18, fontFamily: 'var(--font-nunito-sans)', fontWeight: 700, color: "#111" }}>
+                  <Box sx={{ fontSize: 18, fontFamily: "var(--font-nunito-sans)", fontWeight: 700, color: "#111" }}>
                     {fullName || "User"}
                   </Box>
-                  <Box sx={{ fontSize: 13, fontFamily: 'var(--font-nunito-sans)',  color: "#888", mt: 0.5 }}>
+                  <Box sx={{ fontSize: 13, fontFamily: "var(--font-nunito-sans)", color: "#888", mt: 0.5 }}>
                     {email}
                   </Box>
                 </Box>
                 <Button
                   variant="contained"
-                  onClick={() => {
-                    if (isEditing) {
-                      handleCancel();
-                    } else {
-                      setIsEditing(true);
-                    }
-                  }}
+                  onClick={() => (isEditing ? handleCancel() : setIsEditing(true))}
                   sx={{
                     backgroundColor: isEditing ? "#ff9800" : "#e0e0e0",
                     color: "#111",
-                    fontFamily: 'var(--font-nunito-sans)',
+                    fontFamily: "var(--font-nunito-sans)",
                     textTransform: "none",
                     fontSize: 13,
                     fontWeight: 600,
-                    "&:hover": {
-                      backgroundColor: isEditing ? "#e68900" : "#d0d0d0",
-                    },
+                    "&:hover": { backgroundColor: isEditing ? "#e68900" : "#d0d0d0" },
                   }}
                 >
                   {isEditing ? "Cancel" : "Edit"}
@@ -203,112 +182,47 @@ export default function ProfilePage() {
               </Box>
 
               {/* Alerts */}
-              {error && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  {error}
-                </Alert>
-              )}
-              {success && (
-                <Alert severity="success" sx={{ mb: 2 }}>
-                  {success}
-                </Alert>
-              )}
+              {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+              {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
               {/* Form Fields */}
               <Stack spacing={3}>
-                <Box>
-                  <Box sx={{ fontSize: 13, fontFamily: 'var(--font-nunito-sans)', fontWeight: 600, mb: 1, color: "#333" }}>
-                    First Name
+                {[
+                  { label: "First Name", value: firstName, onChange: setFirstName },
+                  { label: "Last Name", value: lastName, onChange: setLastName },
+                  { label: "Mobile Number", value: mobileNumber, onChange: setMobileNumber, placeholder: "(000) 000000" },
+                ].map(({ label, value, onChange, placeholder }) => (
+                  <Box key={label}>
+                    <Box sx={{ fontSize: 13, fontFamily: "var(--font-nunito-sans)", fontWeight: 600, mb: 1, color: "#333" }}>
+                      {label}
+                    </Box>
+                    <TextField
+                      fullWidth
+                      value={value}
+                      onChange={(e) => onChange(e.target.value)}
+                      variant="outlined"
+                      disabled={!isEditing}
+                      placeholder={placeholder}
+                      sx={{
+                        "& .MuiOutlinedInput-root": { backgroundColor: isEditing ? "#fff" : "#e8e8e8" },
+                        "& .MuiInputBase-input": { color: "#000" },
+                      }}
+                    />
                   </Box>
-                  <TextField
-                    fullWidth
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    variant="outlined"
-                    disabled={!isEditing}
-                    sx={{
-                      "& .MuiOutlinedInput-root": {
-                        backgroundColor: isEditing ? "#fff" : "#e8e8e8",
-                      },
-                      "& .MuiOutlinedInput-input": {
-                        color: "#000",
-                      },
-                      "& .MuiInputBase-input": {
-                        color: "#000",
-                      },
-                    }}
-                  />
-                </Box>
+                ))}
 
                 <Box>
-                  <Box sx={{ fontSize: 13, fontFamily: 'var(--font-nunito-sans)', fontWeight: 600, mb: 1, color: "#333" }}>
-                    Last Name
-                  </Box>
-                  <TextField
-                    fullWidth
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    variant="outlined"
-                    disabled={!isEditing}
-                    sx={{
-                      "& .MuiOutlinedInput-root": {
-                        backgroundColor: isEditing ? "#fff" : "#e8e8e8",
-                      },
-                      "& .MuiOutlinedInput-input": {
-                        color: "#000",
-                      },
-                      "& .MuiInputBase-input": {
-                        color: "#000",
-                      },
-                    }}
-                  />
-                </Box>
-
-                <Box>
-                  <Box sx={{ fontSize: 13, fontFamily: 'var(--font-nunito-sans)', fontWeight: 600, mb: 1, color: "#333" }}>
-                    Mobile Number
-                  </Box>
-                  <TextField
-                    fullWidth
-                    placeholder="(000) 000000"
-                    value={mobileNumber}
-                    onChange={(e) => setMobileNumber(e.target.value)}
-                    variant="outlined"
-                    disabled={!isEditing}
-                    sx={{
-                      "& .MuiOutlinedInput-root": {
-                        backgroundColor: isEditing ? "#fff" : "#e8e8e8",
-                      },
-                      "& .MuiOutlinedInput-input": {
-                        color: "#000",
-                      },
-                      "& .MuiInputBase-input": {
-                        color: "#000",
-                      },
-                    }}
-                  />
-                </Box>
-
-                <Box>
-                  <Box sx={{ fontSize: 14, fontFamily: 'var(--font-nunito-sans)', fontWeight: 600, mb: 2, color: "#333" }}>
+                  <Box sx={{ fontSize: 14, fontFamily: "var(--font-nunito-sans)", fontWeight: 600, mb: 2, color: "#333" }}>
                     Email Address
                   </Box>
                   <TextField
                     fullWidth
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
                     variant="outlined"
                     disabled
                     sx={{
-                      "& .MuiOutlinedInput-root": {
-                        backgroundColor: isEditing ? "#fff" : "#e8e8e8",
-                      },
-                      "& .MuiOutlinedInput-input": {
-                        color: "#000",
-                      },
-                      "& .MuiInputBase-input": {
-                        color: "#000",
-                      },
+                      "& .MuiOutlinedInput-root": { backgroundColor: "#e8e8e8" },
+                      "& .MuiInputBase-input": { color: "#000" },
                     }}
                   />
                 </Box>
@@ -323,7 +237,7 @@ export default function ProfilePage() {
                         backgroundColor: "#4CAF50",
                         color: "#fff",
                         textTransform: "none",
-                        fontFamily: 'var(--font-nunito-sans)',
+                        fontFamily: "var(--font-nunito-sans)",
                         fontSize: 13,
                         fontWeight: 600,
                         "&:hover": { backgroundColor: "#45a049" },
@@ -339,7 +253,7 @@ export default function ProfilePage() {
                         border: "1px solid #ddd",
                         color: "#666",
                         textTransform: "none",
-                        fontFamily: 'var(--font-nunito-sans)',
+                        fontFamily: "var(--font-nunito-sans)",
                         fontSize: 13,
                         fontWeight: 600,
                         "&:hover": { backgroundColor: "#f9f9f9" },
