@@ -1,9 +1,9 @@
 'use client';
 
+import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
 
+import Link from 'next/link';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Table from '@mui/material/Table';
@@ -43,13 +43,15 @@ interface Customer {
 }
 
 export default function CustomersPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  // session
   const [loading, setLoading] = useState(true);
+  const supabase = createClient()
+
   const [error, setError] = useState('');
 
+  const [customers, setCustomers] = useState<Customer[]>([]);
+
+  // Add Modal
   const [openAdd, setOpenAdd] = useState(false);
   const [openAddConfirm, setOpenAddConfirm] = useState(false);
 
@@ -256,6 +258,61 @@ export default function CustomersPage() {
       showStatusModal('Error', 'Something went wrong.');
     }
   };
+
+  const router = useRouter();
+
+  const loadCustomers = async () => {
+      try {
+        const res = await fetch('/api/customers');
+
+        if (res.status === 403) {
+          router.push("/unauthorized");
+        }
+        const data = await res.json();
+
+        if (!res.ok) {
+          setError(data.error || 'Unable to load customers.');
+          setCustomers([]);
+        } else {
+          setError('');
+          setCustomers(data.customers || []);
+        }
+      } catch (e) {
+        setError('Unable to load customers.');
+      }
+
+      setLoading(false);
+    };
+
+  useEffect(() => {
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/login')
+          return
+        }
+
+        const res = await fetch('/api/user/role')
+        const data = await res.json()
+
+        if (!['OWNER', 'RECEPTIONIST'].includes(data.role)) {
+          router.push('/unauthorized')
+          return
+        }
+
+      loadCustomers();
+    }
+
+    init()
+  }, [router]);
+    
+  // Search and Filters
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'CASUAL' | 'REGULAR'>('ALL');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | ''>('');
+
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 5;
 
   const filteredCustomers = customers
     .filter((customer) => {

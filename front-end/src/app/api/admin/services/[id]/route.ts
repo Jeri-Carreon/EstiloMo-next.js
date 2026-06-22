@@ -1,20 +1,61 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+
+import { getAdminUser } from "@/lib/supabase/getUser";
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getAdminUser()
+    if (!user || !["OWNER"].includes(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Missing service id" },
+        { status: 400 }
+      );
+    }
+
+    await db.service.delete({
+      where: {
+        id,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+    });
+  } catch (error) {
+    console.error(
+      "DELETE SERVICE ERROR:",
+      error
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          "Failed to delete service",
+      },
+      {
+        status: 500,
+      }
+    );
+  }
+}
 
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (
-      !session?.user?.email ||
-      !["OWNER"].includes((session.user as any).role)
-    ) {
+    const user = await getAdminUser()
+    if (!user || !["OWNER"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

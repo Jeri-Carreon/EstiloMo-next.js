@@ -17,9 +17,8 @@ import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 
-import { signIn } from "next-auth/react";
+import { createClient } from '@/lib/supabase/client'
 import { FormEvent, useState } from "react";
-import { getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 const Item = styled(Paper)(({ theme }) => ({
@@ -45,36 +44,35 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
 
   const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault(); // prevent the default form submission behavior
-    
-    setErrorMsg(""); //clear any previous error
+    e.preventDefault()
+    setErrorMsg("")
 
-    const res = await signIn("credentials", {
+    const supabase = createClient()
+
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
-      redirect: false,
-      callbackUrl: "/customerHome",
-      remember: rememberMe, // pass the rememberMe state to the signIn function
-    });
-    
-    if (res?.error) {
-      if (res.error === "LOCKED") {
+    })
+
+    if (error) {
+      if (error.message.includes('locked') || error.message.includes('too many')) {
         setErrorMsg("You have been locked out. Try again after 1 minute.")
       } else {
-        setErrorMsg("Invalid email or password");
+        setErrorMsg("Invalid email or password")
       }
-      return;
+      return
     }
 
-    const session = await getSession();
+    // Get role from Prisma user record
+    const res = await fetch('/api/user/role')
+    const user = await res.json()
 
-    const role = session?.user?.role;
-
-    if (role !== "CUSTOMER") {
-      router.push("/admin/dashboard")
-    } else
-      router.push("/customerHome");
-  };
+    if (user.role !== 'CUSTOMER') {
+      router.push('/admin/dashboard')
+    } else {
+      router.push('/customerHome')
+    }
+  }
 
   
   return (

@@ -1,7 +1,7 @@
 'use client';
 
+import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
-import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 import Box from '@mui/material/Box';
@@ -179,9 +179,10 @@ export default function BarbersPage() {
   const [availability, setAvailability] = useState<AvailabilityRow[]>([]);
   const [absentMap, setAbsentMap] = useState<Record<string, boolean>>({});
 
-  // Fetching Table Data
-  const { data: session, status } = useSession();
+  // Session
   const router = useRouter();
+  const supabase = createClient();
+  const [role, setRole] = useState<string>('');
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [appointmentLoading, setAppointmentLoading] = useState(true);
@@ -502,19 +503,35 @@ export default function BarbersPage() {
   };
 
   useEffect(() => {
-    if (status === "loading") return;
+  const init = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/login')
+        return
+      }
 
-    const role = (session?.user as { role?: string })?.role;
+      const res = await fetch('/api/user/role')
+      const data = await res.json()
+      setRole(data.role)
 
-    if (!session?.user?.email || !["OWNER", "RECEPTIONIST", "BARBER"].includes(role || "")) {
-      router.push("/unauthorized");
-      return;
+      if (!['OWNER', 'RECEPTIONIST'].includes(data.role)) {
+        router.push('/unauthorized')
+        return
+      }
+    } catch (error) {
+      console.error(error)
     }
+  }
 
-    if (!currentBarber?.id) return;
+  init()
+}, [router])
 
-    loadAppointments(currentBarber.id);
-  }, [currentBarber, session, status, router]);
+  useEffect(() => {
+    if (currentBarber?.id) {
+      loadAppointments(currentBarber.id)
+    }
+}, [currentBarber])
 
   const formatAmount = (amount: number | string | null) => {
     if (amount === null || amount === undefined) {
@@ -836,7 +853,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
         </Typography>
       </Box>
 
-        {session?.user?.role !== "BARBER" && (
+        {["OWNER", "RECEPTIONIST"].includes(role) && (
           <Button
             variant="contained"
             onClick={() => setOpenAvailability(true)}

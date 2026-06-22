@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-
 import { db } from "@/lib/db";
-import { authOptions } from "@/lib/auth";
+
+import { getAdminUser } from "@/lib/supabase/getUser"
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -13,9 +12,6 @@ function minutesToTime(minutes: number) {
   return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
-/**
- * 🔥 FIX: replaced COUNT-based codes (race condition risk)
- */
 function createCode(prefix: string) {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const random = Math.floor(1000 + Math.random() * 9000);
@@ -24,9 +20,8 @@ function createCode(prefix: string) {
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user || !["OWNER", "RECEPTIONIST"].includes(session.user.role)) {
+    const user = await getAdminUser()
+    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -130,10 +125,9 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user || !["OWNER", "RECEPTIONIST"].includes(session.user.role)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getAdminUser()
+    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await req.json();
@@ -254,9 +248,8 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user || !["OWNER", "RECEPTIONIST"].includes(session.user.role)) {
+    const user = await getAdminUser()
+    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

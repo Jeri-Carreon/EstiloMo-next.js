@@ -1,7 +1,7 @@
 'use client';
 
+import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
-import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
 import Box from '@mui/material/Box';
@@ -112,7 +112,6 @@ function formatDateInput(date: Date) {
 }
 
 export default function AppointmentsPage() {
-  const { data: session, status } = useSession();
   const router = useRouter();
 
   const [warningOpen, setWarningOpen] = useState(false);
@@ -129,6 +128,7 @@ export default function AppointmentsPage() {
   const [barbers, setBarbers] = useState<BarberOption[]>([]);
   const [services, setServices] = useState<ServiceOption[]>([]);
 
+  const supabase = createClient()
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -514,18 +514,30 @@ export default function AppointmentsPage() {
   };
 
   useEffect(() => {
-    if (status === 'loading') return;
+    const init = async () => {
+      try {
+      const { data: { user } } = await supabase.auth.getUser()
+          if (!user) {
+            router.push('/login')
+            return
+          }
 
-    const role = (session?.user as { role?: string })?.role;
+          const res = await fetch('/api/user/role')
+          const data = await res.json()
 
-    if (!session?.user?.email || !['OWNER', 'RECEPTIONIST'].includes(role || '')) {
-      router.push('/unauthorized');
-      return;
+          if (!['OWNER', 'RECEPTIONIST'].includes(data.role)) {
+            router.push('/unauthorized')
+            return
+          }
+        
+      loadAppointments();
+      loadOptions();
+      } catch (err) {
+        console.error("Initialization failed:", err)
+      }
     }
-
-    loadAppointments();
-    loadOptions();
-  }, [session, status, router]);
+    init()
+  }, [router]);
 
   useEffect(() => {
     fetchUnavailableDates(addCurrentMonth);

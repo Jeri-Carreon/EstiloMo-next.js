@@ -1,8 +1,8 @@
 "use client";
 
+import { createClient } from "@/lib/supabase/client";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
@@ -50,7 +50,6 @@ type Activity = {
 
 export default function AdminLoyaltyCardPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
 
   const [cards, setCards] = useState<LoyaltyCard[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -59,6 +58,7 @@ export default function AdminLoyaltyCardPage() {
   const [processedSearch, setProcessedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
 
+  const supabase = createClient()
   const [loading, setLoading] = useState(true);
 
   const [editOpen, setEditOpen] = useState(false);
@@ -110,20 +110,29 @@ export default function AdminLoyaltyCardPage() {
   };
 
   useEffect(() => {
-    if (status === "loading") return;
+    const init = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/login')
+          return
+        }
 
-    if (!session) {
-      router.push("/login");
-      return;
+        const res = await fetch('/api/user/role')
+        const data = await res.json()
+
+        if (!["OWNER", "RECEPTIONIST"].includes(data.role)) {
+          router.push("/unauthorized");
+          return;
+        }
+
+        await loadCards()
+      } catch (err) {
+        console.error("Initialization failed:", err)
+      }
     }
-
-    if (!["OWNER", "RECEPTIONIST"].includes(session.user.role)) {
-      router.push("/unauthorized");
-      return;
-    }
-
-    loadCards();
-  }, [session, status, router]);
+    init()
+  }, [router]);
 
   const filteredCards = useMemo(() => {
     return cards.filter((card) => {

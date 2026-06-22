@@ -1,8 +1,9 @@
 "use client";
 
+import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+
 
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -147,23 +148,32 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 export default function AdminDashboardPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+
+  // Session
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient()
 
   const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<"Day" | "Week" | "Month">("Day");
 
   useEffect(() => {
-    if (status === "loading") return;
-    if (!session) { router.push("/login"); return; }
-    if (!["OWNER", "RECEPTIONIST"].includes(session.user.role)) {
-      router.push("/unauthorized");
-      return;
-    }
-
-    const loadDashboard = async () => {
+    const init = async () => {
       try {
-        setLoading(true);
+        setLoading(true)
+
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/login')
+          return
+        }
+
+        const res = await fetch('/api/user/role')
+        const data = await res.json()
+
+        if (!['OWNER', 'RECEPTIONIST'].includes(data.role)) {
+          router.push('/unauthorized')
+          return
+        }
 
         const [appointmentsRes, salesRes] = await Promise.all([
           fetch("/api/admin/appointments", { cache: "no-store" }),
@@ -403,10 +413,10 @@ export default function AdminDashboardPage() {
       }
     };
 
-    loadDashboard();
-  }, [session, status, period]);
+    init()
+  }, [period]);
 
-  if (loading || status === "loading" || !data) {
+  if (loading || !data) {
     return (
       <Box sx={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>
         <CircularProgress />
