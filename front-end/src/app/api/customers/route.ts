@@ -6,42 +6,52 @@ export async function GET() {
     const customers = await db.customer.findMany({
       include: {
         user: true,
+        appointments: true,
+        sales: {
+          where: {
+            status: "PAID",
+          },
+        },
       },
       orderBy: [
-        {
-          isActive: "desc",
-        },
-        {
-          createdAt: "asc",
-        },
+        { isActive: "desc" },
+        { createdAt: "asc" },
       ],
     });
 
-    const result = customers.map((customer) => ({
-      id: customer.id,
-      customerCode: customer.customerCode,
-      type: customer.customerType || "CASUAL",
-      name:
-        [customer.firstName, customer.lastName].filter(Boolean).join(" ") ||
-        [customer.user?.firstName, customer.user?.lastName]
-          .filter(Boolean)
-          .join(" ") ||
-        customer.email ||
-        customer.user?.email ||
-        "Unknown",
+    const result = customers.map((customer) => {
+      const totalAppointments = customer.appointments.length;
 
-      contactNumber:
-        customer.mobileNumber || customer.user?.mobileNumber || "N/A",
+      const totalSpent = customer.sales.reduce((sum, sale) => {
+        return sum + Number(sale.totalAmount || 0);
+      }, 0);
 
-      email: customer.email || customer.user?.email || "N/A",
+      return {
+        id: customer.id,
+        customerCode: customer.customerCode,
+        type: customer.customerType || "CASUAL",
 
-      totalAppointments: 0,
-      totalSpent: 0,
+        name:
+          [customer.firstName, customer.lastName].filter(Boolean).join(" ") ||
+          [customer.user?.firstName, customer.user?.lastName]
+            .filter(Boolean)
+            .join(" ") ||
+          customer.email ||
+          customer.user?.email ||
+          "Unknown",
 
-      isActive: customer.isActive,
+        contactNumber:
+          customer.mobileNumber || customer.user?.mobileNumber || "N/A",
 
-      createdAt: customer.createdAt,
-    }));
+        email: customer.email || customer.user?.email || "N/A",
+
+        totalAppointments,
+        totalSpent,
+
+        isActive: customer.isActive,
+        createdAt: customer.createdAt,
+      };
+    });
 
     return NextResponse.json({ customers: result });
   } catch (error) {

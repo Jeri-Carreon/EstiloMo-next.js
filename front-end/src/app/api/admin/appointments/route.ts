@@ -90,9 +90,10 @@ export async function GET() {
           endTime: minutesToTime(a.endMinutes),
         },
 
-        payment: {
+       payment: {
           id: payment?.id ?? null,
-          amount: Number(payment?.amount ?? a.service?.price ?? 0),
+          amount: Number(a.service?.price ?? 0),
+          saleAmount: Number(payment?.amount ?? a.sale?.totalAmount ?? a.service?.price ?? 0),
           downPayment: Number(payment?.downPayment ?? 0),
           method: payment?.method ?? "GCASH",
           status: payment?.status ?? "PENDING",

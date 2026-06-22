@@ -56,21 +56,27 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const customer = await db.customer.findUnique({
+    const user = await db.user.findUnique({
       where: {
         email: user.email,
       },
       include: {
-        loyaltyCards: true,
+        customer: {
+          include: {
+            loyaltyCards: true,
+          },
+        },
       },
     });
 
-    if (!customer) {
+    if (!user?.customer) {
       return NextResponse.json(
         { error: "Customer not found" },
         { status: 404 }
       );
     }
+
+    const customer = user.customer;
 
     let loyaltyCard = customer.loyaltyCards;
 
@@ -188,7 +194,7 @@ export async function GET() {
         firstName: customer.firstName,
         lastName: customer.lastName,
         name: customerName,
-        email: customer.email,
+        email: customer.email || user.email,
         mobileNumber: customer.mobileNumber,
       },
 

@@ -88,7 +88,7 @@ interface AvailableTime {
 }
 
 interface AppointmentSettings {
-  BookingCutoffHours: number;
+  bookingCutoffHours: number;
 }
 const readOnlyStatuses = ['COMPLETED', 'NOSHOW', 'CANCELLED', 'REJECTED'];
 

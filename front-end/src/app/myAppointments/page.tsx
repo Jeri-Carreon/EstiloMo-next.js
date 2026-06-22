@@ -73,6 +73,10 @@ function formatDisplayType(type: CustomerHistory["type"]) {
   return type === "APPOINTMENT" ? "Appointment" : "Walk-in";
 }
 
+function splitSchedule(schedule: string) {
+  return schedule.split("\n");
+}
+
 export default function MyAppointmentsPage() {
   const router = useRouter();
   const supabase = createClient();
@@ -181,7 +185,10 @@ export default function MyAppointmentsPage() {
     page * itemsPerPage
   );
 
-  const totalPages = Math.max(1, Math.ceil(filteredHistory.length / itemsPerPage));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredHistory.length / itemsPerPage)
+  );
 
   const showingFrom =
     filteredHistory.length === 0 ? 0 : (page - 1) * itemsPerPage + 1;
@@ -384,53 +391,83 @@ export default function MyAppointmentsPage() {
                     <TableCell sx={{ fontWeight: 900 }}>
                       {item.serviceName}
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>
-                      {item.schedule || item.appointmentDate}
+
+                    <TableCell sx={{ fontWeight: 900, minWidth: 340 }}>
+  {splitSchedule(item.schedule || item.appointmentDate).map((date, index) => (
+                        <Typography
+                          key={index}
+                          sx={{
+                            fontWeight: 900,
+                            fontSize: 14,
+                            whiteSpace: "nowrap",
+                            mb: index !== splitSchedule(item.schedule).length - 1 ? 0.5 : 0,
+                          }}
+                        >
+                          {date}
+                        </Typography>
+                      ))}
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>
+
+                    <TableCell sx={{ fontWeight: 900, minWidth: 120, whiteSpace: "nowrap" }}>
                       {formatAmount(item.totalAmount)}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 900, color: getStatusColor(item.status) }}>
                       {item.status}
                     </TableCell>
                     <TableCell>
-                      <IconButton
-                        size="small"
-                        disabled={!canCancel(item)}
-                        onClick={() => {
-                          setSelectedItem(item);
-                          setCancelOpen(true);
-                        }}
-                        sx={{
-                          bgcolor: canCancel(item) ? "#ff5252" : "#ddd",
-                          width: 28,
-                          height: 28,
-                          mr: 0.5,
-                        }}
-                      >
-                        <CancelIcon sx={{ fontSize: 17, color: "#fff" }} />
-                      </IconButton>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        {canCancel(item) && (
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setSelectedItem(item);
+                              setCancelOpen(true);
+                            }}
+                            sx={{
+                              bgcolor: "#ff5252",
+                              width: 34,
+                              height: 34,
+                              color: "#fff",
+                              "&:hover": { bgcolor: "#e53935" },
+                            }}
+                          >
+                            <CancelIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        )}
 
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          setSelectedItem(item);
-                          setReceiptOpen(true);
-                        }}
-                        sx={{ bgcolor: "#ddd", width: 28, height: 28, mr: 0.5 }}
-                      >
-                        <ReceiptLongIcon sx={{ fontSize: 17 }} />
-                      </IconButton>
-
-                      {item.status.toUpperCase() === "COMPLETED" && (
                         <IconButton
                           size="small"
-                          onClick={() => router.push("/myReviews")}
-                          sx={{ bgcolor: "#ddd", width: 28, height: 28 }}
+                          onClick={() => {
+                            setSelectedItem(item);
+                            setReceiptOpen(true);
+                          }}
+                          sx={{
+                            bgcolor: "#e5e5e5",
+                            width: 34,
+                            height: 34,
+                            color: "#555",
+                            "&:hover": { bgcolor: "#d4d4d4" },
+                          }}
                         >
-                          <StarIcon sx={{ fontSize: 17 }} />
+                          <ReceiptLongIcon sx={{ fontSize: 18 }} />
                         </IconButton>
-                      )}
+
+                        {item.status.toUpperCase() === "COMPLETED" && (
+                          <IconButton
+                            size="small"
+                            onClick={() => router.push("/myReviews")}
+                            sx={{
+                              bgcolor: "#e5e5e5",
+                              width: 34,
+                              height: 34,
+                              color: "#555",
+                              "&:hover": { bgcolor: "#d4d4d4" },
+                            }}
+                          >
+                            <StarIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        )}
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))
@@ -448,7 +485,8 @@ export default function MyAppointmentsPage() {
           }}
         >
           <Typography sx={{ fontSize: 14 }}>
-            Showing {showingFrom} to {showingTo} of {filteredHistory.length} Entries
+            Showing {showingFrom} to {showingTo} of {filteredHistory.length}{" "}
+            Entries
           </Typography>
 
           <Pagination
@@ -460,8 +498,12 @@ export default function MyAppointmentsPage() {
         </Box>
       </Box>
 
-      {/* Receipt Dialog */}
-      <Dialog open={receiptOpen} onClose={() => setReceiptOpen(false)} maxWidth="md" fullWidth>
+      <Dialog
+        open={receiptOpen}
+        onClose={() => setReceiptOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
         <Box sx={{ p: 4, bgcolor: "#f3f3f3", position: "relative" }}>
           <Box
             sx={{
@@ -499,17 +541,27 @@ export default function MyAppointmentsPage() {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>Barber</TableCell>
-                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>Service Type</TableCell>
-                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>Qty</TableCell>
-                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>Date</TableCell>
-                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>Price</TableCell>
+                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                    Barber
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                    Service Type
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                    Qty
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                    Date
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                    Price
+                  </TableCell>
                 </TableRow>
               </TableHead>
 
               <TableBody>
-                {(selectedItem?.services || []).map((service) => (
-                  <TableRow key={service.id}>
+                {(selectedItem?.services || []).map((service, index) => (
+                  <TableRow key={`${service.id}-${index}`}>
                     <TableCell sx={{ fontWeight: 900, color: "#888" }}>
                       {selectedItem?.barberName}
                     </TableCell>
@@ -519,10 +571,17 @@ export default function MyAppointmentsPage() {
                     <TableCell sx={{ fontWeight: 900, color: "#888" }}>
                       {service.quantity}
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 900, color: "#888" }}>
-                      {selectedItem?.schedule}
+                    <TableCell sx={{ fontWeight: 900, color: "#888", minWidth: 260 }}>
+                      {splitSchedule(selectedItem?.schedule || "").map((date, index) => (
+                        <Typography key={index} sx={{ fontWeight: 900, color: "#888", fontSize: 14 }}>
+                          {date}
+                        </Typography>
+                      ))}
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                    <TableCell
+                      align="right"
+                      sx={{ fontWeight: 900, color: "#888", whiteSpace: "nowrap", minWidth: 110 }}
+                    >
                       {formatAmount(service.subtotal)}
                     </TableCell>
                   </TableRow>
@@ -560,8 +619,12 @@ export default function MyAppointmentsPage() {
         </Box>
       </Dialog>
 
-      {/* Cancel Dialog */}
-      <Dialog open={cancelOpen} onClose={() => setCancelOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <Box sx={{ p: 4, bgcolor: "#f3f3f3", textAlign: "center" }}>
           <Box
             sx={{
@@ -587,7 +650,10 @@ export default function MyAppointmentsPage() {
 
           <Typography sx={{ color: "#888", mb: 3 }}>
             Your downpayment will not be refunded upon cancellation.
-            <Box component="span" sx={{ color: "red" }}> *</Box>
+            <Box component="span" sx={{ color: "red" }}>
+              {" "}
+              *
+            </Box>
           </Typography>
 
           <Box sx={{ display: "flex", justifyContent: "center", gap: 2 }}>
