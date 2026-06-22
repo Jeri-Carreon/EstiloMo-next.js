@@ -1,228 +1,487 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
 
 type Message = {
   id: string;
   role: "user" | "bot";
   text: string;
+  link?: string;
+  linkLabel?: string;
 };
+
+type ChatbotSetting = {
+  key: string;
+  label: string;
+  response: string;
+};
+
+const fallbackSettings: ChatbotSetting[] = [
+  {
+    key: "greeting",
+    label: "Greeting / Main Menu",
+    response:
+      "Welcome to The Barbs Bro!\n\nI am your AI chatbot assistant. I can help you with inquiries regarding our barbershop!\n\nHow may I help you today?",
+  },
+  {
+    key: "fallback",
+    label: "Fallback Response",
+    response:
+      "Sorry, I can only answer questions about The Barbs Bro services, prices, location, operating hours, social media, and appointment guidance.",
+  },
+];
+
+const facebookLink = "https://www.facebook.com/thebarbsbro";
+
+function normalizeText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
+}
 
 export default function ChatbotFloatingButton() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [settings, setSettings] = useState<ChatbotSetting[]>(fallbackSettings);
   const [showQuickOptions, setShowQuickOptions] = useState(true);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [input, setInput] = useState("");
+
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({
+      behavior: "auto",
+      block: "end",
+    });
+  };
 
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollTop = messagesEndRef.current.scrollHeight;
-    }
+    const loadSettings = async () => {
+      try {
+        const res = await fetch("/api/admin/chatbot", { cache: "no-store" });
+        const data = await res.json();
+
+        if (res.ok && Array.isArray(data)) {
+          setSettings(data);
+        }
+      } catch (error) {
+        console.error("LOAD CHATBOT SETTINGS ERROR:", error);
+      }
+    };
+
+    loadSettings();
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
   }, [messages]);
 
-  const handleOptionClick = (label: string) => {
+  useEffect(() => {
+    if (open) {
+      setTimeout(scrollToBottom, 50);
+    }
+  }, [open]);
+
+  const optionItems = useMemo(
+    () =>
+      settings.filter(
+        (item) => item.key !== "greeting" && item.key !== "fallback"
+      ),
+    [settings]
+  );
+
+  const getResponse = (key: string) => {
+    return (
+      settings.find((item) => item.key === key)?.response ||
+      fallbackSettings.find((item) => item.key === key)?.response ||
+      ""
+    );
+  };
+
+  const getBotReply = (text: string): Message => {
+    const msg = normalizeText(text);
+
+    if (msg.includes("hi") || msg.includes("hello") || msg.includes("hey")) {
+      return {
+        id: `${Date.now()}-bot`,
+        role: "bot",
+        text: "Hello! How can I help you today?",
+      };
+    }
+
+    const directOptionMatch = optionItems.find((item) => {
+      const label = normalizeText(item.label);
+      return msg === label || msg.includes(label);
+    });
+
+    if (directOptionMatch) {
+      const needsLink =
+        directOptionMatch.key.includes("social") ||
+        directOptionMatch.key.includes("receptionist") ||
+        normalizeText(directOptionMatch.label).includes("social") ||
+        normalizeText(directOptionMatch.label).includes("receptionist");
+
+      return {
+        id: `${Date.now()}-bot`,
+        role: "bot",
+        text: directOptionMatch.response,
+        link: needsLink ? facebookLink : undefined,
+        linkLabel: needsLink ? "Open Facebook Page" : undefined,
+      };
+    }
+
+    if (
+      msg.includes("receptionist") ||
+      msg.includes("contact") ||
+      msg.includes("call") ||
+      msg.includes("message")
+    ) {
+      const item = optionItems.find((option) =>
+        normalizeText(option.label).includes("receptionist")
+      );
+
+      return {
+        id: `${Date.now()}-bot`,
+        role: "bot",
+        text: item?.response || getResponse("fallback"),
+        link: facebookLink,
+        linkLabel: "Chat with Receptionist",
+      };
+    }
+
+    if (
+      msg.includes("facebook") ||
+      msg.includes("instagram") ||
+      msg.includes("social")
+    ) {
+      const item = optionItems.find((option) =>
+        normalizeText(option.label).includes("social")
+      );
+
+      return {
+        id: `${Date.now()}-bot`,
+        role: "bot",
+        text: item?.response || getResponse("fallback"),
+        link: facebookLink,
+        linkLabel: "Open Facebook Page",
+      };
+    }
+
+    if (
+      msg.includes("book") ||
+      msg.includes("appointment") ||
+      msg.includes("schedule") ||
+      msg.includes("reserve")
+    ) {
+      const item = optionItems.find((option) =>
+        normalizeText(option.label).includes("appointment")
+      );
+
+      return {
+        id: `${Date.now()}-bot`,
+        role: "bot",
+        text: item?.response || getResponse("fallback"),
+      };
+    }
+
+    if (
+      msg.includes("availability") ||
+      msg.includes("available") ||
+      msg.includes("barber")
+    ) {
+      const item = optionItems.find((option) =>
+        normalizeText(option.label).includes("availability")
+      );
+
+      return {
+        id: `${Date.now()}-bot`,
+        role: "bot",
+        text: item?.response || getResponse("fallback"),
+      };
+    }
+
+    if (
+      msg.includes("location") ||
+      msg.includes("where") ||
+      msg.includes("address") ||
+      msg.includes("open") ||
+      msg.includes("hours") ||
+      msg.includes("time") ||
+      msg.includes("operating")
+    ) {
+      const item = optionItems.find((option) => {
+        const label = normalizeText(option.label);
+        return label.includes("location") || label.includes("hours");
+      });
+
+      return {
+        id: `${Date.now()}-bot`,
+        role: "bot",
+        text: item?.response || getResponse("fallback"),
+      };
+    }
+
+    if (
+      msg.includes("service") ||
+      msg.includes("price") ||
+      msg.includes("haircut") ||
+      msg.includes("beard")
+    ) {
+      const item = optionItems.find((option) => {
+        const label = normalizeText(option.label);
+        return label.includes("service") || label.includes("price");
+      });
+
+      return {
+        id: `${Date.now()}-bot`,
+        role: "bot",
+        text: item?.response || getResponse("fallback"),
+      };
+    }
+
+    if (msg.includes("thank")) {
+      return {
+        id: `${Date.now()}-bot`,
+        role: "bot",
+        text: "You're welcome!",
+      };
+    }
+
+    return {
+      id: `${Date.now()}-bot`,
+      role: "bot",
+      text: getResponse("fallback"),
+    };
+  };
+
+  const sendMessage = (text?: string) => {
+    const messageText = (text ?? input).trim();
+
+    if (!messageText) return;
+
     const userMessage: Message = {
       id: `${Date.now()}-user`,
       role: "user",
-      text: label,
+      text: messageText,
     };
 
-    let botText = "Okay!";
-    switch (label) {
-      case "Book an Appointment":
-        botText = "Let's get you booked in!";
-        break;
-      case "Barber Availability":
-        botText = "Checking availability now!";
-        break;
-      case "Shop Location & Operating Hours":
-        botText = "We are located at:\nUnit F, Saranay Homes, Congressional Rd. cor Malapitan Rd. Caloocan City.\n\nWe are open from:\n10am to 8pm, Monday to Sunday!";
-        break;
-      case "Services & Prices":
-        botText = "Here are our services and prices:\n\nHaircut - ₱150\nBeard Trim - ₱100\nHaircut + Beard Trim - ₱220\nKids Haircut - ₱120\nSenior Citizen Haircut - ₱130";
-        break;
-      case "Talk to Receptionist":
-        botText = "Connecting you to reception!";
-        break;
-      case "Social Media":
-        botText = "Social Media:\n\nFacebook - The Barbs Bro\nInstagram - @thebarbsbro\nTwitter - @thebarbsbro";
-        break;
-      default:
-        botText = "Okay!";
-    }
-
-    const botMessage: Message = {
-      id: `${Date.now()}-bot`,
-      role: "bot",
-      text: botText,
-    };
+    const botMessage = getBotReply(messageText);
 
     setMessages((prev) => [...prev, userMessage, botMessage]);
+    setInput("");
     setShowQuickOptions(false);
   };
 
+  const greetingParts = getResponse("greeting").split("\n\n");
+
   return (
-    <div style={{ position: "fixed", right: 24, bottom: 24, zIndex: 1200 }}>
+    <div
+      style={{
+        position: "fixed",
+        right: 24,
+        bottom: 24,
+        zIndex: 1200,
+      }}
+    >
       {open && (
         <div
           style={{
-            width: 360,
+            position: "relative",
+            width: 390,
             maxWidth: "calc(100vw - 32px)",
-            minHeight: 480,
+            height: "min(620px, calc(100vh - 130px))",
             display: "flex",
             flexDirection: "column",
-            boxShadow: "0 24px 80px rgba(0,0,0,0.2)",
-            borderRadius: 24,
+            borderRadius: 22,
             overflow: "hidden",
             backgroundColor: "#fff",
-            marginBottom: 12,
+            boxShadow: "0 24px 80px rgba(0,0,0,0.25)",
+            marginBottom: 18,
           }}
         >
-          <div
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Close chatbot"
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "18px 20px",
-              backgroundColor: "#111",
-              color: "#fff",
+              position: "absolute",
+              top: 12,
+              right: 12,
+              width: 38,
+              height: 38,
+              borderRadius: "50%",
+              border: "none",
+              backgroundColor: "#f4f4f4",
+              color: "#111",
+              cursor: "pointer",
+              fontSize: 24,
+              lineHeight: 1,
+              zIndex: 5,
+              boxShadow: "0 6px 16px rgba(0,0,0,0.18)",
             }}
           >
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <span style={{ fontSize: 18, fontWeight: 700 }}>Chatbot</span>
-              <span style={{ fontSize: 12, color: "#bbb", marginTop: 4 }}>
-                Virtual assistant for The Barbs Bro
-              </span>
+            ×
+          </button>
+
+          <div
+            style={{
+              padding: "16px 58px 16px 18px",
+              backgroundColor: "#111",
+              color: "#fff",
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ fontSize: 17, fontWeight: 800 }}>Chatbot</div>
+            <div style={{ fontSize: 12, color: "#bbb", marginTop: 3 }}>
+              Virtual assistant for The Barbs Bro
             </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 999,
-                border: "none",
-                backgroundColor: "rgba(255,255,255,0.08)",
-                color: "#fff",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 18,
-                lineHeight: 1,
-              }}
-              aria-label="Close chat"
-            >
-              ×
-            </button>
           </div>
 
-          <div style={{ flex: 1, padding: 18, backgroundColor: "#f3f3f3" }}>
+          <div
+            style={{
+              flex: 1,
+              overflowY: "auto",
+              padding: 18,
+              backgroundColor: "#f4f4f4",
+            }}
+          >
             <div
               style={{
                 backgroundColor: "#fff",
-                borderRadius: 20,
-                padding: 18,
+                borderRadius: 18,
+                padding: 16,
+                marginBottom: 14,
                 boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
-                display: "flex",
-                flexDirection: "column",
-                gap: 14,
               }}
             >
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: "#111" }}>
-                  Welcome to The Barbs Bro!
-                </div>
-                <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>
-                  I am your AI chatbot assistant. I can help you with inquiries regarding our barbershop!
-                </div>
-                <div style={{ fontSize: 13, color: "#555", lineHeight: 1.6 }}>
-                  How may I help you today?
-                </div>
+              <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 10 }}>
+                {greetingParts[0] || "Welcome to The Barbs Bro!"}
               </div>
 
-              <div ref={messagesEndRef} style={{ display: "flex", flexDirection: "column", gap: 12, maxHeight: 230, overflowY: "auto" }}>
-                {messages.length > 0 ? (
-                  messages.map((message) => (
-                    <div
-                      key={message.id}
-                      style={{
-                        alignSelf: message.role === "bot" ? "flex-start" : "flex-end",
-                        maxWidth: "80%",
-                        padding: "12px 14px",
-                        borderRadius: 18,
-                        backgroundColor: message.role === "bot" ? "#f1f1f1" : "#111",
-                        color: message.role === "bot" ? "#111" : "#fff",
-                        fontSize: 13,
-                        lineHeight: 1.5,
-                        whiteSpace: "pre-wrap",
-                      }}
-                    >
-                      {message.text}
-                    </div>
-                  ))
-                ) : (
-                  <div style={{ fontSize: 13, color: "#666", lineHeight: 1.6 }}>
-                    Choose one of the quick options below to get started.
-                  </div>
-                )}
-              </div>
+              {greetingParts.slice(1).map((part) => (
+                <div
+                  key={part}
+                  style={{
+                    fontSize: 13,
+                    color: "#555",
+                    lineHeight: 1.6,
+                    marginTop: 8,
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {part}
+                </div>
+              ))}
+            </div>
 
-              {showQuickOptions ? (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                  {[
-                    "Book an Appointment",
-                    "Barber Availability",
-                    "Shop Location & Operating Hours",
-                    "Services & Prices",
-                    "Talk to Receptionist",
-                    "Social Media",
-                  ].map((label) => (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => handleOptionClick(label)}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  style={{
+                    alignSelf:
+                      message.role === "user" ? "flex-end" : "flex-start",
+                    maxWidth: "78%",
+                    padding: "11px 14px",
+                    borderRadius:
+                      message.role === "user"
+                        ? "18px 18px 4px 18px"
+                        : "18px 18px 18px 4px",
+                    backgroundColor:
+                      message.role === "user" ? "#111" : "#fff",
+                    color: message.role === "user" ? "#fff" : "#111",
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                    whiteSpace: "pre-wrap",
+                    boxShadow:
+                      message.role === "bot"
+                        ? "0 2px 8px rgba(0,0,0,0.06)"
+                        : "none",
+                  }}
+                >
+                  <div>{message.text}</div>
+
+                  {message.link && (
+                    <a
+                      href={message.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       style={{
-                        border: "1px solid #ddd",
+                        display: "inline-block",
+                        marginTop: 10,
+                        padding: "8px 13px",
+                        backgroundColor: "#111",
+                        color: "#fff",
                         borderRadius: 999,
-                        backgroundColor: "#fff",
-                        color: "#111",
-                        padding: "10px 14px",
-                        fontSize: 13,
-                        cursor: "pointer",
+                        textDecoration: "none",
+                        fontSize: 12,
+                        fontWeight: 700,
                       }}
                     >
-                      {label}
-                    </button>
-                  ))}
+                      {message.linkLabel}
+                    </a>
+                  )}
                 </div>
-              ) : (
-                <div style={{ width: "100%", display: "flex", justifyContent: "center" }}>
+              ))}
+
+              <div ref={bottomRef} />
+            </div>
+
+            {showQuickOptions && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 9,
+                  marginTop: 16,
+                }}
+              >
+                {optionItems.map((item) => (
                   <button
+                    key={item.key}
                     type="button"
-                    onClick={() => setShowQuickOptions(true)}
+                    onClick={() => sendMessage(item.label)}
                     style={{
-                      border: "1px solid #111",
+                      border: "1px solid #ddd",
                       borderRadius: 999,
-                      backgroundColor: "#111",
-                      color: "#fff",
-                      padding: "12px 18px",
+                      backgroundColor: "#fff",
+                      color: "#111",
+                      padding: "9px 13px",
                       fontSize: 13,
                       cursor: "pointer",
                     }}
                   >
-                    Any more questions?
+                    {item.label}
                   </button>
-                </div>
-              )}
-            </div>
+                ))}
+              </div>
+            )}
+
+            {!showQuickOptions && (
+              <button
+                type="button"
+                onClick={() => setShowQuickOptions(true)}
+                style={{
+                  marginTop: 16,
+                  border: "1px solid #111",
+                  borderRadius: 999,
+                  backgroundColor: "#111",
+                  color: "#fff",
+                  padding: "10px 15px",
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                Show quick questions
+              </button>
+            )}
           </div>
 
           <div
             style={{
-              padding: 16,
+              padding: 14,
               backgroundColor: "#fff",
               borderTop: "1px solid rgba(0,0,0,0.08)",
+              flexShrink: 0,
             }}
           >
             <div
@@ -232,35 +491,41 @@ export default function ChatbotFloatingButton() {
                 gap: 10,
                 backgroundColor: "#f1f1f1",
                 borderRadius: 999,
-                padding: "10px 12px",
+                padding: "9px 10px 9px 14px",
               }}
             >
               <input
                 type="text"
-                disabled
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") sendMessage();
+                }}
                 placeholder="Type a message..."
                 style={{
-                  width: "100%",
+                  flex: 1,
                   border: "none",
                   background: "transparent",
                   outline: "none",
-                  color: "#333",
+                  color: "#111",
                   fontSize: 14,
+                  minWidth: 0,
                 }}
               />
+
               <button
                 type="button"
+                onClick={() => sendMessage()}
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 38,
+                  height: 38,
                   borderRadius: "50%",
                   border: "none",
                   backgroundColor: "#111",
                   color: "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
                   cursor: "pointer",
+                  fontSize: 18,
+                  flexShrink: 0,
                 }}
                 aria-label="Send message"
               >
@@ -271,29 +536,58 @@ export default function ChatbotFloatingButton() {
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        style={{
-          width: 64,
-          height: 64,
-          borderRadius: "50%",
-          border: "none",
-          backgroundColor: "#111",
-          color: "#fff",
-          cursor: "pointer",
-          boxShadow: "0 22px 60px rgba(0,0,0,0.2)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 14,
-          fontWeight: 700,
-          letterSpacing: 0.5,
-        }}
-        aria-label={open ? "Close chat" : "Open chat"}
-      >
-        {open ? "×" : "Chat"}
-      </button>
+      {!open && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label="Open chatbot"
+          style={{
+            position: "relative",
+            border: "none",
+            backgroundColor: "#f4f4f4",
+            color: "#111",
+            cursor: "pointer",
+            boxShadow: "0 8px 18px rgba(0,0,0,.22)",
+            borderRadius: 18,
+            padding: "12px 22px",
+            width: 330,
+            maxWidth: "calc(100vw - 48px)",
+            minHeight: 66,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 16,
+            fontWeight: 600,
+            fontSize: 20,
+            lineHeight: 1,
+          }}
+        >
+          <ChatBubbleOutlineRoundedIcon
+            sx={{
+              fontSize: 36,
+              color: "#333",
+              flexShrink: 0,
+            }}
+          />
+
+          <span style={{ whiteSpace: "nowrap" }}>
+            Chat with our chatbot!
+          </span>
+
+          <span
+            style={{
+              position: "absolute",
+              right: 34,
+              bottom: -12,
+              width: 28,
+              height: 28,
+              background: "#f4f4f4",
+              transform: "rotate(45deg)",
+              borderRadius: 3,
+            }}
+          />
+        </button>
+      )}
     </div>
   );
 }
