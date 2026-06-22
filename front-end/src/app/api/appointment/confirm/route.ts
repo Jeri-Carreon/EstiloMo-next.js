@@ -58,6 +58,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // eto error sakin, need daw ideclare muna paymentMethodRaw
+    const paymentMethodRaw = sale.payment?.method;
+
     const paymentMethod = paymentMethodRaw === "PAY_AT_SHOP" ? "CASH" : "GCASH";
 
     const dbUser = await db.user.findUnique({

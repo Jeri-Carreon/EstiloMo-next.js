@@ -56,7 +56,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await db.user.findUnique({
+    const dbUser = await db.user.findUnique({
       where: {
         email: user.email,
       },
@@ -69,14 +69,14 @@ export async function GET() {
       },
     });
 
-    if (!user?.customer) {
+    if (!dbUser?.customer) {
       return NextResponse.json(
         { error: "Customer not found" },
         { status: 404 }
       );
     }
 
-    const customer = user.customer;
+    const customer = dbUser.customer;
 
     let loyaltyCard = customer.loyaltyCards;
 
