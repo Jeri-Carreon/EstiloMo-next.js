@@ -11,27 +11,32 @@ const supabaseAdmin = createAdminClient(
 async function createAppointmentCode(tx: any) {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const count = await tx.appointment.count();
+
   return `APT-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 async function createSaleCode(tx: any) {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const count = await tx.sale.count();
+
   return `TRX-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 async function createPaymentCode(tx: any) {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const count = await tx.payment.count();
+
   return `PAY-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
-    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
 
-    if (!authUser) {
+    if (!authUser?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -58,14 +63,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // eto error sakin, need daw ideclare muna paymentMethodRaw
-    const paymentMethodRaw = sale.payment?.method;
-
-    const paymentMethod = paymentMethodRaw === "PAY_AT_SHOP" ? "CASH" : "GCASH";
-
     const dbUser = await db.user.findUnique({
-      where: { email: authUser.email },
-      include: { customer: true },
+      where: {
+        email: authUser.email,
+      },
+      include: {
+        customer: true,
+      },
     });
 
     if (!dbUser?.customer) {
@@ -79,10 +83,12 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(bytes);
 
     const fileExt = paymentScreenshot.name.split(".").pop() || "png";
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const fileName = `${Date.now()}-${Math.random()
+      .toString(36)
+      .substring(2)}.${fileExt}`;
+
     const filePath = `payments/${fileName}`;
 
-    // Use admin client to bypass RLS for storage upload
     const { error: uploadError } = await supabaseAdmin.storage
       .from("payment-screenshots")
       .upload(filePath, buffer, {
@@ -92,8 +98,12 @@ export async function POST(req: NextRequest) {
 
     if (uploadError) {
       console.error("SUPABASE UPLOAD ERROR:", uploadError);
+
       return NextResponse.json(
-        { error: "Failed to upload payment screenshot", details: uploadError.message },
+        {
+          error: "Failed to upload payment screenshot",
+          details: uploadError.message,
+        },
         { status: 500 }
       );
     }
@@ -112,16 +122,20 @@ export async function POST(req: NextRequest) {
       }
 
       const serviceIds = cartItems.map((item: any) => item.serviceId);
-      const uniqueServiceIds = [...new Set(serviceIds)];
+      const uniqueServiceIds = [...new Set(serviceIds)] as string[];
 
       const services = await tx.service.findMany({
-        where: { id: { in: uniqueServiceIds } },
+        where: {
+          id: {
+            in: uniqueServiceIds,
+          },
+        },
       });
 
       if (services.length !== uniqueServiceIds.length) {
-        const foundIds = new Set(services.map((s) => s.id));
+        const foundIds = new Set(services.map((service: any) => service.id));
         const missingIds = uniqueServiceIds.filter((id) => !foundIds.has(id));
-        console.error("Missing service IDs:", missingIds);
+
         throw new Error(`Services not found: ${missingIds.join(", ")}`);
       }
 
@@ -147,19 +161,21 @@ export async function POST(req: NextRequest) {
       >[] = [];
 
       for (const item of cartItems) {
-        const service = services.find((s) => s.id === item.serviceId);
+        const service = services.find((s: any) => s.id === item.serviceId);
 
         if (!service) {
           throw new Error("Service not found");
         }
+
+        const itemPrice = Number(item.servicePrice || service.price);
 
         await tx.saleItem.create({
           data: {
             saleId: sale.id,
             serviceId: item.serviceId,
             quantity: 1,
-            price: Number(item.servicePrice || service.price),
-            subtotal: Number(item.servicePrice || service.price),
+            price: itemPrice,
+            subtotal: itemPrice,
           },
         });
 
@@ -188,13 +204,17 @@ export async function POST(req: NextRequest) {
           amount: subtotal,
           downPayment,
           discount: 0,
-          method: paymentMethod,
+          method: null,
           status: "PENDING",
           screenshotUrl,
         },
       });
 
-      return { sale, payment, appointments: createdAppointments };
+      return {
+        sale,
+        payment,
+        appointments: createdAppointments,
+      };
     });
 
     return NextResponse.json({
@@ -205,6 +225,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("CONFIRM APPOINTMENT ERROR:", error);
+
     return NextResponse.json(
       {
         error: "Failed to confirm appointment",
