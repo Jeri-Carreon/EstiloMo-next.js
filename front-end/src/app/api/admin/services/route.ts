@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
     const user = await getAdminUser()
     if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
@@ -33,15 +33,15 @@ export async function GET(req: Request) {
       durationMinutes: service.durationMinutes,
       price: Number(service.price),
       isAvailable: service.isAvailable,
+      imageUrl: service.imageUrl,
       assignedStaff: service.assignedStaff.map((staff) => ({
         id: staff.id,
         name:
-          [staff.firstName, staff.lastName]
-            .filter(Boolean)
-            .join(" ") || "Unknown",
+          [staff.firstName, staff.lastName].filter(Boolean).join(" ") ||
+          "Unknown",
       })),
       totalBookings: service.totalBookings,
-      totalRevenue: service.totalRevenue,
+      totalRevenue: Number(service.totalRevenue),
     }));
 
     return NextResponse.json({ services: result });
@@ -77,15 +77,14 @@ export async function POST(req: Request) {
       price,
       assignedStaffIds,
       isAvailable,
-      sortOrder,
+      imageUrl,
     } = await req.json();
 
     name = toTitleCase(name ?? "").trim();
     description = (description ?? "").trim();
     durationMinutes = Number(durationMinutes);
     price = Number(price);
-    sortOrder = Number(sortOrder);
-    
+
     if (!name || !description || !durationMinutes || !price) {
       return NextResponse.json(
         { error: "Missing Fields" },
@@ -118,11 +117,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (
-      Number.isNaN(price) ||
-      price < 1 ||
-      price > 99999
-    ) {
+    if (Number.isNaN(price) || price < 1 || price > 99999) {
       return NextResponse.json(
         { error: "Price must be 5 digits (Pesos)" },
         { status: 400 }
@@ -136,16 +131,45 @@ export async function POST(req: Request) {
       );
     }
 
-    if (isAvailable && (!Array.isArray(assignedStaffIds) || assignedStaffIds.length < 1)) {
+    if (!Array.isArray(assignedStaffIds)) {
+      assignedStaffIds = [];
+    }
+
+    if (isAvailable && assignedStaffIds.length < 1) {
       return NextResponse.json(
         { error: "Please assign at least 1 staff member" },
         { status: 400 }
       );
     }
 
+    if (assignedStaffIds.length > 0) {
+      const validBarbers = await db.barber.findMany({
+        where: {
+          id: {
+            in: assignedStaffIds,
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (validBarbers.length !== assignedStaffIds.length) {
+        return NextResponse.json(
+          { error: "One or more barbers not found" },
+          { status: 400 }
+        );
+      }
+    }
+
     const lastService = await db.service.findFirst({
-      orderBy: { createdAt: "desc" },
-      select: { serviceCode: true, sortOrder: true },
+      orderBy: {
+        createdAt: "desc",
+      },
+      select: {
+        serviceCode: true,
+        sortOrder: true,
+      },
     });
 
     const lastNumber = lastService?.serviceCode
@@ -153,7 +177,6 @@ export async function POST(req: Request) {
       : 0;
 
     const serviceCode = String(lastNumber + 1).padStart(3, "0");
-
     const nextSortOrder = (lastService?.sortOrder ?? 0) + 1;
 
     const service = await db.service.create({
@@ -163,12 +186,12 @@ export async function POST(req: Request) {
         description,
         durationMinutes,
         price,
-        isAvailable: Boolean(isAvailable),
+        isAvailable,
         sortOrder: nextSortOrder,
+        imageUrl: imageUrl || null,
 
         assignedStaff: {
-          connect:
-            assignedStaffIds?.map((id: string) => ({ id })) || [],
+          connect: assignedStaffIds.map((id: string) => ({ id })),
         },
       },
       include: {
@@ -192,12 +215,12 @@ export async function POST(req: Request) {
         price: Number(service.price),
         isAvailable: service.isAvailable,
         sortOrder: service.sortOrder,
+        imageUrl: service.imageUrl,
         assignedStaff: service.assignedStaff.map((staff) => ({
           id: staff.id,
           name:
-            [staff.firstName, staff.lastName]
-              .filter(Boolean)
-              .join(" ") || "Unknown",
+            [staff.firstName, staff.lastName].filter(Boolean).join(" ") ||
+            "Unknown",
         })),
       },
     });

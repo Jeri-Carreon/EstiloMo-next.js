@@ -73,11 +73,7 @@ export async function PUT(
         .toLowerCase()
         .split(" ")
         .filter(Boolean)
-        .map(
-          (word) =>
-            word.charAt(0).toUpperCase() +
-            word.slice(1)
-        )
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" ");
 
     let {
@@ -88,39 +84,27 @@ export async function PUT(
       isAvailable,
       assignedStaffIds,
       sortOrder,
+      imageUrl,
     } = await req.json();
-
-    console.log("UPDATE SERVICE DATA:", {
-  id,
-  assignedStaffIds,
-  sortOrder,
-});
 
     name = toTitleCase(name ?? "").trim();
     description = (description ?? "").trim();
     durationMinutes = Number(durationMinutes);
     price = Number(price);
-
-    /* ======================================================
-       REQUIRED FIELDS
-    ====================================================== */
+    sortOrder = Number(sortOrder);
 
     if (
       !name ||
       !description ||
       !durationMinutes ||
       !price ||
-      !sortOrder
+      Number.isNaN(sortOrder)
     ) {
       return NextResponse.json(
         { error: "Missing Fields" },
         { status: 400 }
       );
     }
-
-    /* ======================================================
-       MAX LENGTH VALIDATION
-    ====================================================== */
 
     if (name.length > 50) {
       return NextResponse.json(
@@ -136,158 +120,118 @@ export async function PUT(
       );
     }
 
-    /* ======================================================
-       NUMBER VALIDATION
-    ====================================================== */
-
     if (
       Number.isNaN(durationMinutes) ||
       durationMinutes < 1 ||
       durationMinutes > 999
     ) {
       return NextResponse.json(
-        {
-          error:
-            "Duration must only be 3 digits",
-        },
+        { error: "Duration must only be 3 digits" },
         { status: 400 }
       );
     }
 
-    if (
-      Number.isNaN(price) ||
-      price < 1 ||
-      price > 99999
-    ) {
+    if (Number.isNaN(price) || price < 1 || price > 99999) {
       return NextResponse.json(
-        {
-          error:
-            "Price must be 5 digits (Pesos)",
-        },
+        { error: "Price must be 5 digits (Pesos)" },
         { status: 400 }
       );
     }
-
-    /* ======================================================
-       BOOLEAN VALIDATION
-    ====================================================== */
 
     if (typeof isAvailable !== "boolean") {
       return NextResponse.json(
-        {
-          error:
-            "isAvailable must be boolean",
-        },
+        { error: "isAvailable must be boolean" },
         { status: 400 }
       );
     }
 
-    /* ======================================================
-       STAFF VALIDATION
-    ====================================================== */
+    if (!Array.isArray(assignedStaffIds)) {
+      assignedStaffIds = [];
+    }
 
-    if (isAvailable && Array.isArray(assignedStaffIds)) {
-  const validBarbers = await db.barber.findMany({
-    where: {
-      id: { in: assignedStaffIds },
-    },
-    select: { id: true },
-  });
+    if (isAvailable && assignedStaffIds.length < 1) {
+      return NextResponse.json(
+        { error: "Please assign at least 1 staff member" },
+        { status: 400 }
+      );
+    }
 
-  if (validBarbers.length !== assignedStaffIds.length) {
-    return NextResponse.json(
-      { error: "One or more barbers not found" },
-      { status: 400 }
-    );
-  }
-}
-
-    const updatedService = await db.service.update({
+    if (isAvailable && assignedStaffIds.length > 0) {
+      const validBarbers = await db.barber.findMany({
         where: {
-          id,
-        },
-
-        data: {
-          sortOrder,
-          name,
-          description,
-          durationMinutes,
-          price,
-          isAvailable,
-
-          assignedStaff: {
-            set: assignedStaffIds
-              .filter(Boolean)
-              .map((id: string) => ({ id })),
-          }
-        },
-        include: {
-          assignedStaff: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-            },
+          id: {
+            in: assignedStaffIds,
           },
+        },
+        select: {
+          id: true,
         },
       });
 
+      if (validBarbers.length !== assignedStaffIds.length) {
+        return NextResponse.json(
+          { error: "One or more barbers not found" },
+          { status: 400 }
+        );
+      }
+    }
+
+    const updatedService = await db.service.update({
+      where: {
+        id,
+      },
+      data: {
+        sortOrder,
+        name,
+        description,
+        durationMinutes,
+        price,
+        isAvailable,
+        imageUrl: imageUrl || null,
+
+        assignedStaff: {
+          set: assignedStaffIds
+            .filter(Boolean)
+            .map((id: string) => ({ id })),
+        },
+      },
+      include: {
+        assignedStaff: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
     return NextResponse.json({
       ok: true,
-
       service: {
         id: updatedService.id,
-
         sortOrder: updatedService.sortOrder,
-
-        serviceCode:
-          updatedService.serviceCode,
-
+        serviceCode: updatedService.serviceCode,
         name: updatedService.name,
-
-        description:
-          updatedService.description,
-
-        durationMinutes:
-          updatedService.durationMinutes,
-
-        price: Number(
-          updatedService.price
-        ),
-
-        isAvailable:
-          updatedService.isAvailable,
-
-        assignedStaff:
-          updatedService.assignedStaff.map(
-            (barber) => ({
-              id: barber.id,
-
-              name:
-                [
-                  barber.firstName,
-                  barber.lastName,
-                ]
-                  .filter(Boolean)
-                  .join(" ") || "Unknown",
-            })
-          ),
+        description: updatedService.description,
+        durationMinutes: updatedService.durationMinutes,
+        price: Number(updatedService.price),
+        isAvailable: updatedService.isAvailable,
+        imageUrl: updatedService.imageUrl,
+        assignedStaff: updatedService.assignedStaff.map((barber) => ({
+          id: barber.id,
+          name:
+            [barber.firstName, barber.lastName].filter(Boolean).join(" ") ||
+            "Unknown",
+        })),
       },
     });
   } catch (error) {
-    console.error(
-      "UPDATE SERVICE ERROR:",
-      error
-    );
+    console.error("UPDATE SERVICE ERROR:", error);
 
     return NextResponse.json(
-      {
-        error:
-          "Failed to update service",
-      },
-      {
-        status: 500,
-      }
+      { error: "Failed to update service" },
+      { status: 500 }
     );
   }
 }

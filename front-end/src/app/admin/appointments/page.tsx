@@ -67,6 +67,7 @@ interface CustomerOption {
   id: string;
   customerCode: string;
   name: string;
+  isActive: boolean;
 }
 
 interface BarberOption {
@@ -399,15 +400,18 @@ export default function AppointmentsPage() {
       : [];
 
     setCustomers(
-      customersArray.map((c: any) => ({
-        id: c.id,
-        customerCode: c.customerCode || '',
-        name:
-          c.name ||
-          [c.firstName, c.lastName].filter(Boolean).join(' ') ||
-          c.email ||
-          'Unknown Customer',
-      }))
+      customersArray
+        .filter((c: any) => c.isActive !== false)
+        .map((c: any) => ({
+          id: c.id,
+          customerCode: c.customerCode || '',
+          name:
+            c.name ||
+            [c.firstName, c.lastName].filter(Boolean).join(' ') ||
+            c.email ||
+            'Unknown Customer',
+          isActive: c.isActive ?? true,
+        }))
     );
 
     setBarbers(
@@ -609,6 +613,15 @@ export default function AppointmentsPage() {
       !addForm.endMinutes
     ) {
       showWarning('Please complete all required fields.');
+      return;
+    }
+
+    const chosenCustomer = customers.find(
+      (customer) => customer.id === addForm.customerId
+    );
+
+    if (!chosenCustomer?.isActive) {
+      showWarning('Unavailable customer cannot be used for appointments.');
       return;
     }
 

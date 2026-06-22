@@ -182,11 +182,44 @@ export async function GET() {
       };
     }
 
-    const recommendedServices = await db.service.findMany({
+    const customerHistory = await db.saleItem.groupBy({
+      by: ["serviceId"],
+      where: {
+        sale: {
+          customerId: customer.id,
+          status: "PAID",
+        },
+      },
+      _count: {
+        serviceId: true,
+      },
+      orderBy: {
+        _count: {
+          serviceId: "desc",
+        },
+      },
+      take: 5,
+    });
+
+    const usedServiceIds = customerHistory.map((item) => item.serviceId);
+
+    let recommendedServices = await db.service.findMany({
       where: {
         isAvailable: true,
+        id: {
+          notIn: usedServiceIds,
+        },
+        assignedStaff: {
+          some: {},
+        },
+        imageUrl: {
+          not: null,
+        },
       },
       orderBy: [
+        {
+          totalBookings: "desc",
+        },
         {
           isFeatured: "desc",
         },
@@ -202,20 +235,99 @@ export async function GET() {
         id: true,
         name: true,
         price: true,
+        imageUrl: true,
       },
     });
+
+    if (recommendedServices.length < 3) {
+      const currentRecommendedIds = recommendedServices.map(
+        (service) => service.id
+      );
+
+      const fallbackServices = await db.service.findMany({
+        where: {
+          isAvailable: true,
+          id: {
+            notIn: [...usedServiceIds, ...currentRecommendedIds],
+          },
+          assignedStaff: {
+            some: {},
+          },
+          imageUrl: {
+            not: null,
+          },
+        },
+        orderBy: [
+          {
+            isFeatured: "desc",
+          },
+          {
+            sortOrder: "asc",
+          },
+          {
+            createdAt: "desc",
+          },
+        ],
+        take: 3 - recommendedServices.length,
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          imageUrl: true,
+        },
+      });
+
+      recommendedServices = [...recommendedServices, ...fallbackServices];
+    }
+
+    if (recommendedServices.length === 0) {
+      recommendedServices = await db.service.findMany({
+        where: {
+          isAvailable: true,
+          assignedStaff: {
+            some: {},
+          },
+          imageUrl: {
+            not: null,
+          },
+        },
+        orderBy: [
+          {
+            isFeatured: "desc",
+          },
+          {
+            totalBookings: "desc",
+          },
+          {
+            sortOrder: "asc",
+          },
+        ],
+        take: 3,
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          imageUrl: true,
+        },
+      });
+    }
 
     return NextResponse.json({
       customer: {
         firstName: customer.firstName || "Customer",
       },
+
       latestTransaction,
+
       recommendedServices: recommendedServices.map((service) => ({
         id: service.id,
         name: service.name,
         price: Number(service.price || 0),
-        image: "/images/service-placeholder.jpg",
-        reason: "Recommended from available services.",
+        image: service.imageUrl || "",
+        reason:
+          usedServiceIds.length > 0
+            ? "Recommended based on your appointment and walk-in history."
+            : "Popular service you may like.",
       })),
     });
   } catch (error) {

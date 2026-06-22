@@ -4,6 +4,50 @@ import { getServerSession } from "next-auth";
 import { db } from "@/lib/db";
 import { authOptions } from "@/lib/auth";
 
+type LoyaltyActivityWithSale = Awaited<
+  ReturnType<typeof db.loyaltyCardActivity.findMany>
+>[number] & {
+  Sale: {
+    id: string;
+    saleCode: string;
+    source: "BOOKING" | "WALKIN";
+    subtotal: any;
+    discount: any;
+    totalAmount: any;
+    updatedAt: Date;
+    barber: {
+      firstName: string;
+      lastName: string;
+    } | null;
+    payment: any;
+    items: {
+      id: string;
+      serviceId: string;
+      quantity: number;
+      price: any;
+      subtotal: any;
+      service: {
+        name: string;
+      };
+    }[];
+    appointments: {
+      id: string;
+      appointmentCode: string;
+      appointmentDate: Date;
+      startMinutes: number;
+      endMinutes: number;
+      barber: {
+        firstName: string;
+        lastName: string;
+      };
+      service: {
+        name: string;
+      };
+      payment: any;
+    }[];
+  } | null;
+};
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -40,7 +84,7 @@ export async function GET() {
       });
     }
 
-    const activities = await db.loyaltyCardActivity.findMany({
+    const activities = (await db.loyaltyCardActivity.findMany({
       where: {
         customerId: customer.id,
         saleId: {
@@ -51,7 +95,7 @@ export async function GET() {
         createdAt: "asc",
       },
       include: {
-        sale: {
+        Sale: {
           include: {
             barber: true,
             payment: true,
@@ -71,18 +115,26 @@ export async function GET() {
         },
       },
       take: 10,
-    });
+    })) as LoyaltyActivityWithSale[];
 
     const appointments = activities
-      .filter((activity) => activity.sale)
+      .filter((activity) => activity.Sale)
       .map((activity) => {
-        const sale = activity.sale!;
+        const sale = activity.Sale!;
         const appointment = sale.appointments[0];
-        const firstItem = sale.items[0];
 
         const subtotal = Number(sale.subtotal || 0);
         const discount = Number(sale.discount || 0);
         const totalAmount = Number(sale.totalAmount || 0);
+
+        const services = sale.items.map((item) => ({
+          id: item.id,
+          serviceId: item.serviceId,
+          name: item.service.name,
+          quantity: item.quantity,
+          price: Number(item.price || 0),
+          subtotal: Number(item.subtotal || 0),
+        }));
 
         return {
           id: appointment?.id || sale.id,
@@ -90,7 +142,7 @@ export async function GET() {
           activityId: activity.id,
           appointmentCode: appointment?.appointmentCode || sale.saleCode,
           saleCode: sale.saleCode,
-          type: sale.source === "BOOKING" ? "Appointment" : "Walk-in",
+          type: sale.source === "BOOKING" ? "Booking" : "Walk-in",
           stickerNumber: activity.stickerNumber,
           rewardUsed: activity.rewardUsed,
 
@@ -105,13 +157,18 @@ export async function GET() {
               lastName: "Barber",
             },
 
-          service:
-            appointment?.service ||
-            firstItem?.service || {
-              name: "Walk-in Service",
-              price: String(firstItem?.price || totalAmount || 0),
-            },
+          service: {
+            name:
+              services.length > 1
+                ? services.map((s: { name: string }) => s.name).join(", ")
+                : services[0]?.name || "Walk-in Service",
+            price:
+              services.length > 1
+                ? totalAmount
+                : services[0]?.price || totalAmount,
+          },
 
+          services,
           subtotal,
           discount,
           totalAmount,

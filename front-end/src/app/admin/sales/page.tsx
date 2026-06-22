@@ -38,6 +38,7 @@ type Customer = {
   lastName?: string;
   name?: string;
   mobileNumber: string;
+  isActive: boolean;
 };
 
 type Barber = {
@@ -345,6 +346,7 @@ export default function SalesPage() {
     const keyword = customerSearch.trim().toLowerCase();
 
     if (!keyword || selectedCustomerId) return false;
+    if (!customer.isActive) return false;
 
     const name = fullName(customer).toLowerCase();
 
@@ -587,9 +589,10 @@ export default function SalesPage() {
       const name = fullName(customer).toLowerCase();
 
       return (
-        name === keyword ||
-        customer.customerCode?.toLowerCase() === keyword ||
-        customer.mobileNumber === value
+        customer.isActive &&
+        (name === keyword ||
+          customer.customerCode?.toLowerCase() === keyword ||
+          customer.mobileNumber === value)
       );
     });
 
@@ -599,10 +602,18 @@ export default function SalesPage() {
     }
   }
 
-  function selectCustomer(customer: Customer) {
-    setSelectedCustomerId(customer.id);
-    setCustomerSearch(fullName(customer));
+ function selectCustomer(customer: Customer) {
+  if (!customer.isActive) {
+    setSnackbar({
+      open: true,
+      message: "Unavailable customer cannot be used for sales.",
+      severity: "error",
+    });
+    return;
   }
+  setSelectedCustomerId(customer.id);
+  setCustomerSearch(fullName(customer));
+}
 
   function handleDiscountInput(value: string) {
     if (value === "") {
@@ -624,6 +635,19 @@ export default function SalesPage() {
         setSnackbar({
           open: true,
           message: "Please search and select an existing customer",
+          severity: "error",
+        });
+        return;
+      }
+
+      const chosenCustomer = customers.find(
+        (customer) => customer.id === selectedCustomerId
+      );
+
+      if (!chosenCustomer?.isActive) {
+        setSnackbar({
+          open: true,
+          message: "Unavailable customer cannot be used for sales.",
           severity: "error",
         });
         return;
