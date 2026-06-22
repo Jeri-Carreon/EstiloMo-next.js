@@ -1,42 +1,35 @@
-import { auth } from "@/lib/auth";
+import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {
   try {
-    const session = await auth();
-
-    if (!session || !session.user) {
-      return Response.json(
-        { error: "Not authenticated" },
-        { status: 401 }
-      );
-    }
-
-    const user = await db.user.findUnique({
-      where: { id: session.user.id as string },
-    });
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return Response.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    return Response.json({
+    const userProfile = await db.user.findUnique({
+      where: { id: user.id },
+    });
+
+    if (!userProfile) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
       user: {
-        id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        mobileNumber: user.mobileNumber,
+        id: userProfile.id,
+        firstName: userProfile.firstName,
+        lastName: userProfile.lastName,
+        email: userProfile.email,
+        mobileNumber: userProfile.mobileNumber,
       },
     });
   } catch (error) {
     console.error("Profile fetch error:", error);
-    return Response.json(
-      { error: "Unable to fetch profile" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Unable to fetch profile" }, { status: 500 });
   }
 }

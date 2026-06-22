@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { nanoid } from 'nanoid'
 
@@ -12,18 +12,25 @@ export async function signupAction(formData: {
   mobileNumber: string
 }) {
   console.log('signupAction called with:', formData.email)
-  
+
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    // Check if email already exists in Prisma before attempting Supabase signup
+    const existingUser = await prisma.user.findUnique({
+      where: { email: formData.email },
+    })
+
+    if (existingUser) {
+      return { ok: false, error: 'An account with this email already exists.' }
+    }
+
+    const supabase = await createClient()
 
     const { data, error } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
       options: {
         data: {
+          full_name: `${formData.firstName} ${formData.lastName}`.trim(),
           first_name: formData.firstName,
           last_name: formData.lastName,
         },
@@ -48,6 +55,7 @@ export async function signupAction(formData: {
         firstName: formData.firstName,
         lastName: formData.lastName,
         mobileNumber: formData.mobileNumber,
+        emailVerified: false,
       },
       create: {
         id: supabaseUserId,

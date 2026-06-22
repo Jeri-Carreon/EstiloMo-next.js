@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { signOut } from 'next-auth/react';
 
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -63,12 +64,14 @@ function NavList({
   currentName,
   currentRole,
   onClose,
+  onSignOut,
 }: {
   filteredMenu: typeof menuItems;
   pathname: string | null;
   currentName: string;
   currentRole: string;
   onClose?: () => void;
+  onSignOut: () => void;
 }) {
   const currentInitial = currentName?.charAt(0)?.toUpperCase() || 'U';
 
@@ -101,7 +104,7 @@ function NavList({
         <Button
           variant="contained"
           size="small"
-          onClick={() => signOut({ callbackUrl: '/' })}
+          onClick={onSignOut}
           sx={{
             width: '100%',
             bgcolor: '#333',
@@ -169,6 +172,8 @@ export default function Sidebar({ currentName, currentRole }: SidebarProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const router = useRouter();
+  const supabase = createClient();
 
   const currentInitial = currentName?.charAt(0)?.toUpperCase() || 'U';
 
@@ -176,6 +181,11 @@ export default function Sidebar({ currentName, currentRole }: SidebarProps) {
     item.roles ? item.roles.includes(currentRole) : false
   );
 
+  // sign-out
+    const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push("/");
+  };
   // ── Desktop: static sidebar ────────────────────────────────────────────────
   if (!isMobile) {
     return (
@@ -193,6 +203,7 @@ export default function Sidebar({ currentName, currentRole }: SidebarProps) {
           pathname={pathname}
           currentName={currentName}
           currentRole={currentRole}
+          onSignOut={handleSignOut}
         />
       </Box>
     );
@@ -277,6 +288,7 @@ export default function Sidebar({ currentName, currentRole }: SidebarProps) {
           currentName={currentName}
           currentRole={currentRole}
           onClose={() => setDrawerOpen(false)}
+          onSignOut={handleSignOut}
         />
       </Drawer>
     </>

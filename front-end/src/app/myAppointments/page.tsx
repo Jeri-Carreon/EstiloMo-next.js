@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { createClient } from "@/lib/supabase/client";
 
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -79,8 +79,10 @@ function splitSchedule(schedule: string) {
 
 export default function MyAppointmentsPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const supabase = createClient();
 
+  const [displayName, setDisplayName] = useState("Customer");
+  const [authLoading, setAuthLoading] = useState(true);
   const [history, setHistory] = useState<CustomerHistory[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -136,15 +138,25 @@ export default function MyAppointmentsPage() {
   };
 
   useEffect(() => {
-    if (status === "loading") return;
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
 
-    if (!session?.user?.email) {
-      router.push("/login");
-      return;
-    }
+      if (!user) {
+        router.push("/login");
+        return;
+      }
 
-    loadHistory();
-  }, [session, status, router]);
+      setDisplayName(
+        user.user_metadata?.full_name ||
+        user.email ||
+        "Customer"
+      );
+      setAuthLoading(false);
+      await loadHistory();
+    };
+
+    init();
+  }, []);
 
   const filteredHistory = useMemo(() => {
     return history.filter((item) => {
@@ -214,9 +226,7 @@ export default function MyAppointmentsPage() {
 
       const res = await fetch(
         `/api/customers/appointments/${selectedItem.appointmentId}/cancel`,
-        {
-          method: "PUT",
-        }
+        { method: "PUT" }
       );
 
       const text = await res.text();
@@ -238,7 +248,7 @@ export default function MyAppointmentsPage() {
     }
   };
 
-  if (loading || status === "loading") {
+  if (authLoading || loading) {
     return (
       <>
         <Navbar />
@@ -348,15 +358,9 @@ export default function MyAppointmentsPage() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 900, color: "#888" }}>
-                  Transaction #
-                </TableCell>
-                <TableCell sx={{ fontWeight: 900, color: "#888" }}>
-                  Type
-                </TableCell>
-                <TableCell sx={{ fontWeight: 900, color: "#888" }}>
-                  Barber
-                </TableCell>
+                <TableCell sx={{ fontWeight: 900, color: "#888" }}>Transaction #</TableCell>
+                <TableCell sx={{ fontWeight: 900, color: "#888" }}>Type</TableCell>
+                <TableCell sx={{ fontWeight: 900, color: "#888" }}>Barber</TableCell>
                 <TableCell sx={{ fontWeight: 900 }}>Service</TableCell>
                 <TableCell sx={{ fontWeight: 900 }}>Date</TableCell>
                 <TableCell sx={{ fontWeight: 900 }}>Total Amount</TableCell>
@@ -378,15 +382,12 @@ export default function MyAppointmentsPage() {
                     <TableCell sx={{ fontWeight: 900, color: "#888" }}>
                       {item.saleCode || item.appointmentCode}
                     </TableCell>
-
                     <TableCell sx={{ fontWeight: 900, color: "#888" }}>
                       {formatDisplayType(item.type)}
                     </TableCell>
-
                     <TableCell sx={{ fontWeight: 900, color: "#888" }}>
                       {item.barberName}
                     </TableCell>
-
                     <TableCell sx={{ fontWeight: 900 }}>
                       {item.serviceName}
                     </TableCell>
@@ -410,16 +411,9 @@ export default function MyAppointmentsPage() {
                     <TableCell sx={{ fontWeight: 900, minWidth: 120, whiteSpace: "nowrap" }}>
                       {formatAmount(item.totalAmount)}
                     </TableCell>
-
-                    <TableCell
-                      sx={{
-                        fontWeight: 900,
-                        color: getStatusColor(item.status),
-                      }}
-                    >
+                    <TableCell sx={{ fontWeight: 900, color: getStatusColor(item.status) }}>
                       {item.status}
                     </TableCell>
-
                     <TableCell>
                       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                         {canCancel(item) && (
@@ -520,7 +514,7 @@ export default function MyAppointmentsPage() {
             }}
           >
             <Typography sx={{ fontSize: 22, fontWeight: 900 }}>
-              {session?.user?.name || "Customer"}
+              {displayName}
             </Typography>
 
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -535,10 +529,7 @@ export default function MyAppointmentsPage() {
                   height: 38,
                   borderRadius: "50%",
                   color: "#666",
-                  "&:hover": {
-                    bgcolor: "#e8e8e8",
-                    color: "#000",
-                  },
+                  "&:hover": { bgcolor: "#e8e8e8", color: "#000" },
                 }}
               >
                 <CloseIcon />
@@ -621,9 +612,7 @@ export default function MyAppointmentsPage() {
                 }}
               >
                 <Typography sx={{ fontWeight: 900 }}>{label}</Typography>
-                <Typography sx={{ fontWeight: 900, color: "#777" }}>
-                  {value}
-                </Typography>
+                <Typography sx={{ fontWeight: 900, color: "#777" }}>{value}</Typography>
               </Box>
             ))}
           </Box>

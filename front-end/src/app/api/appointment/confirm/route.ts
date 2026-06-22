@@ -1,36 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabase } from "@/lib/supabase";
-import { getServerSession } from "next-auth";
-
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { createClient } from "@/lib/supabase/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
+
+const supabaseAdmin = createAdminClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 async function createAppointmentCode(tx: any) {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const count = await tx.appointment.count();
-
   return `APT-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 async function createSaleCode(tx: any) {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const count = await tx.sale.count();
-
   return `TRX-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 async function createPaymentCode(tx: any) {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const count = await tx.payment.count();
-
   return `PAY-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const supabase = await createClient();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
 
-    if (!session?.user?.email) {
+    if (!authUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -57,16 +58,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user = await db.user.findUnique({
-      where: {
-        email: session.user.email,
-      },
-      include: {
-        customer: true,
-      },
+    const paymentMethod = paymentMethodRaw === "PAY_AT_SHOP" ? "CASH" : "GCASH";
+
+    const dbUser = await db.user.findUnique({
+      where: { email: authUser.email },
+      include: { customer: true },
     });
 
-    if (!user?.customer) {
+    if (!dbUser?.customer) {
       return NextResponse.json(
         { error: "Customer profile not found" },
         { status: 404 }
@@ -77,14 +76,11 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(bytes);
 
     const fileExt = paymentScreenshot.name.split(".").pop() || "png";
-    const fileName = `${Date.now()}-${Math.random()
-      .toString(36)
-      .substring(2)}.${fileExt}`;
-
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `payments/${fileName}`;
-    const supabase = getSupabase();
 
-    const { error: uploadError } = await supabase.storage
+    // Use admin client to bypass RLS for storage upload
+    const { error: uploadError } = await supabaseAdmin.storage
       .from("payment-screenshots")
       .upload(filePath, buffer, {
         contentType: paymentScreenshot.type,
@@ -93,17 +89,13 @@ export async function POST(req: NextRequest) {
 
     if (uploadError) {
       console.error("SUPABASE UPLOAD ERROR:", uploadError);
-
       return NextResponse.json(
-        {
-          error: "Failed to upload payment screenshot",
-          details: uploadError.message,
-        },
+        { error: "Failed to upload payment screenshot", details: uploadError.message },
         { status: 500 }
       );
     }
 
-    const { data: publicUrlData } = supabase.storage
+    const { data: publicUrlData } = supabaseAdmin.storage
       .from("payment-screenshots")
       .getPublicUrl(filePath);
 
@@ -120,15 +112,10 @@ export async function POST(req: NextRequest) {
       const uniqueServiceIds = [...new Set(serviceIds)];
 
       const services = await tx.service.findMany({
-        where: {
-          id: {
-            in: uniqueServiceIds,
-          },
-        },
+        where: { id: { in: uniqueServiceIds } },
       });
 
       if (services.length !== uniqueServiceIds.length) {
-        // Log which IDs are missing to help debug
         const foundIds = new Set(services.map((s) => s.id));
         const missingIds = uniqueServiceIds.filter((id) => !foundIds.has(id));
         console.error("Missing service IDs:", missingIds);
@@ -142,7 +129,7 @@ export async function POST(req: NextRequest) {
       const sale = await tx.sale.create({
         data: {
           saleCode: await createSaleCode(tx),
-          customerId: user.customer!.id,
+          customerId: dbUser.customer!.id,
           barberId: firstItem.barberId,
           source: "BOOKING",
           status: "PENDING",
@@ -176,7 +163,7 @@ export async function POST(req: NextRequest) {
         const appointment = await tx.appointment.create({
           data: {
             appointmentCode: await createAppointmentCode(tx),
-            customerId: user.customer!.id,
+            customerId: dbUser.customer!.id,
             barberId: item.barberId,
             serviceId: item.serviceId,
             saleId: sale.id,
@@ -204,11 +191,7 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      return {
-        sale,
-        payment,
-        appointments: createdAppointments,
-      };
+      return { sale, payment, appointments: createdAppointments };
     });
 
     return NextResponse.json({
@@ -219,7 +202,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("CONFIRM APPOINTMENT ERROR:", error);
-
     return NextResponse.json(
       {
         error: "Failed to confirm appointment",

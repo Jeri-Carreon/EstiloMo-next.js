@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-
 import { db } from "@/lib/db";
-import { authOptions } from "@/lib/auth";
+
+import { createClient } from "@/lib/supabase/server";
 
 type LoyaltyActivityWithSale = Awaited<
   ReturnType<typeof db.loyaltyCardActivity.findMany>
@@ -50,15 +49,16 @@ type LoyaltyActivityWithSale = Awaited<
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!session?.user?.email) {
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const user = await db.user.findUnique({
       where: {
-        email: session.user.email,
+        email: user.email,
       },
       include: {
         customer: {
