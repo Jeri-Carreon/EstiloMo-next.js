@@ -37,7 +37,6 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
 
     const cartItemsRaw = formData.get("cartItems");
-    const paymentMethodRaw = String(formData.get("paymentMethod") || "GCASH");
     const downPayment = Number(formData.get("downPayment") || 150);
     const paymentScreenshot = formData.get("paymentScreenshot") as File | null;
 
@@ -57,8 +56,6 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    const paymentMethod = paymentMethodRaw === "PAY_AT_SHOP" ? "CASH" : "GCASH";
 
     const user = await db.user.findUnique({
       where: {

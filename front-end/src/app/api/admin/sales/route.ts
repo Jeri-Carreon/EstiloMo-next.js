@@ -39,6 +39,17 @@ export async function GET() {
     }
 
     const sales = await db.sale.findMany({
+      where: {
+        OR: [
+          { source: "WALKIN" },
+          {
+            source: "BOOKING",
+            status: {
+              not: "PENDING",
+            },
+          },
+        ],
+      },
       include: {
         customer: true,
         barber: true,

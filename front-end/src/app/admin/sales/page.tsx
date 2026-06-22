@@ -328,6 +328,13 @@ export default function SalesPage() {
   const discountAmount = Math.round(subtotal * (discountPercent / 100));
   const total = Math.max(subtotal - discountAmount, 0);
 
+  const downPayment = selectedSale?.payment?.downPayment || 0;
+
+  const amountToPay =
+    selectedSale?.source === "BOOKING"
+      ? Math.max(total - downPayment, 0)
+      : total;
+
   const selectedCustomer = customers.find(
     (customer) => customer.id === selectedCustomerId
   );
@@ -741,7 +748,7 @@ export default function SalesPage() {
           body: JSON.stringify({
             method,
             discount: discountAmount,
-            totalAmount: total,
+            totalAmount: amountToPay,
             gcashRefNo: method === "GCASH" ? gcashRefNo : null,
             loyaltyRewardType:
               discountPercent === 100
@@ -1012,7 +1019,11 @@ export default function SalesPage() {
                         {sale.barber?.name || "—"}
                       </TableCell>
                       <TableCell sx={bodyCell}>
-                        {formatPeso(sale.totalAmount)}
+                        {formatPeso(
+                          sale.source === "BOOKING"
+                            ? Math.max(sale.totalAmount - (sale.payment?.downPayment || 0), 0)
+                            : sale.totalAmount
+                        )}
                       </TableCell>
                       <TableCell sx={bodyCell}>
                         {sale.source === "WALKIN" ? "Walk-In" : "Appointment"}
@@ -1527,7 +1538,7 @@ export default function SalesPage() {
 
                   <Box sx={summaryRow}>
                     <Typography>Total Payment</Typography>
-                    <Typography>{formatPeso(total)}</Typography>
+                    <Typography>{formatPeso(amountToPay)}</Typography>
                   </Box>
 
                   <Box sx={summaryRow}>
@@ -1883,7 +1894,15 @@ export default function SalesPage() {
                 </Button>
               ) : (
                 <Typography>
-                  {formatPeso(selectedSale?.totalAmount || 0)}
+                  {formatPeso(
+                    selectedSale?.source === "BOOKING"
+                      ? Math.max(
+                          (selectedSale?.totalAmount || 0) -
+                            (selectedSale?.payment?.downPayment || 0),
+                          0
+                        )
+                      : selectedSale?.totalAmount || 0
+                  )}
                 </Typography>
               )}
             </Box>

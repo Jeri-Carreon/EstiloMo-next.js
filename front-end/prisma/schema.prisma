@@ -259,7 +259,7 @@ model Payment {
   appointmentId String?       @unique
   amount        Decimal       @db.Decimal(10, 2)
   downPayment   Decimal       @default(0) @db.Decimal(10, 2)
-  method        PaymentMethod @default(CASH)
+  method        PaymentMethod?
   status        PaymentStatus @default(PENDING)
   screenshotUrl String?
   createdAt     DateTime      @default(now())

@@ -34,14 +34,23 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const customer = await db.customer.findUnique({
+    const user = await db.user.findUnique({
       where: {
         email: session.user.email,
       },
-      select: {
-        id: true,
+      include: {
+        customer: true,
       },
     });
+
+    if (!user?.customer) {
+      return NextResponse.json(
+        { error: "Customer not found" },
+        { status: 404 }
+      );
+    }
+
+    const customer = user.customer;
 
     if (!customer) {
       return NextResponse.json(
@@ -75,82 +84,80 @@ export async function GET() {
       },
     });
 
-    const appointmentHistory = appointments.map((appointment) => {
-      const sale = appointment.sale;
+    const groupedAppointments = new Map<string, any[]>();
 
-      const saleItems = sale?.items && sale.items.length > 0 ? sale.items : [];
+    appointments.forEach((appointment) => {
+      const key = appointment.saleId || appointment.id;
 
-      const services =
-        saleItems.length > 0
-          ? saleItems.map((item) => ({
-              id: item.id,
-              serviceId: item.serviceId,
-              serviceName: item.service.name,
-              quantity: item.quantity,
-              price: Number(item.price || 0),
-              subtotal: Number(item.subtotal || 0),
-            }))
-          : [
-              {
-                id: appointment.service.id,
-                serviceId: appointment.service.id,
-                serviceName: appointment.service.name,
-                quantity: 1,
-                price: Number(appointment.service.price || 0),
-                subtotal: Number(appointment.service.price || 0),
-              },
-            ];
+      if (!groupedAppointments.has(key)) {
+        groupedAppointments.set(key, []);
+      }
 
-      const subtotal = sale
-        ? Number(sale.subtotal || 0)
-        : Number(appointment.service.price || 0);
-
-      const discount = sale ? Number(sale.discount || 0) : 0;
-      const totalAmount = sale ? Number(sale.totalAmount || 0) : subtotal;
-
-      const schedule = `${formatDate(
-        appointment.appointmentDate
-      )} ${minutesToTime(appointment.startMinutes)} - ${minutesToTime(
-        appointment.endMinutes
-      )}`;
-
-      return {
-        id: appointment.id,
-        type: "APPOINTMENT",
-        saleId: sale?.id || null,
-        appointmentId: appointment.id,
-        appointmentCode: appointment.appointmentCode,
-        saleCode: sale?.saleCode || null,
-
-        barberName: `${appointment.barber.firstName} ${appointment.barber.lastName}`,
-
-        serviceName:
-          services.length > 1
-            ? services.map((service) => service.serviceName).join(", ")
-            : services[0]?.serviceName || appointment.service.name,
-
-        services,
-
-        appointmentDate: appointment.appointmentDate.toISOString(),
-        schedule,
-
-        subtotal,
-        discount,
-        discountPercent:
-          subtotal > 0 ? Math.round((discount / subtotal) * 100) : 0,
-        totalAmount,
-
-        status: appointment.status,
-        paymentStatus:
-          sale?.payment?.status || appointment.payment?.status || "PENDING",
-        paymentMethod:
-          sale?.payment?.method || appointment.payment?.method || "N/A",
-        paymentScreenshotUrl:
-          sale?.payment?.screenshotUrl ||
-          appointment.payment?.screenshotUrl ||
-          null,
-      };
+      groupedAppointments.get(key)!.push(appointment);
     });
+
+    const appointmentHistory = Array.from(groupedAppointments.values()).map(
+      (group) => {
+        const firstAppointment = group[0];
+        const sale = firstAppointment.sale;
+
+        const services = group.map((appointment) => ({
+          id: appointment.service.id,
+          serviceId: appointment.service.id,
+          serviceName: appointment.service.name,
+          quantity: 1,
+          price: Number(appointment.service.price || 0),
+          subtotal: Number(appointment.service.price || 0),
+        }));
+
+        const subtotal = sale
+          ? Number(sale.subtotal || 0)
+          : services.reduce((sum, service) => sum + service.subtotal, 0);
+
+        const discount = sale ? Number(sale.discount || 0) : 0;
+        const totalAmount = sale ? Number(sale.totalAmount || 0) : subtotal;
+
+        const schedules = group.map((appointment) => {
+          return `${formatDate(appointment.appointmentDate)} ${minutesToTime(
+            appointment.startMinutes
+          )} - ${minutesToTime(appointment.endMinutes)}`;
+        });
+
+        return {
+          id: sale?.id || firstAppointment.id,
+          type: "APPOINTMENT",
+          saleId: sale?.id || null,
+          appointmentId: firstAppointment.id,
+          appointmentCode: firstAppointment.appointmentCode,
+          saleCode: sale?.saleCode || null,
+
+          barberName: `${firstAppointment.barber.firstName} ${firstAppointment.barber.lastName}`,
+
+          serviceName: services.map((service) => service.serviceName).join(", "),
+
+          services,
+
+          appointmentDate: firstAppointment.appointmentDate.toISOString(),
+          schedule: schedules.join("\n"),
+
+          subtotal,
+          discount,
+          discountPercent:
+            subtotal > 0 ? Math.round((discount / subtotal) * 100) : 0,
+          totalAmount,
+
+          status: firstAppointment.status,
+          paymentStatus:
+            sale?.payment?.status || firstAppointment.payment?.status || "PENDING",
+          paymentMethod:
+            sale?.payment?.method || firstAppointment.payment?.method || "N/A",
+          paymentScreenshotUrl:
+            sale?.payment?.screenshotUrl ||
+            firstAppointment.payment?.screenshotUrl ||
+            null,
+        };
+      }
+    );
 
     const walkInSales = await db.sale.findMany({
       where: {

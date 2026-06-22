@@ -13,9 +13,6 @@ function minutesToTime(minutes: number) {
   return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
-/**
- * 🔥 FIX: replaced COUNT-based codes (race condition risk)
- */
 function createCode(prefix: string) {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const random = Math.floor(1000 + Math.random() * 9000);
@@ -95,9 +92,10 @@ export async function GET() {
           endTime: minutesToTime(a.endMinutes),
         },
 
-        payment: {
+       payment: {
           id: payment?.id ?? null,
-          amount: Number(payment?.amount ?? a.service?.price ?? 0),
+          amount: Number(a.service?.price ?? 0),
+          saleAmount: Number(payment?.amount ?? a.sale?.totalAmount ?? a.service?.price ?? 0),
           downPayment: Number(payment?.downPayment ?? 0),
           method: payment?.method ?? "GCASH",
           status: payment?.status ?? "PENDING",
