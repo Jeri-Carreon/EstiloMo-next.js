@@ -544,46 +544,52 @@ export default function ChatbotFloatingButton() {
           style={{
             position: "relative",
             border: "none",
-            backgroundColor: "#f4f4f4",
+            backgroundColor: "#f8f8f8",
             color: "#111",
             cursor: "pointer",
-            boxShadow: "0 8px 18px rgba(0,0,0,.22)",
-            borderRadius: 18,
-            padding: "12px 22px",
-            width: 330,
-            maxWidth: "calc(100vw - 48px)",
-            minHeight: 66,
+            boxShadow: "0 6px 16px rgba(0,0,0,.18)",
+            borderRadius: 16,
+
+            width: 260,
+            maxWidth: "calc(100vw - 40px)",
+            height: 58,
+
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: 16,
+            gap: 12,
+
             fontWeight: 600,
-            fontSize: 20,
-            lineHeight: 1,
+            fontSize: 16,
+
+            transition: "all .2s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-2px)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0)";
           }}
         >
           <ChatBubbleOutlineRoundedIcon
             sx={{
-              fontSize: 36,
-              color: "#333",
-              flexShrink: 0,
+              fontSize: 28,
+              color: "#444",
             }}
           />
 
-          <span style={{ whiteSpace: "nowrap" }}>
-            Chat with our chatbot!
-          </span>
+          <span>Chat with our chatbot!</span>
 
           <span
             style={{
               position: "absolute",
-              right: 34,
-              bottom: -12,
-              width: 28,
-              height: 28,
-              background: "#f4f4f4",
+              right: 24,
+              bottom: -8,
+              width: 18,
+              height: 18,
+              background: "#f8f8f8",
               transform: "rotate(45deg)",
-              borderRadius: 3,
+              borderRadius: 2,
             }}
           />
         </button>

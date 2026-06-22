@@ -2062,21 +2062,40 @@ export default function AppointmentsPage() {
                 select
                 label="Status *"
                 value={selectedAppointment.status}
-                disabled={!!isReadOnly}
+                disabled={originalAppointmentStatus.toUpperCase() !== 'PENDING'}
                 size="small"
-                sx={{ bgcolor: '#fff' }}
+                sx={{
+                  bgcolor:
+                    originalAppointmentStatus.toUpperCase() !== 'PENDING'
+                      ? '#e5e5e5'
+                      : '#fff',
+                  '& .MuiInputBase-input.Mui-disabled': {
+                    WebkitTextFillColor: '#777',
+                  },
+                }}
                 onChange={(e) =>
                   setSelectedAppointment((prev) =>
                     prev ? { ...prev, status: e.target.value } : prev
                   )
                 }
               >
-                <MenuItem value="PENDING">Pending</MenuItem>
-                <MenuItem value="SCHEDULED">Scheduled</MenuItem>
-                <MenuItem value="COMPLETED">Completed</MenuItem>
-                <MenuItem value="NOSHOW">No-show</MenuItem>
-                <MenuItem value="CANCELLED">Cancelled</MenuItem>
-                <MenuItem value="REJECTED">Rejected</MenuItem>
+                {originalAppointmentStatus.toUpperCase() === 'PENDING' ? (
+                  [
+                    <MenuItem key="PENDING" value="PENDING">
+                      Pending
+                    </MenuItem>,
+                    <MenuItem key="SCHEDULED" value="SCHEDULED">
+                      Scheduled
+                    </MenuItem>,
+                    <MenuItem key="REJECTED" value="REJECTED">
+                      Rejected
+                    </MenuItem>,
+                  ]
+                ) : (
+                  <MenuItem value={selectedAppointment.status}>
+                    {selectedAppointment.status}
+                  </MenuItem>
+                )}
               </TextField>
 
               <Box>
@@ -2142,9 +2161,10 @@ export default function AppointmentsPage() {
                 </Box>
               </Box>
 
-              {isReadOnly && (
+              {originalAppointmentStatus.toUpperCase() !== 'PENDING' && (
                 <Typography sx={{ color: 'error.main', fontSize: 13 }}>
-                  Completed, No-show, and Cancelled appointments are view-only.
+                  Processed appointment status is view-only here. Completed,
+                  Cancelled, and No-show are handled in Sales.
                 </Typography>
               )}
             </DialogContent>
@@ -2740,21 +2760,40 @@ export default function AppointmentsPage() {
                 select
                 label="Status *"
                 value={selectedAppointment.status}
-                disabled={!!isReadOnly}
+                disabled={originalAppointmentStatus.toUpperCase() !== 'PENDING'}
                 size="small"
-                sx={{ bgcolor: '#fff' }}
+                sx={{
+                  bgcolor:
+                    originalAppointmentStatus.toUpperCase() !== 'PENDING'
+                      ? '#e5e5e5'
+                      : '#fff',
+                  '& .MuiInputBase-input.Mui-disabled': {
+                    WebkitTextFillColor: '#777',
+                  },
+                }}
                 onChange={(e) =>
                   setSelectedAppointment((prev) =>
                     prev ? { ...prev, status: e.target.value } : prev
                   )
                 }
               >
-                <MenuItem value="PENDING">Pending</MenuItem>
-                <MenuItem value="SCHEDULED">Scheduled</MenuItem>
-                <MenuItem value="COMPLETED">Completed</MenuItem>
-                <MenuItem value="NOSHOW">No-show</MenuItem>
-                <MenuItem value="CANCELLED">Cancelled</MenuItem>
-                <MenuItem value="REJECTED">Rejected</MenuItem>
+                {originalAppointmentStatus.toUpperCase() === 'PENDING' ? (
+                  [
+                    <MenuItem key="PENDING" value="PENDING">
+                      Pending
+                    </MenuItem>,
+                    <MenuItem key="SCHEDULED" value="SCHEDULED">
+                      Scheduled
+                    </MenuItem>,
+                    <MenuItem key="REJECTED" value="REJECTED">
+                      Rejected
+                    </MenuItem>,
+                  ]
+                ) : (
+                  <MenuItem value={selectedAppointment.status}>
+                    {selectedAppointment.status}
+                  </MenuItem>
+                )}
               </TextField>
 
               <Box>
@@ -2820,9 +2859,10 @@ export default function AppointmentsPage() {
                 </Box>
               </Box>
 
-              {isReadOnly && (
+              {originalAppointmentStatus.toUpperCase() !== 'PENDING' && (
                 <Typography sx={{ color: 'error.main', fontSize: 13 }}>
-                  Completed, Rejected, No-show, and Cancelled appointments are view-only.
+                  Processed appointment status is view-only here. Completed,
+                  Cancelled, and No-show are handled in Sales.
                 </Typography>
               )}
             </DialogContent>

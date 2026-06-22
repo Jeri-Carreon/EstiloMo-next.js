@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-import { getAdminUser } from "@/lib/supabase/getUser"
+import { getAdminUser } from "@/lib/supabase/getUser";
 
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getAdminUser()
+    const user = await getAdminUser();
+
     if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -34,6 +35,18 @@ export async function PUT(
       afterServicePhotoUrl,
     } = body;
 
+    const existingAppointment = await db.appointment.findUnique({
+      where: { id },
+      select: { status: true },
+    });
+
+    if (!existingAppointment) {
+      return NextResponse.json(
+        { error: "Appointment not found" },
+        { status: 404 }
+      );
+    }
+
     const data: any = {};
 
     if (barberId) {
@@ -56,10 +69,6 @@ export async function PUT(
       data.endMinutes = Number(endMinutes);
     }
 
-    if (status) {
-      data.status = status;
-    }
-
     if (
       data.startMinutes !== undefined &&
       data.endMinutes !== undefined &&
@@ -69,6 +78,36 @@ export async function PUT(
         { error: "Invalid appointment time" },
         { status: 400 }
       );
+    }
+
+    if (status !== undefined && status !== null && status !== "") {
+      const currentStatus = existingAppointment.status.toUpperCase();
+      const requestedStatus = String(status).toUpperCase();
+      const statusChanged = requestedStatus !== currentStatus;
+
+      if (statusChanged) {
+        if (currentStatus !== "PENDING") {
+          return NextResponse.json(
+            {
+              error:
+                "Processed appointment status cannot be edited from the appointments module.",
+            },
+            { status: 400 }
+          );
+        }
+
+        if (!["PENDING", "SCHEDULED", "REJECTED"].includes(requestedStatus)) {
+          return NextResponse.json(
+            {
+              error:
+                "Pending appointments can only be changed to Pending, Scheduled, or Rejected.",
+            },
+            { status: 400 }
+          );
+        }
+
+        data.status = requestedStatus;
+      }
     }
 
     await db.appointment.update({
@@ -125,7 +164,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getAdminUser()
+    const user = await getAdminUser();
+
     if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
