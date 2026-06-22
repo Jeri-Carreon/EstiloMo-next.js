@@ -326,7 +326,7 @@ export default function AppointmentPage() {
           </Typography>
 
           <Button
-            href="/"
+            href="/myAppointments"
             sx={{
               backgroundColor: '#ddd',
               color: '#111',
