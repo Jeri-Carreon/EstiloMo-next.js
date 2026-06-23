@@ -7,10 +7,10 @@ import OutlinedInput from "@mui/material/OutlinedInput";
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 
-import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 //Modals/Dialog Box
 import Dialog from "@mui/material/Dialog";
@@ -24,12 +24,7 @@ import IconButton from "@mui/material/IconButton";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
-  const [token, setToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    const params = new URL(window.location.href).searchParams;
-    setToken(params.get("token"));
-  }, []);
+  const supabase = createClient();
 
   const [password, setPassword] = useState("");  // useState stores new password
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -43,6 +38,8 @@ export default function ResetPasswordPage() {
   const [openDiffPass, setOpenDiffPass] = useState(false);
   const [openWeakPass, setOpenWeakPass] = useState(false);
   const [openSuccess, setOpenSuccess] = useState(false);
+
+  const [sessionReady, setSessionReady] = useState(false);
 
   const validatePassword = (password: string) => {
   const minLength = /.{8,}/;
@@ -58,56 +55,61 @@ export default function ResetPasswordPage() {
   );
 };
 
-  const handleReset = async (e: FormEvent<HTMLFormElement>) => { // handleReset send token and new password
-    e.preventDefault();
+  const handleReset = async (e: FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
 
-    if (!token) {
-      setOpenInvReset(true)
-      return;
-    }
-    
-    if(!password.trim() || !confirmPassword.trim()) {
-      setOpenNoInput(true)
-      return;
-    }
+  if (!password.trim() || !confirmPassword.trim()) {
+    setOpenNoInput(true);
+    return;
+  }
 
-    if (password !== confirmPassword) {
-      setOpenDiffPass(true)
-      return;
-    }
+  if (password !== confirmPassword) {
+    setOpenDiffPass(true);
+    return;
+  }
 
-    if (!validatePassword(password)) {
-      setOpenWeakPass(true)
-      return;
-    }
+  if (!validatePassword(password)) {
+    setOpenWeakPass(true);
+    return;
+  }
 
   try {
-    const res = await fetch("/api/reset-password", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ token, password }),
+    const { error } = await supabase.auth.updateUser({
+      password,
     });
 
-    const data = await res.json();
-
-    console.log("API RESPONSE:", data);
-
-    if (data.ok) {
-      setOpenSuccess(true)
-      setTimeout(() => {
-        router.push("/login"); // router.push = redirects user to url assigned"
-      }, 5000); //5 seconds to redirect
-      
-    } else {
-      setOpenInvReset(true)
+    if (error) {
+      console.error(error.message);
+      setOpenInvReset(true);
+      return;
     }
+
+    setOpenSuccess(true);
+
+    setTimeout(() => {
+      router.push("/login");
+    }, 5000);
+
   } catch (error) {
     console.error(error);
     setOpenInvReset(true);
   }
 };
+
+  useEffect(() => {
+  const checkSession = async () => {
+    const { data } = await supabase.auth.getSession();
+
+    if (!data.session) {
+      setOpenInvReset(true);
+      return;
+    }
+
+    setSessionReady(true);
+  };
+
+  checkSession();
+}, [supabase]);
 
   return (
     <Box
@@ -152,6 +154,7 @@ export default function ResetPasswordPage() {
 
             <OutlinedInput
               type={showPassword ? "text" : "password"}
+              value={password}
               onChange={(e) => setPassword(e.target.value)}
               label="Enter New Password"
             />
@@ -164,12 +167,13 @@ export default function ResetPasswordPage() {
 
           <OutlinedInput
             type={showConfirmPassword ? "text" : "password"}
+            value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             label="Confirm New Password"
           />
         </FormControl>  
 
-          <Button variant="contained" type="submit" 
+          <Button variant="contained" type="submit" disabled={!sessionReady}
             sx={{
               maxWidth: '100%', 
               borderRadius: 10,

@@ -14,20 +14,59 @@ export async function signupAction(formData: {
   console.log('signupAction called with:', formData.email)
 
   try {
-    // Check if email already exists in Prisma before attempting Supabase signup
-    const existingUser = await prisma.user.findUnique({
-      where: { email: formData.email },
-    })
+    const email = formData.email.toLowerCase().trim();
 
-    if (existingUser) {
-      return { ok: false, error: 'An account with this email already exists.' }
+    // Keep as local PH format only
+    const cleanedPhone = formData.mobileNumber.replace(/\D/g, "");
+
+    // Validate PH mobile format
+    if (!/^09\d{9}$/.test(cleanedPhone)) {
+      return {
+        ok: false,
+        error: "Invalid mobile number format",
+      };
     }
 
-    const supabase = await createClient()
+    // Store as-is (09XXXXXXXXX)
+    const phone = cleanedPhone;
 
+
+    // Check existing email
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      return {
+        ok: false,
+        error: "An account with this email already exists."
+      };
+    }
+
+
+    // Check existing phone
+    const existingPhone = await prisma.user.findFirst({
+      where: {
+        mobileNumber: phone,
+      },
+    });
+
+    if (existingPhone) {
+      return {
+        ok: false,
+        error: "Mobile number already exists."
+      };
+    }
+
+
+    const supabase = await createClient();
+
+
+    // Create Supabase Auth user
     const { data, error } = await supabase.auth.signUp({
-      email: formData.email,
+      email,
       password: formData.password,
+
       options: {
         data: {
           full_name: `${formData.firstName} ${formData.lastName}`.trim(),
@@ -35,46 +74,62 @@ export async function signupAction(formData: {
           last_name: formData.lastName,
         },
       },
-    })
+    });
 
-    console.log('Supabase signUp result:', JSON.stringify({ data, error }))
 
     if (error) {
-      return { ok: false, error: error.message }
+      return {
+        ok: false,
+        error: error.message
+      };
     }
 
-    const supabaseUserId = data.user?.id
+
+    const supabaseUserId = data.user?.id;
+
     if (!supabaseUserId) {
-      return { ok: false, error: 'Failed to create auth user' }
+      return {
+        ok: false,
+        error: "Failed to create auth user"
+      };
     }
 
+
+    // Create Prisma profile
     await prisma.user.upsert({
       where: { id: supabaseUserId },
-      update: {
-        email: formData.email,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        mobileNumber: formData.mobileNumber,
-        emailVerified: false,
-      },
       create: {
         id: supabaseUserId,
-        email: formData.email,
+        email,
         firstName: formData.firstName,
         lastName: formData.lastName,
-        mobileNumber: formData.mobileNumber,
-        password: '',
+        mobileNumber: phone,
+        password: "",
         userCode: nanoid(8),
-        role: 'CUSTOMER',
+        role: "CUSTOMER",
         emailVerified: false,
       },
-    })
+      update: {
+        email,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        mobileNumber: phone,
+      },
+    });
 
-    console.log('Prisma user created successfully')
-    return { ok: true }
+
+    return {
+      ok: true
+    };
+
 
   } catch (err: any) {
-    console.error('signupAction error:', err)
-    return { ok: false, error: err.message ?? 'Unknown error' }
+
+    console.error("signupAction error:", err);
+
+    return {
+      ok: false,
+      error: err.message ?? "Unknown error"
+    };
   }
 }

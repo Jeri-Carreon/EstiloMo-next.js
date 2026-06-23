@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-
 import { db } from '@/lib/db';
+
+import { DateTime } from 'luxon';
 
 function formatMinutes(
   minutes: number
@@ -55,12 +56,8 @@ export async function GET(
       );
     }
 
-    const targetDate =
-      new Date(date);
-
-    const dayOfWeek =
-      targetDate.getDay();
-
+    const targetDate = DateTime.fromISO(date, { zone: 'Asia/Manila' });
+    const dayOfWeek = targetDate.weekday % 7; // luxon: 1=Mon, 7=Sun → convert to JS 0=Sun
     // GET BARBER SCHEDULE
     const schedule =
       await db.barberSchedule.findUnique({
@@ -73,27 +70,8 @@ export async function GET(
       });
 
     // CHECK BARBER ABSENCE
-    const startOfDay = new Date(
-      targetDate
-    );
-
-    startOfDay.setHours(
-      0,
-      0,
-      0,
-      0
-    );
-
-    const endOfDay = new Date(
-      targetDate
-    );
-
-    endOfDay.setHours(
-      23,
-      59,
-      59,
-      999
-    );
+    const startOfDay = targetDate.startOf('day').toUTC().toJSDate();
+    const endOfDay = targetDate.endOf('day').toUTC().toJSDate();
 
     const absence =
       await db.barberAbsent.findFirst({
@@ -165,74 +143,73 @@ export async function GET(
         },
       });
 
-    // GENERATE AVAILABLE SLOTS
-    const availableTimes = [];
+    // GET BLOCKED SLOTS FROM CART — move this BEFORE the loop
+const blockedSlotsParam = searchParams.get('blockedSlots');
+const blockedSlots = blockedSlotsParam
+  ? blockedSlotsParam.split(',').map(slot => {
+      const [start, end] = slot.split('-').map(Number);
+      return { startMinutes: start, endMinutes: end };
+    })
+  : [];
 
-    const duration = service.durationMinutes;
+// GENERATE AVAILABLE SLOTS
+const availableTimes = [];
+const duration = service.durationMinutes;
 
-    const now = new Date();
-    const isToday =
-      targetDate.getFullYear() === now.getFullYear() &&
-      targetDate.getMonth() === now.getMonth() &&
-      targetDate.getDate() === now.getDate();
-    
-    const currentMinutes = isToday ? now.getHours() * 60 + now.getMinutes() : 0;
+const nowPH = DateTime.now().setZone('Asia/Manila');
 
-    const bufferMinutes = 60; // 1 HOUR BUFFER
+// fetch from DB instead of hardcoding
+const setting = await db.appointmentSetting.findFirst();
+const bufferMinutes = (setting?.bookingCutoffHours ?? 1) * 60;
 
-    // GET BLOCKED SLOTS FROM CART
-      const blockedSlotsParam = searchParams.get('blockedSlots');
-      
-      const blockedSlots = blockedSlotsParam
-        ? blockedSlotsParam.split(',').map(slot => {
-            const [start, end] = slot.split('-').map(Number);
-            return { startMinutes: start, endMinutes: end };
-          })
-        : [];
+// These stay OUTSIDE the loop (calculated once)
+const nowTotalMinutes = nowPH.hour * 60 + nowPH.minute;
+const targetIsToday = targetDate.hasSame(nowPH, 'day');
+const targetIsTomorrow = targetDate.hasSame(nowPH.plus({ days: 1 }), 'day');
 
-    for (
-      let start = schedule.startTime;
-      start + duration <= schedule.endTime;
-      start += duration
-    ) {
-      const end = start + duration;
-    
-      // SKIPS PAST TIMES
-      if (isToday && start <= currentMinutes) {
-        continue;
-      }
+// PER MINUTE LITERALLY 
+// for (let start = schedule.startTime; start <= schedule.endTime - duration; start += 1)
+for (
+  let start = schedule.startTime;
+  start + duration <= schedule.endTime;
+  start += duration
+) {
+  const end = start + duration;
 
-      // SKIPS TIMES WITHIN BUFFER
-      if (isToday && start < currentMinutes + bufferMinutes) {
-        continue;
-      }
+  // NEW: absolute buffer check (replaces old isToday checks)
+  const absoluteSlotMinutes = targetIsToday
+    ? start
+    : targetIsTomorrow
+    ? start + 1440
+    : Infinity;
 
-      // CHECK OVERLAP
-      const overlaps =
-        appointments.some(
-          (appointment) =>
-            start <
-              appointment.endMinutes &&
-            end >
-              appointment.startMinutes
-        ) ||
-        blockedSlots.some(
-          (blocked) =>
-            start < blocked.endMinutes &&
-            end > blocked.startMinutes
-        );
+  if (absoluteSlotMinutes < nowTotalMinutes + bufferMinutes) {
+    continue;
+  }
 
-      if (overlaps) {
-        continue;
-      }
+  // CHECK OVERLAP
+  const overlaps =
+    appointments.some(
+      (appointment) =>
+        start < appointment.endMinutes &&
+        end > appointment.startMinutes
+    ) ||
+    blockedSlots.some(
+      (blocked) =>
+        start < blocked.endMinutes &&
+        end > blocked.startMinutes
+    );
 
-      
-      availableTimes.push({
-        startMinutes: start,
-        endMinutes: end,
-        label: `${formatMinutes(start)} - ${formatMinutes(end)}`,
-      });
-    }
+  if (overlaps) {
+    continue;
+  }
+
+  availableTimes.push({
+    startMinutes: start,
+    endMinutes: end,
+    label: `${formatMinutes(start)} - ${formatMinutes(end)}`,
+  });
+}
 
     return NextResponse.json({
       ok: true,

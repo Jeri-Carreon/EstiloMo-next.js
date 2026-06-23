@@ -3,29 +3,29 @@ import { db } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 
+import { DateTime } from 'luxon';
+import { todayCodePH } from '@/lib/dateUtils';
+
 const supabaseAdmin = createAdminClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 async function createAppointmentCode(tx: any) {
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const today = todayCodePH(); // ← PH date
   const count = await tx.appointment.count();
-
   return `APT-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 async function createSaleCode(tx: any) {
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const today = todayCodePH(); // ← PH date
   const count = await tx.sale.count();
-
   return `TRX-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 async function createPaymentCode(tx: any) {
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const today = todayCodePH(); // ← PH date
   const count = await tx.payment.count();
-
   return `PAY-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
@@ -186,7 +186,10 @@ export async function POST(req: NextRequest) {
             barberId: item.barberId,
             serviceId: item.serviceId,
             saleId: sale.id,
-            appointmentDate: new Date(item.appointmentDate),
+            appointmentDate: DateTime.fromISO(item.appointmentDate, { zone: 'Asia/Manila' })
+              .startOf('day')
+              .toUTC()
+              .toJSDate(),
             startMinutes: Number(item.startMinutes),
             endMinutes: Number(item.endMinutes),
             status: "PENDING",
