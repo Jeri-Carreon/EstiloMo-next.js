@@ -28,23 +28,13 @@ async function createPaymentCode() {
 
 export async function GET() {
   try {
-    const user = await getAdminUser()
+    const user = await getAdminUser();
+
     if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const sales = await db.sale.findMany({
-      where: {
-        OR: [
-          { source: "WALKIN" },
-          {
-            source: "BOOKING",
-            status: {
-              not: "PENDING",
-            },
-          },
-        ],
-      },
+    const rawSales = await db.sale.findMany({
       include: {
         customer: true,
         barber: true,
@@ -67,6 +57,20 @@ export async function GET() {
       },
     });
 
+    const sales = rawSales.filter((sale) => {
+      if (sale.source === "WALKIN") return true;
+
+      if (sale.source === "BOOKING") {
+        return sale.appointments.some((appointment) =>
+          ["SCHEDULED", "COMPLETED", "CANCELLED", "NOSHOW"].includes(
+            appointment.status
+          )
+        );
+      }
+
+      return false;
+    });
+
     return NextResponse.json({
       sales: sales.map((sale) => ({
         id: sale.id,
@@ -77,6 +81,7 @@ export async function GET() {
         discount: Number(sale.discount),
         totalAmount: Number(sale.totalAmount),
         createdAt: sale.createdAt,
+
         customer: {
           id: sale.customer.id,
           customerCode: sale.customer.customerCode,
@@ -85,6 +90,7 @@ export async function GET() {
             .join(" "),
           mobileNumber: sale.customer.mobileNumber,
         },
+
         barber: sale.barber
           ? {
               id: sale.barber.id,
@@ -93,6 +99,7 @@ export async function GET() {
                 .join(" "),
             }
           : null,
+
         items: sale.items.map((item) => ({
           id: item.id,
           serviceId: item.serviceId,
@@ -101,6 +108,7 @@ export async function GET() {
           price: Number(item.price),
           subtotal: Number(item.subtotal),
         })),
+
         payment: sale.payment
           ? {
               id: sale.payment.id,
@@ -114,6 +122,7 @@ export async function GET() {
               screenshotUrl: sale.payment.screenshotUrl,
             }
           : null,
+
         appointments: sale.appointments.map((appointment) => ({
           id: appointment.id,
           appointmentCode: appointment.appointmentCode,
@@ -153,7 +162,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const user = await getAdminUser()
+    const user = await getAdminUser();
+
     if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

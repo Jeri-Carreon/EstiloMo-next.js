@@ -79,6 +79,7 @@ interface ServiceOption {
   id: string;
   name: string;
   price?: number;
+  durationMinutes?: number;
 }
 
 interface AvailableTime {
@@ -196,6 +197,17 @@ export default function AppointmentsPage() {
 
   const servicePrice = Number(selectedAddService?.price || 0);
 
+  const getSelectedServiceDuration = () => {
+    if (openEditScheduleModal && selectedAppointment?.serviceId) {
+      const service = services.find(
+        (service) => service.id === selectedAppointment.serviceId
+      );
+
+      return Number(service?.durationMinutes || 0);
+    }
+
+    return Number(selectedAddService?.durationMinutes || 0);
+  };
 
   const openImageViewer = (title: string, photos: string[], startIndex = 0) => {
     const validPhotos = photos.filter(Boolean);
@@ -436,12 +448,12 @@ export default function AppointmentsPage() {
       });
 
       const data = await res.json();
-
       setServices(
         (data.services || data || []).map((s: any) => ({
           id: s.id,
           name: s.name,
           price: Number(s.price || 0),
+          durationMinutes: Number(s.durationMinutes || 0),
         }))
       );
     } catch (error) {
@@ -659,7 +671,7 @@ export default function AppointmentsPage() {
           serviceId: addForm.serviceId,
           appointmentDate: addForm.appointmentDate,
           startMinutes: Number(addForm.startMinutes),
-          endMinutes: Number(addForm.endMinutes),
+          endMinutes: Number(addForm.startMinutes) + getSelectedServiceDuration(),
           paymentScreenshotUrl,
           downPayment: 150,
           status: 'SCHEDULED',
@@ -1628,12 +1640,20 @@ export default function AppointmentsPage() {
                       <Button
                         key={time.label}
                         onClick={() => {
-                          setSelectedTime(time);
+
+                          const endMinutes =
+                            time.startMinutes + getSelectedServiceDuration();
+
+                          setSelectedTime({
+                            startMinutes: time.startMinutes,
+                            endMinutes,
+                            label: `${formatMinutes(time.startMinutes)} - ${formatMinutes(endMinutes)}`,
+                          });
 
                           setAddForm((prev) => ({
                             ...prev,
                             startMinutes: String(time.startMinutes),
-                            endMinutes: String(time.endMinutes),
+                            endMinutes: String(endMinutes),
                           }));
                         }}
                         variant="outlined"
@@ -1654,7 +1674,9 @@ export default function AppointmentsPage() {
                           },
                         }}
                       >
-                        {time.label}
+                        {`${formatMinutes(time.startMinutes)} - ${formatMinutes(
+                          time.startMinutes + getSelectedServiceDuration()
+                        )}`}
                       </Button>
                     );
                   })}
@@ -2473,7 +2495,17 @@ export default function AppointmentsPage() {
                     <Button
                       key={time.label}
                       onClick={() => {
-                        setSelectedTime(time);
+                        const duration = getSelectedServiceDuration();
+                        const endMinutes = time.startMinutes + duration;
+                        const label = `${formatMinutes(
+                          time.startMinutes
+                        )} - ${formatMinutes(endMinutes)}`;
+
+                        setSelectedTime({
+                          startMinutes: time.startMinutes,
+                          endMinutes,
+                          label,
+                        });
 
                         const selectedDateText = selectedAddDate
                           ? selectedAddDate.toLocaleDateString('en-US', {
@@ -2491,8 +2523,8 @@ export default function AppointmentsPage() {
                                   ? formatDateInput(selectedAddDate)
                                   : prev.appointmentDate,
                                 startMinutes: time.startMinutes,
-                                endMinutes: time.endMinutes,
-                                schedule: `${selectedDateText} ${time.label}`,
+                                endMinutes,
+                                schedule: `${selectedDateText} ${label}`,
                               }
                             : prev
                         );
@@ -2515,7 +2547,9 @@ export default function AppointmentsPage() {
                         },
                       }}
                     >
-                      {time.label}
+                      {`${formatMinutes(time.startMinutes)} - ${formatMinutes(
+                        time.startMinutes + getSelectedServiceDuration()
+                      )}`}
                     </Button>
                   );
                 })}

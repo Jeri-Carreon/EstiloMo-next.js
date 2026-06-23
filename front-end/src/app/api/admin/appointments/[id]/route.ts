@@ -44,6 +44,7 @@ export async function PUT(
       select: {
         status: true,
         appointmentCode: true,
+        saleId: true,
       },
     });
 
@@ -113,6 +114,15 @@ export async function PUT(
       where: { id },
       data,
     });
+
+    if (data.status === "SCHEDULED" && existingAppointment.saleId) {
+      await db.sale.update({
+        where: { id: existingAppointment.saleId },
+        data: {
+          status: "PARTIAL",
+        },
+      });
+    }
 
     if (afterServicePhotoUrl) {
       await db.afterServicePhoto.create({

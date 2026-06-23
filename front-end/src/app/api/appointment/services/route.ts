@@ -20,7 +20,14 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: {
-        id: "asc",
+        sortOrder: "asc",
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        durationMinutes: true,
+        price: true,
       },
     });
 
@@ -28,8 +35,9 @@ export async function GET(req: NextRequest) {
       services: services.map((s) => ({
         id: s.id,
         name: s.name,
-        price: Number(s.price),
         description: s.description,
+        durationMinutes: s.durationMinutes,
+        price: Number(s.price),
       })),
     });
   } catch (error) {
