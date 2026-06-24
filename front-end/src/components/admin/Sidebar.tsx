@@ -37,7 +37,7 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import SecurityIcon from '@mui/icons-material/Security';
 
 const menuItems = [
-  { label: 'Dashboard', icon: DashboardIcon, path: '/admin/dashboard', roles: ['OWNER'] },
+  { label: 'Dashboard', icon: DashboardIcon, path: '/admin/dashboard', roles: ['OWNER', 'RECEPTIONIST'] },
   { label: 'Customers', icon: GroupIcon, path: '/admin/customers', roles: ['OWNER', 'RECEPTIONIST'] },
   { label: 'Services', icon: BuildIcon, path: '/admin/services', roles: ['OWNER'] },
   { label: 'Barbers', icon: PersonIcon, path: '/admin/barbers', roles: ['OWNER', 'RECEPTIONIST', 'BARBER'] },

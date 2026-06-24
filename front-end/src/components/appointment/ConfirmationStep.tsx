@@ -374,6 +374,10 @@ export default function ConfirmationStep({
                     {item.serviceName}
                   </Typography>
 
+                  <Typography sx={{ color: '#666', fontWeight: 800, fontSize: 14, mt: 0.5 }}>
+                    Duration: {item.serviceDurationMinutes} mins
+                  </Typography>
+
                   <Typography
                     sx={{
                       color: '#f4b400',

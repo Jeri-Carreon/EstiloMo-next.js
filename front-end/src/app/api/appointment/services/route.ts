@@ -35,9 +35,9 @@ export async function GET(req: NextRequest) {
       services: services.map((s) => ({
         id: s.id,
         name: s.name,
+        price: Number(s.price),
         description: s.description,
         durationMinutes: s.durationMinutes,
-        price: Number(s.price),
       })),
     });
   } catch (error) {
