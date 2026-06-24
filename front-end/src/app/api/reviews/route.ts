@@ -1,33 +1,33 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-
     const mine = searchParams.get("mine");
     const completedAppointments = searchParams.get("completedAppointments");
 
     if (completedAppointments === "true") {
-      const session = await auth();
+      const supabase = await createClient();
+      const { data: { user } } = await supabase.auth.getUser();
 
-      if (!session?.user?.email) {
+      if (!user?.email) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
-      const user = await prisma.user.findUnique({
-        where: { email: session.user.email },
+      const dbUser = await db.user.findUnique({
+        where: { email: user.email },
         include: { customer: true },
       });
 
-      if (!user?.customer) {
+      if (!dbUser?.customer) {
         return NextResponse.json({ appointments: [] });
       }
 
-      const appointments = await prisma.appointment.findMany({
+      const appointments = await db.appointment.findMany({
         where: {
-          customerId: user.customer.id,
+          customerId: dbUser.customer.id,
           status: "COMPLETED",
           review: null,
         },
@@ -35,21 +35,15 @@ export async function GET(req: Request) {
           service: true,
           barber: true,
         },
-        orderBy: {
-          appointmentDate: "desc",
-        },
+        orderBy: { appointmentDate: "desc" },
       });
 
-      const reviewedSaleIds = await prisma.review.findMany({
+      const reviewedSaleIds = await db.review.findMany({
         where: {
-          userId: user.id,
-          saleId: {
-            not: null,
-          },
+          userId: dbUser.id,
+          saleId: { not: null },
         },
-        select: {
-          saleId: true,
-        },
+        select: { saleId: true },
       });
 
       const reviewedSaleIdSet = new Set(
@@ -58,26 +52,18 @@ export async function GET(req: Request) {
           .filter((id): id is string => Boolean(id))
       );
 
-      const sales = await prisma.sale.findMany({
+      const sales = await db.sale.findMany({
         where: {
-          customerId: user.customer.id,
+          customerId: dbUser.customer.id,
           status: "PAID",
-          id: {
-            notIn: [...reviewedSaleIdSet],
-          },
+          id: { notIn: [...reviewedSaleIdSet] },
         },
         include: {
           barber: true,
-          items: {
-            include: {
-              service: true,
-            },
-          },
+          items: { include: { service: true } },
           appointments: true,
         },
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: { createdAt: "desc" },
       });
 
       const reviewables = [
@@ -117,11 +103,7 @@ export async function GET(req: Request) {
                   firstName: sale.barber.firstName,
                   lastName: sale.barber.lastName,
                 }
-              : {
-                  id: "",
-                  firstName: "",
-                  lastName: "N/A",
-                },
+              : { id: "", firstName: "", lastName: "N/A" },
           };
         }),
       ];
@@ -130,35 +112,20 @@ export async function GET(req: Request) {
     }
 
     if (!mine) {
-      const reviews = await prisma.review.findMany({
-        where: {
-          isVisible: true,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
+      const reviews = await db.review.findMany({
+        where: { isVisible: true },
+        orderBy: { createdAt: "desc" },
         include: {
           user: {
-            select: {
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
+            select: { firstName: true, lastName: true, email: true },
           },
           appointment: {
-            include: {
-              barber: true,
-              service: true,
-            },
+            include: { barber: true, service: true },
           },
           sale: {
             include: {
               barber: true,
-              items: {
-                include: {
-                  service: true,
-                },
-              },
+              items: { include: { service: true } },
             },
           },
         },
@@ -167,51 +134,35 @@ export async function GET(req: Request) {
       return NextResponse.json({ reviews });
     }
 
-    const session = await auth();
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!session?.user?.email) {
+    if (!user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: {
-        email: session.user.email,
-      },
+    const dbUser = await db.user.findUnique({
+      where: { email: user.email },
     });
 
-    if (!user) {
+    if (!dbUser) {
       return NextResponse.json({ reviews: [] });
     }
 
-    const reviews = await prisma.review.findMany({
-      where: {
-        userId: user.id,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+    const reviews = await db.review.findMany({
+      where: { userId: dbUser.id },
+      orderBy: { createdAt: "desc" },
       include: {
         user: {
-          select: {
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
+          select: { firstName: true, lastName: true, email: true },
         },
         appointment: {
-          include: {
-            barber: true,
-            service: true,
-          },
+          include: { barber: true, service: true },
         },
         sale: {
           include: {
             barber: true,
-            items: {
-              include: {
-                service: true,
-              },
-            },
+            items: { include: { service: true } },
           },
         },
       },
@@ -220,100 +171,64 @@ export async function GET(req: Request) {
     return NextResponse.json({ reviews });
   } catch (error) {
     console.error("GET REVIEWS ERROR:", error);
-
-    return NextResponse.json(
-      { error: "Failed to load reviews" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to load reviews" }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const session = await auth();
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!session?.user?.email) {
+    if (!user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: {
-        email: session.user.email,
-      },
-      include: {
-        customer: true,
-      },
+    const dbUser = await db.user.findUnique({
+      where: { email: user.email },
+      include: { customer: true },
     });
 
-    if (!user?.customer) {
-      return NextResponse.json(
-        { error: "Customer profile not found" },
-        { status: 404 }
-      );
+    if (!dbUser?.customer) {
+      return NextResponse.json({ error: "Customer profile not found" }, { status: 404 });
     }
 
-    const {
-      appointmentId,
-      saleId,
-      rating,
-      comment,
-      isAnonymous = false,
-    } = await req.json();
+    const { appointmentId, saleId, rating, comment, isAnonymous = false } = await req.json();
 
     if (!rating || !comment?.trim()) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     if (saleId) {
-      const sale = await prisma.sale.findFirst({
+      const sale = await db.sale.findFirst({
         where: {
           id: saleId,
-          customerId: user.customer.id,
+          customerId: dbUser.customer.id,
           status: "PAID",
         },
         include: {
-          items: {
-            include: {
-              service: true,
-            },
-          },
+          items: { include: { service: true } },
           barber: true,
         },
       });
 
       if (!sale) {
-        return NextResponse.json(
-          { error: "You can only review paid sales." },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "You can only review paid sales." }, { status: 400 });
       }
 
-      const existingReview = await prisma.review.findFirst({
-        where: {
-          saleId,
-        },
-      });
+      const existingReview = await db.review.findFirst({ where: { saleId } });
 
       if (existingReview) {
-        return NextResponse.json(
-          { error: "You already reviewed this sale." },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "You already reviewed this sale." }, { status: 400 });
       }
 
       const serviceName =
-        sale.items
-          .map((item) => item.service?.name)
-          .filter(Boolean)
-          .join(", ") || "Walk-in Service";
+        sale.items.map((item) => item.service?.name).filter(Boolean).join(", ") || "Walk-in Service";
 
-      const review = await prisma.review.create({
+      const review = await db.review.create({
         data: {
           saleId,
-          userId: user.id,
+          userId: dbUser.id,
           service: serviceName,
           rating: Number(rating),
           comment: comment.trim(),
@@ -322,21 +237,11 @@ export async function POST(req: Request) {
           isVisible: false,
         },
         include: {
-          user: {
-            select: {
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
+          user: { select: { firstName: true, lastName: true, email: true } },
           sale: {
             include: {
               barber: true,
-              items: {
-                include: {
-                  service: true,
-                },
-              },
+              items: { include: { service: true } },
             },
           },
         },
@@ -346,16 +251,13 @@ export async function POST(req: Request) {
     }
 
     if (appointmentId) {
-      const appointment = await prisma.appointment.findFirst({
+      const appointment = await db.appointment.findFirst({
         where: {
           id: appointmentId,
-          customerId: user.customer.id,
+          customerId: dbUser.customer.id,
           status: "COMPLETED",
         },
-        include: {
-          service: true,
-          barber: true,
-        },
+        include: { service: true, barber: true },
       });
 
       if (!appointment) {
@@ -365,11 +267,7 @@ export async function POST(req: Request) {
         );
       }
 
-      const existingReview = await prisma.review.findFirst({
-        where: {
-          appointmentId,
-        },
-      });
+      const existingReview = await db.review.findFirst({ where: { appointmentId } });
 
       if (existingReview) {
         return NextResponse.json(
@@ -378,10 +276,10 @@ export async function POST(req: Request) {
         );
       }
 
-      const review = await prisma.review.create({
+      const review = await db.review.create({
         data: {
           appointmentId,
-          userId: user.id,
+          userId: dbUser.id,
           service: appointment.service.name,
           rating: Number(rating),
           comment: comment.trim(),
@@ -390,35 +288,17 @@ export async function POST(req: Request) {
           isVisible: false,
         },
         include: {
-          user: {
-            select: {
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
-          appointment: {
-            include: {
-              barber: true,
-              service: true,
-            },
-          },
+          user: { select: { firstName: true, lastName: true, email: true } },
+          appointment: { include: { barber: true, service: true } },
         },
       });
 
       return NextResponse.json({ review }, { status: 201 });
     }
 
-    return NextResponse.json(
-      { error: "Missing appointment or sale id" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Missing appointment or sale id" }, { status: 400 });
   } catch (error) {
     console.error("CREATE REVIEW ERROR:", error);
-
-    return NextResponse.json(
-      { error: "Failed to create review" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to create review" }, { status: 500 });
   }
 }
