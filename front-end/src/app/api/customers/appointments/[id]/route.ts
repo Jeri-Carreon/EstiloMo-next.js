@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-
 import { db } from "@/lib/db";
-import { authOptions } from "@/lib/auth";
+
+import { createClient } from "@/lib/supabase/server";
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -18,13 +17,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+    const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id } = await params;
@@ -66,7 +63,7 @@ export async function GET(
       appointment.customer?.email ||
       appointment.customer?.user?.email;
 
-    if (customerEmail !== session.user.email) {
+    if (customerEmail !== user.email) {
       return NextResponse.json(
         { error: "Forbidden" },
         { status: 403 }

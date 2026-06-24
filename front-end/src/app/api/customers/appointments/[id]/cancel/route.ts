@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-
+import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
-import { authOptions } from "@/lib/auth";
 
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!session?.user?.email) {
+    if (!user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -30,16 +29,13 @@ export async function PUT(
     });
 
     if (!appointment) {
-      return NextResponse.json(
-        { error: "Appointment not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
     }
 
     const customerEmail =
       appointment.customer?.email || appointment.customer?.user?.email;
 
-    if (customerEmail !== session.user.email) {
+    if (customerEmail !== user.email) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -58,19 +54,13 @@ export async function PUT(
           where: {
             saleId: appointment.saleId,
             customerId: appointment.customerId,
-            status: {
-              in: ["PENDING", "SCHEDULED"],
-            },
+            status: { in: ["PENDING", "SCHEDULED"] },
           },
-          data: {
-            status: "CANCELLED",
-          },
+          data: { status: "CANCELLED" },
         });
 
         await tx.sale.update({
-          where: {
-            id: appointment.saleId,
-          },
+          where: { id: appointment.saleId },
           data: {
             status: "CANCELLED",
             cancelReason: "Customer cancelled appointment",
@@ -78,32 +68,21 @@ export async function PUT(
         });
 
         return tx.appointment.findMany({
-          where: {
-            saleId: appointment.saleId,
-          },
+          where: { saleId: appointment.saleId },
         });
       }
 
       const updated = await tx.appointment.update({
         where: { id },
-        data: {
-          status: "CANCELLED",
-        },
+        data: { status: "CANCELLED" },
       });
 
       return [updated];
     });
 
-    return NextResponse.json({
-      ok: true,
-      appointments: result,
-    });
+    return NextResponse.json({ ok: true, appointments: result });
   } catch (error) {
     console.error("CUSTOMER CANCEL APPOINTMENT ERROR:", error);
-
-    return NextResponse.json(
-      { error: "Failed to cancel appointment" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to cancel appointment" }, { status: 500 });
   }
 }
