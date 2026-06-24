@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { ensureSingleAppointmentSetting } from "@/lib/appointmentSettings";
 
 export async function GET() {
   try {
@@ -10,13 +9,7 @@ export async function GET() {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
 
-    let settings = await db.appointmentSetting.findFirst();
-
-    if (!settings) {
-      settings = await db.appointmentSetting.create({
-        data: { bookingCutoffHours: 1 },
-      });
-    }
+    const settings = await ensureSingleAppointmentSetting();
 
     return NextResponse.json(settings);
   } catch (error) {

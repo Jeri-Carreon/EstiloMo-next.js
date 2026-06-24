@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
 import { logAppointmentCreated } from "@/lib/securityLogEvents";
 import { parsePHDateOnly } from "@/lib/dateUtils";
+import { ensureSingleAppointmentSetting } from "@/lib/appointmentSettings";
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -116,13 +117,7 @@ export async function GET() {
       };
     });
 
-    let settings = await db.appointmentSetting.findFirst();
-
-    if (!settings) {
-      settings = await db.appointmentSetting.create({
-        data: { bookingCutoffHours: 1 },
-      });
-    }
+    const settings = await ensureSingleAppointmentSetting();
 
     return NextResponse.json({ appointments: result, settings });
   } catch (error) {
@@ -294,18 +289,7 @@ export async function PUT(req: Request) {
       );
     }
 
-    let settings = await db.appointmentSetting.findFirst();
-
-    if (!settings) {
-      settings = await db.appointmentSetting.create({
-        data: { bookingCutoffHours },
-      });
-    } else {
-      settings = await db.appointmentSetting.update({
-        where: { id: settings.id },
-        data: { bookingCutoffHours },
-      });
-    }
+    const settings = await ensureSingleAppointmentSetting({ bookingCutoffHours });
 
     return NextResponse.json({ settings });
   } catch (error) {
