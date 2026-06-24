@@ -123,57 +123,48 @@ export async function PUT(
       },
     });
 
-    if (data.status === "SCHEDULED") {
-      if (updatedBaseAppointment.saleId) {
-        await db.sale.update({
-          where: { id: updatedBaseAppointment.saleId },
-          data: {
-            status: "PARTIAL",
-          },
-        });
-      } else {
-        const sale = await db.sale.create({
-          data: {
-            saleCode: createCode("TRX"),
-            customerId: updatedBaseAppointment.customerId,
-            barberId: updatedBaseAppointment.barberId,
-            source: "BOOKING",
-            status: "PARTIAL",
-            subtotal: Number(updatedBaseAppointment.service.price),
-            discount: 0,
-            totalAmount: Number(updatedBaseAppointment.service.price),
-          },
-        });
+    if (data.status === "SCHEDULED" && !updatedBaseAppointment.saleId) {
+      const sale = await db.sale.create({
+        data: {
+          saleCode: createCode("TRX"),
+          customerId: updatedBaseAppointment.customerId,
+          barberId: updatedBaseAppointment.barberId,
+          source: "BOOKING",
+          status: "PENDING",
+          subtotal: Number(updatedBaseAppointment.service.price),
+          discount: 0,
+          totalAmount: Number(updatedBaseAppointment.service.price),
+        },
+      });
 
-        await db.saleItem.create({
-          data: {
-            saleId: sale.id,
-            serviceId: updatedBaseAppointment.serviceId,
-            quantity: 1,
-            price: Number(updatedBaseAppointment.service.price),
-            subtotal: Number(updatedBaseAppointment.service.price),
-          },
-        });
+      await db.saleItem.create({
+        data: {
+          saleId: sale.id,
+          serviceId: updatedBaseAppointment.serviceId,
+          quantity: 1,
+          price: Number(updatedBaseAppointment.service.price),
+          subtotal: Number(updatedBaseAppointment.service.price),
+        },
+      });
 
-        await db.payment.create({
-          data: {
-            saleId: sale.id,
-            paymentCode: createCode("PAY"),
-            amount: Number(updatedBaseAppointment.service.price),
-            downPayment: 0,
-            discount: 0,
-            method: null,
-            status: "PENDING",
-          },
-        });
+      await db.payment.create({
+        data: {
+          saleId: sale.id,
+          paymentCode: createCode("PAY"),
+          amount: Number(updatedBaseAppointment.service.price),
+          downPayment: 0,
+          discount: 0,
+          method: null,
+          status: "PENDING",
+        },
+      });
 
-        await db.appointment.update({
-          where: { id },
-          data: {
-            saleId: sale.id,
-          },
-        });
-      }
+      await db.appointment.update({
+        where: { id },
+        data: {
+          saleId: sale.id,
+        },
+      });
     }
 
     if (afterServicePhotoUrl) {
