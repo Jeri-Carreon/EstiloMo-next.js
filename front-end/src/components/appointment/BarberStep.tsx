@@ -9,16 +9,14 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
 import Stack from '@mui/material/Stack';
+import IconButton from '@mui/material/IconButton';
+import Badge from '@mui/material/Badge';
+
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 
 import type { AppointmentData } from '@/app/appointment/page';
 
-const steps = [
-  'Barber',
-  'Service',
-  'Schedule',
-  'Cart',
-  'Confirmation',
-];
+const steps = ['Barber', 'Service', 'Schedule', 'Cart', 'Confirmation'];
 
 interface Barber {
   id: string;
@@ -28,40 +26,44 @@ interface Barber {
 
 interface BarberStepProps {
   appointmentData: AppointmentData;
-
   setAppointmentData: React.Dispatch<React.SetStateAction<AppointmentData>>;
-
-  nextStep: (appointmentDate?: string, startMinutes?: number, endMinutes?: number) => void;
+  nextStep: (
+    appointmentDate?: string,
+    startMinutes?: number,
+    endMinutes?: number
+  ) => void;
+  cartCount: number;
+  onCartClick: () => void;
 }
 
 export default function BarberStep({
   appointmentData,
   setAppointmentData,
   nextStep,
+  cartCount,
+  onCartClick,
 }: BarberStepProps) {
   const [barbers, setBarbers] = useState<Barber[]>([]);
-
-  const [selectedBarber, setSelectedBarber] =
-    useState<string>(appointmentData.barberId || '');
-
+  const [selectedBarber, setSelectedBarber] = useState<string>(
+    appointmentData.barberId || ''
+  );
   const [loading, setLoading] = useState(true);
-
   const [error, setError] = useState('');
 
   const loadBarbers = async () => {
     try {
       const res = await fetch('/api/appointment/barbers');
-
       const data = await res.json();
 
       if (!res.ok) {
         setError(data.error || 'Unable to load barbers.');
         setBarbers([]);
-      } else {
-        setError('');
-        setBarbers(data.barbers || []);
+        return;
       }
-    } catch (error) {
+
+      setError('');
+      setBarbers(data.barbers || []);
+    } catch {
       setError('Unable to load barbers.');
     } finally {
       setLoading(false);
@@ -75,10 +77,7 @@ export default function BarberStep({
   const handleNext = () => {
     if (!selectedBarber) return;
 
-    const barber = barbers.find(
-      (b) => b.id === selectedBarber
-    );
-
+    const barber = barbers.find((b) => b.id === selectedBarber);
     if (!barber) return;
 
     setAppointmentData((prev) => ({
@@ -91,18 +90,18 @@ export default function BarberStep({
   };
 
   return (
-    <Box sx={{ display: 'flex' }}>
-      {/* SIDEBAR */}
+    <Box sx={{ display: 'flex', fontFamily: 'var(--font-nunito-sans)' }}>
       <Box
         sx={{
           width: 220,
           backgroundColor: '#000',
-          borderRight: '1px solid #222',
-          px: 3,
-          py: 5,
+          borderRight: '3px solid #0b9cff',
+          px: 2,
+          py: 4,
+          minHeight: '100vh',
         }}
       >
-        <Stack spacing={5}>
+        <Stack spacing={4}>
           {steps.map((step, index) => {
             const active = index === 0;
 
@@ -115,17 +114,16 @@ export default function BarberStep({
               >
                 <Box
                   sx={{
-                    width: 32,
-                    height: 32,
+                    width: 34,
+                    height: 34,
                     borderRadius: '50%',
-                    backgroundColor: active
-                      ? '#f4b400'
-                      : '#777',
+                    backgroundColor: active ? '#f4b400' : '#777',
                     color: active ? '#000' : '#fff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontWeight: 'bold',
+                    fontWeight: 900,
+                    fontSize: 14,
                   }}
                 >
                   {index + 1}
@@ -133,10 +131,9 @@ export default function BarberStep({
 
                 <Typography
                   sx={{
-                    color: active ? '#fff' : '#aaa',
-                    fontWeight: active ? 'bold' : 'normal',
-                    fontFamily:
-                      'var(--font-nunito-sans)',
+                    color: active ? '#fff' : '#999',
+                    fontWeight: active ? 900 : 800,
+                    fontSize: 18,
                   }}
                 >
                   {step}
@@ -147,48 +144,74 @@ export default function BarberStep({
         </Stack>
       </Box>
 
-      {/* MAIN CONTENT */}
       <Box
         sx={{
           flex: 1,
-          backgroundColor: '#e5e5e5',
+          backgroundColor: '#d9d9d9',
           minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
-        {/* TITLE */}
         <Box
           sx={{
-            borderBottom: '1px solid #bbb',
-            px: 4,
-            py: 3,
+            borderBottom: '1px solid #aaa',
+            px: 3,
+            py: 2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
           }}
         >
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 'bold',
-              fontFamily: 'var(--font-nunito-sans)',
-            }}
-          >
+          <Typography sx={{ fontWeight: 900, fontSize: 34, color: '#111' }}>
             Barber
           </Typography>
+
+          <IconButton
+            onClick={onCartClick}
+            disabled={cartCount === 0}
+            sx={{
+              backgroundColor: '#fff',
+              borderRadius: '50%',
+              width: 48,
+              height: 48,
+              position: 'relative',
+              '&:hover': { backgroundColor: '#f5f5f5' },
+              '&.Mui-disabled': {
+                backgroundColor: '#ddd',
+                color: '#999',
+              },
+            }}
+          >
+            <ShoppingCartIcon sx={{ color: cartCount === 0 ? '#999' : '#111' }} />
+
+            <Badge
+              badgeContent={cartCount}
+              color="error"
+              sx={{
+                position: 'absolute',
+                top: 5,
+                right: 5,
+                '& .MuiBadge-badge': {
+                  fontWeight: 900,
+                  fontSize: 11,
+                  minWidth: 18,
+                  height: 18,
+                },
+              }}
+            />
+          </IconButton>
         </Box>
 
-        {/* BARBERS */}
-        <Box sx={{ p: 4 }}>
+        <Box sx={{ flex: 1, p: 3 }}>
           {loading ? (
-            <Typography>
-              Loading barbers...
-            </Typography>
+            <Typography>Loading barbers...</Typography>
           ) : error ? (
-            <Typography color="error">
-              {error}
-            </Typography>
+            <Typography color="error">{error}</Typography>
           ) : (
             <Grid container spacing={4}>
               {barbers.map((barber) => {
-                const isSelected =
-                  selectedBarber === barber.id;
+                const isSelected = selectedBarber === barber.id;
 
                 return (
                   <Grid
@@ -200,21 +223,17 @@ export default function BarberStep({
                     }}
                   >
                     <Paper
-                      onClick={() =>
-                        setSelectedBarber(barber.id)
-                      }
+                      onClick={() => setSelectedBarber(barber.id)}
                       elevation={0}
                       sx={{
                         p: 4,
                         borderRadius: 4,
                         cursor: 'pointer',
-
+                        backgroundColor: '#fff',
                         border: isSelected
                           ? '3px solid #f4b400'
                           : '1px solid #ddd',
-
                         transition: '0.2s',
-
                         '&:hover': {
                           transform: 'translateY(-4px)',
                           boxShadow: 3,
@@ -244,10 +263,9 @@ export default function BarberStep({
                       <Typography
                         align="center"
                         sx={{
-                          fontWeight: 'bold',
+                          fontWeight: 900,
                           fontSize: '1.1rem',
-                          fontFamily:
-                            'var(--font-nunito-sans)',
+                          color: '#111',
                         }}
                       >
                         {barber.name}
@@ -258,8 +276,6 @@ export default function BarberStep({
                         sx={{
                           color: '#666',
                           mt: 1,
-                          fontFamily:
-                            'var(--font-nunito-sans)',
                         }}
                       >
                         Barber
@@ -272,49 +288,52 @@ export default function BarberStep({
           )}
         </Box>
 
-        {/* FOOTER BUTTONS */}
         <Box
           sx={{
-            borderTop: '1px solid #bbb',
-            px: 4,
-            py: 3,
+            borderTop: '1px solid #aaa',
+            backgroundColor: '#f5f5f5',
+            px: 3,
+            py: 2,
             display: 'flex',
             justifyContent: 'space-between',
           }}
         >
           <Button
-            variant="contained"
             disabled
             sx={{
-              backgroundColor: '#cfcfcf',
-              color: '#666',
+              backgroundColor: '#d3d3d3',
+              color: '#111',
               px: 6,
-              py: 1.5,
+              py: 1,
               borderRadius: 10,
               textTransform: 'none',
-              boxShadow: 'none',
+              fontWeight: 900,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              '&.Mui-disabled': {
+                backgroundColor: '#d3d3d3',
+                color: '#999',
+              },
             }}
           >
             Back
           </Button>
 
           <Button
-            variant="contained"
-            disabled={!selectedBarber}
             onClick={handleNext}
+            disabled={!selectedBarber}
             sx={{
               backgroundColor: '#f4b400',
-              color: '#000',
-              px: 6,
-              py: 1.5,
+              color: '#111',
+              px: 7,
+              py: 1,
               borderRadius: 10,
               textTransform: 'none',
-              fontWeight: 'bold',
-              boxShadow: 'none',
-
-              '&.Mui-disabled': {
-                backgroundColor: '#d9d9d9',
-                color: '#888',
+              fontWeight: 900,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              '&:hover': { backgroundColor: '#e0a800' },
+              '&:disabled': {
+                backgroundColor: '#f5dc90',
+                color: '#777',
               },
             }}
           >

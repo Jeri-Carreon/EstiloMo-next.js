@@ -95,7 +95,6 @@ export default function MyReviewsPage() {
   const [isAnonymous, setIsAnonymous] = useState(false);
 
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const loadMyReviews = async () => {
@@ -148,7 +147,6 @@ export default function MyReviewsPage() {
 
   const handleOpenDialog = () => {
     setError("");
-    setSuccess("");
     setComment("");
     setRating(5);
     setIsAnonymous(false);
@@ -165,7 +163,6 @@ export default function MyReviewsPage() {
     event.preventDefault();
 
     setError("");
-    setSuccess("");
 
     const selectedItem = reviewables.find(
       (item) => item.id === selectedReviewableId
@@ -217,7 +214,6 @@ export default function MyReviewsPage() {
       setSelectedReviewableId("");
       setRating(5);
       setIsAnonymous(false);
-      setSuccess("Review submitted successfully. Waiting for admin approval.");
       setIsDialogOpen(false);
     } catch {
       setError("Unable to submit review.");
@@ -281,12 +277,6 @@ export default function MyReviewsPage() {
         {error && (
           <Typography color="error" sx={{ mb: 2, textAlign: "center" }}>
             {error}
-          </Typography>
-        )}
-
-        {success && (
-          <Typography color="success.main" sx={{ mb: 2, textAlign: "center" }}>
-            {success}
           </Typography>
         )}
 

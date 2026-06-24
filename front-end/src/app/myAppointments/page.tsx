@@ -11,6 +11,7 @@ import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
 import InputAdornment from "@mui/material/InputAdornment";
 import Paper from "@mui/material/Paper";
+import Card from "@mui/material/Card";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -28,6 +29,7 @@ import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import StarIcon from "@mui/icons-material/Star";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import PaymentsIcon from "@mui/icons-material/Payments";
+import BookmarkBorderIcon from "@mui/icons-material/BookmarkBorder";
 
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -53,6 +55,8 @@ type CustomerHistory = {
   serviceName: string;
   services: HistoryService[];
   appointmentDate: string;
+  date?: string;
+  time?: string;
   schedule: string;
   subtotal: number;
   discount: number;
@@ -65,10 +69,22 @@ type CustomerHistory = {
   afterServicePhotoUrl?: string | null;
 };
 
+type RecommendedService = {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+  reason: string;
+};
+
 const itemsPerPage = 5;
 
 function formatAmount(amount: number) {
   return `₱ ${Number(amount || 0).toFixed(2)}`;
+}
+
+function formatPeso(value: number) {
+  return `₱ ${Number(value || 0).toLocaleString("en-PH")}`;
 }
 
 function formatDisplayType(type: CustomerHistory["type"]) {
@@ -86,6 +102,9 @@ export default function MyAppointmentsPage() {
   const [displayName, setDisplayName] = useState("Customer");
   const [authLoading, setAuthLoading] = useState(true);
   const [history, setHistory] = useState<CustomerHistory[]>([]);
+  const [recommendedServices, setRecommendedServices] = useState<
+    RecommendedService[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
@@ -119,13 +138,16 @@ export default function MyAppointmentsPage() {
       if (!res.ok) {
         console.error("LOAD CUSTOMER HISTORY ERROR:", data);
         setHistory([]);
+        setRecommendedServices([]);
         return;
       }
 
       setHistory(data.appointments || []);
+      setRecommendedServices(data.recommendedServices || []);
     } catch (error) {
       console.error("LOAD CUSTOMER HISTORY FETCH ERROR:", error);
       setHistory([]);
+      setRecommendedServices([]);
     } finally {
       setLoading(false);
     }
@@ -177,7 +199,10 @@ export default function MyAppointmentsPage() {
     page * itemsPerPage
   );
 
-  const totalPages = Math.max(1, Math.ceil(filteredHistory.length / itemsPerPage));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredHistory.length / itemsPerPage)
+  );
 
   const showingFrom =
     filteredHistory.length === 0 ? 0 : (page - 1) * itemsPerPage + 1;
@@ -329,6 +354,7 @@ export default function MyAppointmentsPage() {
                 </TableCell>
                 <TableCell sx={{ fontWeight: 900 }}>Service</TableCell>
                 <TableCell sx={{ fontWeight: 900 }}>Date</TableCell>
+                <TableCell sx={{ fontWeight: 900 }}>Time</TableCell>
                 <TableCell sx={{ fontWeight: 900 }}>Total Amount</TableCell>
                 <TableCell sx={{ fontWeight: 900 }}>Status</TableCell>
                 <TableCell sx={{ fontWeight: 900 }}>Actions</TableCell>
@@ -338,7 +364,7 @@ export default function MyAppointmentsPage() {
             <TableBody>
               {paginatedHistory.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
+                  <TableCell colSpan={9} align="center">
                     No history found.
                   </TableCell>
                 </TableRow>
@@ -361,28 +387,12 @@ export default function MyAppointmentsPage() {
                       {item.serviceName}
                     </TableCell>
 
-                    <TableCell sx={{ fontWeight: 900, minWidth: 340 }}>
-                      {splitSchedule(item.schedule || item.appointmentDate).map(
-                        (date, index) => (
-                          <Typography
-                            key={index}
-                            sx={{
-                              fontWeight: 900,
-                              fontSize: 14,
-                              whiteSpace: "nowrap",
-                              mb:
-                                index !==
-                                splitSchedule(item.schedule || item.appointmentDate)
-                                  .length -
-                                  1
-                                  ? 0.5
-                                  : 0,
-                            }}
-                          >
-                            {date}
-                          </Typography>
-                        )
-                      )}
+                    <TableCell sx={{ fontWeight: 900, whiteSpace: "nowrap" }}>
+                      {item.date || splitSchedule(item.schedule || item.appointmentDate)[0]}
+                    </TableCell>
+
+                    <TableCell sx={{ fontWeight: 900, whiteSpace: "nowrap" }}>
+                      {item.time || "N/A"}
                     </TableCell>
 
                     <TableCell
@@ -416,7 +426,9 @@ export default function MyAppointmentsPage() {
                             )
                           }
                           sx={{
-                            bgcolor: item.afterServicePhotoUrl ? "#e5e5e5" : "#f1f1f1",
+                            bgcolor: item.afterServicePhotoUrl
+                              ? "#e5e5e5"
+                              : "#f1f1f1",
                             width: 34,
                             height: 34,
                             color: item.afterServicePhotoUrl ? "#555" : "#aaa",
@@ -440,7 +452,9 @@ export default function MyAppointmentsPage() {
                             )
                           }
                           sx={{
-                            bgcolor: item.paymentScreenshotUrl ? "#e5e5e5" : "#f1f1f1",
+                            bgcolor: item.paymentScreenshotUrl
+                              ? "#e5e5e5"
+                              : "#f1f1f1",
                             width: 34,
                             height: 34,
                             color: item.paymentScreenshotUrl ? "#555" : "#aaa",
@@ -506,7 +520,8 @@ export default function MyAppointmentsPage() {
           }}
         >
           <Typography sx={{ fontSize: 14 }}>
-            Showing {showingFrom} to {showingTo} of {filteredHistory.length} Entries
+            Showing {showingFrom} to {showingTo} of {filteredHistory.length}{" "}
+            Entries
           </Typography>
 
           <Pagination
@@ -516,6 +531,97 @@ export default function MyAppointmentsPage() {
             size="small"
           />
         </Box>
+
+        {recommendedServices.length > 0 && (
+          <Box sx={{ mt: 8 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 3 }}>
+              <BookmarkBorderIcon />
+
+              <Typography sx={{ fontSize: 24, fontWeight: 900 }}>
+                Recommended For You
+              </Typography>
+            </Box>
+
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  sm: "repeat(2, 1fr)",
+                  md: "repeat(3, minmax(280px, 320px))",
+                },
+                justifyContent: "space-evenly",
+                gap: 4,
+                width: "100%",
+              }}
+            >
+              {recommendedServices.map((service) => (
+                <Card
+                  key={service.id}
+                  elevation={0}
+                  sx={{
+                    bgcolor: "#d9d9d9",
+                    borderRadius: 0,
+                    p: 2,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: "100%",
+                      height: 170,
+                      position: "relative",
+                      mb: 1.5,
+                      bgcolor: "#ccc",
+                    }}
+                  >
+                    <Box
+                      component="img"
+                      src={service.image || "/images/service-placeholder.jpg"}
+                      alt={service.name}
+                      onError={(event) => {
+                        event.currentTarget.src =
+                          "/images/service-placeholder.jpg";
+                      }}
+                      sx={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        display: "block",
+                      }}
+                    />
+                  </Box>
+
+                  <Typography sx={{ fontWeight: 800, fontSize: 15 }}>
+                    {service.name} - {formatPeso(service.price)}
+                  </Typography>
+
+                  <Typography sx={{ fontSize: 11, mb: 1.5 }}>
+                    {service.reason}
+                  </Typography>
+
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    onClick={() => router.push("/appointment")}
+                    sx={{
+                      bgcolor: "#000",
+                      color: "#fff",
+                      borderRadius: 5,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      py: 0.7,
+                      "&:hover": {
+                        bgcolor: "#222",
+                      },
+                    }}
+                  >
+                    Book Now
+                  </Button>
+                </Card>
+              ))}
+            </Box>
+          </Box>
+        )}
       </Box>
 
       <Dialog
@@ -574,6 +680,9 @@ export default function MyAppointmentsPage() {
                     Date
                   </TableCell>
                   <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                    Time
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>
                     Price
                   </TableCell>
                 </TableRow>
@@ -594,27 +703,13 @@ export default function MyAppointmentsPage() {
                       {service.quantity}
                     </TableCell>
 
-                    <TableCell
-                      sx={{
-                        fontWeight: 900,
-                        color: "#888",
-                        minWidth: 260,
-                      }}
-                    >
-                      {splitSchedule(selectedItem?.schedule || "").map(
-                        (date, index) => (
-                          <Typography
-                            key={index}
-                            sx={{
-                              fontWeight: 900,
-                              color: "#888",
-                              fontSize: 14,
-                            }}
-                          >
-                            {date}
-                          </Typography>
-                        )
-                      )}
+                    <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                      {selectedItem?.date ||
+                        splitSchedule(selectedItem?.schedule || "")[0]}
+                    </TableCell>
+
+                    <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                      {selectedItem?.time || "N/A"}
                     </TableCell>
 
                     <TableCell

@@ -11,18 +11,31 @@ const supabaseAdmin = createAdminClient(
 export async function POST(req: Request) {
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
     const { firstName, lastName, mobileNumber } = await req.json();
+
     const trimmedFirstName = (firstName ?? "").trim();
     const trimmedLastName = (lastName ?? "").trim();
     const trimmedMobileNumber = (mobileNumber ?? "").trim();
 
-    // Update display name in Supabase auth.users
+    if (!/^09\d{9}$/.test(trimmedMobileNumber)) {
+      return NextResponse.json(
+        {
+          error:
+            "Mobile number must start with 09 and contain exactly 11 digits.",
+        },
+        { status: 400 }
+      );
+    }
+
     const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
       user.id,
       {
@@ -32,27 +45,26 @@ export async function POST(req: Request) {
         },
       }
     );
+
     if (authError) {
       return NextResponse.json({ error: authError.message }, { status: 400 });
     }
 
-    // Update Prisma user table
     const updatedUser = await db.user.update({
       where: { id: user.id },
       data: {
         firstName: trimmedFirstName || undefined,
         lastName: trimmedLastName || undefined,
-        mobileNumber: trimmedMobileNumber || undefined,
+        mobileNumber: trimmedMobileNumber,
       },
     });
 
-    // Keep customer-facing records in sync for admin/customer views
     await db.customer.updateMany({
       where: { userId: user.id },
       data: {
         firstName: trimmedFirstName || undefined,
         lastName: trimmedLastName || undefined,
-        mobileNumber: trimmedMobileNumber || undefined,
+        mobileNumber: trimmedMobileNumber,
       },
     });
 
@@ -67,6 +79,10 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("Profile update error:", error);
-    return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });
+
+    return NextResponse.json(
+      { error: "Failed to update profile" },
+      { status: 500 }
+    );
   }
 }

@@ -70,7 +70,7 @@ export default function LoginPage() {
     if (user.role !== 'CUSTOMER') {
       router.push('/admin/dashboard')
     } else {
-      router.push('/customerHome')
+      router.push('/myAppointments')
     }
   }
 
