@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
 import { logAppointmentCreated } from "@/lib/securityLogEvents";
+import { parsePHDateOnly } from "@/lib/dateUtils";
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -194,7 +195,7 @@ export async function POST(req: Request) {
           customerId,
           barberId,
           serviceId,
-          appointmentDate: new Date(appointmentDate),
+          appointmentDate: parsePHDateOnly(appointmentDate),
           startMinutes: start,
           endMinutes: end,
           source: "BOOKING",

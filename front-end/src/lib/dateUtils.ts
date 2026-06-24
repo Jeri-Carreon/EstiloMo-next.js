@@ -28,3 +28,27 @@ export const nowInPH = () => {
 export const todayPH = () => {
   return nowInPH().startOf('day').toJSDate();
 };
+
+export const toPHDateKey = (value: Date | string | null | undefined) => {
+  if (!value) return '';
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  return DateTime.fromJSDate(parsed, { zone: 'utc' })
+    .setZone('Asia/Manila')
+    .toFormat('yyyy-MM-dd');
+};
+
+export const parsePHDateOnly = (value: Date | string) => {
+  if (value instanceof Date) {
+    return DateTime.fromJSDate(value, { zone: 'utc' })
+      .setZone('Asia/Manila')
+      .startOf('day')
+      .toJSDate();
+  }
+
+  return DateTime.fromISO(String(value), { zone: 'Asia/Manila' })
+    .startOf('day')
+    .toJSDate();
+};

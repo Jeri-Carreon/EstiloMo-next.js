@@ -18,6 +18,9 @@ export async function POST(req: Request) {
     }
 
     const { firstName, lastName, mobileNumber } = await req.json();
+    const trimmedFirstName = (firstName ?? "").trim();
+    const trimmedLastName = (lastName ?? "").trim();
+    const trimmedMobileNumber = (mobileNumber ?? "").trim();
 
     // Update display name in Supabase auth.users
     const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
@@ -25,7 +28,7 @@ export async function POST(req: Request) {
       {
         user_metadata: {
           ...user.user_metadata,
-          full_name: `${firstName} ${lastName}`.trim(),
+          full_name: `${trimmedFirstName} ${trimmedLastName}`.trim(),
         },
       }
     );
@@ -37,9 +40,19 @@ export async function POST(req: Request) {
     const updatedUser = await db.user.update({
       where: { id: user.id },
       data: {
-        firstName: firstName || undefined,
-        lastName: lastName || undefined,
-        mobileNumber: mobileNumber || undefined,
+        firstName: trimmedFirstName || undefined,
+        lastName: trimmedLastName || undefined,
+        mobileNumber: trimmedMobileNumber || undefined,
+      },
+    });
+
+    // Keep customer-facing records in sync for admin/customer views
+    await db.customer.updateMany({
+      where: { userId: user.id },
+      data: {
+        firstName: trimmedFirstName || undefined,
+        lastName: trimmedLastName || undefined,
+        mobileNumber: trimmedMobileNumber || undefined,
       },
     });
 

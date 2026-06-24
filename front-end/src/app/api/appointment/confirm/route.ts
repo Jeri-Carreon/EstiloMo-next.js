@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 
 import { DateTime } from 'luxon';
-import { todayCodePH } from '@/lib/dateUtils';
+import { parsePHDateOnly, todayCodePH } from '@/lib/dateUtils';
 
 const supabaseAdmin = createAdminClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -186,10 +186,7 @@ export async function POST(req: NextRequest) {
             barberId: item.barberId,
             serviceId: item.serviceId,
             saleId: sale.id,
-            appointmentDate: DateTime.fromISO(item.appointmentDate, { zone: 'Asia/Manila' })
-              .startOf('day')
-              .toUTC()
-              .toJSDate(),
+            appointmentDate: parsePHDateOnly(item.appointmentDate),
             startMinutes: Number(item.startMinutes),
             endMinutes: Number(item.endMinutes),
             status: "PENDING",

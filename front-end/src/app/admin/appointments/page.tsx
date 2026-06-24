@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { toPHDateKey } from '@/lib/dateUtils';
 
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -841,8 +842,8 @@ export default function AppointmentsPage() {
         day
       ).padStart(2, '0')}`;
 
-      return appointments.filter((a) =>
-        a.appointmentDate?.startsWith(dateStr)
+      return appointments.filter(
+        (a) => toPHDateKey(a.appointmentDate) === dateStr
       );
     };
 
@@ -3019,9 +3020,9 @@ export default function AppointmentsPage() {
 
         <DialogContent sx={{ p: 0, bgcolor: '#f2f2f2' }}>
           {(() => {
-            const dateStr = formatDateInput(dayViewDate);
-            const dayAppointments = appointments.filter((a) =>
-              a.appointmentDate?.startsWith(dateStr)
+            const dateStr = toPHDateKey(dayViewDate);
+            const dayAppointments = appointments.filter(
+              (a) => toPHDateKey(a.appointmentDate) === dateStr
             );
 
             const hours = Array.from({ length: 11 }, (_, i) => i + 10); // 8 AM to 8 PM

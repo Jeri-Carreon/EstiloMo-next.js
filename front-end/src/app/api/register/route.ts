@@ -1,22 +1,9 @@
-import bcrypt from "bcrypt";
-import crypto from "crypto";
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { Resend } from "resend";
-
-function getResendClient() {
-  const apiKey = process.env.RESEND_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("Missing RESEND_API_KEY");
-  }
-
-  return new Resend(apiKey);
-}
+import { registerUser } from "@/lib/register-user";
 
 export async function POST(req: Request) {
   try {
-    let { firstName, lastName, email, password, mobileNumber } =
+    let { firstName, lastName, email, password, mobileNumber, id } =
       await req.json();
 
     firstName = (firstName ?? "").trim();
@@ -90,123 +77,20 @@ export async function POST(req: Request) {
       );
     }
 
-    // ========================
-    // CHECK EXISTING USER
-    // ========================
-    const existingUser = await db.user.findUnique({
-      where: { email },
+    const { user } = await registerUser({
+      id,
+      firstName,
+      lastName,
+      email,
+      password,
+      mobileNumber,
     });
 
-    if (existingUser) {
-      return NextResponse.json(
-        { ok: false, error: "Email already registered" },
-        { status: 400 }
-      );
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const user = await db.$transaction(async (tx) => {
-
-      // UserCode 
-      const userCounter = await tx.counter.update({
-        where: { id: "userCode" },
-        data: {
-          value: { increment: 1 },
-        },
-      });
-
-    const userCode = String(userCounter.value).padStart(3, "0");
-      const newUser = await tx.user.create({
-        data: {
-          userCode,
-          firstName,
-          lastName,
-          email,
-          password: hashedPassword,
-          mobileNumber,
-          role: "CUSTOMER",
-          emailVerified: false,
-        },
-      });
-
-      // customerCode
-      const customerCounter = await tx.counter.update({
-        where: { id: "customerCode" },
-        data: {
-          value: { increment: 1 },
-        },
-      });
-
-      const customerCode = String(customerCounter.value).padStart(3, "0");
-
-      await tx.customer.create({
-        data: {
-          userId: newUser.id,
-          firstName,
-          lastName,
-          email,
-          customerCode,
-          mobileNumber,
-          customerType: "CASUAL",
-
-          loyaltyCards: {
-            create: {
-              stars: 0,
-              status: "ACTIVE",
-            },
-          },
-        },
-      });
-
-      return newUser;
-    });
-
-    // ========================
-    // EMAIL VERIFICATION TOKEN
-    // ========================
-    const rawToken = crypto.randomBytes(32).toString("hex");
-    const hashedToken = crypto
-      .createHash("sha256")
-      .update(rawToken)
-      .digest("hex");
-
-    await db.verificationToken.create({
-      data: {
-        email,
-        token: hashedToken,
-        expires: new Date(Date.now() + 1000 * 60 * 30),
-      },
-    });
-
-    const verifyLink = `${process.env.NEXT_PUBLIC_APP_URL}/verify-email?token=${rawToken}`;
-
-    // ========================
-    // SEND EMAIL
-    // ========================
-    await getResendClient().emails.send({
-      from: "The Barbs Bro Support <onboarding@resend.dev>",
-      to: email,
-      subject: "Verify your email",
-      html: `
-        <div style="font-family: Arial, sans-serif;">
-          <h2>Welcome to The Barbs Bro</h2>
-          <p>Hi ${firstName},</p>
-          <p>Click below to verify your email:</p>
-          <p>${verifyLink}</p>
-          <p>This link expires in 30 minutes.</p>
-        </div>
-      `,
-    });
-
-    // ========================
-    // RESPONSE (match admin style)
-    // ========================
     const { password: _, ...safeUser } = user;
 
     return NextResponse.json({
       ok: true,
-      message: "Verification email sent",
+      message: "Account created successfully",
       user: safeUser,
     });
   } catch (error) {

@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
 import { useRouter } from "next/navigation";
+import { toPHDateKey } from '@/lib/dateUtils';
 
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -383,8 +384,9 @@ export default function BarbersPage() {
   async function fetchBarbers() {
     try {
       const res = await fetch('/api/admin/barbers');
+      console.log('BARBERS STATUS:', res.status);
       const data = await res.json();
-
+      console.log('BARBERS DATA:', data);
       setBarbers(data.barbers || []);
     } finally {
       setBarberLoading(false);
@@ -636,7 +638,9 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
 
   const getAppointmentsForDay = (day: number) => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return appointments.filter((a) => a.appointmentDate?.startsWith(dateStr) && a.status !== "PENDING" && a.status !== "REJECTED");
+    return appointments.filter(
+      (a) => toPHDateKey(a.appointmentDate) === dateStr && a.status !== "PENDING" && a.status !== "REJECTED"
+    );
   };
 
   const statusColor: Record<string, { bg: string; color: string }> = {
@@ -1793,9 +1797,9 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
 
         <DialogContent sx={{ p: 0, bgcolor: '#f2f2f2' }}>
           {(() => {
-            const dateStr = formatDateInput(dayViewDate);
-            const dayAppointments = appointments.filter((a) =>
-              a.appointmentDate?.startsWith(dateStr) && a.status !== 'PENDING' && a.status !== 'REJECTED'
+            const dateStr = toPHDateKey(dayViewDate);
+            const dayAppointments = appointments.filter(
+              (a) => toPHDateKey(a.appointmentDate) === dateStr && a.status !== 'PENDING' && a.status !== 'REJECTED'
             );
 
             const hours = Array.from({ length: 11 }, (_, i) => i + 10);

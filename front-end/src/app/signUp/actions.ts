@@ -1,8 +1,8 @@
 'use server'
 
+import { POST } from '@/app/api/register/route'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { nanoid } from 'nanoid'
 
 export async function signupAction(formData: {
   firstName: string
@@ -61,12 +61,9 @@ export async function signupAction(formData: {
 
     const supabase = await createClient();
 
-
-    // Create Supabase Auth user
     const { data, error } = await supabase.auth.signUp({
       email,
       password: formData.password,
-
       options: {
         data: {
           full_name: `${formData.firstName} ${formData.lastName}`.trim(),
@@ -76,50 +73,47 @@ export async function signupAction(formData: {
       },
     });
 
-
     if (error) {
       return {
         ok: false,
-        error: error.message
+        error: error.message,
       };
     }
-
 
     const supabaseUserId = data.user?.id;
 
     if (!supabaseUserId) {
       return {
         ok: false,
-        error: "Failed to create auth user"
+        error: 'Failed to create auth user',
       };
     }
 
-
-    // Create Prisma profile
-    await prisma.user.upsert({
-      where: { id: supabaseUserId },
-      create: {
+    const apiRequest = new Request('http://localhost/api/register', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
         id: supabaseUserId,
-        email,
         firstName: formData.firstName,
         lastName: formData.lastName,
-        mobileNumber: phone,
-        password: "",
-        userCode: nanoid(8),
-        role: "CUSTOMER",
-        emailVerified: false,
-      },
-      update: {
         email,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
+        password: formData.password,
         mobileNumber: phone,
-      },
+      }),
     });
 
+    const apiResponse = await POST(apiRequest);
+    const apiResult = await apiResponse.json();
+
+    if (!apiResponse.ok || !apiResult.ok) {
+      return {
+        ok: false,
+        error: apiResult.error ?? 'Registration failed',
+      };
+    }
 
     return {
-      ok: true
+      ok: true,
     };
 
 
