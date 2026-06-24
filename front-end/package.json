@@ -29,7 +29,6 @@
     "luxon": "^3.7.2",
     "nanoid": "^5.1.15",
     "next": "^16.2.6",
-    "next-auth": "^4.24.14",
     "node-mailjet": "^6.0.11",
     "openai": "^6.44.0",
     "postcss": "^8.5.14",
