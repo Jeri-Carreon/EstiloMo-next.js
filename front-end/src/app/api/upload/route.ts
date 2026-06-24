@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/admin';
+import { getSupabaseAdmin } from '@/lib/supabase/admin';
 
 export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
-    const bucket = (formData.get('bucket') as string | null) || 'after-service-photos';
+    const bucket =
+      (formData.get('bucket') as string | null) || 'after-service-photos';
 
     if (!file) {
       return NextResponse.json(
@@ -18,8 +19,13 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(bytes);
 
     const fileExt = file.name.split('.').pop() || 'jpg';
-    const fileName = `${bucket === 'payment-screenshots' ? 'payment-' : 'after-service-'}${Date.now()}.${fileExt}`;
-    const supabaseClient = supabase
+    const fileName = `${
+      bucket === 'payment-screenshots'
+        ? 'payment-'
+        : 'after-service-'
+    }${Date.now()}.${fileExt}`;
+
+    const supabaseClient = getSupabaseAdmin();
 
     const { error } = await supabaseClient.storage
       .from(bucket)
@@ -30,13 +36,14 @@ export async function POST(req: Request) {
 
     if (error) {
       console.error('SUPABASE UPLOAD ERROR:', error);
+
       return NextResponse.json(
         { error: error.message },
         { status: 500 }
       );
     }
 
-    const { data } = supabase.storage
+    const { data } = supabaseClient.storage
       .from(bucket)
       .getPublicUrl(fileName);
 
