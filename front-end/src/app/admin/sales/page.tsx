@@ -1,5 +1,6 @@
 "use client";
 
+import { createClient } from "@/lib/supabase/client";
 import { useEffect, useMemo, useState } from "react";
 
 import Box from "@mui/material/Box";
@@ -37,6 +38,7 @@ type Customer = {
   lastName?: string;
   name?: string;
   mobileNumber: string;
+  isActive: boolean;
 };
 
 type Barber = {
@@ -61,7 +63,7 @@ type Sale = {
   id: string;
   saleCode: string;
   source: "WALKIN" | "BOOKING";
-  status: "PENDING" | "PAID" | "CANCELLED" | "REFUNDED";
+  status: "PENDING" | "PAID" | "PARTIAL" | "CANCELLED" | "REFUNDED";
   subtotal: number;
   discount: number;
   totalAmount: number;
@@ -100,7 +102,7 @@ type Sale = {
     amount: number;
     downPayment: number;
     method: "CASH" | "GCASH";
-    status: "PENDING" | "PAID" | "REJECTED";
+    status: "PENDING" | "PAID";
     screenshotUrl: string | null;
   } | null;
 };
@@ -218,6 +220,7 @@ function formatToday() {
 
 function getSaleStatusLabel(status: Sale["status"]) {
   if (status === "PAID") return "Paid";
+  if (status === "PARTIAL") return "Partial";
   if (status === "CANCELLED") return "Cancelled";
   if (status === "REFUNDED") return "Refunded";
   return "Unpaid";
@@ -269,6 +272,7 @@ export default function SalesPage() {
   const rowsPerPage = 8;
   const [page, setPage] = useState(1);
 
+  const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -296,7 +300,8 @@ export default function SalesPage() {
   const [salesSearch, setSalesSearch] = useState("");
   const [salesStatusFilter, setSalesStatusFilter] = useState("ALL");
   const [salesTypeFilter, setSalesTypeFilter] = useState("ALL");
-  const [cancelReason, setCancelReason] = useState<"" | "CANCELLED" | "REFUNDED">("");
+  const [cancelReason, setCancelReason] = useState<"" | "PARTIAL" | "CANCELLED" | "REFUNDED">("");
+  const [appointmentCancelStatus, setAppointmentCancelStatus] = useState<"" | "CANCELLED" | "NOSHOW">("");
 
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -325,6 +330,13 @@ export default function SalesPage() {
   const discountAmount = Math.round(subtotal * (discountPercent / 100));
   const total = Math.max(subtotal - discountAmount, 0);
 
+  const downPayment = selectedSale?.payment?.downPayment || 0;
+
+  const amountToPay =
+    selectedSale?.source === "BOOKING"
+      ? Math.max(total - downPayment, 0)
+      : total;
+
   const selectedCustomer = customers.find(
     (customer) => customer.id === selectedCustomerId
   );
@@ -341,6 +353,7 @@ export default function SalesPage() {
     const keyword = customerSearch.trim().toLowerCase();
 
     if (!keyword || selectedCustomerId) return false;
+    if (!customer.isActive) return false;
 
     const name = fullName(customer).toLowerCase();
 
@@ -486,6 +499,7 @@ export default function SalesPage() {
     setSelectedBarberId("");
     setSelectedBarber(null);
     setCancelReason("");
+    setAppointmentCancelStatus("");
   }
 
   function setSaleData(sale: Sale) {
@@ -582,9 +596,10 @@ export default function SalesPage() {
       const name = fullName(customer).toLowerCase();
 
       return (
-        name === keyword ||
-        customer.customerCode?.toLowerCase() === keyword ||
-        customer.mobileNumber === value
+        customer.isActive &&
+        (name === keyword ||
+          customer.customerCode?.toLowerCase() === keyword ||
+          customer.mobileNumber === value)
       );
     });
 
@@ -594,10 +609,18 @@ export default function SalesPage() {
     }
   }
 
-  function selectCustomer(customer: Customer) {
-    setSelectedCustomerId(customer.id);
-    setCustomerSearch(fullName(customer));
+ function selectCustomer(customer: Customer) {
+  if (!customer.isActive) {
+    setSnackbar({
+      open: true,
+      message: "Unavailable customer cannot be used for sales.",
+      severity: "error",
+    });
+    return;
   }
+  setSelectedCustomerId(customer.id);
+  setCustomerSearch(fullName(customer));
+}
 
   function handleDiscountInput(value: string) {
     if (value === "") {
@@ -619,6 +642,19 @@ export default function SalesPage() {
         setSnackbar({
           open: true,
           message: "Please search and select an existing customer",
+          severity: "error",
+        });
+        return;
+      }
+
+      const chosenCustomer = customers.find(
+        (customer) => customer.id === selectedCustomerId
+      );
+
+      if (!chosenCustomer?.isActive) {
+        setSnackbar({
+          open: true,
+          message: "Unavailable customer cannot be used for sales.",
           severity: "error",
         });
         return;
@@ -714,7 +750,7 @@ export default function SalesPage() {
           body: JSON.stringify({
             method,
             discount: discountAmount,
-            totalAmount: total,
+            totalAmount: amountToPay,
             gcashRefNo: method === "GCASH" ? gcashRefNo : null,
             loyaltyRewardType:
               discountPercent === 100
@@ -774,6 +810,33 @@ export default function SalesPage() {
         return;
       }
 
+      if (selectedSale.source === "BOOKING" && cancelReason === "CANCELLED") {
+        setSnackbar({
+          open: true,
+          message: "Cancelled status is only for walk-in transactions. Use Partial for appointment bookings.",
+          severity: "error",
+        });
+        return;
+      }
+
+      if (selectedSale.source === "WALKIN" && cancelReason === "PARTIAL") {
+        setSnackbar({
+          open: true,
+          message: "Partial status is only for appointment bookings.",
+          severity: "error",
+        });
+        return;
+      }
+
+      if (selectedSale.source === "BOOKING" && cancelReason === "PARTIAL" && !appointmentCancelStatus) {
+        setSnackbar({
+          open: true,
+          message: "Please select if the appointment was cancelled or no-show.",
+          severity: "error",
+        });
+        return;
+      }
+
       setSaving(true);
 
       const res = await fetch(`/api/admin/sales/${selectedSale.id}/cancel`, {
@@ -783,6 +846,8 @@ export default function SalesPage() {
         },
         body: JSON.stringify({
           reason: cancelReason,
+          appointmentStatus:
+            cancelReason === "PARTIAL" ? appointmentCancelStatus : undefined,
         }),
       });
 
@@ -887,9 +952,9 @@ export default function SalesPage() {
           <MenuItem value="ALL">All Status</MenuItem>
           <MenuItem value="PENDING">Unpaid</MenuItem>
           <MenuItem value="PAID">Paid</MenuItem>
+          <MenuItem value="PARTIAL">Partial</MenuItem>
           <MenuItem value="CANCELLED">Cancelled</MenuItem>
           <MenuItem value="REFUNDED">Refunded</MenuItem>
-          <MenuItem value="REJECTED">Rejected</MenuItem>
         </TextField>
 
         <TextField
@@ -956,7 +1021,11 @@ export default function SalesPage() {
                         {sale.barber?.name || "—"}
                       </TableCell>
                       <TableCell sx={bodyCell}>
-                        {formatPeso(sale.totalAmount)}
+                        {formatPeso(
+                          sale.source === "BOOKING"
+                            ? Math.max(sale.totalAmount - (sale.payment?.downPayment || 0), 0)
+                            : sale.totalAmount
+                        )}
                       </TableCell>
                       <TableCell sx={bodyCell}>
                         {sale.source === "WALKIN" ? "Walk-In" : "Appointment"}
@@ -1471,7 +1540,7 @@ export default function SalesPage() {
 
                   <Box sx={summaryRow}>
                     <Typography>Total Payment</Typography>
-                    <Typography>{formatPeso(total)}</Typography>
+                    <Typography>{formatPeso(amountToPay)}</Typography>
                   </Box>
 
                   <Box sx={summaryRow}>
@@ -1827,7 +1896,15 @@ export default function SalesPage() {
                 </Button>
               ) : (
                 <Typography>
-                  {formatPeso(selectedSale?.totalAmount || 0)}
+                  {formatPeso(
+                    selectedSale?.source === "BOOKING"
+                      ? Math.max(
+                          (selectedSale?.totalAmount || 0) -
+                            (selectedSale?.payment?.downPayment || 0),
+                          0
+                        )
+                      : selectedSale?.totalAmount || 0
+                  )}
                 </Typography>
               )}
             </Box>
@@ -2027,14 +2104,44 @@ export default function SalesPage() {
             select
             fullWidth
             value={cancelReason}
-            onChange={(e) =>
-              setCancelReason(e.target.value as "" | "CANCELLED" | "REFUNDED")
-            }
+            onChange={(e) => {
+              const value = e.target.value as "" | "PARTIAL" | "CANCELLED" | "REFUNDED";
+              setCancelReason(value);
+
+              if (value !== "PARTIAL") {
+                setAppointmentCancelStatus("");
+              }
+            }}
             sx={{ mb: 3 }}
           >
-            <MenuItem value="CANCELLED">Cancelled</MenuItem>
+            {selectedSale?.source === "BOOKING" && (
+              <MenuItem value="PARTIAL">
+                Partial - Cancelled Appointment / No-show Appointment
+              </MenuItem>
+            )}
+
+            {selectedSale?.source === "WALKIN" && (
+              <MenuItem value="CANCELLED">Cancelled - Walk-in Only</MenuItem>
+            )}
+
             <MenuItem value="REFUNDED">Refunded</MenuItem>
           </TextField>
+
+          {selectedSale?.source === "BOOKING" && cancelReason === "PARTIAL" && (
+            <TextField
+              select
+              fullWidth
+              label="Appointment Result"
+              value={appointmentCancelStatus}
+              onChange={(e) =>
+                setAppointmentCancelStatus(e.target.value as "" | "CANCELLED" | "NOSHOW")
+              }
+              sx={{ mb: 3 }}
+            >
+              <MenuItem value="CANCELLED">Cancelled Appointment</MenuItem>
+              <MenuItem value="NOSHOW">No-show Appointment</MenuItem>
+            </TextField>
+          )}
 
           <Typography sx={{ fontWeight: 900 }}>
             ID: {selectedSale?.saleCode || "TRX-New"}

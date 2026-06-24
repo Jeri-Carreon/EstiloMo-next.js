@@ -4,9 +4,9 @@ import { Nunito_Sans } from 'next/font/google';
 import ThemeRegistry from "@/components/ThemeRegistry";
 
 const nunitoSans = Nunito_Sans({
-  subsets: ['latin'],
-  weight: ['400', '700'],
-  variable: '--font-nunito-sans',
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-nunito-sans",
 });
 
 export const metadata: Metadata = {
@@ -21,10 +21,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${nunitoSans.className} ${nunitoSans.variable}`}>
-        <Providers>
-          <ThemeRegistry>{children}</ThemeRegistry>
-        </Providers>
+      <body className={`${nunitoSans.className} ${nunitoSans.variable}`}
+        suppressHydrationWarning>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

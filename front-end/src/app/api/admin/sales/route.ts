@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-
 import { db } from "@/lib/db";
-import { authOptions } from "@/lib/auth";
+
+import { getAdminUser } from "@/lib/supabase/getUser";
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -29,16 +28,13 @@ async function createPaymentCode() {
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getAdminUser();
 
-    if (
-      !session?.user?.email ||
-      !["OWNER", "RECEPTIONIST"].includes(session.user.role)
-    ) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const sales = await db.sale.findMany({
+    const rawSales = await db.sale.findMany({
       include: {
         customer: true,
         barber: true,
@@ -61,6 +57,20 @@ export async function GET() {
       },
     });
 
+    const sales = rawSales.filter((sale) => {
+      if (sale.source === "WALKIN") return true;
+
+      if (sale.source === "BOOKING") {
+        return sale.appointments.some((appointment) =>
+          ["SCHEDULED", "COMPLETED", "CANCELLED", "NOSHOW"].includes(
+            appointment.status
+          )
+        );
+      }
+
+      return false;
+    });
+
     return NextResponse.json({
       sales: sales.map((sale) => ({
         id: sale.id,
@@ -71,6 +81,7 @@ export async function GET() {
         discount: Number(sale.discount),
         totalAmount: Number(sale.totalAmount),
         createdAt: sale.createdAt,
+
         customer: {
           id: sale.customer.id,
           customerCode: sale.customer.customerCode,
@@ -79,6 +90,7 @@ export async function GET() {
             .join(" "),
           mobileNumber: sale.customer.mobileNumber,
         },
+
         barber: sale.barber
           ? {
               id: sale.barber.id,
@@ -87,6 +99,7 @@ export async function GET() {
                 .join(" "),
             }
           : null,
+
         items: sale.items.map((item) => ({
           id: item.id,
           serviceId: item.serviceId,
@@ -95,6 +108,7 @@ export async function GET() {
           price: Number(item.price),
           subtotal: Number(item.subtotal),
         })),
+
         payment: sale.payment
           ? {
               id: sale.payment.id,
@@ -108,6 +122,7 @@ export async function GET() {
               screenshotUrl: sale.payment.screenshotUrl,
             }
           : null,
+
         appointments: sale.appointments.map((appointment) => ({
           id: appointment.id,
           appointmentCode: appointment.appointmentCode,
@@ -147,13 +162,10 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getAdminUser();
 
-    if (
-      !session?.user?.email ||
-      !["OWNER", "RECEPTIONIST"].includes(session.user.role)
-    ) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await req.json();

@@ -15,8 +15,10 @@ import Tooltip from "@mui/material/Tooltip";
 import MenuItem from "@mui/material/MenuItem";
 import Link from "next/link";
 
-import { usePathname } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 const pages = [
   { label: "Home", path: "/" },
@@ -27,13 +29,33 @@ const pages = [
 ];
 
 export default function Navbar() {
-  const { data: session } = useSession();
+  const [user, setUser] = useState<User | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
+  const supabase = createClient();
 
-  const [anchorElNav, setAnchorElNav] =
-    React.useState<null | HTMLElement>(null);
-  const [anchorElUser, setAnchorElUser] =
-    React.useState<null | HTMLElement>(null);
+  const [anchorElNav, setAnchorElNav] = React.useState<null | HTMLElement>(null);
+  const [anchorElUser, setAnchorElUser] = React.useState<null | HTMLElement>(null);
+
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    handleCloseUserMenu();
+    router.push("/");
+  };
 
   const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorElNav(event.currentTarget);
@@ -65,7 +87,8 @@ export default function Navbar() {
               }}
             />
           </Link>
-          {/*Desktop View of "The Barbs Bro" */}
+
+          {/* Desktop View of "The Barbs Bro" */}
           <Box
             sx={{
               position: "absolute",
@@ -89,8 +112,8 @@ export default function Navbar() {
               The Barbs Bro
             </Typography>
           </Box>
-          
-          {/*Mobile View of "The Barbs Bro" */}
+
+          {/* Mobile View of "The Barbs Bro" */}
           <Typography
             variant="h6"
             noWrap
@@ -99,7 +122,7 @@ export default function Navbar() {
             sx={{
               mr: 2,
               display: { xs: "none", md: "flex" },
-              fontFamily: 'var(--font-nunito-sans)',
+              fontFamily: "var(--font-nunito-sans)",
               fontWeight: 700,
               color: "inherit",
               textDecoration: "none",
@@ -108,13 +131,12 @@ export default function Navbar() {
             The Barbs Bro
           </Typography>
 
-          {/* LEFT MOBILE MENU (unchanged) */}
-          <Box sx={{ display: { xs: "flex", md: "none" }} }>
+          {/* LEFT MOBILE MENU */}
+          <Box sx={{ display: { xs: "flex", md: "none" } }}>
             <IconButton onClick={handleOpenNavMenu} color="inherit">
               <MenuIcon />
             </IconButton>
           </Box>
-
 
           {/* RIGHT SIDE CONTAINER (PAGES + AUTH) */}
           <Box
@@ -125,33 +147,32 @@ export default function Navbar() {
               alignItems: "center",
             }}
           >
-
             {/* NavBar Option/Pages */}
             <Box sx={{ display: { xs: "none", md: "flex" } }}>
               {pages.map((page) => {
-                  const isActive = pathname === page.path;
-                  
-                  return(
-                    <Button
-                      key={page.label}
-                      component={Link}
-                      href={page.path}
-                      sx={{ 
-                        color: "white", 
-                        mx: 1, 
-                        borderBottom: isActive ? "2px solid #FBBC05" : "2px solid transparent",
-                        "&:hover": { borderBottom: "1px solid #FBBC05" } }}
-                    >
-                      {page.label}
-                    </Button>
-                  );
-                })}
+                const isActive = pathname === page.path;
+
+                return (
+                  <Button
+                    key={page.label}
+                    component={Link}
+                    href={page.path}
+                    sx={{
+                      color: "white",
+                      mx: 1,
+                      borderBottom: isActive ? "2px solid #FBBC05" : "2px solid transparent",
+                      "&:hover": { borderBottom: "1px solid #FBBC05" },
+                    }}
+                  >
+                    {page.label}
+                  </Button>
+                );
+              })}
             </Box>
 
-            {/* Sign In Button */
-            /* Has ternary operator, if user is authenticated, show avatar and menu instead */}
+            {/* Sign In Button / User Avatar */}
             <Box sx={{ ml: 2 }}>
-              {!session ? (
+              {!user ? (
                 <Button
                   component={Link}
                   href="/login"
@@ -164,7 +185,7 @@ export default function Navbar() {
                 <>
                   <Tooltip title="Open User Menu">
                     <IconButton onClick={handleOpenUserMenu}>
-                      <Avatar />
+                      <Avatar src={user.user_metadata?.avatar_url} />
                     </IconButton>
                   </Tooltip>
 
@@ -173,7 +194,6 @@ export default function Navbar() {
                     open={Boolean(anchorElUser)}
                     onClose={handleCloseUserMenu}
                   >
-
                     <MenuItem component={Link} href="/profile">
                       Edit Profile
                     </MenuItem>
@@ -190,41 +210,33 @@ export default function Navbar() {
                       Loyalty Card
                     </MenuItem>
 
-                    <MenuItem
-                      onClick={() => {
-                        signOut();
-                        handleCloseUserMenu();
-                      }}
-                      sx={{color:'#ff0000'}}
-                    >
+                    <MenuItem onClick={handleSignOut} sx={{ color: "#ff0000" }}>
                       Logout
                     </MenuItem>
                   </Menu>
                 </>
               )}
             </Box>
-
           </Box>
 
           {/* Mobile Hamburger Menu */}
           <Menu
             id="menu-appbar"
             anchorEl={anchorElNav}
-            anchorOrigin={{
-              vertical: 'top',
-              horizontal: 'left',
-            }}
+            anchorOrigin={{ vertical: "top", horizontal: "left" }}
             keepMounted
-            transformOrigin={{
-              vertical: 'top',
-              horizontal: 'left',
-            }}
+            transformOrigin={{ vertical: "top", horizontal: "left" }}
             open={Boolean(anchorElNav)}
             onClose={handleCloseNavMenu}
           >
             {pages.map((page) => (
-              <MenuItem key={page.label} onClick={handleCloseNavMenu} component={Link} href={page.path}>
-                <Typography sx={{ textAlign: 'center' }}>{page.label}</Typography>
+              <MenuItem
+                key={page.label}
+                onClick={handleCloseNavMenu}
+                component={Link}
+                href={page.path}
+              >
+                <Typography sx={{ textAlign: "center" }}>{page.label}</Typography>
               </MenuItem>
             ))}
           </Menu>

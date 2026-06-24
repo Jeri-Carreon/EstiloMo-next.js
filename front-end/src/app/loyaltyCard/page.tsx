@@ -1,8 +1,8 @@
 "use client";
 
+import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
@@ -23,11 +23,22 @@ type CustomerLoyaltyCard = {
   stars: number;
   status: "ACTIVE" | "COMPLETED";
   customerId: string;
+  fiveRewardRedeemed: boolean;
+};
+
+type AppointmentService = {
+  id: string;
+  serviceId: string;
+  name: string;
+  quantity: number;
+  price: number;
+  subtotal: number;
 };
 
 type Appointment = {
   id: string;
   appointmentCode: string;
+  type: "Appointment" | "Walk-in";
   appointmentDate: string;
   startMinutes: number;
   endMinutes: number;
@@ -37,19 +48,38 @@ type Appointment = {
   };
   service: {
     name: string;
-    price: string;
+    price: string | number;
   };
   payment?: {
-    amount: string;
-    downPayment: string;
+    amount: string | number;
+    downPayment: string | number;
     method: string;
     status: string;
   } | null;
+  subtotal: number;
+  discount: number;
+  totalAmount: number;
+  discountPercent: number;
+  services: AppointmentService[];
 };
+
+function formatPeso(value: string | number | null | undefined) {
+  return `₱ ${Number(value || 0).toLocaleString("en-PH", {
+    maximumFractionDigits: 0,
+  })}`;
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("en-PH", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
 
 export default function CustomerLoyaltyCardPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const supabase = createClient();
 
   const [loyaltyCard, setLoyaltyCard] =
     useState<CustomerLoyaltyCard | null>(null);
@@ -89,22 +119,21 @@ export default function CustomerLoyaltyCardPage() {
   };
 
   useEffect(() => {
-    if (status === "loading") return;
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
 
-    if (!session) {
-      router.push("/login");
-      return;
-    }
+            if (!user) {
+              router.push("/login");
+              return;
+            }
 
-    if (session.user.role !== "CUSTOMER") {
-      router.push("/unauthorized");
-      return;
-    }
+          loadLoyaltyCard();
+      };
+        init();
+    }, []);
+    
 
-    loadLoyaltyCard();
-  }, [session, status]);
-
-  if (loading || status === "loading") {
+  if (loading) {
     return (
       <Box
         sx={{
@@ -123,9 +152,35 @@ export default function CustomerLoyaltyCardPage() {
     return <Typography sx={{ p: 4 }}>No loyalty card found.</Typography>;
   }
 
-  const stars = Math.min(loyaltyCard.stars, 8);
+  const stars = Math.min(loyaltyCard.stars, 10);
 
-  const stampIndexes = [0, 1, 2, 3, 4, 5, 6, 7];
+  const isNormalStampFilled = (stampNumber: number) => {
+    if (stampNumber <= 4) return stars >= stampNumber;
+    return stars >= stampNumber + 1;
+  };
+
+  const getNormalStampAppointment = (stampNumber: number) => {
+    if (stampNumber <= 4) return appointments[stampNumber - 1];
+    return appointments[stampNumber];
+  };
+
+  const normalStamps = [1, 2, 3, 4, 5, 6, 7, 8];
+
+  const selectedServices =
+    selectedAppointment?.services && selectedAppointment.services.length > 0
+      ? selectedAppointment.services
+      : selectedAppointment
+      ? [
+          {
+            id: selectedAppointment.id,
+            serviceId: selectedAppointment.id,
+            name: selectedAppointment.service.name,
+            quantity: 1,
+            price: Number(selectedAppointment.service.price || 0),
+            subtotal: Number(selectedAppointment.service.price || 0),
+          },
+        ]
+      : [];
 
   return (
     <>
@@ -213,14 +268,13 @@ export default function CustomerLoyaltyCardPage() {
               alignItems: "center",
             }}
           >
-            {/* Top row: stamp 1, 2, 3, 4, 50% */}
-            {stampIndexes.slice(0, 4).map((index) => {
-              const appointment = appointments[index];
-              const filled = index < stars;
+            {normalStamps.slice(0, 4).map((stampNumber) => {
+              const appointment = getNormalStampAppointment(stampNumber);
+              const filled = isNormalStampFilled(stampNumber);
 
               return (
                 <StampBox
-                  key={index}
+                  key={stampNumber}
                   filled={filled}
                   appointment={appointment}
                   onClick={() =>
@@ -233,18 +287,20 @@ export default function CustomerLoyaltyCardPage() {
             <RewardBox
               label="50%"
               unlocked={stars >= 5}
+              redeemed={loyaltyCard.fiveRewardRedeemed}
               appointment={appointments[4]}
-              onClick={() => setSelectedAppointment(appointments[4])}
+              onClick={() => {
+                if (appointments[4]) setSelectedAppointment(appointments[4]);
+              }}
             />
 
-            {/* Bottom row: stamp 5, 6, 7, 8, FREE */}
-            {stampIndexes.slice(4, 8).map((index) => {
-              const appointment = appointments[index];
-              const filled = index < stars;
+            {normalStamps.slice(4, 8).map((stampNumber) => {
+              const appointment = getNormalStampAppointment(stampNumber);
+              const filled = isNormalStampFilled(stampNumber);
 
               return (
                 <StampBox
-                  key={index}
+                  key={stampNumber}
                   filled={filled}
                   appointment={appointment}
                   onClick={() =>
@@ -258,7 +314,9 @@ export default function CustomerLoyaltyCardPage() {
               label="FREE"
               unlocked={stars >= 10}
               appointment={appointments[9]}
-              onClick={() => setSelectedAppointment(appointments[9])}
+              onClick={() => {
+                if (appointments[9]) setSelectedAppointment(appointments[9]);
+              }}
             />
           </Box>
 
@@ -279,92 +337,152 @@ export default function CustomerLoyaltyCardPage() {
       <Dialog
         open={!!selectedAppointment}
         onClose={() => setSelectedAppointment(null)}
-        maxWidth="sm"
+        maxWidth="lg"
         fullWidth
         slotProps={{
           paper: {
             sx: {
               borderRadius: 2,
-              p: 3,
+              p: { xs: 2, sm: 3 },
+              width: "100%",
+              maxWidth: 980,
+              overflow: "hidden",
             },
           },
         }}
       >
         {selectedAppointment && (
           <Box>
-            <IconButton
-              onClick={() => setSelectedAppointment(null)}
-              sx={{ position: "absolute", right: 8, top: 8 }}
-            >
-              <CloseIcon />
-            </IconButton>
-
             <Box
               sx={{
                 display: "flex",
                 justifyContent: "space-between",
-                mb: 2,
-                pr: 4,
+                alignItems: "center",
+                gap: 2,
+                mb: 2.5,
               }}
             >
-              <Typography sx={{ fontWeight: 900 }}>
+              <Typography sx={{ fontWeight: 900, fontSize: 18 }}>
                 {customerInfo.firstName} {customerInfo.lastName}
               </Typography>
 
-              <Typography sx={{ fontWeight: 800, color: "#777" }}>
-                {selectedAppointment.appointmentCode}
-              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Typography
+                  sx={{
+                    fontWeight: 800,
+                    color: "#777",
+                    fontSize: { xs: 14, sm: 18 },
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {selectedAppointment.appointmentCode}
+                </Typography>
+
+                <IconButton
+                  onClick={() => setSelectedAppointment(null)}
+                  sx={{
+                    width: 38,
+                    height: 38,
+                    color: "#666",
+                    flexShrink: 0,
+                    "&:hover": {
+                      bgcolor: "#ececec",
+                      color: "#000",
+                    },
+                  }}
+                >
+                  <CloseIcon />
+                </IconButton>
+              </Box>
             </Box>
 
             <Box
               sx={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr 1fr",
-                bgcolor: "#f5f5f5",
-                py: 1,
-                textAlign: "center",
-                fontWeight: 800,
-                color: "#777",
+                bgcolor: "#fff",
+                border: "1px solid #eee",
+                borderRadius: 1,
+                overflowX: "auto",
               }}
             >
-              <Typography>Barber</Typography>
-              <Typography>Service Type</Typography>
-              <Typography>Date</Typography>
-              <Typography>Price</Typography>
-            </Box>
+              <Box sx={{ minWidth: 700 }}>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "90px minmax(220px, 1fr) 60px 150px 130px",
+                    bgcolor: "#f5f5f5",
+                    py: 1.2,
+                    px: 1.5,
+                    columnGap: 1.5,
+                    color: "#777",
+                    fontWeight: 900,
+                    alignItems: "center",
+                  }}
+                >
+                  <Typography>Type</Typography>
+                  <Typography>Service</Typography>
+                  <Typography sx={{ textAlign: "center" }}>Qty</Typography>
+                  <Typography sx={{ textAlign: "center" }}>Date</Typography>
+                  <Typography sx={{ textAlign: "right" }}>Price</Typography>
+                </Box>
 
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr 1fr",
-                py: 1.5,
-                textAlign: "center",
-                borderBottom: "1px solid #eee",
-              }}
-            >
-              <Typography>
-                {selectedAppointment.barber.firstName}{" "}
-                {selectedAppointment.barber.lastName}
-              </Typography>
+                {selectedServices.map((service) => (
+                  <Box
+                    key={service.id}
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "90px minmax(220px, 1fr) 60px 150px 130px",
+                      py: 1.3,
+                      px: 1.5,
+                      columnGap: 1.5,
+                      alignItems: "center",
+                      borderTop: "1px solid #eee",
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        whiteSpace: "normal",
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {selectedAppointment.type}
+                    </Typography>
 
-              <Typography>{selectedAppointment.service.name}</Typography>
+                    <Typography
+                      sx={{
+                        fontWeight: 800,
+                        whiteSpace: "normal",
+                        wordBreak: "break-word",
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {service.name}
+                    </Typography>
 
-              <Typography>
-                {new Date(
-                  selectedAppointment.appointmentDate
-                ).toLocaleDateString()}
-              </Typography>
+                    <Typography sx={{ textAlign: "center" }}>
+                      {service.quantity}
+                    </Typography>
 
-              <Typography>
-                ₱ {Number(selectedAppointment.service.price).toLocaleString()}
-              </Typography>
+                    <Typography sx={{ textAlign: "center", whiteSpace: "nowrap" }}>
+                      {formatDate(selectedAppointment.appointmentDate)}
+                    </Typography>
+
+                    <Typography
+                      sx={{ textAlign: "right", fontWeight: 800, whiteSpace: "nowrap" }}
+                    >
+                      {formatPeso(service.subtotal)}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
             </Box>
 
             <Box
               sx={{
                 mt: 3,
                 mx: "auto",
-                width: 280,
+                width: { xs: "100%", sm: 360 },
                 bgcolor: "#f7f7f7",
                 borderRadius: 2,
                 p: 2,
@@ -372,23 +490,28 @@ export default function CustomerLoyaltyCardPage() {
             >
               <ReceiptRow
                 label="Subtotal"
-                value={`₱ ${Number(
-                  selectedAppointment.service.price
-                ).toLocaleString()}`}
+                value={formatPeso(selectedAppointment.subtotal)}
               />
-              <ReceiptRow label="Discount" value="₱ 0" />
+
+              <ReceiptRow
+                label="Discount"
+                value={formatPeso(selectedAppointment.discount)}
+              />
+
               <ReceiptRow
                 label="Total Payment"
-                value={`₱ ${Number(
-                  selectedAppointment.payment?.amount ||
-                    selectedAppointment.service.price
-                ).toLocaleString()}`}
+                value={formatPeso(selectedAppointment.totalAmount)}
               />
+
               <ReceiptRow
                 label="Mode of Payment"
                 value={selectedAppointment.payment?.method || "Cash"}
               />
-              <ReceiptRow label="Discount %" value="0" />
+
+              <ReceiptRow
+                label="Discount %"
+                value={`${selectedAppointment.discountPercent}%`}
+              />
             </Box>
           </Box>
         )}
@@ -456,11 +579,13 @@ function StampBox({
 function RewardBox({
   label,
   unlocked,
+  redeemed = false,
   appointment,
   onClick,
 }: {
   label: "50%" | "FREE";
   unlocked: boolean;
+  redeemed?: boolean;
   appointment?: Appointment;
   onClick: () => void;
 }) {
@@ -484,7 +609,21 @@ function RewardBox({
         },
       }}
     >
-      {unlocked ? (
+      {redeemed ? (
+        <Typography
+          sx={{
+            fontWeight: 900,
+            fontSize: {
+              xs: "0.65rem",
+              sm: "0.85rem",
+              md: "1rem",
+            },
+            textTransform: "uppercase",
+          }}
+        >
+          Redeemed
+        </Typography>
+      ) : unlocked ? (
         <Box
           sx={{
             width: { xs: 34, sm: 48, md: 58 },

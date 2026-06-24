@@ -1,21 +1,16 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-
 import { db } from "@/lib/db";
-import { authOptions } from "@/lib/auth";
+
+import { getAdminUser } from "@/lib/supabase/getUser";
 
 export async function PUT(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (
-      !session?.user?.email ||
-      !["OWNER", "RECEPTIONIST"].includes(session.user.role)
-    ) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getAdminUser()
+    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { id } = await context.params;
@@ -86,6 +81,8 @@ export async function PUT(
       loyaltyRewardType = "FREE";
     }
 
+    let updatedStars = loyaltyCard?.stars ?? 0;
+
     await db.$transaction(async (tx) => {
       await tx.payment.update({
         where: { id: sale.payment!.id },
@@ -117,12 +114,10 @@ export async function PUT(
       }
 
       if (loyaltyCard) {
-        let newStars = loyaltyCard.stars;
-
         if (loyaltyRewardType === "FREE") {
-          newStars = 1;
+          updatedStars = 1;
         } else {
-          newStars = Math.min(loyaltyCard.stars + 1, 10);
+          updatedStars = Math.min(loyaltyCard.stars + 1, 10);
         }
 
         await tx.loyaltyCard.update({
@@ -130,8 +125,31 @@ export async function PUT(
             id: loyaltyCard.id,
           },
           data: {
-            stars: newStars,
+            stars: updatedStars,
             status: "ACTIVE",
+            fiveRewardRedeemed:
+              loyaltyRewardType === "FREE"
+                ? false
+                : loyaltyRewardType === "FIFTY_PERCENT"
+                ? true
+                : loyaltyCard.fiveRewardRedeemed,
+          },
+        });
+
+        await tx.loyaltyCardActivity.create({
+          data: {
+            customerId: sale.customerId,
+            saleId: sale.id,
+            appointmentId: sale.appointments[0]?.id || null,
+            stickerNumber: updatedStars,
+            rewardUsed: loyaltyRewardType,
+            customerName: `${sale.customer.firstName} ${sale.customer.lastName}`,
+            message:
+              loyaltyRewardType === "FREE"
+                ? `Free reward redeemed. Loyalty card reset to 1 sticker.`
+                : loyaltyRewardType === "FIFTY_PERCENT"
+                ? `50% reward redeemed. Sticker ${updatedStars} recorded.`
+                : `Sticker ${updatedStars} earned from ${sale.saleCode}.`,
           },
         });
       }
@@ -146,7 +164,7 @@ export async function PUT(
       totalAmount,
       method,
       loyaltyRewardType,
-      currentStars: loyaltyCard?.stars ?? 0,
+      currentStars: updatedStars,
     });
   } catch (error) {
     console.error("CONFIRM PAYMENT ERROR:", error);

@@ -1,30 +1,49 @@
-import { auth } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { db } from "@/lib/db";
+
+const supabaseAdmin = createAdminClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(req: Request) {
   try {
-    const session = await auth();
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!session || !session.user) {
-      return Response.json(
-        { error: "Not authenticated" },
-        { status: 401 }
-      );
+    if (!user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const { firstName, lastName, email, mobileNumber } = await req.json();
+    const { firstName, lastName, mobileNumber } = await req.json();
 
+    // Update display name in Supabase auth.users
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+      user.id,
+      {
+        user_metadata: {
+          ...user.user_metadata,
+          full_name: `${firstName} ${lastName}`.trim(),
+        },
+      }
+    );
+    if (authError) {
+      return NextResponse.json({ error: authError.message }, { status: 400 });
+    }
+
+    // Update Prisma user table
     const updatedUser = await db.user.update({
-      where: { id: session.user.id as string },
+      where: { id: user.id },
       data: {
         firstName: firstName || undefined,
         lastName: lastName || undefined,
-        email: email || undefined,
         mobileNumber: mobileNumber || undefined,
       },
     });
 
-    return Response.json({
+    return NextResponse.json({
       user: {
         id: updatedUser.id,
         firstName: updatedUser.firstName,
@@ -35,9 +54,6 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("Profile update error:", error);
-    return Response.json(
-      { error: "Failed to update profile" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });
   }
 }

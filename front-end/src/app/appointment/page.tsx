@@ -22,6 +22,7 @@ export interface CartItem {
   serviceName: string;
   servicePrice: number;
   serviceDescription: string;
+  serviceDurationMinutes: number;
   appointmentDate: string;
   startMinutes: number;
   endMinutes: number;
@@ -34,6 +35,7 @@ export interface AppointmentData {
   serviceName: string;
   servicePrice: number;
   serviceDescription: string;
+  serviceDurationMinutes: number;
   appointmentDate?: string;
   startMinutes?: number;
   endMinutes?: number;
@@ -54,6 +56,7 @@ export default function AppointmentPage() {
     serviceName: '',
     servicePrice: 0,
     serviceDescription: '',
+    serviceDurationMinutes: 0,
     appointmentDate: '',
     startMinutes: 0,
     endMinutes: 0,
@@ -77,10 +80,11 @@ export default function AppointmentPage() {
             serviceName: prev.serviceName,
             servicePrice: prev.servicePrice,
             serviceDescription: prev.serviceDescription,
+            serviceDurationMinutes: prev.serviceDurationMinutes,
             appointmentDate: appointmentDate ?? '',
             startMinutes: startMinutes ?? 0,
             endMinutes: endMinutes ?? 0,
-          },
+          }
         ],
         barberId: '',
         barberName: '',
@@ -91,6 +95,7 @@ export default function AppointmentPage() {
         appointmentDate: '',
         startMinutes: 0,
         endMinutes: 0,
+        serviceDurationMinutes: 0,
       }));
     }
 
@@ -122,18 +127,19 @@ export default function AppointmentPage() {
     );
 
     if (isDuplicate) {
-      alert('This appointment is already in your cart.');
+      alert("This appointment is already in your cart.");
       return;
     }
 
     setAppointmentData((prev) => ({
-      barberId: '',
-      barberName: '',
-      serviceId: '',
-      serviceName: '',
+      barberId: "",
+      barberName: "",
+      serviceId: "",
+      serviceName: "",
       servicePrice: 0,
-      serviceDescription: '',
-      appointmentDate: '',
+      serviceDescription: "",
+      serviceDurationMinutes: 0,
+      appointmentDate: "",
       startMinutes: 0,
       endMinutes: 0,
       cartItems: [
@@ -145,7 +151,8 @@ export default function AppointmentPage() {
           serviceName: prev.serviceName,
           servicePrice: prev.servicePrice,
           serviceDescription: prev.serviceDescription,
-          appointmentDate: prev.appointmentDate ?? '',
+          serviceDurationMinutes: prev.serviceDurationMinutes,
+          appointmentDate: prev.appointmentDate ?? "",
           startMinutes: prev.startMinutes ?? 0,
           endMinutes: prev.endMinutes ?? 0,
         },
@@ -326,7 +333,7 @@ export default function AppointmentPage() {
           </Typography>
 
           <Button
-            href="/"
+            href="/myAppointments"
             sx={{
               backgroundColor: '#ddd',
               color: '#111',

@@ -25,6 +25,7 @@ export async function PUT(
             user: true,
           },
         },
+        sale: true,
       },
     });
 
@@ -51,16 +52,51 @@ export async function PUT(
       );
     }
 
-    const updatedAppointment = await db.appointment.update({
-      where: { id },
-      data: {
-        status: "CANCELLED",
-      },
+    const result = await db.$transaction(async (tx) => {
+      if (appointment.saleId) {
+        await tx.appointment.updateMany({
+          where: {
+            saleId: appointment.saleId,
+            customerId: appointment.customerId,
+            status: {
+              in: ["PENDING", "SCHEDULED"],
+            },
+          },
+          data: {
+            status: "CANCELLED",
+          },
+        });
+
+        await tx.sale.update({
+          where: {
+            id: appointment.saleId,
+          },
+          data: {
+            status: "CANCELLED",
+            cancelReason: "Customer cancelled appointment",
+          },
+        });
+
+        return tx.appointment.findMany({
+          where: {
+            saleId: appointment.saleId,
+          },
+        });
+      }
+
+      const updated = await tx.appointment.update({
+        where: { id },
+        data: {
+          status: "CANCELLED",
+        },
+      });
+
+      return [updated];
     });
 
     return NextResponse.json({
       ok: true,
-      appointment: updatedAppointment,
+      appointments: result,
     });
   } catch (error) {
     console.error("CUSTOMER CANCEL APPOINTMENT ERROR:", error);

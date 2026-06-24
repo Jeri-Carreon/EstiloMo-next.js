@@ -1,31 +1,30 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-
 import { db } from "@/lib/db";
-import { authOptions } from "@/lib/auth";
 
-type CancelReason = "CANCELLED" | "REFUNDED";
+import { getAdminUser } from "@/lib/supabase/getUser";
+
+type CancelReason = "PARTIAL" | "CANCELLED" | "REFUNDED";
+type AppointmentCancelStatus = "CANCELLED" | "NOSHOW";
 
 export async function PUT(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (
-      !session?.user?.email ||
-      !["OWNER", "RECEPTIONIST"].includes(session.user.role)
-    ) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getAdminUser()
+    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { id } = await context.params;
     const body = await req.json().catch(() => ({}));
 
-    const reason = body.reason as CancelReason;
+    const reason = body.reason as CancelReason | undefined;
+    const appointmentStatus = body.appointmentStatus as
+      | AppointmentCancelStatus
+      | undefined;
 
-    if (!["CANCELLED", "REFUNDED"].includes(reason)) {
+    if (!reason || !["PARTIAL", "CANCELLED", "REFUNDED"].includes(reason)) {
       return NextResponse.json(
         { error: "Invalid cancellation reason" },
         { status: 400 }
@@ -51,20 +50,48 @@ export async function PUT(
       );
     }
 
+    if (sale.source === "WALKIN" && reason === "PARTIAL") {
+      return NextResponse.json(
+        { error: "PARTIAL is only allowed for appointment bookings" },
+        { status: 400 }
+      );
+    }
+
+    if (sale.source === "BOOKING" && reason === "CANCELLED") {
+      return NextResponse.json(
+        { error: "Use PARTIAL for cancelled/no-show appointment bookings" },
+        { status: 400 }
+      );
+    }
+
+    if (
+      sale.source === "BOOKING" &&
+      reason === "PARTIAL" &&
+      !["CANCELLED", "NOSHOW"].includes(appointmentStatus || "")
+    ) {
+      return NextResponse.json(
+        { error: "Appointment status must be CANCELLED or NOSHOW" },
+        { status: 400 }
+      );
+    }
+
     await db.$transaction(async (tx) => {
       await tx.sale.update({
         where: { id },
         data: {
           status: reason,
-          cancelReason: reason,
+          cancelReason:
+            reason === "PARTIAL"
+              ? `PARTIAL_${appointmentStatus}`
+              : reason,
         },
       });
 
-      if (reason === "REFUNDED" && sale.payment) {
+      if (sale.payment) {
         await tx.payment.update({
           where: { id: sale.payment.id },
           data: {
-            status: "REJECTED",
+            status: sale.payment.status,
           },
         });
       }
@@ -75,7 +102,10 @@ export async function PUT(
             saleId: id,
           },
           data: {
-            status: "CANCELLED",
+            status:
+              reason === "PARTIAL"
+                ? appointmentStatus
+                : "CANCELLED",
           },
         });
       }
@@ -85,6 +115,8 @@ export async function PUT(
       ok: true,
       message: "Transaction cancellation status updated",
       status: reason,
+      appointmentStatus:
+        reason === "PARTIAL" ? appointmentStatus : "CANCELLED",
     });
   } catch (error) {
     console.error("CANCEL SALE ERROR:", error);

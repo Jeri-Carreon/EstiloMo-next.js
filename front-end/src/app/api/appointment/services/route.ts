@@ -20,7 +20,14 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: {
-        id: "asc",
+        sortOrder: "asc",
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        durationMinutes: true,
+        price: true,
       },
     });
 
@@ -30,6 +37,7 @@ export async function GET(req: NextRequest) {
         name: s.name,
         price: Number(s.price),
         description: s.description,
+        durationMinutes: s.durationMinutes,
       })),
     });
   } catch (error) {

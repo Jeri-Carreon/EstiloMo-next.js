@@ -1,43 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabase } from "@/lib/supabase";
-import { getServerSession } from "next-auth";
-
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { createClient } from "@/lib/supabase/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
+
+import { DateTime } from 'luxon';
+import { todayCodePH } from '@/lib/dateUtils';
+
+const supabaseAdmin = createAdminClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 async function createAppointmentCode(tx: any) {
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const today = todayCodePH(); // ← PH date
   const count = await tx.appointment.count();
-
   return `APT-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 async function createSaleCode(tx: any) {
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const today = todayCodePH(); // ← PH date
   const count = await tx.sale.count();
-
   return `TRX-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 async function createPaymentCode(tx: any) {
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const today = todayCodePH(); // ← PH date
   const count = await tx.payment.count();
-
   return `PAY-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const supabase = await createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
 
-    if (!session?.user?.email) {
+    if (!authUser?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const formData = await req.formData();
 
     const cartItemsRaw = formData.get("cartItems");
-    const paymentMethodRaw = String(formData.get("paymentMethod") || "GCASH");
     const downPayment = Number(formData.get("downPayment") || 150);
     const paymentScreenshot = formData.get("paymentScreenshot") as File | null;
 
@@ -58,18 +63,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const paymentMethod = paymentMethodRaw === "PAY_AT_SHOP" ? "CASH" : "GCASH";
-
-    const user = await db.user.findUnique({
+    const dbUser = await db.user.findUnique({
       where: {
-        email: session.user.email,
+        email: authUser.email,
       },
       include: {
         customer: true,
       },
     });
 
-    if (!user?.customer) {
+    if (!dbUser?.customer) {
       return NextResponse.json(
         { error: "Customer profile not found" },
         { status: 404 }
@@ -85,9 +88,8 @@ export async function POST(req: NextRequest) {
       .substring(2)}.${fileExt}`;
 
     const filePath = `payments/${fileName}`;
-    const supabase = getSupabase();
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabaseAdmin.storage
       .from("payment-screenshots")
       .upload(filePath, buffer, {
         contentType: paymentScreenshot.type,
@@ -106,7 +108,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: publicUrlData } = supabase.storage
+    const { data: publicUrlData } = supabaseAdmin.storage
       .from("payment-screenshots")
       .getPublicUrl(filePath);
 
@@ -120,7 +122,7 @@ export async function POST(req: NextRequest) {
       }
 
       const serviceIds = cartItems.map((item: any) => item.serviceId);
-      const uniqueServiceIds = [...new Set(serviceIds)];
+      const uniqueServiceIds = [...new Set(serviceIds)] as string[];
 
       const services = await tx.service.findMany({
         where: {
@@ -131,10 +133,9 @@ export async function POST(req: NextRequest) {
       });
 
       if (services.length !== uniqueServiceIds.length) {
-        // Log which IDs are missing to help debug
-        const foundIds = new Set(services.map((s) => s.id));
+        const foundIds = new Set(services.map((service: any) => service.id));
         const missingIds = uniqueServiceIds.filter((id) => !foundIds.has(id));
-        console.error("Missing service IDs:", missingIds);
+
         throw new Error(`Services not found: ${missingIds.join(", ")}`);
       }
 
@@ -145,7 +146,7 @@ export async function POST(req: NextRequest) {
       const sale = await tx.sale.create({
         data: {
           saleCode: await createSaleCode(tx),
-          customerId: user.customer!.id,
+          customerId: dbUser.customer!.id,
           barberId: firstItem.barberId,
           source: "BOOKING",
           status: "PENDING",
@@ -160,30 +161,35 @@ export async function POST(req: NextRequest) {
       >[] = [];
 
       for (const item of cartItems) {
-        const service = services.find((s) => s.id === item.serviceId);
+        const service = services.find((s: any) => s.id === item.serviceId);
 
         if (!service) {
           throw new Error("Service not found");
         }
+
+        const itemPrice = Number(item.servicePrice || service.price);
 
         await tx.saleItem.create({
           data: {
             saleId: sale.id,
             serviceId: item.serviceId,
             quantity: 1,
-            price: Number(item.servicePrice || service.price),
-            subtotal: Number(item.servicePrice || service.price),
+            price: itemPrice,
+            subtotal: itemPrice,
           },
         });
 
         const appointment = await tx.appointment.create({
           data: {
             appointmentCode: await createAppointmentCode(tx),
-            customerId: user.customer!.id,
+            customerId: dbUser.customer!.id,
             barberId: item.barberId,
             serviceId: item.serviceId,
             saleId: sale.id,
-            appointmentDate: new Date(item.appointmentDate),
+            appointmentDate: DateTime.fromISO(item.appointmentDate, { zone: 'Asia/Manila' })
+              .startOf('day')
+              .toUTC()
+              .toJSDate(),
             startMinutes: Number(item.startMinutes),
             endMinutes: Number(item.endMinutes),
             status: "PENDING",
@@ -201,7 +207,7 @@ export async function POST(req: NextRequest) {
           amount: subtotal,
           downPayment,
           discount: 0,
-          method: paymentMethod,
+          method: null,
           status: "PENDING",
           screenshotUrl,
         },

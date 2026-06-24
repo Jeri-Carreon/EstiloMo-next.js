@@ -1,21 +1,28 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getAdminUser } from "@/lib/supabase/getUser";
+
+import {
+  logAppointmentEdited,
+  logAppointmentCancelled,
+} from "@/lib/securityLogEvents";
+
+function createCode(prefix: string) {
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const random = Math.floor(1000 + Math.random() * 9000);
+
+  return `${prefix}-${today}-${random}`;
+}
 
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getAdminUser();
 
-    if (
-      !session?.user?.email ||
-      !["OWNER", "RECEPTIONIST", "BARBER"].includes(session.user.role)
-    ) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { id } = await params;
@@ -39,19 +46,25 @@ export async function PUT(
       afterServicePhotoUrl,
     } = body;
 
+    const existingAppointment = await db.appointment.findUnique({
+      where: { id },
+      include: {
+        service: true,
+      },
+    });
+
+    if (!existingAppointment) {
+      return NextResponse.json(
+        { error: "Appointment not found" },
+        { status: 404 }
+      );
+    }
+
     const data: any = {};
 
-    if (barberId) {
-      data.barber = { connect: { id: barberId } };
-    }
-
-    if (serviceId) {
-      data.service = { connect: { id: serviceId } };
-    }
-
-    if (appointmentDate) {
-      data.appointmentDate = new Date(appointmentDate);
-    }
+    if (barberId) data.barber = { connect: { id: barberId } };
+    if (serviceId) data.service = { connect: { id: serviceId } };
+    if (appointmentDate) data.appointmentDate = new Date(appointmentDate);
 
     if (startMinutes !== undefined && startMinutes !== "") {
       data.startMinutes = Number(startMinutes);
@@ -59,10 +72,6 @@ export async function PUT(
 
     if (endMinutes !== undefined && endMinutes !== "") {
       data.endMinutes = Number(endMinutes);
-    }
-
-    if (status) {
-      data.status = status;
     }
 
     if (
@@ -76,10 +85,96 @@ export async function PUT(
       );
     }
 
-    await db.appointment.update({
+    if (status !== undefined && status !== null && status !== "") {
+      const currentStatus = existingAppointment.status.toUpperCase();
+      const requestedStatus = String(status).toUpperCase();
+      const statusChanged = requestedStatus !== currentStatus;
+
+      if (statusChanged) {
+        if (currentStatus !== "PENDING") {
+          return NextResponse.json(
+            {
+              error:
+                "Processed appointment status cannot be edited from the appointments module.",
+            },
+            { status: 400 }
+          );
+        }
+
+        if (!["PENDING", "SCHEDULED", "REJECTED"].includes(requestedStatus)) {
+          return NextResponse.json(
+            {
+              error:
+                "Pending appointments can only be changed to Pending, Scheduled, or Rejected.",
+            },
+            { status: 400 }
+          );
+        }
+
+        data.status = requestedStatus;
+      }
+    }
+
+    const updatedBaseAppointment = await db.appointment.update({
       where: { id },
       data,
+      include: {
+        service: true,
+      },
     });
+
+    if (data.status === "SCHEDULED") {
+      if (updatedBaseAppointment.saleId) {
+        await db.sale.update({
+          where: { id: updatedBaseAppointment.saleId },
+          data: {
+            status: "PARTIAL",
+          },
+        });
+      } else {
+        const sale = await db.sale.create({
+          data: {
+            saleCode: createCode("TRX"),
+            customerId: updatedBaseAppointment.customerId,
+            barberId: updatedBaseAppointment.barberId,
+            source: "BOOKING",
+            status: "PARTIAL",
+            subtotal: Number(updatedBaseAppointment.service.price),
+            discount: 0,
+            totalAmount: Number(updatedBaseAppointment.service.price),
+          },
+        });
+
+        await db.saleItem.create({
+          data: {
+            saleId: sale.id,
+            serviceId: updatedBaseAppointment.serviceId,
+            quantity: 1,
+            price: Number(updatedBaseAppointment.service.price),
+            subtotal: Number(updatedBaseAppointment.service.price),
+          },
+        });
+
+        await db.payment.create({
+          data: {
+            saleId: sale.id,
+            paymentCode: createCode("PAY"),
+            amount: Number(updatedBaseAppointment.service.price),
+            downPayment: 0,
+            discount: 0,
+            method: null,
+            status: "PENDING",
+          },
+        });
+
+        await db.appointment.update({
+          where: { id },
+          data: {
+            saleId: sale.id,
+          },
+        });
+      }
+    }
 
     if (afterServicePhotoUrl) {
       await db.afterServicePhoto.create({
@@ -98,12 +193,14 @@ export async function PUT(
         service: true,
         payment: true,
         afterServicePhotos: {
-          orderBy: {
-            createdAt: "desc",
-          },
+          orderBy: { createdAt: "desc" },
         },
       },
     });
+
+    if (updatedAppointment) {
+      await logAppointmentEdited(req, user, updatedAppointment.appointmentCode);
+    }
 
     return NextResponse.json({
       success: true,
@@ -130,13 +227,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getAdminUser();
 
-    if (
-      !session?.user?.email ||
-      !["OWNER", "RECEPTIONIST"].includes(session.user.role)
-    ) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { id } = await params;
@@ -148,9 +242,25 @@ export async function DELETE(
       );
     }
 
+    const appointment = await db.appointment.findUnique({
+      where: { id },
+      select: {
+        appointmentCode: true,
+      },
+    });
+
+    if (!appointment) {
+      return NextResponse.json(
+        { error: "Appointment not found" },
+        { status: 404 }
+      );
+    }
+
     await db.appointment.delete({
       where: { id },
     });
+
+    await logAppointmentCancelled(req, user, appointment.appointmentCode);
 
     return NextResponse.json({
       success: true,

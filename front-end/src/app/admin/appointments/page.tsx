@@ -1,7 +1,7 @@
 'use client';
 
+import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
-import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
 import Box from '@mui/material/Box';
@@ -67,6 +67,7 @@ interface CustomerOption {
   id: string;
   customerCode: string;
   name: string;
+  isActive: boolean;
 }
 
 interface BarberOption {
@@ -78,6 +79,7 @@ interface ServiceOption {
   id: string;
   name: string;
   price?: number;
+  durationMinutes?: number;
 }
 
 interface AvailableTime {
@@ -87,7 +89,7 @@ interface AvailableTime {
 }
 
 interface AppointmentSettings {
-  BookingCutoffHours: number;
+  bookingCutoffHours: number;
 }
 const readOnlyStatuses = ['COMPLETED', 'NOSHOW', 'CANCELLED', 'REJECTED'];
 
@@ -111,7 +113,6 @@ function formatDateInput(date: Date) {
 }
 
 export default function AppointmentsPage() {
-  const { data: session, status } = useSession();
   const router = useRouter();
 
   const [warningOpen, setWarningOpen] = useState(false);
@@ -128,6 +129,7 @@ export default function AppointmentsPage() {
   const [barbers, setBarbers] = useState<BarberOption[]>([]);
   const [services, setServices] = useState<ServiceOption[]>([]);
 
+  const supabase = createClient()
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -195,6 +197,17 @@ export default function AppointmentsPage() {
 
   const servicePrice = Number(selectedAddService?.price || 0);
 
+  const getSelectedServiceDuration = () => {
+    if (openEditScheduleModal && selectedAppointment?.serviceId) {
+      const service = services.find(
+        (service) => service.id === selectedAppointment.serviceId
+      );
+
+      return Number(service?.durationMinutes || 0);
+    }
+
+    return Number(selectedAddService?.durationMinutes || 0);
+  };
 
   const openImageViewer = (title: string, photos: string[], startIndex = 0) => {
     const validPhotos = photos.filter(Boolean);
@@ -399,15 +412,18 @@ export default function AppointmentsPage() {
       : [];
 
     setCustomers(
-      customersArray.map((c: any) => ({
-        id: c.id,
-        customerCode: c.customerCode || '',
-        name:
-          c.name ||
-          [c.firstName, c.lastName].filter(Boolean).join(' ') ||
-          c.email ||
-          'Unknown Customer',
-      }))
+      customersArray
+        .filter((c: any) => c.isActive !== false)
+        .map((c: any) => ({
+          id: c.id,
+          customerCode: c.customerCode || '',
+          name:
+            c.name ||
+            [c.firstName, c.lastName].filter(Boolean).join(' ') ||
+            c.email ||
+            'Unknown Customer',
+          isActive: c.isActive ?? true,
+        }))
     );
 
     setBarbers(
@@ -432,12 +448,12 @@ export default function AppointmentsPage() {
       });
 
       const data = await res.json();
-
       setServices(
         (data.services || data || []).map((s: any) => ({
           id: s.id,
           name: s.name,
           price: Number(s.price || 0),
+          durationMinutes: Number(s.durationMinutes || 0),
         }))
       );
     } catch (error) {
@@ -510,18 +526,30 @@ export default function AppointmentsPage() {
   };
 
   useEffect(() => {
-    if (status === 'loading') return;
+    const init = async () => {
+      try {
+      const { data: { user } } = await supabase.auth.getUser()
+          if (!user) {
+            router.push('/login')
+            return
+          }
 
-    const role = (session?.user as { role?: string })?.role;
+          const res = await fetch('/api/user/role')
+          const data = await res.json()
 
-    if (!session?.user?.email || !['OWNER', 'RECEPTIONIST'].includes(role || '')) {
-      router.push('/unauthorized');
-      return;
+          if (!['OWNER', 'RECEPTIONIST'].includes(data.role)) {
+            router.push('/unauthorized')
+            return
+          }
+        
+      loadAppointments();
+      loadOptions();
+      } catch (err) {
+        console.error("Initialization failed:", err)
+      }
     }
-
-    loadAppointments();
-    loadOptions();
-  }, [session, status, router]);
+    init()
+  }, [router]);
 
   useEffect(() => {
     fetchUnavailableDates(addCurrentMonth);
@@ -600,6 +628,15 @@ export default function AppointmentsPage() {
       return;
     }
 
+    const chosenCustomer = customers.find(
+      (customer) => customer.id === addForm.customerId
+    );
+
+    if (!chosenCustomer?.isActive) {
+      showWarning('Unavailable customer cannot be used for appointments.');
+      return;
+    }
+
     try {
       setSaving(true);
 
@@ -634,7 +671,7 @@ export default function AppointmentsPage() {
           serviceId: addForm.serviceId,
           appointmentDate: addForm.appointmentDate,
           startMinutes: Number(addForm.startMinutes),
-          endMinutes: Number(addForm.endMinutes),
+          endMinutes: Number(addForm.startMinutes) + getSelectedServiceDuration(),
           paymentScreenshotUrl,
           downPayment: 150,
           status: 'SCHEDULED',
@@ -1603,12 +1640,20 @@ export default function AppointmentsPage() {
                       <Button
                         key={time.label}
                         onClick={() => {
-                          setSelectedTime(time);
+
+                          const endMinutes =
+                            time.startMinutes + getSelectedServiceDuration();
+
+                          setSelectedTime({
+                            startMinutes: time.startMinutes,
+                            endMinutes,
+                            label: `${formatMinutes(time.startMinutes)} - ${formatMinutes(endMinutes)}`,
+                          });
 
                           setAddForm((prev) => ({
                             ...prev,
                             startMinutes: String(time.startMinutes),
-                            endMinutes: String(time.endMinutes),
+                            endMinutes: String(endMinutes),
                           }));
                         }}
                         variant="outlined"
@@ -1629,7 +1674,9 @@ export default function AppointmentsPage() {
                           },
                         }}
                       >
-                        {time.label}
+                        {`${formatMinutes(time.startMinutes)} - ${formatMinutes(
+                          time.startMinutes + getSelectedServiceDuration()
+                        )}`}
                       </Button>
                     );
                   })}
@@ -2037,21 +2084,40 @@ export default function AppointmentsPage() {
                 select
                 label="Status *"
                 value={selectedAppointment.status}
-                disabled={!!isReadOnly}
+                disabled={originalAppointmentStatus.toUpperCase() !== 'PENDING'}
                 size="small"
-                sx={{ bgcolor: '#fff' }}
+                sx={{
+                  bgcolor:
+                    originalAppointmentStatus.toUpperCase() !== 'PENDING'
+                      ? '#e5e5e5'
+                      : '#fff',
+                  '& .MuiInputBase-input.Mui-disabled': {
+                    WebkitTextFillColor: '#777',
+                  },
+                }}
                 onChange={(e) =>
                   setSelectedAppointment((prev) =>
                     prev ? { ...prev, status: e.target.value } : prev
                   )
                 }
               >
-                <MenuItem value="PENDING">Pending</MenuItem>
-                <MenuItem value="SCHEDULED">Scheduled</MenuItem>
-                <MenuItem value="COMPLETED">Completed</MenuItem>
-                <MenuItem value="NOSHOW">No-show</MenuItem>
-                <MenuItem value="CANCELLED">Cancelled</MenuItem>
-                <MenuItem value="REJECTED">Rejected</MenuItem>
+                {originalAppointmentStatus.toUpperCase() === 'PENDING' ? (
+                  [
+                    <MenuItem key="PENDING" value="PENDING">
+                      Pending
+                    </MenuItem>,
+                    <MenuItem key="SCHEDULED" value="SCHEDULED">
+                      Scheduled
+                    </MenuItem>,
+                    <MenuItem key="REJECTED" value="REJECTED">
+                      Rejected
+                    </MenuItem>,
+                  ]
+                ) : (
+                  <MenuItem value={selectedAppointment.status}>
+                    {selectedAppointment.status}
+                  </MenuItem>
+                )}
               </TextField>
 
               <Box>
@@ -2117,9 +2183,10 @@ export default function AppointmentsPage() {
                 </Box>
               </Box>
 
-              {isReadOnly && (
+              {originalAppointmentStatus.toUpperCase() !== 'PENDING' && (
                 <Typography sx={{ color: 'error.main', fontSize: 13 }}>
-                  Completed, No-show, and Cancelled appointments are view-only.
+                  Processed appointment status is view-only here. Completed,
+                  Cancelled, and No-show are handled in Sales.
                 </Typography>
               )}
             </DialogContent>
@@ -2428,7 +2495,17 @@ export default function AppointmentsPage() {
                     <Button
                       key={time.label}
                       onClick={() => {
-                        setSelectedTime(time);
+                        const duration = getSelectedServiceDuration();
+                        const endMinutes = time.startMinutes + duration;
+                        const label = `${formatMinutes(
+                          time.startMinutes
+                        )} - ${formatMinutes(endMinutes)}`;
+
+                        setSelectedTime({
+                          startMinutes: time.startMinutes,
+                          endMinutes,
+                          label,
+                        });
 
                         const selectedDateText = selectedAddDate
                           ? selectedAddDate.toLocaleDateString('en-US', {
@@ -2446,8 +2523,8 @@ export default function AppointmentsPage() {
                                   ? formatDateInput(selectedAddDate)
                                   : prev.appointmentDate,
                                 startMinutes: time.startMinutes,
-                                endMinutes: time.endMinutes,
-                                schedule: `${selectedDateText} ${time.label}`,
+                                endMinutes,
+                                schedule: `${selectedDateText} ${label}`,
                               }
                             : prev
                         );
@@ -2470,7 +2547,9 @@ export default function AppointmentsPage() {
                         },
                       }}
                     >
-                      {time.label}
+                      {`${formatMinutes(time.startMinutes)} - ${formatMinutes(
+                        time.startMinutes + getSelectedServiceDuration()
+                      )}`}
                     </Button>
                   );
                 })}
@@ -2715,21 +2794,40 @@ export default function AppointmentsPage() {
                 select
                 label="Status *"
                 value={selectedAppointment.status}
-                disabled={!!isReadOnly}
+                disabled={originalAppointmentStatus.toUpperCase() !== 'PENDING'}
                 size="small"
-                sx={{ bgcolor: '#fff' }}
+                sx={{
+                  bgcolor:
+                    originalAppointmentStatus.toUpperCase() !== 'PENDING'
+                      ? '#e5e5e5'
+                      : '#fff',
+                  '& .MuiInputBase-input.Mui-disabled': {
+                    WebkitTextFillColor: '#777',
+                  },
+                }}
                 onChange={(e) =>
                   setSelectedAppointment((prev) =>
                     prev ? { ...prev, status: e.target.value } : prev
                   )
                 }
               >
-                <MenuItem value="PENDING">Pending</MenuItem>
-                <MenuItem value="SCHEDULED">Scheduled</MenuItem>
-                <MenuItem value="COMPLETED">Completed</MenuItem>
-                <MenuItem value="NOSHOW">No-show</MenuItem>
-                <MenuItem value="CANCELLED">Cancelled</MenuItem>
-                <MenuItem value="REJECTED">Rejected</MenuItem>
+                {originalAppointmentStatus.toUpperCase() === 'PENDING' ? (
+                  [
+                    <MenuItem key="PENDING" value="PENDING">
+                      Pending
+                    </MenuItem>,
+                    <MenuItem key="SCHEDULED" value="SCHEDULED">
+                      Scheduled
+                    </MenuItem>,
+                    <MenuItem key="REJECTED" value="REJECTED">
+                      Rejected
+                    </MenuItem>,
+                  ]
+                ) : (
+                  <MenuItem value={selectedAppointment.status}>
+                    {selectedAppointment.status}
+                  </MenuItem>
+                )}
               </TextField>
 
               <Box>
@@ -2795,9 +2893,10 @@ export default function AppointmentsPage() {
                 </Box>
               </Box>
 
-              {isReadOnly && (
+              {originalAppointmentStatus.toUpperCase() !== 'PENDING' && (
                 <Typography sx={{ color: 'error.main', fontSize: 13 }}>
-                  Completed, Rejected, No-show, and Cancelled appointments are view-only.
+                  Processed appointment status is view-only here. Completed,
+                  Cancelled, and No-show are handled in Sales.
                 </Typography>
               )}
             </DialogContent>

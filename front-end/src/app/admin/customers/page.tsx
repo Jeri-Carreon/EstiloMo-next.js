@@ -1,9 +1,9 @@
 'use client';
 
+import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
 
 import Link from 'next/link';
-import { useSession } from 'next-auth/react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Table from '@mui/material/Table';
@@ -43,8 +43,6 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Chip from '@mui/material/Chip';
 import Pagination from '@mui/material/Pagination';
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
 interface Customer {
@@ -60,10 +58,13 @@ interface Customer {
 }
 
 export default function CustomersPage() {
-  const { data: session, status } = useSession();
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  // session
   const [loading, setLoading] = useState(true);
+  const supabase = createClient()
+
   const [error, setError] = useState('');
+
+  const [customers, setCustomers] = useState<Customer[]>([]);
 
   // Add Modal
   const [openAdd, setOpenAdd] = useState(false);
@@ -296,22 +297,27 @@ export default function CustomersPage() {
     };
 
   useEffect(() => {
-    if (status === "loading") return; // waits for status to go from loading to finished before deciding the role check logic below
-    
-    const role = (session?.user as { role?: string })?.role;
-    
-    // checks if user role is OWNER or RECEPTIONIST
-    if (
-      !session?.user?.email || 
-      !["OWNER","RECEPTIONIST"].includes(role || "")
-      ){
-        router.push("/unauthorized");
-        return;
-      }
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/login')
+          return
+        }
 
-    loadCustomers();
-  }, [session, status, router]); // session array = re-run useEffect whenever one of these changes
+        const res = await fetch('/api/user/role')
+        const data = await res.json()
 
+        if (!['OWNER', 'RECEPTIONIST'].includes(data.role)) {
+          router.push('/unauthorized')
+          return
+        }
+
+      loadCustomers();
+    }
+
+    init()
+  }, [router]);
+    
   // Search and Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'CASUAL' | 'REGULAR'>('ALL');

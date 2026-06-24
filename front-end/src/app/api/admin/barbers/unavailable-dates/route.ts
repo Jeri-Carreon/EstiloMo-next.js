@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+import { DateTime } from 'luxon';
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -17,8 +19,16 @@ export async function GET(req: Request) {
     }
 
     // First and last day of the month
-    const startOfMonth = new Date(year, month - 1, 1);
-    const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+    // Fix 1: month range in PH timezone
+    const startOfMonth = DateTime.fromObject(
+      { year, month, day: 1 },
+      { zone: 'Asia/Manila' }
+    ).startOf('month').toUTC().toJSDate();
+
+    const endOfMonth = DateTime.fromObject(
+      { year, month, day: 1 },
+      { zone: 'Asia/Manila' }
+    ).endOf('month').toUTC().toJSDate();
 
     // GET ALL ABSENCES FOR THE MONTH
     const absences = await db.barberAbsent.findMany({
@@ -31,7 +41,7 @@ export async function GET(req: Request) {
       },
       select: { date: true },
     });
-
+    
     // GET ALL DAY-OFF SCHEDULES FOR THIS BARBER
     const dayOffSchedules = await db.barberSchedule.findMany({
       where: {
@@ -48,10 +58,12 @@ export async function GET(req: Request) {
     // BUILD LIST OF UNAVAILABLE DATES
     const unavailableDates: string[] = [];
 
-    // Add absence dates
+    // Fix 2: format absence dates in PH timezone
     for (const absence of absences) {
-      const d = new Date(absence.date);
-      const formatted = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const formatted = DateTime.fromJSDate(absence.date)
+        .setZone('Asia/Manila')
+        .toFormat('yyyy-MM-dd');
+
       unavailableDates.push(formatted);
     }
 

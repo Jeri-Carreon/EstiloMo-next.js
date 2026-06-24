@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSupabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/admin';
 
 export async function POST(req: Request) {
   try {
@@ -19,9 +19,9 @@ export async function POST(req: Request) {
 
     const fileExt = file.name.split('.').pop() || 'jpg';
     const fileName = `${bucket === 'payment-screenshots' ? 'payment-' : 'after-service-'}${Date.now()}.${fileExt}`;
-    const supabase = getSupabase();
+    const supabaseClient = supabase
 
-    const { error } = await supabase.storage
+    const { error } = await supabaseClient.storage
       .from(bucket)
       .upload(fileName, buffer, {
         contentType: file.type,

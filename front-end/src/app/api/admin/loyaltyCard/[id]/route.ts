@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { db } from "@/lib/db";
-import { authOptions } from "@/lib/auth";
+
+import { getAdminUser } from "@/lib/supabase/getUser";
 
 export async function PUT(
   req: Request,
@@ -12,9 +12,9 @@ export async function PUT(
   }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getAdminUser();
 
-    if (!session || session.user.role !== "OWNER") {
+    if (!user || !["OWNER"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
