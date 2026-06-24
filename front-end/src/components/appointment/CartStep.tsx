@@ -226,11 +226,15 @@ export default function CartStep({
                       fontWeight: 900,
                       fontSize: 22,
                       pr: 4,
-                      mb: 4,
+                      mb: 1,
                       color: '#111',
                     }}
                   >
                     {item.serviceName}
+                  </Typography>
+
+                  <Typography sx={{ fontWeight: 800, fontSize: 13, color: '#666', mb: 3 }}>
+                    Duration: {item.serviceDurationMinutes} mins
                   </Typography>
 
                   <Typography sx={{ fontWeight: 900, fontSize: 14, mb: 2 }}>

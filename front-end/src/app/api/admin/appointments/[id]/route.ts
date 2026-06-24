@@ -7,6 +7,13 @@ import {
   logAppointmentCancelled,
 } from "@/lib/securityLogEvents";
 
+function createCode(prefix: string) {
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const random = Math.floor(1000 + Math.random() * 9000);
+
+  return `${prefix}-${today}-${random}`;
+}
+
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -41,10 +48,8 @@ export async function PUT(
 
     const existingAppointment = await db.appointment.findUnique({
       where: { id },
-      select: {
-        status: true,
-        appointmentCode: true,
-        saleId: true,
+      include: {
+        service: true,
       },
     });
 
@@ -110,18 +115,65 @@ export async function PUT(
       }
     }
 
-    await db.appointment.update({
+    const updatedBaseAppointment = await db.appointment.update({
       where: { id },
       data,
+      include: {
+        service: true,
+      },
     });
 
-    if (data.status === "SCHEDULED" && existingAppointment.saleId) {
-      await db.sale.update({
-        where: { id: existingAppointment.saleId },
-        data: {
-          status: "PARTIAL",
-        },
-      });
+    if (data.status === "SCHEDULED") {
+      if (updatedBaseAppointment.saleId) {
+        await db.sale.update({
+          where: { id: updatedBaseAppointment.saleId },
+          data: {
+            status: "PARTIAL",
+          },
+        });
+      } else {
+        const sale = await db.sale.create({
+          data: {
+            saleCode: createCode("TRX"),
+            customerId: updatedBaseAppointment.customerId,
+            barberId: updatedBaseAppointment.barberId,
+            source: "BOOKING",
+            status: "PARTIAL",
+            subtotal: Number(updatedBaseAppointment.service.price),
+            discount: 0,
+            totalAmount: Number(updatedBaseAppointment.service.price),
+          },
+        });
+
+        await db.saleItem.create({
+          data: {
+            saleId: sale.id,
+            serviceId: updatedBaseAppointment.serviceId,
+            quantity: 1,
+            price: Number(updatedBaseAppointment.service.price),
+            subtotal: Number(updatedBaseAppointment.service.price),
+          },
+        });
+
+        await db.payment.create({
+          data: {
+            saleId: sale.id,
+            paymentCode: createCode("PAY"),
+            amount: Number(updatedBaseAppointment.service.price),
+            downPayment: 0,
+            discount: 0,
+            method: null,
+            status: "PENDING",
+          },
+        });
+
+        await db.appointment.update({
+          where: { id },
+          data: {
+            saleId: sale.id,
+          },
+        });
+      }
     }
 
     if (afterServicePhotoUrl) {
@@ -192,7 +244,9 @@ export async function DELETE(
 
     const appointment = await db.appointment.findUnique({
       where: { id },
-      select: { appointmentCode: true },
+      select: {
+        appointmentCode: true,
+      },
     });
 
     if (!appointment) {

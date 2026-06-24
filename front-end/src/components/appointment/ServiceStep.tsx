@@ -11,30 +11,24 @@ import Stack from '@mui/material/Stack';
 
 import type { AppointmentData } from '@/app/appointment/page';
 
-const steps = [
-  'Barber',
-  'Service',
-  'Schedule',
-  'Cart',
-  'Confirmation',
-];
+const steps = ['Barber', 'Service', 'Schedule', 'Cart', 'Confirmation'];
 
 interface Service {
   id: string;
   name: string;
   price: number;
   description: string;
+  durationMinutes: number;
 }
 
 interface ServiceStepProps {
   appointmentData: AppointmentData;
-
-  setAppointmentData: React.Dispatch<
-    React.SetStateAction<AppointmentData>
-  >;
-
-  nextStep: (appointmentDate?: string, startMinutes?: number, endMinutes?: number) => void;
-
+  setAppointmentData: React.Dispatch<React.SetStateAction<AppointmentData>>;
+  nextStep: (
+    appointmentDate?: string,
+    startMinutes?: number,
+    endMinutes?: number
+  ) => void;
   prevStep: () => void;
 }
 
@@ -45,72 +39,74 @@ export default function ServiceStep({
   prevStep,
 }: ServiceStepProps) {
   const [services, setServices] = useState<Service[]>([]);
-
-  const [selectedService, setSelectedService] =
-    useState<string>(
-      appointmentData.serviceId || ''
-    );
-
+  const [selectedService, setSelectedService] = useState<string>(
+    appointmentData.serviceId || ''
+  );
   const [loading, setLoading] = useState(true);
-
   const [error, setError] = useState('');
 
   const loadServices = async () => {
     try {
       const res = await fetch(
-        `/api/appointment/services?barberId=${appointmentData.barberId}`
+        `/api/appointment/services?barberId=${appointmentData.barberId}`,
+        {
+          cache: 'no-store',
+        }
       );
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(
-          data.error ||
-            'Unable to load services.'
-        );
-
+        setError(data.error || 'Unable to load services.');
         setServices([]);
-      } else {
-        setError('');
-
-        setServices(data.services || []);
+        return;
       }
-    } catch (error) {
-      setError(
-        'An error occurred while loading services.'
+
+      setError('');
+
+      setServices(
+        (data.services || []).map((service: any) => ({
+          id: service.id,
+          name: service.name,
+          price: Number(service.price || 0),
+          description: service.description || '',
+          durationMinutes: Number(service.durationMinutes || 0),
+        }))
       );
+    } catch (error) {
+      console.error('LOAD SERVICES ERROR:', error);
+      setError('An error occurred while loading services.');
+      setServices([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-  if (!appointmentData.barberId) return;
+    if (!appointmentData.barberId) return;
 
-  setLoading(true); // 🔥 IMPORTANT FIX
-  setServices([]);
-  setError('');
+    setLoading(true);
+    setServices([]);
+    setSelectedService('');
+    setError('');
 
-  loadServices();
-}, [appointmentData.barberId]);
+    loadServices();
+  }, [appointmentData.barberId]);
 
   const handleNext = () => {
     if (!selectedService) return;
 
-    const service = services.find(
-      (s) => s.id === selectedService
-    );
+    const service = services.find((s) => s.id === selectedService);
 
     if (!service) return;
 
     setAppointmentData((prev) => ({
       ...prev,
-
       serviceId: service.id,
       serviceName: service.name,
-      servicePrice: service.price,
-      serviceDescription:
-        service.description,
+      servicePrice: Number(service.price || 0),
+      serviceDescription: service.description || '',
+      serviceDurationMinutes: Number(service.durationMinutes || 0),
     }));
 
     nextStep();
@@ -118,7 +114,6 @@ export default function ServiceStep({
 
   return (
     <Box sx={{ display: 'flex' }}>
-      {/* SIDEBAR */}
       <Box
         sx={{
           width: 220,
@@ -137,28 +132,18 @@ export default function ServiceStep({
                 key={step}
                 direction="row"
                 spacing={2}
-                sx={{
-                  alignItems: 'center',
-                }}
+                sx={{ alignItems: 'center' }}
               >
                 <Box
                   sx={{
                     width: 32,
                     height: 32,
                     borderRadius: '50%',
-                    backgroundColor: active
-                      ? '#f4b400'
-                      : '#777',
-
-                    color: active
-                      ? '#000'
-                      : '#fff',
-
+                    backgroundColor: active ? '#f4b400' : '#777',
+                    color: active ? '#000' : '#fff',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent:
-                      'center',
-
+                    justifyContent: 'center',
                     fontWeight: 'bold',
                   }}
                 >
@@ -167,16 +152,9 @@ export default function ServiceStep({
 
                 <Typography
                   sx={{
-                    color: active
-                      ? '#fff'
-                      : '#aaa',
-
-                    fontWeight: active
-                      ? 'bold'
-                      : 'normal',
-
-                    fontFamily:
-                      'var(--font-nunito-sans)',
+                    color: active ? '#fff' : '#aaa',
+                    fontWeight: active ? 'bold' : 'normal',
+                    fontFamily: 'var(--font-nunito-sans)',
                   }}
                 >
                   {step}
@@ -187,7 +165,6 @@ export default function ServiceStep({
         </Stack>
       </Box>
 
-      {/* MAIN CONTENT */}
       <Box
         sx={{
           flex: 1,
@@ -195,12 +172,9 @@ export default function ServiceStep({
           minHeight: '100vh',
         }}
       >
-        {/* TITLE */}
         <Box
           sx={{
-            borderBottom:
-              '1px solid #bbb',
-
+            borderBottom: '1px solid #bbb',
             px: 4,
             py: 3,
           }}
@@ -209,30 +183,24 @@ export default function ServiceStep({
             variant="h4"
             sx={{
               fontWeight: 'bold',
-              fontFamily:
-                'var(--font-nunito-sans)',
+              fontFamily: 'var(--font-nunito-sans)',
             }}
           >
             Service
           </Typography>
         </Box>
 
-        {/* SERVICES */}
         <Box sx={{ p: 4 }}>
           {loading ? (
-            <Typography>
-              Loading services...
-            </Typography>
+            <Typography>Loading services...</Typography>
           ) : error ? (
-            <Typography color="error">
-              {error}
-            </Typography>
+            <Typography color="error">{error}</Typography>
+          ) : services.length === 0 ? (
+            <Typography>No available services for this barber.</Typography>
           ) : (
             <Grid container spacing={4}>
               {services.map((service) => {
-                const isSelected =
-                  selectedService ===
-                  service.id;
+                const isSelected = selectedService === service.id;
 
                 return (
                   <Grid
@@ -244,29 +212,19 @@ export default function ServiceStep({
                     }}
                   >
                     <Paper
-                      onClick={() =>
-                        setSelectedService(
-                          service.id
-                        )
-                      }
+                      onClick={() => setSelectedService(service.id)}
                       elevation={0}
                       sx={{
                         p: 4,
                         borderRadius: 4,
                         cursor: 'pointer',
-
                         border: isSelected
                           ? '3px solid #f4b400'
                           : '1px solid #ddd',
-
                         transition: '0.2s',
-
-                        minHeight: 220,
-
+                        minHeight: 240,
                         '&:hover': {
-                          transform:
-                            'translateY(-4px)',
-
+                          transform: 'translateY(-4px)',
                           boxShadow: 3,
                         },
                       }}
@@ -275,9 +233,7 @@ export default function ServiceStep({
                         sx={{
                           fontWeight: 'bold',
                           fontSize: '1.3rem',
-
-                          fontFamily:
-                            'var(--font-nunito-sans)',
+                          fontFamily: 'var(--font-nunito-sans)',
                         }}
                       >
                         {service.name}
@@ -289,13 +245,22 @@ export default function ServiceStep({
                           fontWeight: 'bold',
                           fontSize: '1.1rem',
                           mt: 1,
-
-                          fontFamily:
-                            'var(--font-nunito-sans)',
+                          fontFamily: 'var(--font-nunito-sans)',
                         }}
                       >
-                        ₱
-                        {service.price.toLocaleString()}
+                        ₱{service.price.toLocaleString()}
+                      </Typography>
+
+                      <Typography
+                        sx={{
+                          color: '#555',
+                          fontWeight: 800,
+                          mt: 1,
+                          mb: 2,
+                          fontFamily: 'var(--font-nunito-sans)',
+                        }}
+                      >
+                        Duration: {service.durationMinutes} mins
                       </Typography>
 
                       <Typography
@@ -303,14 +268,10 @@ export default function ServiceStep({
                           color: '#666',
                           mt: 2,
                           lineHeight: 1.7,
-
-                          fontFamily:
-                            'var(--font-nunito-sans)',
+                          fontFamily: 'var(--font-nunito-sans)',
                         }}
                       >
-                        {
-                          service.description
-                        }
+                        {service.description}
                       </Typography>
                     </Paper>
                   </Grid>
@@ -320,16 +281,13 @@ export default function ServiceStep({
           )}
         </Box>
 
-        {/* FOOTER BUTTONS */}
         <Box
           sx={{
             borderTop: '1px solid #bbb',
             px: 4,
             py: 3,
-
             display: 'flex',
-            justifyContent:
-              'space-between',
+            justifyContent: 'space-between',
           }}
         >
           <Button
@@ -338,14 +296,10 @@ export default function ServiceStep({
             sx={{
               backgroundColor: '#cfcfcf',
               color: '#000',
-
               px: 6,
               py: 1.5,
-
               borderRadius: 10,
-
               textTransform: 'none',
-
               boxShadow: 'none',
             }}
           >
@@ -359,22 +313,14 @@ export default function ServiceStep({
             sx={{
               backgroundColor: '#f4b400',
               color: '#000',
-
               px: 6,
               py: 1.5,
-
               borderRadius: 10,
-
               textTransform: 'none',
-
               fontWeight: 'bold',
-
               boxShadow: 'none',
-
               '&.Mui-disabled': {
-                backgroundColor:
-                  '#d9d9d9',
-
+                backgroundColor: '#d9d9d9',
                 color: '#888',
               },
             }}
