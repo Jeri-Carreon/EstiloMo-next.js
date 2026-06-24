@@ -27,7 +27,10 @@ function saleDisplayStatus(status: string) {
 export async function GET() {
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -35,7 +38,7 @@ export async function GET() {
 
     const dbUser = await db.user.findUnique({
       where: {
-        email: user.email,
+        email: user.email!,
       },
       include: {
         customer: true,
@@ -51,13 +54,6 @@ export async function GET() {
 
     const customer = dbUser.customer;
 
-    if (!customer) {
-      return NextResponse.json(
-        { error: "Customer not found" },
-        { status: 404 }
-      );
-    }
-
     const appointments = await db.appointment.findMany({
       where: {
         customerId: customer.id,
@@ -69,6 +65,11 @@ export async function GET() {
         barber: true,
         service: true,
         payment: true,
+        afterServicePhotos: {
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
         sale: {
           include: {
             barber: true,
@@ -83,7 +84,7 @@ export async function GET() {
       },
     });
 
-    const groupedAppointments = new Map<string, any[]>();
+    const groupedAppointments = new Map<string, typeof appointments>();
 
     appointments.forEach((appointment) => {
       const key = appointment.saleId || appointment.id;
@@ -122,6 +123,13 @@ export async function GET() {
           )} - ${minutesToTime(appointment.endMinutes)}`;
         });
 
+        const afterServicePhotoUrl =
+          group.find(
+            (appointment) =>
+              appointment.afterServicePhotos &&
+              appointment.afterServicePhotos.length > 0
+          )?.afterServicePhotos?.[0]?.imageUrl || null;
+
         return {
           id: sale?.id || firstAppointment.id,
           type: "APPOINTMENT",
@@ -146,14 +154,19 @@ export async function GET() {
           totalAmount,
 
           status: firstAppointment.status,
+
           paymentStatus:
             sale?.payment?.status || firstAppointment.payment?.status || "PENDING",
+
           paymentMethod:
             sale?.payment?.method || firstAppointment.payment?.method || "N/A",
+
           paymentScreenshotUrl:
             sale?.payment?.screenshotUrl ||
             firstAppointment.payment?.screenshotUrl ||
             null,
+
+          afterServicePhotoUrl,
         };
       }
     );
@@ -226,6 +239,8 @@ export async function GET() {
         paymentStatus: sale.payment?.status || "PENDING",
         paymentMethod: sale.payment?.method || "N/A",
         paymentScreenshotUrl: sale.payment?.screenshotUrl || null,
+
+        afterServicePhotoUrl: null,
       };
     });
 

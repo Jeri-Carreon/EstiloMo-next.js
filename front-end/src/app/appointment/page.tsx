@@ -45,7 +45,6 @@ export interface AppointmentData {
 export default function AppointmentPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'GCASH' | 'CASH'>('GCASH');
   const [successOpen, setSuccessOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -84,7 +83,7 @@ export default function AppointmentPage() {
             appointmentDate: appointmentDate ?? '',
             startMinutes: startMinutes ?? 0,
             endMinutes: endMinutes ?? 0,
-          }
+          },
         ],
         barberId: '',
         barberName: '',
@@ -127,19 +126,19 @@ export default function AppointmentPage() {
     );
 
     if (isDuplicate) {
-      alert("This appointment is already in your cart.");
+      alert('This appointment is already in your cart.');
       return;
     }
 
     setAppointmentData((prev) => ({
-      barberId: "",
-      barberName: "",
-      serviceId: "",
-      serviceName: "",
+      barberId: '',
+      barberName: '',
+      serviceId: '',
+      serviceName: '',
       servicePrice: 0,
-      serviceDescription: "",
+      serviceDescription: '',
       serviceDurationMinutes: 0,
-      appointmentDate: "",
+      appointmentDate: '',
       startMinutes: 0,
       endMinutes: 0,
       cartItems: [
@@ -152,7 +151,7 @@ export default function AppointmentPage() {
           servicePrice: prev.servicePrice,
           serviceDescription: prev.serviceDescription,
           serviceDurationMinutes: prev.serviceDurationMinutes,
-          appointmentDate: prev.appointmentDate ?? "",
+          appointmentDate: prev.appointmentDate ?? '',
           startMinutes: prev.startMinutes ?? 0,
           endMinutes: prev.endMinutes ?? 0,
         },
@@ -175,7 +174,7 @@ export default function AppointmentPage() {
       return;
     }
 
-    if (paymentMethod === 'GCASH' && !paymentScreenshot) {
+    if (!paymentScreenshot) {
       alert('Please upload your payment screenshot.');
       return;
     }
@@ -184,7 +183,6 @@ export default function AppointmentPage() {
       setLoading(true);
 
       const formData = new FormData();
-      formData.append('paymentMethod', paymentMethod);
       formData.append('downPayment', String(downPayment));
       formData.append('totalPrice', String(totalPrice));
       formData.append('cartItems', JSON.stringify(appointmentData.cartItems));
@@ -273,8 +271,6 @@ export default function AppointmentPage() {
           setPaymentScreenshot={setPaymentScreenshot}
           handleConfirm={handleConfirm}
           loading={loading}
-          paymentMethod={paymentMethod}
-          setPaymentMethod={setPaymentMethod}
         />
       )}
 

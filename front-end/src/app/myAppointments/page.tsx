@@ -24,9 +24,10 @@ import Dialog from "@mui/material/Dialog";
 
 import CloseIcon from "@mui/icons-material/Close";
 import SearchIcon from "@mui/icons-material/Search";
-import CancelIcon from "@mui/icons-material/Cancel";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import StarIcon from "@mui/icons-material/Star";
+import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+import PaymentsIcon from "@mui/icons-material/Payments";
 
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -61,6 +62,7 @@ type CustomerHistory = {
   paymentStatus: string;
   paymentMethod: string;
   paymentScreenshotUrl?: string | null;
+  afterServicePhotoUrl?: string | null;
 };
 
 const itemsPerPage = 5;
@@ -74,7 +76,7 @@ function formatDisplayType(type: CustomerHistory["type"]) {
 }
 
 function splitSchedule(schedule: string) {
-  return schedule.split("\n");
+  return String(schedule || "").split("\n").filter(Boolean);
 }
 
 export default function MyAppointmentsPage() {
@@ -92,10 +94,11 @@ export default function MyAppointmentsPage() {
   const [page, setPage] = useState(1);
 
   const [selectedItem, setSelectedItem] = useState<CustomerHistory | null>(null);
-
   const [receiptOpen, setReceiptOpen] = useState(false);
-  const [cancelOpen, setCancelOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+
+  const [imageOpen, setImageOpen] = useState(false);
+  const [imageTitle, setImageTitle] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   const loadHistory = async () => {
     try {
@@ -111,16 +114,7 @@ export default function MyAppointmentsPage() {
       }
 
       const text = await res.text();
-
-      let data: any = {};
-
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        console.error("API returned non-JSON:", text);
-        setHistory([]);
-        return;
-      }
+      const data = text ? JSON.parse(text) : {};
 
       if (!res.ok) {
         console.error("LOAD CUSTOMER HISTORY ERROR:", data);
@@ -139,18 +133,16 @@ export default function MyAppointmentsPage() {
 
   useEffect(() => {
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
       if (!user) {
         router.push("/login");
         return;
       }
 
-      setDisplayName(
-        user.user_metadata?.full_name ||
-        user.email ||
-        "Customer"
-      );
+      setDisplayName(user.user_metadata?.full_name || user.email || "Customer");
       setAuthLoading(false);
       await loadHistory();
     };
@@ -185,10 +177,7 @@ export default function MyAppointmentsPage() {
     page * itemsPerPage
   );
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredHistory.length / itemsPerPage)
-  );
+  const totalPages = Math.max(1, Math.ceil(filteredHistory.length / itemsPerPage));
 
   const showingFrom =
     filteredHistory.length === 0 ? 0 : (page - 1) * itemsPerPage + 1;
@@ -201,6 +190,7 @@ export default function MyAppointmentsPage() {
     if (value === "PENDING") return "#92400E";
     if (value === "SCHEDULED") return "#2563eb";
     if (value === "COMPLETED") return "green";
+    if (value === "DONE") return "green";
     if (value === "PAID") return "green";
     if (value === "CANCELLED") return "#EA580C";
     if (value === "REJECTED") return "#DC2626";
@@ -211,41 +201,10 @@ export default function MyAppointmentsPage() {
     return "#333";
   };
 
-  const canCancel = (item: CustomerHistory) => {
-    return (
-      item.type === "APPOINTMENT" &&
-      ["PENDING", "SCHEDULED"].includes(item.status.toUpperCase())
-    );
-  };
-
-  const handleCancelAppointment = async () => {
-    if (!selectedItem?.appointmentId) return;
-
-    try {
-      setSaving(true);
-
-      const res = await fetch(
-        `/api/customers/appointments/${selectedItem.appointmentId}/cancel`,
-        { method: "PUT" }
-      );
-
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : {};
-
-      if (!res.ok) {
-        alert(data.error || "Failed to cancel appointment");
-        return;
-      }
-
-      setCancelOpen(false);
-      setSelectedItem(null);
-      await loadHistory();
-    } catch (error) {
-      console.error(error);
-      alert("Something went wrong");
-    } finally {
-      setSaving(false);
-    }
+  const openImagePreview = (title: string, url?: string | null) => {
+    setImageTitle(title);
+    setImageUrl(url || null);
+    setImageOpen(true);
   };
 
   if (authLoading || loading) {
@@ -330,6 +289,7 @@ export default function MyAppointmentsPage() {
             <MenuItem value="PENDING">Pending</MenuItem>
             <MenuItem value="SCHEDULED">Scheduled</MenuItem>
             <MenuItem value="COMPLETED">Completed</MenuItem>
+            <MenuItem value="DONE">Done</MenuItem>
             <MenuItem value="CANCELLED">Cancelled</MenuItem>
             <MenuItem value="NOSHOW">No Show</MenuItem>
             <MenuItem value="REJECTED">Rejected</MenuItem>
@@ -358,9 +318,15 @@ export default function MyAppointmentsPage() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 900, color: "#888" }}>Transaction #</TableCell>
-                <TableCell sx={{ fontWeight: 900, color: "#888" }}>Type</TableCell>
-                <TableCell sx={{ fontWeight: 900, color: "#888" }}>Barber</TableCell>
+                <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                  Transaction #
+                </TableCell>
+                <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                  Type
+                </TableCell>
+                <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                  Barber
+                </TableCell>
                 <TableCell sx={{ fontWeight: 900 }}>Service</TableCell>
                 <TableCell sx={{ fontWeight: 900 }}>Date</TableCell>
                 <TableCell sx={{ fontWeight: 900 }}>Total Amount</TableCell>
@@ -382,58 +348,111 @@ export default function MyAppointmentsPage() {
                     <TableCell sx={{ fontWeight: 900, color: "#888" }}>
                       {item.saleCode || item.appointmentCode}
                     </TableCell>
+
                     <TableCell sx={{ fontWeight: 900, color: "#888" }}>
                       {formatDisplayType(item.type)}
                     </TableCell>
+
                     <TableCell sx={{ fontWeight: 900, color: "#888" }}>
                       {item.barberName}
                     </TableCell>
+
                     <TableCell sx={{ fontWeight: 900 }}>
                       {item.serviceName}
                     </TableCell>
 
                     <TableCell sx={{ fontWeight: 900, minWidth: 340 }}>
-  {splitSchedule(item.schedule || item.appointmentDate).map((date, index) => (
-                        <Typography
-                          key={index}
-                          sx={{
-                            fontWeight: 900,
-                            fontSize: 14,
-                            whiteSpace: "nowrap",
-                            mb: index !== splitSchedule(item.schedule).length - 1 ? 0.5 : 0,
-                          }}
-                        >
-                          {date}
-                        </Typography>
-                      ))}
-                    </TableCell>
-
-                    <TableCell sx={{ fontWeight: 900, minWidth: 120, whiteSpace: "nowrap" }}>
-                      {formatAmount(item.totalAmount)}
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 900, color: getStatusColor(item.status) }}>
-                      {item.status}
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        {canCancel(item) && (
-                          <IconButton
-                            size="small"
-                            onClick={() => {
-                              setSelectedItem(item);
-                              setCancelOpen(true);
-                            }}
+                      {splitSchedule(item.schedule || item.appointmentDate).map(
+                        (date, index) => (
+                          <Typography
+                            key={index}
                             sx={{
-                              bgcolor: "#ff5252",
-                              width: 34,
-                              height: 34,
-                              color: "#fff",
-                              "&:hover": { bgcolor: "#e53935" },
+                              fontWeight: 900,
+                              fontSize: 14,
+                              whiteSpace: "nowrap",
+                              mb:
+                                index !==
+                                splitSchedule(item.schedule || item.appointmentDate)
+                                  .length -
+                                  1
+                                  ? 0.5
+                                  : 0,
                             }}
                           >
-                            <CancelIcon sx={{ fontSize: 18 }} />
-                          </IconButton>
-                        )}
+                            {date}
+                          </Typography>
+                        )
+                      )}
+                    </TableCell>
+
+                    <TableCell
+                      sx={{
+                        fontWeight: 900,
+                        minWidth: 120,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {formatAmount(item.totalAmount)}
+                    </TableCell>
+
+                    <TableCell
+                      sx={{
+                        fontWeight: 900,
+                        color: getStatusColor(item.status),
+                      }}
+                    >
+                      {item.status}
+                    </TableCell>
+
+                    <TableCell>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <IconButton
+                          size="small"
+                          disabled={!item.afterServicePhotoUrl}
+                          onClick={() =>
+                            openImagePreview(
+                              "After-Service Photo",
+                              item.afterServicePhotoUrl
+                            )
+                          }
+                          sx={{
+                            bgcolor: item.afterServicePhotoUrl ? "#e5e5e5" : "#f1f1f1",
+                            width: 34,
+                            height: 34,
+                            color: item.afterServicePhotoUrl ? "#555" : "#aaa",
+                            "&:hover": {
+                              bgcolor: item.afterServicePhotoUrl
+                                ? "#d4d4d4"
+                                : "#f1f1f1",
+                            },
+                          }}
+                        >
+                          <PhotoCameraIcon sx={{ fontSize: 18 }} />
+                        </IconButton>
+
+                        <IconButton
+                          size="small"
+                          disabled={!item.paymentScreenshotUrl}
+                          onClick={() =>
+                            openImagePreview(
+                              "Payment Screenshot",
+                              item.paymentScreenshotUrl
+                            )
+                          }
+                          sx={{
+                            bgcolor: item.paymentScreenshotUrl ? "#e5e5e5" : "#f1f1f1",
+                            width: 34,
+                            height: 34,
+                            color: item.paymentScreenshotUrl ? "#555" : "#aaa",
+                            "&:hover": {
+                              bgcolor: item.paymentScreenshotUrl
+                                ? "#d4d4d4"
+                                : "#f1f1f1",
+                            },
+                          }}
+                        >
+                          <PaymentsIcon sx={{ fontSize: 18 }} />
+                        </IconButton>
 
                         <IconButton
                           size="small"
@@ -452,7 +471,9 @@ export default function MyAppointmentsPage() {
                           <ReceiptLongIcon sx={{ fontSize: 18 }} />
                         </IconButton>
 
-                        {item.status.toUpperCase() === "COMPLETED" && (
+                        {["COMPLETED", "DONE"].includes(
+                          item.status.toUpperCase()
+                        ) && (
                           <IconButton
                             size="small"
                             onClick={() => router.push("/myReviews")}
@@ -485,8 +506,7 @@ export default function MyAppointmentsPage() {
           }}
         >
           <Typography sx={{ fontSize: 14 }}>
-            Showing {showingFrom} to {showingTo} of {filteredHistory.length}{" "}
-            Entries
+            Showing {showingFrom} to {showingTo} of {filteredHistory.length} Entries
           </Typography>
 
           <Pagination
@@ -565,22 +585,46 @@ export default function MyAppointmentsPage() {
                     <TableCell sx={{ fontWeight: 900, color: "#888" }}>
                       {selectedItem?.barberName}
                     </TableCell>
+
                     <TableCell sx={{ fontWeight: 900, color: "#888" }}>
                       {service.serviceName}
                     </TableCell>
+
                     <TableCell sx={{ fontWeight: 900, color: "#888" }}>
                       {service.quantity}
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 900, color: "#888", minWidth: 260 }}>
-                      {splitSchedule(selectedItem?.schedule || "").map((date, index) => (
-                        <Typography key={index} sx={{ fontWeight: 900, color: "#888", fontSize: 14 }}>
-                          {date}
-                        </Typography>
-                      ))}
+
+                    <TableCell
+                      sx={{
+                        fontWeight: 900,
+                        color: "#888",
+                        minWidth: 260,
+                      }}
+                    >
+                      {splitSchedule(selectedItem?.schedule || "").map(
+                        (date, index) => (
+                          <Typography
+                            key={index}
+                            sx={{
+                              fontWeight: 900,
+                              color: "#888",
+                              fontSize: 14,
+                            }}
+                          >
+                            {date}
+                          </Typography>
+                        )
+                      )}
                     </TableCell>
+
                     <TableCell
                       align="right"
-                      sx={{ fontWeight: 900, color: "#888", whiteSpace: "nowrap", minWidth: 110 }}
+                      sx={{
+                        fontWeight: 900,
+                        color: "#888",
+                        whiteSpace: "nowrap",
+                        minWidth: 110,
+                      }}
                     >
                       {formatAmount(service.subtotal)}
                     </TableCell>
@@ -612,7 +656,9 @@ export default function MyAppointmentsPage() {
                 }}
               >
                 <Typography sx={{ fontWeight: 900 }}>{label}</Typography>
-                <Typography sx={{ fontWeight: 900, color: "#777" }}>{value}</Typography>
+                <Typography sx={{ fontWeight: 900, color: "#777" }}>
+                  {value}
+                </Typography>
               </Box>
             ))}
           </Box>
@@ -620,73 +666,49 @@ export default function MyAppointmentsPage() {
       </Dialog>
 
       <Dialog
-        open={cancelOpen}
-        onClose={() => setCancelOpen(false)}
+        open={imageOpen}
+        onClose={() => setImageOpen(false)}
         maxWidth="sm"
         fullWidth
       >
-        <Box sx={{ p: 4, bgcolor: "#f3f3f3", textAlign: "center" }}>
-          <Box
+        <Box sx={{ p: 4, bgcolor: "#f3f3f3", position: "relative" }}>
+          <IconButton
+            onClick={() => setImageOpen(false)}
             sx={{
-              width: 150,
-              height: 150,
-              borderRadius: "50%",
-              bgcolor: "red",
-              mx: "auto",
-              mb: 3,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 10px 20px rgba(0,0,0,0.25)",
+              position: "absolute",
+              top: 12,
+              right: 12,
+              color: "#555",
             }}
           >
-            <CloseIcon sx={{ fontSize: 95, color: "#fff" }} />
-          </Box>
+            <CloseIcon />
+          </IconButton>
 
-          <Typography sx={{ fontSize: 22, fontWeight: 900, mb: 2 }}>
-            Are you sure you want to cancel your booking appointment #
-            {selectedItem?.appointmentCode}?
+          <Typography
+            align="center"
+            sx={{ fontSize: 20, fontWeight: 900, mb: 3 }}
+          >
+            {imageTitle}
           </Typography>
 
-          <Typography sx={{ color: "#888", mb: 3 }}>
-            Your downpayment will not be refunded upon cancellation.
-            <Box component="span" sx={{ color: "red" }}>
-              {" "}
-              *
-            </Box>
-          </Typography>
-
-          <Box sx={{ display: "flex", justifyContent: "center", gap: 2 }}>
-            <Button
-              onClick={() => setCancelOpen(false)}
+          {imageUrl ? (
+            <Box
+              component="img"
+              src={imageUrl}
+              alt={imageTitle}
               sx={{
-                bgcolor: "#ddd",
-                color: "#111",
-                width: 150,
-                borderRadius: 5,
-                textTransform: "none",
-                fontWeight: 800,
+                display: "block",
+                maxWidth: "100%",
+                maxHeight: "70vh",
+                mx: "auto",
+                borderRadius: 2,
+                objectFit: "contain",
+                bgcolor: "#fff",
               }}
-            >
-              Return
-            </Button>
-
-            <Button
-              disabled={saving}
-              onClick={handleCancelAppointment}
-              sx={{
-                bgcolor: "red",
-                color: "#111",
-                width: 150,
-                borderRadius: 5,
-                textTransform: "none",
-                fontWeight: 800,
-                "&:hover": { bgcolor: "#e00000" },
-              }}
-            >
-              {saving ? "Cancelling..." : "Cancel"}
-            </Button>
-          </Box>
+            />
+          ) : (
+            <Typography align="center">No image available.</Typography>
+          )}
         </Box>
       </Dialog>
 
