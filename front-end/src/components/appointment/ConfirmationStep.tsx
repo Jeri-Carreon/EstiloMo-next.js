@@ -4,8 +4,6 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
-import Select from '@mui/material/Select';
-import MenuItem from '@mui/material/MenuItem';
 
 import type { AppointmentData } from '@/app/appointment/page';
 
@@ -20,8 +18,6 @@ interface ConfirmationStepProps {
   setPaymentScreenshot: React.Dispatch<React.SetStateAction<File | null>>;
   loading: boolean;
   handleConfirm: () => void;
-  paymentMethod: 'GCASH' | 'CASH';
-  setPaymentMethod: React.Dispatch<React.SetStateAction<'GCASH' | 'CASH'>>;
 }
 
 function formatTime(minutes: number) {
@@ -52,8 +48,6 @@ export default function ConfirmationStep({
   setPaymentScreenshot,
   loading,
   handleConfirm,
-  paymentMethod,
-  setPaymentMethod,
 }: ConfirmationStepProps) {
   return (
     <Box sx={{ display: 'flex' }}>
@@ -203,7 +197,7 @@ export default function ConfirmationStep({
                   </Box>
 
                   <Typography sx={{ color: '#666', fontWeight: 800, mb: 1 }}>
-                    Screenshot of ₱150 DP (REQUIRED)
+                    Screenshot of ₱{downPayment.toFixed(2)} DP (REQUIRED)
                   </Typography>
 
                   <Button
@@ -374,7 +368,14 @@ export default function ConfirmationStep({
                     {item.serviceName}
                   </Typography>
 
-                  <Typography sx={{ color: '#666', fontWeight: 800, fontSize: 14, mt: 0.5 }}>
+                  <Typography
+                    sx={{
+                      color: '#666',
+                      fontWeight: 800,
+                      fontSize: 14,
+                      mt: 0.5,
+                    }}
+                  >
                     Duration: {item.serviceDurationMinutes} mins
                   </Typography>
 
@@ -386,8 +387,7 @@ export default function ConfirmationStep({
                       mt: 0.5,
                     }}
                   >
-                    {formatDate(item.appointmentDate)},{' '}
-                    {formatTime(item.startMinutes)}
+                    {formatDate(item.appointmentDate)}, {formatTime(item.startMinutes)}
                   </Typography>
 
                   <Typography sx={{ color: '#555', fontWeight: 700, mt: 1 }}>
@@ -431,7 +431,6 @@ export default function ConfirmationStep({
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  mb: 2,
                 }}
               >
                 <Typography sx={{ fontWeight: 900, fontSize: 24 }}>
@@ -442,25 +441,6 @@ export default function ConfirmationStep({
                   ₱{totalPrice.toFixed(2)}
                 </Typography>
               </Box>
-
-              <Typography sx={{ fontWeight: 900, mb: 1 }}>
-                Mode of Payment
-              </Typography>
-
-              <Select
-                fullWidth
-                value={paymentMethod}
-                onChange={(e) =>
-                  setPaymentMethod(e.target.value as 'GCASH' | 'CASH')
-                }
-                sx={{
-                  backgroundColor: '#fff',
-                  fontWeight: 900,
-                }}
-              >
-                <MenuItem value="GCASH">GCash</MenuItem>
-                <MenuItem value="CASH">Cash</MenuItem>
-              </Select>
             </Box>
           </Box>
         </Box>
