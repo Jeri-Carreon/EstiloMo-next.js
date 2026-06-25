@@ -86,12 +86,15 @@ export default function LoginPage() {
 
     const user = await res.json()
 
-    if (user.role !== 'CUSTOMER') {
+    if (['OWNER','RECEPTIONIST'].includes(user.role)) {
       router.push('/admin/dashboard')
+    } else if (user.role === 'BARBER') {
+      router.push('/admin/barbers')
     } else {
       router.push('/myAppointments')
     }
   }
+  
 
   return (
     <Box

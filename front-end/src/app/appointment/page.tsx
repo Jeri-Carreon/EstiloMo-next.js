@@ -48,6 +48,10 @@ export interface AppointmentData {
   cartItems: CartItem[];
 }
 
+interface ConfirmAppointmentResponse {
+  error?: string;
+}
+
 function formatTime(minutes: number) {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
@@ -248,7 +252,7 @@ export default function AppointmentPage() {
 
       const text = await res.text();
 
-      let data: any = {};
+      let data: ConfirmAppointmentResponse = {};
       try {
         data = JSON.parse(text);
       } catch {
@@ -345,11 +349,12 @@ export default function AppointmentPage() {
         slotProps={{
           paper: {
             sx: {
-              top: 96,
-              bottom: 88,
+              top: { xs: 72, sm: 96 },
+              bottom: { xs: 72, sm: 88 },
               height: 'auto',
-              width: { xs: 320, sm: 410 },
-              borderRadius: '16px 0 0 16px',
+              width: { xs: 'calc(100vw - 24px)', sm: 410 },
+              maxWidth: '100vw',
+              borderRadius: { xs: '12px 0 0 12px', sm: '16px 0 0 16px' },
               overflow: 'hidden',
             },
           },
@@ -358,12 +363,13 @@ export default function AppointmentPage() {
         <Box
           sx={{
             height: '100%',
-            p: 3,
+            p: { xs: 2, sm: 3 },
             display: 'flex',
             flexDirection: 'column',
+            minWidth: 0,
           }}
         >
-          <Typography sx={{ fontSize: 24, fontWeight: 900, mb: 2 }}>
+          <Typography sx={{ fontSize: { xs: 20, sm: 24 }, fontWeight: 900, mb: 2 }}>
             Your Booking Cart
           </Typography>
 
@@ -465,10 +471,11 @@ export default function AppointmentPage() {
       <Modal open={warningOpen} onClose={() => setWarningOpen(false)}>
         <Box
           sx={{
-            width: { xs: '90%', sm: 430 },
+            width: { xs: 'calc(100% - 32px)', sm: 430 },
+            maxWidth: 430,
             backgroundColor: '#fff',
             borderRadius: 3,
-            p: 4,
+            p: { xs: 3, sm: 4 },
             textAlign: 'center',
             position: 'absolute',
             top: '50%',
@@ -478,7 +485,7 @@ export default function AppointmentPage() {
             outline: 'none',
           }}
         >
-          <Typography sx={{ fontSize: 24, fontWeight: 1000, mb: 1.5 }}>
+          <Typography sx={{ fontSize: { xs: 21, sm: 24 }, fontWeight: 1000, mb: 1.5 }}>
             {warningTitle}
           </Typography>
 
@@ -507,7 +514,10 @@ export default function AppointmentPage() {
       <Modal open={successOpen}>
         <Box
           sx={{
-            width: { xs: '90%', md: 720 },
+            width: { xs: 'calc(100% - 32px)', md: 720 },
+            maxWidth: 720,
+            maxHeight: '90vh',
+            overflowY: 'auto',
             backgroundColor: '#fff',
             borderRadius: 3,
             p: { xs: 3, md: 6 },
@@ -522,8 +532,8 @@ export default function AppointmentPage() {
         >
           <Box
             sx={{
-              width: 115,
-              height: 115,
+              width: { xs: 86, sm: 115 },
+              height: { xs: 86, sm: 115 },
               backgroundColor: '#f1f1f1',
               borderRadius: '50%',
               mx: 'auto',
@@ -533,12 +543,12 @@ export default function AppointmentPage() {
               justifyContent: 'center',
             }}
           >
-            <CheckCircleIcon sx={{ fontSize: 70, color: '#2ebd4f' }} />
+            <CheckCircleIcon sx={{ fontSize: { xs: 54, sm: 70 }, color: '#2ebd4f' }} />
           </Box>
 
           <Typography
             sx={{
-              fontSize: { xs: 30, md: 40 },
+              fontSize: { xs: 24, sm: 30, md: 40 },
               fontWeight: 1000,
               color: '#09a84f',
               lineHeight: 1.1,
@@ -548,11 +558,11 @@ export default function AppointmentPage() {
             APPOINTMENT BOOKED SUCCESSFULLY!
           </Typography>
 
-          <Typography sx={{ fontWeight: 900, fontSize: 18, mb: 4 }}>
+          <Typography sx={{ fontWeight: 900, fontSize: { xs: 16, sm: 18 }, mb: 4 }}>
             We will notify you when your appointment is confirmed by our receptionist.
           </Typography>
 
-          <Typography sx={{ fontWeight: 900, fontSize: 18, mb: 5 }}>
+          <Typography sx={{ fontWeight: 900, fontSize: { xs: 16, sm: 18 }, mb: 5 }}>
             Thank you for trusting The Barbs Bro!
           </Typography>
 
@@ -561,12 +571,13 @@ export default function AppointmentPage() {
             sx={{
               backgroundColor: '#ddd',
               color: '#111',
-              px: 6,
+              width: { xs: '100%', sm: 'auto' },
+              px: { xs: 2, sm: 6 },
               py: 1.5,
               borderRadius: 10,
               textTransform: 'none',
               fontWeight: 900,
-              fontSize: 20,
+              fontSize: { xs: 16, sm: 20 },
               boxShadow: '0 3px 5px rgba(0,0,0,0.2)',
             }}
           >

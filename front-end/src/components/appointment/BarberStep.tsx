@@ -90,32 +90,49 @@ export default function BarberStep({
   };
 
   return (
-    <Box sx={{ display: 'flex', fontFamily: 'var(--font-nunito-sans)' }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', md: 'row' },
+        fontFamily: 'var(--font-nunito-sans)',
+        minWidth: 0,
+      }}
+    >
       <Box
         sx={{
-          width: 220,
+          width: { xs: '100%', md: 220 },
           backgroundColor: '#000',
-          borderRight: '3px solid #0b9cff',
-          px: 2,
-          py: 4,
-          minHeight: '100vh',
+          borderRight: { xs: 'none', md: '3px solid #0b9cff' },
+          borderBottom: { xs: '3px solid #0b9cff', md: 'none' },
+          px: { xs: 1.5, md: 2 },
+          py: { xs: 1.5, md: 4 },
+          minHeight: { xs: 'auto', md: '100vh' },
         }}
       >
-        <Stack spacing={4}>
+        <Stack
+          direction={{ xs: 'row', md: 'column' }}
+          spacing={{ xs: 1, md: 4 }}
+          sx={{ width: '100%' }}
+        >
           {steps.map((step, index) => {
             const active = index === 0;
 
             return (
               <Stack
                 key={step}
-                direction="row"
-                spacing={2}
-                sx={{ alignItems: 'center' }}
+                direction={{ xs: 'column', md: 'row' }}
+                spacing={{ xs: 0.5, md: 2 }}
+                sx={{
+                  alignItems: 'center',
+                  flex: { xs: 1, md: 'initial' },
+                  minWidth: 0,
+                }}
               >
                 <Box
                   sx={{
-                    width: 34,
-                    height: 34,
+                    width: { xs: 28, md: 34 },
+                    height: { xs: 28, md: 34 },
+                    flexShrink: 0,
                     borderRadius: '50%',
                     backgroundColor: active ? '#f4b400' : '#777',
                     color: active ? '#000' : '#fff',
@@ -123,7 +140,7 @@ export default function BarberStep({
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: 900,
-                    fontSize: 14,
+                    fontSize: { xs: 12, md: 14 },
                   }}
                 >
                   {index + 1}
@@ -133,7 +150,10 @@ export default function BarberStep({
                   sx={{
                     color: active ? '#fff' : '#999',
                     fontWeight: active ? 900 : 800,
-                    fontSize: 18,
+                    fontSize: { xs: 10, sm: 12, md: 18 },
+                    lineHeight: 1.1,
+                    textAlign: 'center',
+                    overflowWrap: 'anywhere',
                   }}
                 >
                   {step}
@@ -147,8 +167,9 @@ export default function BarberStep({
       <Box
         sx={{
           flex: 1,
+          minWidth: 0,
           backgroundColor: '#d9d9d9',
-          minHeight: '100vh',
+          minHeight: { xs: 'auto', md: '100vh' },
           display: 'flex',
           flexDirection: 'column',
         }}
@@ -156,14 +177,16 @@ export default function BarberStep({
         <Box
           sx={{
             borderBottom: '1px solid #aaa',
-            px: 3,
-            py: 2,
+            px: { xs: 2, sm: 3 },
+            py: { xs: 1.5, sm: 2 },
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
           }}
         >
-          <Typography sx={{ fontWeight: 900, fontSize: 34, color: '#111' }}>
+          <Typography
+            sx={{ fontWeight: 900, fontSize: { xs: 28, sm: 34 }, color: '#111' }}
+          >
             Barber
           </Typography>
 
@@ -203,13 +226,13 @@ export default function BarberStep({
           </IconButton>
         </Box>
 
-        <Box sx={{ flex: 1, p: 3 }}>
+        <Box sx={{ flex: 1, p: { xs: 2, sm: 3 }, minWidth: 0 }}>
           {loading ? (
             <Typography>Loading barbers...</Typography>
           ) : error ? (
             <Typography color="error">{error}</Typography>
           ) : (
-            <Grid container spacing={4}>
+            <Grid container spacing={{ xs: 2, sm: 3, md: 4 }}>
               {barbers.map((barber) => {
                 const isSelected = selectedBarber === barber.id;
 
@@ -226,8 +249,8 @@ export default function BarberStep({
                       onClick={() => setSelectedBarber(barber.id)}
                       elevation={0}
                       sx={{
-                        p: 4,
-                        borderRadius: 4,
+                        p: { xs: 2.5, sm: 4 },
+                        borderRadius: { xs: 2, sm: 4 },
                         cursor: 'pointer',
                         backgroundColor: '#fff',
                         border: isSelected
@@ -251,6 +274,8 @@ export default function BarberStep({
                           sx={{
                             width: 90,
                             height: 90,
+                            maxWidth: '28vw',
+                            maxHeight: '28vw',
                             backgroundColor: '#e0e0e0',
                             color: '#000',
                             fontSize: '2rem',
@@ -292,10 +317,11 @@ export default function BarberStep({
           sx={{
             borderTop: '1px solid #aaa',
             backgroundColor: '#f5f5f5',
-            px: 3,
-            py: 2,
+            px: { xs: 2, sm: 3 },
+            py: { xs: 1.5, sm: 2 },
             display: 'flex',
             justifyContent: 'space-between',
+            gap: 2,
           }}
         >
           <Button
@@ -303,7 +329,8 @@ export default function BarberStep({
             sx={{
               backgroundColor: '#d3d3d3',
               color: '#111',
-              px: 6,
+              flex: { xs: 1, sm: 'initial' },
+              px: { xs: 2, sm: 6 },
               py: 1,
               borderRadius: 10,
               textTransform: 'none',
@@ -324,7 +351,8 @@ export default function BarberStep({
             sx={{
               backgroundColor: '#f4b400',
               color: '#111',
-              px: 7,
+              flex: { xs: 1, sm: 'initial' },
+              px: { xs: 2, sm: 7 },
               py: 1,
               borderRadius: 10,
               textTransform: 'none',

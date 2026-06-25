@@ -17,11 +17,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getAdminUser()
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const dbUser = await getAdminUser()
+    if (!dbUser || !["OWNER", "RECEPTIONIST", "BARBER"].includes(dbUser.role)) {
+       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-
     const { id } = await params;
 
     if (!id) {

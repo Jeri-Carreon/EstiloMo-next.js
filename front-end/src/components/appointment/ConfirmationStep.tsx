@@ -51,18 +51,30 @@ export default function ConfirmationStep({
   handleConfirm,
 }: ConfirmationStepProps) {
   return (
-    <Box sx={{ display: 'flex', fontFamily: 'var(--font-nunito-sans)' }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', md: 'row' },
+        fontFamily: 'var(--font-nunito-sans)',
+        minWidth: 0,
+      }}
+    >
       <Box
         sx={{
-          width: 220,
+          width: { xs: '100%', md: 220 },
           backgroundColor: '#000',
-          borderRight: '3px solid #0b9cff',
-          px: 2,
-          py: 4,
-          minHeight: '100vh',
+          borderRight: { xs: 'none', md: '3px solid #0b9cff' },
+          borderBottom: { xs: '3px solid #0b9cff', md: 'none' },
+          px: { xs: 1.5, md: 2 },
+          py: { xs: 1.5, md: 4 },
+          minHeight: { xs: 'auto', md: '100vh' },
         }}
       >
-        <Stack spacing={4}>
+        <Stack
+          direction={{ xs: 'row', md: 'column' }}
+          spacing={{ xs: 1, md: 4 }}
+          sx={{ width: '100%' }}
+        >
           {steps.map((step, index) => {
             const completed = index < 4;
             const active = index === 4;
@@ -70,14 +82,19 @@ export default function ConfirmationStep({
             return (
               <Stack
                 key={step}
-                direction="row"
-                spacing={2}
-                sx={{ alignItems: 'center' }}
+                direction={{ xs: 'column', md: 'row' }}
+                spacing={{ xs: 0.5, md: 2 }}
+                sx={{
+                  alignItems: 'center',
+                  flex: { xs: 1, md: 'initial' },
+                  minWidth: 0,
+                }}
               >
                 <Box
                   sx={{
-                    width: 34,
-                    height: 34,
+                    width: { xs: 28, md: 34 },
+                    height: { xs: 28, md: 34 },
+                    flexShrink: 0,
                     borderRadius: '50%',
                     backgroundColor:
                       completed || active ? '#f4b400' : '#777',
@@ -86,17 +103,24 @@ export default function ConfirmationStep({
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: 900,
-                    fontSize: 14,
+                    fontSize: { xs: 12, md: 14 },
                   }}
                 >
-                  {completed ? <CheckIcon sx={{ fontSize: 20 }} /> : index + 1}
+                  {completed ? (
+                    <CheckIcon sx={{ fontSize: { xs: 18, md: 20 } }} />
+                  ) : (
+                    index + 1
+                  )}
                 </Box>
 
                 <Typography
                   sx={{
                     color: completed || active ? '#fff' : '#999',
                     fontWeight: active ? 900 : 800,
-                    fontSize: 18,
+                    fontSize: { xs: 10, sm: 12, md: 18 },
+                    lineHeight: 1.1,
+                    textAlign: 'center',
+                    overflowWrap: 'anywhere',
                   }}
                 >
                   {step}
@@ -110,8 +134,9 @@ export default function ConfirmationStep({
       <Box
         sx={{
           flex: 1,
+          minWidth: 0,
           backgroundColor: '#d9d9d9',
-          minHeight: '100vh',
+          minHeight: { xs: 'auto', md: '100vh' },
           display: 'flex',
           flexDirection: 'column',
         }}
@@ -119,34 +144,40 @@ export default function ConfirmationStep({
         <Box
           sx={{
             borderBottom: '1px solid #aaa',
-            px: 3,
-            py: 2,
+            px: { xs: 2, sm: 3 },
+            py: { xs: 1.5, sm: 2 },
           }}
         >
-          <Typography sx={{ fontWeight: 900, fontSize: 34, color: '#111' }}>
+          <Typography
+            sx={{ fontWeight: 900, fontSize: { xs: 28, sm: 34 }, color: '#111' }}
+          >
             Confirmation
           </Typography>
         </Box>
 
-        <Box sx={{ flex: 1, p: 3 }}>
+        <Box sx={{ flex: 1, p: { xs: 2, sm: 3 }, minWidth: 0 }}>
           <Box
             sx={{
               display: 'grid',
               gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' },
               gap: 3,
+              minWidth: 0,
             }}
           >
             <Box
               sx={{
                 backgroundColor: '#fff',
                 border: '1px solid #999',
-                minHeight: 430,
+                minHeight: { xs: 'auto', md: 430 },
                 display: 'flex',
                 flexDirection: 'column',
+                minWidth: 0,
               }}
             >
-              <Box sx={{ p: 3, flex: 1 }}>
-                <Typography sx={{ fontWeight: 900, fontSize: 26, mb: 1 }}>
+              <Box sx={{ p: { xs: 2, sm: 3 }, flex: 1, minWidth: 0 }}>
+                <Typography
+                  sx={{ fontWeight: 900, fontSize: { xs: 22, sm: 26 }, mb: 1 }}
+                >
                   Deposit to Secure your Slot!
                 </Typography>
 
@@ -160,9 +191,10 @@ export default function ConfirmationStep({
                     gridTemplateColumns: { xs: '1fr', md: '1fr 320px' },
                     gap: 3,
                     alignItems: 'start',
+                    minWidth: 0,
                   }}
                 >
-                  <Box>
+                  <Box sx={{ minWidth: 0 }}>
                     <Box
                       sx={{
                         border: '1px solid #bbb',
@@ -198,7 +230,13 @@ export default function ConfirmationStep({
                         Name
                       </Typography>
 
-                      <Typography sx={{ fontWeight: 900, fontSize: 18 }}>
+                      <Typography
+                        sx={{
+                          fontWeight: 900,
+                          fontSize: { xs: 16, sm: 18 },
+                          overflowWrap: 'anywhere',
+                        }}
+                      >
                         (The Barbs Bro) Carlo Glenn C. Yoldi
                       </Typography>
                     </Box>
@@ -213,6 +251,7 @@ export default function ConfirmationStep({
                         backgroundColor: '#ddd',
                         color: '#111',
                         borderRadius: 10,
+                        maxWidth: '100%',
                         px: 3,
                         py: 1,
                         textTransform: 'none',
@@ -260,7 +299,7 @@ export default function ConfirmationStep({
                         }}
                       >
                         Arriving more than 30 minutes late will be considered a
-                        "No-show".
+                        &quot;No-show&quot;.
                       </Typography>
                     </Box>
                   </Box>
@@ -272,6 +311,7 @@ export default function ConfirmationStep({
                       borderRadius: 2,
                       p: 2,
                       textAlign: 'center',
+                      minWidth: 0,
                     }}
                   >
                     <Typography sx={{ fontWeight: 900, mb: 1 }}>
@@ -283,8 +323,10 @@ export default function ConfirmationStep({
                       src="/images/qr.png"
                       alt="Payment QR"
                       sx={{
-                        width: 280,
-                        height: 280,
+                        width: { xs: '100%', sm: 280 },
+                        maxWidth: 280,
+                        height: 'auto',
+                        aspectRatio: '1 / 1',
                         mx: 'auto',
                         display: 'block',
                         objectFit: 'contain',
@@ -309,11 +351,13 @@ export default function ConfirmationStep({
               <Box
                 sx={{
                   backgroundColor: '#b9e5c1',
-                  px: 3,
+                  px: { xs: 2, sm: 3 },
                   py: 2,
                   display: 'flex',
+                  flexDirection: { xs: 'column', sm: 'row' },
                   justifyContent: 'space-between',
-                  alignItems: 'center',
+                  alignItems: { xs: 'flex-start', sm: 'center' },
+                  gap: 1,
                   borderTop: '1px solid #999',
                 }}
               >
@@ -321,7 +365,7 @@ export default function ConfirmationStep({
                   Total Price
                 </Typography>
 
-                <Typography sx={{ fontSize: 28, fontWeight: 900 }}>
+                <Typography sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 900 }}>
                   ₱ {totalPrice.toFixed(2)}
                 </Typography>
               </Box>
@@ -333,14 +377,15 @@ export default function ConfirmationStep({
                 border: '1px solid #777',
                 display: 'flex',
                 flexDirection: 'column',
-                height: 650,
+                height: { xs: 'auto', md: 650 },
+                minWidth: 0,
               }}
             >
               <Box
                 sx={{
-                  p: 3,
+                  p: { xs: 2, sm: 3 },
                   flex: 1,
-                  overflowY: 'auto',
+                  overflowY: { xs: 'visible', md: 'auto' },
                   '&::-webkit-scrollbar': {
                     width: '6px',
                   },
@@ -371,7 +416,13 @@ export default function ConfirmationStep({
                       mb: 2,
                     }}
                   >
-                    <Typography sx={{ fontWeight: 900, fontSize: 24 }}>
+                    <Typography
+                      sx={{
+                        fontWeight: 900,
+                        fontSize: { xs: 20, sm: 24 },
+                        overflowWrap: 'anywhere',
+                      }}
+                    >
                       {item.serviceName}
                     </Typography>
 
@@ -405,7 +456,7 @@ export default function ConfirmationStep({
                 ))}
               </Box>
 
-              <Box sx={{ p: 3, borderTop: '1px solid #ddd' }}>
+              <Box sx={{ p: { xs: 2, sm: 3 }, borderTop: '1px solid #ddd' }}>
                 <Typography
                   sx={{
                     color: '#777',
@@ -424,10 +475,13 @@ export default function ConfirmationStep({
                     sx={{
                       display: 'flex',
                       justifyContent: 'space-between',
+                      gap: 2,
                       mb: 1,
                     }}
                   >
-                    <Typography>{item.serviceName}</Typography>
+                    <Typography sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                      {item.serviceName}
+                    </Typography>
                     <Typography>₱{item.servicePrice.toFixed(2)}</Typography>
                   </Box>
                 ))}
@@ -437,15 +491,17 @@ export default function ConfirmationStep({
                 <Box
                   sx={{
                     display: 'flex',
+                    flexDirection: { xs: 'column', sm: 'row' },
                     justifyContent: 'space-between',
-                    alignItems: 'center',
+                    alignItems: { xs: 'flex-start', sm: 'center' },
+                    gap: 1,
                   }}
                 >
-                  <Typography sx={{ fontWeight: 900, fontSize: 24 }}>
+                  <Typography sx={{ fontWeight: 900, fontSize: { xs: 20, sm: 24 } }}>
                     Total Price
                   </Typography>
 
-                  <Typography sx={{ fontWeight: 900, fontSize: 24 }}>
+                  <Typography sx={{ fontWeight: 900, fontSize: { xs: 20, sm: 24 } }}>
                     ₱{totalPrice.toFixed(2)}
                   </Typography>
                 </Box>
@@ -458,10 +514,11 @@ export default function ConfirmationStep({
           sx={{
             borderTop: '1px solid #aaa',
             backgroundColor: '#f5f5f5',
-            px: 3,
-            py: 2,
+            px: { xs: 2, sm: 3 },
+            py: { xs: 1.5, sm: 2 },
             display: 'flex',
             justifyContent: 'space-between',
+            gap: 2,
           }}
         >
           <Button
@@ -469,7 +526,8 @@ export default function ConfirmationStep({
             sx={{
               backgroundColor: '#d3d3d3',
               color: '#111',
-              px: 6,
+              flex: { xs: 1, sm: 'initial' },
+              px: { xs: 2, sm: 6 },
               py: 1,
               borderRadius: 10,
               textTransform: 'none',
@@ -489,7 +547,8 @@ export default function ConfirmationStep({
             sx={{
               backgroundColor: '#f4b400',
               color: '#111',
-              px: 7,
+              flex: { xs: 1, sm: 'initial' },
+              px: { xs: 2, sm: 7 },
               py: 1,
               borderRadius: 10,
               textTransform: 'none',
