@@ -28,7 +28,14 @@ export function createClient(): BrowserSupabaseClientLike {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+  console.log("URL:", url);
+  console.log("Anon key exists:", !!anonKey);
+
   if (!url || !anonKey) {
+    console.log(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
     return createFallbackClient();
   }
 

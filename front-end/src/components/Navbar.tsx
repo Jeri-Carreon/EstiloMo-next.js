@@ -41,13 +41,23 @@ export default function Navbar() {
     React.useState<null | HTMLElement>(null);
 
   useEffect(() => {
-    try {
-      const client = createClient();
-      setSupabase(client);
-    } catch {
-      console.warn("Supabase not available");
-    }
-  }, []);
+  try {
+    const client = createClient();
+
+    console.log("Client:", client);
+    console.log("Auth:", client.auth);
+    console.log("Auth methods:", Object.keys(client.auth));
+    console.log(
+      "onAuthStateChange:",
+      typeof client.auth.onAuthStateChange
+    );
+
+    setSupabase(client);
+  } catch (e) {
+    console.error(e);
+    console.warn("Supabase not available");
+  }
+}, []);
 
   useEffect(() => {
     if (!supabase) return;
