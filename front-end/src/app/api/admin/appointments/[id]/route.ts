@@ -21,7 +21,7 @@ export async function PUT(
   try {
     const user = await getAdminUser();
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+    if (!user || !["OWNER", "RECEPTIONIST", "BARBER"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

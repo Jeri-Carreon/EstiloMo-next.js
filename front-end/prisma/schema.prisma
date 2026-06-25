@@ -72,7 +72,7 @@ model Customer {
   createdAt           DateTime              @default(now())
   email               String?               @unique
   firstName           String
-  id                  String                @id @default(cuid())
+  id                  String                @id @default(uuid())
   lastName            String
   loyaltyPoints       Int                   @default(0)
   mobileNumber        String                @db.VarChar(11)

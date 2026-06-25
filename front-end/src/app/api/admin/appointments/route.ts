@@ -39,7 +39,11 @@ export async function GET() {
           orderBy: { createdAt: "desc" },
         },
       },
-      orderBy: { appointmentDate: "asc" },
+      orderBy: [
+        { appointmentDate: "desc" },
+        { startMinutes: "desc" },
+        { createdAt: "desc" },
+      ],
     });
 
     const result = appointments.map((a) => {
@@ -134,7 +138,7 @@ export async function POST(req: Request) {
   try {
     const user = await getAdminUser();
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+    if (!user || !["OWNER", "RECEPTIONIST", "BARBER"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

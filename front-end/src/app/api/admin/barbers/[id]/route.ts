@@ -47,10 +47,13 @@ export async function GET(
       },
       orderBy: [
         {
-          appointmentDate: 'asc',
+          appointmentDate: 'desc',
         },
         {
-          startMinutes: 'asc',
+          startMinutes: 'desc',
+        },
+        {
+          createdAt: 'desc',
         },
       ],
     });
