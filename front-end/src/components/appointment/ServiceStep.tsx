@@ -8,6 +8,10 @@ import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
+import IconButton from '@mui/material/IconButton';
+import Badge from '@mui/material/Badge';
+
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 
 import type { AppointmentData } from '@/app/appointment/page';
 
@@ -30,6 +34,8 @@ interface ServiceStepProps {
     endMinutes?: number
   ) => void;
   prevStep: () => void;
+  cartCount: number;
+  onCartClick: () => void;
 }
 
 export default function ServiceStep({
@@ -37,6 +43,8 @@ export default function ServiceStep({
   setAppointmentData,
   nextStep,
   prevStep,
+  cartCount,
+  onCartClick,
 }: ServiceStepProps) {
   const [services, setServices] = useState<Service[]>([]);
   const [selectedService, setSelectedService] = useState<string>(
@@ -97,7 +105,6 @@ export default function ServiceStep({
     if (!selectedService) return;
 
     const service = services.find((s) => s.id === selectedService);
-
     if (!service) return;
 
     setAppointmentData((prev) => ({
@@ -113,19 +120,21 @@ export default function ServiceStep({
   };
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', fontFamily: 'var(--font-nunito-sans)' }}>
       <Box
         sx={{
           width: 220,
           backgroundColor: '#000',
-          borderRight: '1px solid #222',
-          px: 3,
-          py: 5,
+          borderRight: '3px solid #0b9cff',
+          px: 2,
+          py: 4,
+          minHeight: '100vh',
         }}
       >
-        <Stack spacing={5}>
+        <Stack spacing={4}>
           {steps.map((step, index) => {
             const active = index === 1;
+            const completed = index < 1;
 
             return (
               <Stack
@@ -136,15 +145,17 @@ export default function ServiceStep({
               >
                 <Box
                   sx={{
-                    width: 32,
-                    height: 32,
+                    width: 34,
+                    height: 34,
                     borderRadius: '50%',
-                    backgroundColor: active ? '#f4b400' : '#777',
-                    color: active ? '#000' : '#fff',
+                    backgroundColor:
+                      active || completed ? '#f4b400' : '#777',
+                    color: active || completed ? '#000' : '#fff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontWeight: 'bold',
+                    fontWeight: 900,
+                    fontSize: 14,
                   }}
                 >
                   {index + 1}
@@ -152,9 +163,9 @@ export default function ServiceStep({
 
                 <Typography
                   sx={{
-                    color: active ? '#fff' : '#aaa',
-                    fontWeight: active ? 'bold' : 'normal',
-                    fontFamily: 'var(--font-nunito-sans)',
+                    color: active || completed ? '#fff' : '#999',
+                    fontWeight: active ? 900 : 800,
+                    fontSize: 18,
                   }}
                 >
                   {step}
@@ -168,29 +179,63 @@ export default function ServiceStep({
       <Box
         sx={{
           flex: 1,
-          backgroundColor: '#e5e5e5',
+          backgroundColor: '#d9d9d9',
           minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
         <Box
           sx={{
-            borderBottom: '1px solid #bbb',
-            px: 4,
-            py: 3,
+            borderBottom: '1px solid #aaa',
+            px: 3,
+            py: 2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
           }}
         >
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 'bold',
-              fontFamily: 'var(--font-nunito-sans)',
-            }}
-          >
+          <Typography sx={{ fontWeight: 900, fontSize: 34, color: '#111' }}>
             Service
           </Typography>
+
+          <IconButton
+            onClick={onCartClick}
+            disabled={cartCount === 0}
+            sx={{
+              backgroundColor: '#fff',
+              borderRadius: '50%',
+              width: 48,
+              height: 48,
+              position: 'relative',
+              '&:hover': { backgroundColor: '#f5f5f5' },
+              '&.Mui-disabled': {
+                backgroundColor: '#ddd',
+                color: '#999',
+              },
+            }}
+          >
+            <ShoppingCartIcon sx={{ color: cartCount === 0 ? '#999' : '#111' }} />
+
+            <Badge
+              badgeContent={cartCount}
+              color="error"
+              sx={{
+                position: 'absolute',
+                top: 5,
+                right: 5,
+                '& .MuiBadge-badge': {
+                  fontWeight: 900,
+                  fontSize: 11,
+                  minWidth: 18,
+                  height: 18,
+                },
+              }}
+            />
+          </IconButton>
         </Box>
 
-        <Box sx={{ p: 4 }}>
+        <Box sx={{ flex: 1, p: 3 }}>
           {loading ? (
             <Typography>Loading services...</Typography>
           ) : error ? (
@@ -218,6 +263,7 @@ export default function ServiceStep({
                         p: 4,
                         borderRadius: 4,
                         cursor: 'pointer',
+                        backgroundColor: '#fff',
                         border: isSelected
                           ? '3px solid #f4b400'
                           : '1px solid #ddd',
@@ -231,9 +277,9 @@ export default function ServiceStep({
                     >
                       <Typography
                         sx={{
-                          fontWeight: 'bold',
+                          fontWeight: 900,
                           fontSize: '1.3rem',
-                          fontFamily: 'var(--font-nunito-sans)',
+                          color: '#111',
                         }}
                       >
                         {service.name}
@@ -242,10 +288,9 @@ export default function ServiceStep({
                       <Typography
                         sx={{
                           color: '#f4b400',
-                          fontWeight: 'bold',
+                          fontWeight: 900,
                           fontSize: '1.1rem',
                           mt: 1,
-                          fontFamily: 'var(--font-nunito-sans)',
                         }}
                       >
                         ₱{service.price.toLocaleString()}
@@ -257,7 +302,6 @@ export default function ServiceStep({
                           fontWeight: 800,
                           mt: 1,
                           mb: 2,
-                          fontFamily: 'var(--font-nunito-sans)',
                         }}
                       >
                         Duration: {service.durationMinutes} mins
@@ -268,7 +312,6 @@ export default function ServiceStep({
                           color: '#666',
                           mt: 2,
                           lineHeight: 1.7,
-                          fontFamily: 'var(--font-nunito-sans)',
                         }}
                       >
                         {service.description}
@@ -283,45 +326,49 @@ export default function ServiceStep({
 
         <Box
           sx={{
-            borderTop: '1px solid #bbb',
-            px: 4,
-            py: 3,
+            borderTop: '1px solid #aaa',
+            backgroundColor: '#f5f5f5',
+            px: 3,
+            py: 2,
             display: 'flex',
             justifyContent: 'space-between',
           }}
         >
           <Button
-            variant="contained"
             onClick={prevStep}
             sx={{
-              backgroundColor: '#cfcfcf',
-              color: '#000',
+              backgroundColor: '#d3d3d3',
+              color: '#111',
               px: 6,
-              py: 1.5,
+              py: 1,
               borderRadius: 10,
               textTransform: 'none',
-              boxShadow: 'none',
+              fontWeight: 900,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              '&:hover': {
+                backgroundColor: '#c8c8c8',
+              },
             }}
           >
             Back
           </Button>
 
           <Button
-            variant="contained"
-            disabled={!selectedService}
             onClick={handleNext}
+            disabled={!selectedService}
             sx={{
               backgroundColor: '#f4b400',
-              color: '#000',
-              px: 6,
-              py: 1.5,
+              color: '#111',
+              px: 7,
+              py: 1,
               borderRadius: 10,
               textTransform: 'none',
-              fontWeight: 'bold',
-              boxShadow: 'none',
-              '&.Mui-disabled': {
-                backgroundColor: '#d9d9d9',
-                color: '#888',
+              fontWeight: 900,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              '&:hover': { backgroundColor: '#e0a800' },
+              '&:disabled': {
+                backgroundColor: '#f5dc90',
+                color: '#777',
               },
             }}
           >
