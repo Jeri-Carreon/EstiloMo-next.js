@@ -1,7 +1,7 @@
 'use client';
 
 import { createClient } from '@/lib/supabase/client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from "next/navigation";
 import { toPHDateKey } from '@/lib/dateUtils';
 
@@ -92,16 +92,61 @@ interface ServiceOption {
   price?: number;
 }
 
-interface AvailableTime {
-  startMinutes: number;
-  endMinutes: number;
-  label: string;
-}
-
-interface BarberOption {
+type ServiceApiRow = {
   id: string;
   name: string;
-}
+  price?: number | string | null;
+};
+
+type AbsentApiRow = {
+  barberId: string;
+  date: string;
+};
+
+type AppointmentApiRow = {
+  id: string;
+  appointmentCode: string;
+  customer?: {
+    customerCode?: string | null;
+    name?: string | null;
+  } | null;
+  appointmentDate?: string | null;
+  schedule?: {
+    startTime?: string | null;
+    endTime?: string | null;
+    formatted?: string | null;
+  } | null;
+  barberId?: string;
+  barber?: {
+    name?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+  } | null;
+  serviceId?: string;
+  service?: {
+    name?: string | null;
+  } | null;
+  payment?: {
+    amount?: number | string | null;
+    screenshotUrl?: string | null;
+  } | null;
+  status?: string | null;
+  afterServicePhotoUrl?: string | null;
+  afterServicePhotos?: {
+    id: string;
+    imageUrl: string;
+    createdAt?: string;
+  }[];
+};
+
+type ApiErrorResponse = {
+  error?: string;
+  details?: string;
+};
+
+type UploadResponse = ApiErrorResponse & {
+  url?: string;
+};
 
 const DAYS = [
   'Sunday',
@@ -143,7 +188,8 @@ function minutesToTime(minutes: number) {
 
 function timeToMinutes(time: string) {
   const [timePart, modifier] = time.split(' ');
-  let [hours, minutes] = timePart.split(':').map(Number);
+  const [rawHours, minutes] = timePart.split(':').map(Number);
+  let hours = rawHours;
 
   if (modifier === 'PM' && hours !== 12) hours += 12;
   if (modifier === 'AM' && hours === 12) hours = 0;
@@ -167,10 +213,6 @@ function getDateFromDayOfWeek(dayOfWeek: number) {
   return target.toLocaleDateString('en-CA');
 }
 
-function formatDateInput(date: Date) {
-  return date.toLocaleDateString('en-CA');
-}
-
 function getAppointmentScheduleValue(appointment: Appointment) {
   const dateValue = appointment.appointmentDate
     ? new Date(appointment.appointmentDate).getTime()
@@ -191,12 +233,13 @@ export default function BarbersPage() {
   const [barberLoading, setBarberLoading] = useState(true);
   const [currentBarberIndex, setCurrentBarberIndex] = useState(0);
 
-  const [availability, setAvailability] = useState<AvailabilityRow[]>([]);
+  const [availabilityDraft, setAvailabilityDraft] =
+    useState<AvailabilityRow[] | null>(null);
   const [absentMap, setAbsentMap] = useState<Record<string, boolean>>({});
 
   // Session
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [role, setRole] = useState<string>('');
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -212,6 +255,24 @@ export default function BarbersPage() {
   const itemsPerPage = 4;
 
   const currentBarber = barbers[currentBarberIndex];
+  const defaultAvailability = useMemo(() => {
+    if (!currentBarber) return [];
+
+    return DAYS.map((day, index) => {
+      const schedule = currentBarber.schedules.find(
+        (s) => s.dayOfWeek === index
+      );
+
+      return {
+        day,
+        dayOfWeek: index,
+        enabled: schedule ? !schedule.isDayOff : false,
+        from: schedule ? minutesToTime(schedule.startTime) : '10:00 AM',
+        to: schedule ? minutesToTime(schedule.endTime) : '08:00 PM',
+      };
+    });
+  }, [currentBarber]);
+  const availability = availabilityDraft || defaultAvailability;
 
   const [openEditModal, setOpenEditModal] = useState(false);
   const [openEditDayModal, setOpenEditDayModal] = useState(false);
@@ -241,19 +302,10 @@ export default function BarbersPage() {
   const [photoSuccessMessage, setPhotoSuccessMessage] = useState('');
   const [pendingAfterServicePhotoUrls, setPendingAfterServicePhotoUrls] = useState<string[]>([]);
 
-  // For edit schedule modal
-  const [openEditScheduleModal, setOpenEditScheduleModal] = useState(false);
-  const [selectedAddDate, setSelectedAddDate] = useState<Date | null>(null);
-  const [selectedTime, setSelectedTime] = useState<AvailableTime | null>(null);
-  const [availableTimes, setAvailableTimes] = useState<AvailableTime[]>([]);
-  const [loadingTimes, setLoadingTimes] = useState(false);
-  const [unavailableDates, setUnavailableDates] = useState<Set<string>>(new Set());
-  const [addCurrentMonth, setAddCurrentMonth] = useState(new Date());
-
-  const barberOption = barbers.map((b) => ({
+  const barberOption = useMemo(() => barbers.map((b) => ({
   id: b.id,
   name: `${b.firstName} ${b.lastName}`,
-}));
+})), [barbers]);
 
   useEffect(() => {
     fetchBarbers();
@@ -299,14 +351,18 @@ export default function BarbersPage() {
       : [];
   };
 
-  const loadServicesByBarber = async (barberId: string) => {
+  const loadServicesByBarber = useCallback(async (barberId: string) => {
     try {
       const res = await fetch(`/api/appointment/services?barberId=${barberId}`, {
         cache: 'no-store',
       });
-      const data = await res.json();
+      const data = (await res.json()) as
+        | { services?: ServiceApiRow[] }
+        | ServiceApiRow[];
+      const serviceRows = Array.isArray(data) ? data : data.services || [];
+
       setServices(
-        (data.services || data || []).map((s: any) => ({
+        serviceRows.map((s) => ({
           id: s.id,
           name: s.name,
           price: Number(s.price || 0),
@@ -316,7 +372,7 @@ export default function BarbersPage() {
       console.error('LOAD SERVICES ERROR:', error);
       setServices([]);
     }
-  };
+  }, []);
 
   const handleUpdateAppointment = async () => {
     console.log('SAVE CLICKED');
@@ -357,9 +413,9 @@ export default function BarbersPage() {
         console.log('PUT STATUS:', res.status);
         console.log('PUT RAW RESPONSE:', text);
 
-        let data: any = {};
+        let data: ApiErrorResponse = {};
         try {
-          data = text ? JSON.parse(text) : {};
+          data = text ? (JSON.parse(text) as ApiErrorResponse) : {};
         } catch (parseError) {
           console.error('PUT JSON PARSE ERROR:', parseError);
         }
@@ -409,36 +465,16 @@ export default function BarbersPage() {
 
   async function fetchAbsents() {
     const res = await fetch('/api/admin/barbers/absent');
-    const data = await res.json();
+    const data = (await res.json()) as AbsentApiRow[];
 
     const map: Record<string, boolean> = {};
 
-    data.forEach((a: any) => {
+    data.forEach((a) => {
       map[`${a.barberId}-${a.date}`] = true;
     });
 
     setAbsentMap(map);
   }
-
-  useEffect(() => {
-    if (!currentBarber) return;
-
-    const mapped = DAYS.map((day, index) => {
-      const schedule = currentBarber.schedules.find(
-        (s) => s.dayOfWeek === index
-      );
-
-      return {
-        day,
-        dayOfWeek: index,
-        enabled: schedule ? !schedule.isDayOff : false,
-        from: schedule ? minutesToTime(schedule.startTime) : '10:00 AM',
-        to: schedule ? minutesToTime(schedule.endTime) : '08:00 PM',
-      };
-    });
-
-    setAvailability(mapped);
-  }, [currentBarber]);
 
   async function saveAvailability() {
     await fetch(`/api/admin/barbers/${currentBarber.id}/schedule`, {
@@ -455,10 +491,11 @@ export default function BarbersPage() {
     });
 
     setOpenAvailability(false);
+    setAvailabilityDraft(null);
     fetchBarbers();
   }
 
-  const loadAppointments = async (barberId: string) => {
+  const loadAppointments = useCallback(async (barberId: string) => {
     try {
       setError("");
       setAppointments([]);
@@ -471,21 +508,31 @@ export default function BarbersPage() {
         return;
       }
 
-      const data = await res.json();
+      const data = (await res.json()) as AppointmentApiRow[] | ApiErrorResponse;
 
       if (!res.ok) {
-        setError(data.error || "Unable to load appointments.");
+        setError(
+          !Array.isArray(data) && data.error
+            ? data.error
+            : "Unable to load appointments."
+        );
         setAppointments([]);
       } else {
+        const appointmentRows = Array.isArray(data) ? data : [];
+
         setAppointments(
-          (data || []).map((appointment: any) => ({
+          appointmentRows.map((appointment) => ({
             id: appointment.id,
             appointmentCode: appointment.appointmentCode,
             customerCode: appointment.customer?.customerCode || "",
             customerName: appointment.customer?.name || "",
             appointmentDate: appointment.appointmentDate || "",
-            startMinutes: appointment.schedule?.startTime ? timeToMinutes(appointment.schedule.startTime) : null,
-            endMinutes: appointment.schedule?.endTime ? timeToMinutes(appointment.schedule.endTime) : null,
+            startMinutes: appointment.schedule?.startTime
+              ? timeToMinutes(appointment.schedule.startTime)
+              : undefined,
+            endMinutes: appointment.schedule?.endTime
+              ? timeToMinutes(appointment.schedule.endTime)
+              : undefined,
             schedule: appointment.schedule?.formatted || "",
             barberId: appointment.barberId,
             barberName:
@@ -516,7 +563,7 @@ export default function BarbersPage() {
     }
 
     setAppointmentLoading(false);
-  };
+  }, [router]);
 
   useEffect(() => {
   const init = async () => {
@@ -541,13 +588,13 @@ export default function BarbersPage() {
   }
 
   init()
-}, [router])
+}, [router, supabase])
 
   useEffect(() => {
     if (currentBarber?.id) {
       loadAppointments(currentBarber.id)
     }
-}, [currentBarber])
+}, [currentBarber, loadAppointments])
 
   const formatAmount = (amount: number | string | null) => {
     if (amount === null || amount === undefined) {
@@ -561,6 +608,29 @@ export default function BarbersPage() {
 
     return `₱ ${parsed.toFixed(2)}`;
   };
+
+  const getStatusColor = (status: string) => {
+    const value = status.toUpperCase();
+
+    if (value === 'COMPLETED') return 'green';
+    if (value === 'CANCELLED') return 'red';
+    if (value === 'SCHEDULED') return '#2563eb';
+    if (value === 'NOSHOW') return '#1F2937';
+
+    return '#333';
+  };
+
+  const openAppointmentDetails = useCallback(async (appointment: Appointment) => {
+    setServices([]);
+
+    if (appointment.barberId) {
+      await loadServicesByBarber(appointment.barberId);
+    }
+
+    setPendingAfterServicePhotoUrls([]);
+    setSelectedAppointment(appointment);
+    setOpenEditModal(true);
+  }, [loadServicesByBarber]);
 
   {/* Scheduled Appointments */}
   const filteredScheduledAppointments = appointments
@@ -640,7 +710,7 @@ function formatMinutes(minutes: number) {
   return `${hour}:${String(m).padStart(2, '0')} ${period}`;
 }
 
-const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) => {
+const renderAppointmentCalendar = () => {
   const currentMonth = calendarMonth;
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -654,6 +724,22 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
     ...Array(firstDay).fill(null),
     ...Array.from({ length: totalDays }, (_, i) => i + 1),
   ];
+
+  const monthAppointments = appointments
+    .filter((appointment) => {
+      const date = appointment.appointmentDate
+        ? new Date(appointment.appointmentDate)
+        : null;
+
+      return (
+        date &&
+        date.getFullYear() === year &&
+        date.getMonth() === month &&
+        appointment.status !== 'PENDING' &&
+        appointment.status !== 'REJECTED'
+      );
+    })
+    .sort(compareNewestScheduleFirst);
 
   const getAppointmentsForDay = (day: number) => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -670,12 +756,12 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
   };
 
   return (
-    <Box>
+    <Box sx={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
       <Box
         sx={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'flex-end',
+          justifyContent: { xs: 'space-between', sm: 'flex-end' },
           gap: 1,
           mb: 2,
         }}
@@ -691,8 +777,9 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
         <Typography
           sx={{
             fontWeight: 700,
-            fontSize: '1.1rem',
-            minWidth: 160,
+            fontSize: { xs: '0.95rem', sm: '1.1rem' },
+            minWidth: 0,
+            flex: 1,
             textAlign: 'center',
           }}
         >
@@ -714,19 +801,19 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
       <Box
         sx={{
           border: '1px solid #d0d0d0',
-          borderRadius: 2,
+          borderRadius: 1,
           overflow: 'hidden',
           bgcolor: '#fff',
         }}
       >
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
           {weekdays.map((day) => (
             <Box
               key={day}
               sx={{
                 textAlign: 'center',
-                py: 1.2,
-                fontSize: 12,
+                py: { xs: 0.9, sm: 1.2 },
+                fontSize: { xs: 11, sm: 12 },
                 fontWeight: 700,
                 borderRight: '1px solid #e0e0e0',
                 borderBottom: '1px solid #d0d0d0',
@@ -738,7 +825,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
           ))}
         </Box>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
           {calDays.map((day, index) => {
             const dayAppointments = day ? getAppointmentsForDay(day) : [];
 
@@ -752,10 +839,10 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
               <Box
                 key={index}
                 sx={{
-                  minHeight: 90,
+                  minHeight: { xs: 48, sm: 90 },
                   borderRight: '1px solid #e0e0e0',
                   borderBottom: '1px solid #e0e0e0',
-                  p: 0.5,
+                  p: { xs: 0.35, sm: 0.5 },
                   bgcolor: isToday ? '#8d8d8d' : day ? '#fafafa' : '#f0f0f0',
                   '&:nth-of-type(7n)': { borderRight: 'none' },
                 }}
@@ -764,7 +851,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                   <>
                     <Typography
                       sx={{
-                        fontSize: 11,
+                        fontSize: { xs: 10, sm: 11 },
                         color: '#999',
                         textAlign: 'right',
                         pr: 0.5,
@@ -782,18 +869,9 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                         <Box
                           key={appointment.id}
                           title={`${appointment.customerName} - ${appointment.serviceName} (${appointment.barberName})`}
-                          onClick={async () => {
-                            setServices([]);
-
-                            if (appointment.barberId) {
-                              await loadServicesByBarber(appointment.barberId);
-                            }
-
-                            setPendingAfterServicePhotoUrls([]);
-                            setSelectedAppointment(appointment);
-                            setOpenEditModal(true);
-                          }}
+                          onClick={() => openAppointmentDetails(appointment)}
                           sx={{
+                            display: { xs: 'none', sm: 'block' },
                             fontSize: 10,
                             fontWeight: 600,
                             px: 0.8,
@@ -815,12 +893,143 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                         </Box>
                       );
                     })}
+
+                    {dayAppointments.length > 0 && (
+                      <Box
+                        sx={{
+                          display: { xs: 'flex', sm: 'none' },
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minHeight: 18,
+                          mx: 'auto',
+                          mt: 0.25,
+                          px: 0.5,
+                          borderRadius: 5,
+                          bgcolor: '#111',
+                          color: '#fff',
+                          fontSize: 10,
+                          fontWeight: 800,
+                          lineHeight: 1,
+                        }}
+                      >
+                        {dayAppointments.length}
+                      </Box>
+                    )}
                   </>
                 )}
               </Box>
             );
           })}
         </Box>
+      </Box>
+
+      <Box
+        sx={{
+          display: { xs: 'flex', sm: 'none' },
+          flexDirection: 'column',
+          gap: 1,
+          mt: 1.5,
+        }}
+      >
+        {monthAppointments.length === 0 ? (
+          <Paper
+            elevation={0}
+            sx={{
+              p: 1.5,
+              border: '1px solid #e5e5e5',
+              borderRadius: 1,
+              textAlign: 'center',
+            }}
+          >
+            <Typography sx={{ color: '#777', fontSize: 13, fontWeight: 800 }}>
+              No appointments this month.
+            </Typography>
+          </Paper>
+        ) : (
+          monthAppointments.map((appointment) => {
+            const colors =
+              statusColor[appointment.status.toUpperCase()] ||
+              statusColor.NOSHOW;
+
+            return (
+              <Box
+                key={appointment.id}
+                onClick={() => openAppointmentDetails(appointment)}
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: '44px minmax(0, 1fr) auto',
+                  alignItems: 'center',
+                  gap: 1,
+                  p: 1,
+                  border: '1px solid #e5e5e5',
+                  borderRadius: 1,
+                  bgcolor: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                <Box
+                  sx={{
+                    textAlign: 'center',
+                    bgcolor: '#f5f5f5',
+                    borderRadius: 1,
+                    py: 0.5,
+                  }}
+                >
+                  <Typography sx={{ fontSize: 10, fontWeight: 800, color: '#777' }}>
+                    {new Date(appointment.appointmentDate || '').toLocaleString('en-US', {
+                      month: 'short',
+                    })}
+                  </Typography>
+                  <Typography sx={{ fontSize: 16, fontWeight: 900 }}>
+                    {new Date(appointment.appointmentDate || '').getDate()}
+                  </Typography>
+                </Box>
+
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography
+                    sx={{
+                      fontSize: 13,
+                      fontWeight: 900,
+                      lineHeight: 1.2,
+                      overflowWrap: 'anywhere',
+                    }}
+                  >
+                    {appointment.customerName || appointment.serviceName}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      color: '#777',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      overflowWrap: 'anywhere',
+                    }}
+                  >
+                    {appointment.startMinutes != null
+                      ? formatMinutes(appointment.startMinutes)
+                      : 'No time'}{' '}
+                    - {appointment.serviceName}
+                  </Typography>
+                </Box>
+
+                <Typography
+                  sx={{
+                    color: colors.color,
+                    bgcolor: colors.bg,
+                    border: `1px solid ${colors.color}`,
+                    borderRadius: 5,
+                    px: 0.8,
+                    py: 0.3,
+                    fontSize: 10,
+                    fontWeight: 900,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {appointment.status}
+                </Typography>
+              </Box>
+            );
+          })
+        )}
       </Box>
 
       <Box sx={{ display: 'flex', gap: 2, mt: 1.5, flexWrap: 'wrap' }}>
@@ -849,17 +1058,38 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
 
   
   return (
-    <Box sx={{ flex: 1, p: 4, backgroundColor: "#fff" }}>
+    <Box
+      sx={{
+        flex: 1,
+        p: { xs: 2, sm: 3, md: 4 },
+        backgroundColor: "#fff",
+        overflowX: 'hidden',
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box',
+      }}
+    >
       <Box
         sx={{
           display: "flex",
-          alignItems: "center",
+          alignItems: { xs: "flex-start", sm: "center" },
           justifyContent: "space-between",
-          mb: 4,
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: 1,
+          mb: { xs: 2.5, md: 4 },
         }}
       >
-        <Typography variant="h3" sx={{ fontWeight: 700 }}>
-          Barber's Management
+        <Typography
+          variant="h3"
+          sx={{
+            fontWeight: 700,
+            fontSize: { xs: 30, sm: 38, md: 48 },
+            lineHeight: 1.1,
+            overflowWrap: 'anywhere',
+          }}
+        >
+          {role === 'BARBER' ? 'My Appointments' : "Barber's Management"}
         </Typography>
       </Box>
       
@@ -868,10 +1098,18 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          gap: 1,
           mb: 2,
         }}
       >
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
+        <Typography
+          variant="h5"
+          sx={{
+            fontWeight: 700,
+            fontSize: { xs: 20, sm: 24 },
+            overflowWrap: 'anywhere',
+          }}
+        >
           {currentBarber.firstName} {currentBarber.lastName}
         </Typography>
       </Box>
@@ -879,7 +1117,10 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
         {["OWNER", "RECEPTIONIST"].includes(role) && (
           <Button
             variant="contained"
-            onClick={() => setOpenAvailability(true)}
+            onClick={() => {
+              setAvailabilityDraft(defaultAvailability);
+              setOpenAvailability(true);
+            }}
             sx={{ width: 'fit-content', backgroundColor: '#000', mb: 2 }}
           >
             Edit Availability
@@ -895,7 +1136,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
           mb: 2,
         }}
       >
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
+        <Typography variant="h5" sx={{ fontWeight: 700, fontSize: { xs: 20, sm: 24 } }}>
           Scheduled appointments
         </Typography>
       </Box>
@@ -916,7 +1157,10 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
         </Typography>
       ) : (
         <>
-          <TableContainer component={Paper}>
+          <TableContainer
+            component={Paper}
+            sx={{ display: role === 'BARBER' ? 'none' : { xs: 'none', md: 'block' } }}
+          >
           <Table>
             <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
               <TableRow>
@@ -951,12 +1195,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                   <TableCell
                     sx={{
                       fontWeight: 700,
-                      color:
-                        appointment.status === 'COMPLETED'
-                          ? 'green'
-                          : appointment.status === 'CANCELLED'
-                          ? 'red'
-                          : '#333',
+                      color: getStatusColor(appointment.status),
                     }}
                   >
                     {appointment.status}
@@ -966,15 +1205,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                       size="small"
                       color="primary"
                       aria-label="view appointment"
-                      onClick={async () => {
-                        setServices([]);
-                        if (appointment.barberId) {
-                          await loadServicesByBarber(appointment.barberId);
-                        }
-                        setPendingAfterServicePhotoUrls([]);
-                        setSelectedAppointment(appointment);
-                        setOpenEditModal(true);
-                      }}
+                      onClick={() => openAppointmentDetails(appointment)}
                     >
                       <InfoIcon fontSize="small" />
                     </IconButton>
@@ -985,19 +1216,58 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
           </Table>
         </TableContainer>
 
+        <Box
+          sx={{
+            display: role === 'BARBER' ? 'flex' : { xs: 'flex', md: 'none' },
+            flexDirection: 'column',
+            gap: 1.5,
+            width: '100%',
+            minWidth: 0,
+          }}
+        >
+          {paginatedScheduledAppointments.length === 0 ? (
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2.5,
+                border: '1px solid #e5e5e5',
+                borderRadius: 1,
+                textAlign: 'center',
+              }}
+            >
+              <Typography sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                No scheduled appointments.
+              </Typography>
+            </Paper>
+          ) : (
+            paginatedScheduledAppointments.map((appointment) => (
+              <AppointmentMobileCard
+                key={appointment.id}
+                appointment={appointment}
+                amount={formatAmount(appointment.totalAmount)}
+                statusColor={getStatusColor(appointment.status)}
+                onOpen={() => openAppointmentDetails(appointment)}
+              />
+            ))
+          )}
+        </Box>
+
         {/* PAGINATION CONTROLS * */}
           <Box
             sx={{
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center',
-              mt: 4,
+              alignItems: { xs: 'stretch', sm: 'center' },
+              flexDirection: { xs: 'column', sm: 'row' },
+              gap: 1.5,
+              mt: { xs: 2, sm: 4 },
             }}
           >
             <Typography
               sx={{
                 color: 'text.secondary',
                 fontSize: 14,
+                textAlign: { xs: 'center', sm: 'left' },
               }}
             >
               Showing 1 to {paginatedScheduledAppointments.length} of{' '}
@@ -1009,6 +1279,17 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
               page={scheduledPage}
               onChange={(_, value) => setScheduledPage(value)}
               size="small"
+              siblingCount={0}
+              boundaryCount={1}
+              sx={{
+                display: 'flex',
+                justifyContent: 'center',
+                maxWidth: '100%',
+                '& .MuiPagination-ul': {
+                  justifyContent: 'center',
+                  flexWrap: 'wrap',
+                },
+              }}
             />
           </Box>
         </>
@@ -1022,12 +1303,19 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
           mb: 2,
         }}
       >
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
+        <Typography variant="h5" sx={{ fontWeight: 700, fontSize: { xs: 20, sm: 24 } }}>
           Processed appointments
         </Typography>
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 4, flexWrap: 'wrap' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          gap: 2,
+          mb: { xs: 2.5, sm: 4 },
+          flexWrap: 'wrap',
+        }}
+      >
         <TextField
           size="small"
           placeholder="Search processed appointments..."
@@ -1046,8 +1334,9 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
             },
           }}
           sx={{
-            flex: 1,
-            maxWidth: 300,
+            flex: { xs: '1 1 100%', sm: 1 },
+            maxWidth: { xs: '100%', sm: 300 },
+            minWidth: 0,
           }}
         />
 
@@ -1060,7 +1349,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
             setProcessedPage(1);
           }}
           sx={{
-            width: 170,
+            width: { xs: '100%', sm: 170 },
             bgcolor: '#fff',
           }}
         >
@@ -1087,7 +1376,10 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
         </Typography>
       ) : (
         <>
-          <TableContainer component={Paper}>
+          <TableContainer
+            component={Paper}
+            sx={{ display: role === 'BARBER' ? 'none' : { xs: 'none', md: 'block' } }}
+          >
           <Table>
             <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
               <TableRow>
@@ -1122,12 +1414,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                   <TableCell
                     sx={{
                       fontWeight: 700,
-                      color:
-                        appointment.status === 'COMPLETED'
-                          ? 'green'
-                          : appointment.status === 'CANCELLED'
-                          ? 'red'
-                          : '#333',
+                      color: getStatusColor(appointment.status),
                     }}
                   >
                     {appointment.status}
@@ -1137,15 +1424,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                       size="small"
                       color="primary"
                       aria-label="view appointment"
-                      onClick={async () => {
-                        setServices([]);
-                        if (appointment.barberId) {
-                          await loadServicesByBarber(appointment.barberId);
-                        }
-                        setPendingAfterServicePhotoUrls([]);
-                        setSelectedAppointment(appointment);
-                        setOpenEditModal(true);
-                      }}
+                      onClick={() => openAppointmentDetails(appointment)}
                     >
                       <InfoIcon fontSize="small" />
                     </IconButton>
@@ -1156,19 +1435,58 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
           </Table>
         </TableContainer>
 
+        <Box
+          sx={{
+            display: role === 'BARBER' ? 'flex' : { xs: 'flex', md: 'none' },
+            flexDirection: 'column',
+            gap: 1.5,
+            width: '100%',
+            minWidth: 0,
+          }}
+        >
+          {paginatedProcessedAppointments.length === 0 ? (
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2.5,
+                border: '1px solid #e5e5e5',
+                borderRadius: 1,
+                textAlign: 'center',
+              }}
+            >
+              <Typography sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                No processed appointments.
+              </Typography>
+            </Paper>
+          ) : (
+            paginatedProcessedAppointments.map((appointment) => (
+              <AppointmentMobileCard
+                key={appointment.id}
+                appointment={appointment}
+                amount={formatAmount(appointment.totalAmount)}
+                statusColor={getStatusColor(appointment.status)}
+                onOpen={() => openAppointmentDetails(appointment)}
+              />
+            ))
+          )}
+        </Box>
+
         {/* PAGINATION CONTROLS * */}
           <Box
             sx={{
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center',
-              mt: 4,
+              alignItems: { xs: 'stretch', sm: 'center' },
+              flexDirection: { xs: 'column', sm: 'row' },
+              gap: 1.5,
+              mt: { xs: 2, sm: 4 },
             }}
           >
             <Typography
               sx={{
                 color: 'text.secondary',
                 fontSize: 14,
+                textAlign: { xs: 'center', sm: 'left' },
               }}
             >
               Showing 1 to {paginatedProcessedAppointments.length} of{' '}
@@ -1180,10 +1498,29 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
               page={processedPage}
               onChange={(_, value) => setProcessedPage(value)}
               size="small"
+              siblingCount={0}
+              boundaryCount={1}
+              sx={{
+                display: 'flex',
+                justifyContent: 'center',
+                maxWidth: '100%',
+                '& .MuiPagination-ul': {
+                  justifyContent: 'center',
+                  flexWrap: 'wrap',
+                },
+              }}
             />
           </Box>
 
-          <Box sx={{ display: 'flex', justifyContent: 'flex-start', mt: 2 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'flex-start',
+              flexDirection: { xs: 'column', sm: 'row' },
+              gap: { xs: 1, sm: 0 },
+              mt: 2,
+            }}
+          >
               <Button
                 startIcon={<CalendarMonthIcon />}
                 onClick={() => setOpenCalendarModal(true)}
@@ -1193,7 +1530,8 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                   textTransform: 'none',
                   borderRadius: 2,
                   px: 2,
-                  mr: 2,
+                  mr: { xs: 0, sm: 2 },
+                  width: { xs: '100%', sm: 'auto' },
                 }}
               >
                 Calendar View
@@ -1210,6 +1548,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                   textTransform: 'none',
                   borderRadius: 2,
                   px: 2,
+                  width: { xs: '100%', sm: 'auto' },
                 }}
               >
                 Day View
@@ -1219,6 +1558,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
 
         
       )}
+      {role !== 'BARBER' && (
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2}}>
         <Button
           variant="outlined"
@@ -1238,6 +1578,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
           Next
         </Button>
       </Box>
+      )}
 
         {/* Schedule Dialog Box */}
       <Dialog
@@ -1301,7 +1642,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                     onChange={(e) => {
                       const updated = [...availability];
                       updated[index].enabled = e.target.checked;
-                      setAvailability(updated);
+                      setAvailabilityDraft(updated);
                     }}
                   />
 
@@ -1317,7 +1658,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                     onChange={(e) => {
                       const updated = [...availability];
                       updated[index].from = e.target.value;
-                      setAvailability(updated);
+                      setAvailabilityDraft(updated);
                     }}
                     input={<OutlinedInput />}
                   >
@@ -1336,7 +1677,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                     onChange={(e) => {
                       const updated = [...availability];
                       updated[index].to = e.target.value;
-                      setAvailability(updated);
+                      setAvailabilityDraft(updated);
                     }}
                     input={<OutlinedInput />}
                   >
@@ -1408,13 +1749,15 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
           slotProps={{
             paper: {
               sx: {
-                width: '1100px',
-                maxWidth: '95vw',
+                width: { xs: 'calc(100% - 24px)', sm: '1100px' },
+                maxWidth: 'calc(100vw - 24px)',
+                maxHeight: { xs: 'calc(100% - 24px)', sm: 'calc(100% - 64px)' },
+                m: { xs: 1.5, sm: 3 },
               },
             },
           }}
         >
-          <DialogTitle sx={{ fontWeight: 800 }}>
+          <DialogTitle sx={{ fontWeight: 800, fontSize: { xs: 20, sm: 24 }, pr: 6 }}>
             Calendar View
             <IconButton
               onClick={() => setOpenCalendarModal(false)}
@@ -1425,8 +1768,16 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
   
           </DialogTitle>
   
-          <DialogContent sx={{ bgcolor: '#f5f5f5', pt: 2 }}>
-            <AppointmentCalendar appointments={appointments} />
+          <DialogContent
+            sx={{
+              bgcolor: '#f5f5f5',
+              pt: 2,
+              px: { xs: 1, sm: 3 },
+              pb: { xs: 1.5, sm: 3 },
+              overflowX: 'hidden',
+            }}
+          >
+            {renderAppointmentCalendar()}
           </DialogContent>
         </Dialog>
       
@@ -1439,15 +1790,17 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
         slotProps={{
           paper: {
             sx: {
-              width: '650px',
-              maxWidth: '95vw',
+              width: { xs: 'calc(100% - 24px)', sm: '650px' },
+              maxWidth: 'calc(100vw - 24px)',
+              maxHeight: { xs: 'calc(100% - 24px)', sm: 'calc(100% - 64px)' },
+              m: { xs: 1.5, sm: 3 },
               bgcolor: '#f2f2f2',
               borderRadius: 0,
             },
           },
         }}
       >
-        <DialogTitle sx={{ fontWeight: 900, fontSize: 24, pb: 1 }}>
+        <DialogTitle sx={{ fontWeight: 900, fontSize: { xs: 20, sm: 24 }, pb: 1, pr: 6 }}>
           Edit Appointment Details
 
           <IconButton
@@ -1469,6 +1822,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                 flexDirection: 'column',
                 gap: 1.5,
                 pt: 1,
+                px: { xs: 2, sm: 3 },
               }}
             >
               <Typography sx={{ fontSize: 12, color: '#555' }}>
@@ -1570,12 +1924,6 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
 
                 <IconButton
                   disabled
-                  onClick={() => {
-                    setOpenEditDayModal(true);
-                    setSelectedAddDate(null);
-                    setSelectedTime(null);
-                    setAvailableTimes([]);
-                  }}
                   sx={{
                     bgcolor: '#fff',
                     border: '1px solid #ccc',
@@ -1700,9 +2048,10 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
 
             <DialogActions
               sx={{
-                px: 3,
-                pb: 3,
+                px: { xs: 2, sm: 3 },
+                pb: { xs: 2, sm: 3 },
                 justifyContent: 'center',
+                flexDirection: { xs: 'column-reverse', sm: 'row' },
                 gap: 2,
               }}
             >
@@ -1714,7 +2063,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                 sx={{
                   backgroundColor: '#777',
                   color: '#f4b400',
-                  width: 180,
+                  width: { xs: '100%', sm: 180 },
                   minHeight: 44,
                   py: 1,
                   borderRadius: 1,
@@ -1734,7 +2083,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                 sx={{
                   backgroundColor: '#000',
                   color: '#f4b400',
-                  width: 180,
+                  width: { xs: '100%', sm: 180 },
                   minHeight: 44,
                   py: 1,
                   borderRadius: 1,
@@ -1766,19 +2115,29 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
         slotProps={{
           paper: {
             sx: {
-              width: '520px',
-              maxWidth: '95vw',
+              width: { xs: 'calc(100% - 24px)', sm: '520px' },
+              maxWidth: 'calc(100vw - 24px)',
+              maxHeight: { xs: 'calc(100% - 24px)', sm: 'calc(100% - 64px)' },
+              m: { xs: 1.5, sm: 3 },
             },
           },
         }}
       >
-        <DialogTitle sx={{ fontWeight: 800, pb: 1 }}>
+        <DialogTitle
+          sx={{
+            fontWeight: 800,
+            fontSize: { xs: 18, sm: 22 },
+            lineHeight: 1.2,
+            pb: 1,
+            pr: { xs: 12, sm: 13 },
+          }}
+        >
           {dayViewDate.toLocaleDateString('en-US', {
             month: 'long',
             day: 'numeric',
             year: 'numeric',
           })}
-          <Box sx={{ display: 'flex', gap: 0.5, position: 'absolute', right: 48, top: 14 }}>
+          <Box sx={{ display: 'flex', gap: 0.5, position: 'absolute', right: 48, top: 12 }}>
             <IconButton
               size="small"
               onClick={() =>
@@ -1851,7 +2210,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                         key={hour}
                         sx={{
                           display: 'grid',
-                          gridTemplateColumns: '64px 1fr',
+                          gridTemplateColumns: { xs: '54px 1fr', sm: '64px 1fr' },
                           borderBottom: '1px solid #d5d5d5',
                         }}
                       >
@@ -1860,7 +2219,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                             borderRight: '1px solid #d5d5d5',
                             py: 1.5,
                             px: 1,
-                            fontSize: 12,
+                            fontSize: { xs: 11, sm: 12 },
                             fontWeight: 600,
                             color: '#555',
                             bgcolor: '#fff',
@@ -1995,15 +2354,17 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
             slotProps={{
               paper: {
                 sx: {
-                  width: '650px',
-                  maxWidth: '95vw',
+                  width: { xs: 'calc(100% - 24px)', sm: '650px' },
+                  maxWidth: 'calc(100vw - 24px)',
+                  maxHeight: { xs: 'calc(100% - 24px)', sm: 'calc(100% - 64px)' },
+                  m: { xs: 1.5, sm: 3 },
                   bgcolor: '#f2f2f2',
                   borderRadius: 0,
                 },
               },
             }}
           >
-            <DialogTitle sx={{ fontWeight: 900, fontSize: 24, pb: 1 }}>
+            <DialogTitle sx={{ fontWeight: 900, fontSize: { xs: 20, sm: 24 }, pb: 1, pr: 6 }}>
               Edit Appointment Details
     
               <IconButton
@@ -2022,6 +2383,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                     flexDirection: 'column',
                     gap: 1.5,
                     pt: 1,
+                    px: { xs: 2, sm: 3 },
                   }}
                 >
                   <Typography sx={{ fontSize: 12, color: '#555' }}>
@@ -2123,12 +2485,6 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
     
                     <IconButton
                       disabled
-                      onClick={() => {
-                        setOpenEditScheduleModal(true);
-                        setSelectedAddDate(null);
-                        setSelectedTime(null);
-                        setAvailableTimes([]);
-                      }}
                       sx={{
                         bgcolor: '#fff',
                         border: '1px solid #ccc',
@@ -2295,9 +2651,11 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                               console.log('UPLOAD STATUS:', uploadRes.status);
                               console.log('UPLOAD RAW RESPONSE:', uploadText);
 
-                              let uploadData: any = {};
+                              let uploadData: UploadResponse = {};
                               try {
-                                uploadData = uploadText ? JSON.parse(uploadText) : {};
+                                uploadData = uploadText
+                                  ? (JSON.parse(uploadText) as UploadResponse)
+                                  : {};
                               } catch (parseError) {
                                 console.error('UPLOAD JSON PARSE ERROR:', parseError);
                               }
@@ -2337,7 +2695,8 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
 
                                 return updated;
                               });
-                            } catch (err) {
+                            } catch (error) {
+                              console.error('UPLOAD AFTER SERVICE PHOTO ERROR:', error);
                               alert('Failed to upload photo.');
                             }
                           }}
@@ -2353,9 +2712,10 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
     
                 <DialogActions
                   sx={{
-                    px: 3,
-                    pb: 3,
+                    px: { xs: 2, sm: 3 },
+                    pb: { xs: 2, sm: 3 },
                     justifyContent: 'center',
+                    flexDirection: { xs: 'column-reverse', sm: 'row' },
                     gap: 2,
                   }}
                 >
@@ -2366,7 +2726,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                     sx={{
                       backgroundColor: '#777',
                       color: '#f4b400',
-                      width: 180,
+                      width: { xs: '100%', sm: 180 },
                       minHeight: 44,
                       py: 1,
                       borderRadius: 1,
@@ -2386,7 +2746,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                     sx={{
                       backgroundColor: '#000',
                       color: '#f4b400',
-                      width: 180,
+                      width: { xs: '100%', sm: 180 },
                       minHeight: 44,
                       py: 1,
                       borderRadius: 1,
@@ -2447,8 +2807,17 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
             onClose={() => setImageViewerOpen(false)}
             maxWidth="md"
             fullWidth
+            slotProps={{
+              paper: {
+                sx: {
+                  m: { xs: 1.5, sm: 3 },
+                  width: { xs: 'calc(100% - 24px)', sm: '100%' },
+                  maxHeight: { xs: 'calc(100% - 24px)', sm: 'calc(100% - 64px)' },
+                },
+              },
+            }}
           >
-            <DialogTitle sx={{ fontWeight: 800 }}>
+            <DialogTitle sx={{ fontWeight: 800, fontSize: { xs: 18, sm: 22 }, pr: 6 }}>
               {imageViewerTitle}
               {imageViewerPhotos.length > 1 && (
                 <Typography component="span" sx={{ ml: 1, color: '#777', fontSize: 13 }}>
@@ -2470,7 +2839,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 2,
-                p: 3,
+                p: { xs: 1.5, sm: 3 },
               }}
             >
               {imageViewerUrl ? (
@@ -2480,7 +2849,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: 2,
+                      gap: { xs: 0.75, sm: 2 },
                     }}
                   >
                     <IconButton
@@ -2510,7 +2879,7 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
                       sx={{
                         width: '100%',
                         maxWidth: 820,
-                        maxHeight: '68vh',
+                        maxHeight: { xs: '62vh', sm: '68vh' },
                         objectFit: 'contain',
                         borderRadius: 2,
                         bgcolor: '#fff',
@@ -2582,6 +2951,127 @@ const AppointmentCalendar = ({ appointments }: { appointments: Appointment[] }) 
             </DialogContent>
           </Dialog>
 
+    </Box>
+  );
+}
+
+function AppointmentMobileCard({
+  appointment,
+  amount,
+  statusColor,
+  onOpen,
+}: {
+  appointment: Appointment;
+  amount: string;
+  statusColor: string;
+  onOpen: () => void;
+}) {
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        p: 1.75,
+        border: '1px solid #e5e5e5',
+        borderRadius: 1,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box',
+      }}
+    >
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 1.5,
+          mb: 1.25,
+        }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ color: '#777', fontSize: 12, fontWeight: 800 }}>
+            {appointment.appointmentCode}
+          </Typography>
+          <Typography
+            sx={{
+              fontSize: 17,
+              fontWeight: 900,
+              lineHeight: 1.2,
+              overflowWrap: 'anywhere',
+            }}
+          >
+            {appointment.customerName}
+          </Typography>
+        </Box>
+
+        <IconButton
+          size="small"
+          color="primary"
+          aria-label="view appointment"
+          onClick={onOpen}
+          sx={{
+            width: 36,
+            height: 36,
+            bgcolor: '#f5f5f5',
+            flexShrink: 0,
+          }}
+        >
+          <InfoIcon fontSize="small" />
+        </IconButton>
+      </Box>
+
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+          gap: 1,
+          mb: 1.25,
+        }}
+      >
+        <AppointmentCardDetail label="Customer ID" value={appointment.customerCode} />
+        <AppointmentCardDetail
+          label="Status"
+          value={appointment.status}
+          color={statusColor}
+          align="right"
+        />
+        <AppointmentCardDetail label="Schedule" value={appointment.schedule || 'N/A'} />
+        <AppointmentCardDetail label="Amount" value={amount} align="right" />
+      </Box>
+
+      <AppointmentCardDetail label="Service" value={appointment.serviceName || 'N/A'} />
+    </Paper>
+  );
+}
+
+function AppointmentCardDetail({
+  label,
+  value,
+  color = '#111',
+  align = 'left',
+}: {
+  label: string;
+  value: string;
+  color?: string;
+  align?: 'left' | 'right';
+}) {
+  return (
+    <Box sx={{ minWidth: 0, textAlign: align }}>
+      <Typography sx={{ color: '#777', fontSize: 12, fontWeight: 800 }}>
+        {label}
+      </Typography>
+      <Typography
+        sx={{
+          color,
+          fontSize: 13,
+          fontWeight: 900,
+          lineHeight: 1.25,
+          overflowWrap: 'anywhere',
+        }}
+      >
+        {value}
+      </Typography>
     </Box>
   );
 }
