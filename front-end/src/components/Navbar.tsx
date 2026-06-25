@@ -18,7 +18,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { User } from "@supabase/supabase-js";
+import type { User, SupabaseClient } from "@supabase/supabase-js";
 
 const pages = [
   { label: "Home", path: "/" },
@@ -30,38 +30,68 @@ const pages = [
 
 export default function Navbar() {
   const [user, setUser] = useState<User | null>(null);
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
+
   const pathname = usePathname();
   const router = useRouter();
-  const supabase = createClient();
 
-  const [anchorElNav, setAnchorElNav] = React.useState<null | HTMLElement>(null);
-  const [anchorElUser, setAnchorElUser] = React.useState<null | HTMLElement>(null);
+  const [anchorElNav, setAnchorElNav] =
+    React.useState<null | HTMLElement>(null);
+  const [anchorElUser, setAnchorElUser] =
+    React.useState<null | HTMLElement>(null);
 
   useEffect(() => {
-    // Get initial session
+  try {
+    const client = createClient();
+
+    console.log("Client:", client);
+    console.log("Auth:", client.auth);
+    console.log("Auth methods:", Object.keys(client.auth));
+    console.log(
+      "onAuthStateChange:",
+      typeof client.auth.onAuthStateChange
+    );
+
+    setSupabase(client);
+  } catch (e) {
+    console.error(e);
+    console.warn("Supabase not available");
+  }
+}, []);
+
+  useEffect(() => {
+    if (!supabase) return;
+
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user);
     });
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [supabase]);
 
   const handleSignOut = async () => {
+    if (!supabase) return;
+
     await supabase.auth.signOut();
     handleCloseUserMenu();
     router.push("/");
   };
 
-  const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => {
+  const handleOpenNavMenu = (
+    event: React.MouseEvent<HTMLElement>
+  ) => {
     setAnchorElNav(event.currentTarget);
   };
 
-  const handleOpenUserMenu = (event: React.MouseEvent<HTMLElement>) => {
+  const handleOpenUserMenu = (
+    event: React.MouseEvent<HTMLElement>
+  ) => {
     setAnchorElUser(event.currentTarget);
   };
 
@@ -72,7 +102,6 @@ export default function Navbar() {
     <AppBar position="static" color="primary">
       <Container maxWidth="xl">
         <Toolbar disableGutters>
-          {/* Logo */}
           <Link href="/">
             <Box
               component="img"
@@ -88,7 +117,6 @@ export default function Navbar() {
             />
           </Link>
 
-          {/* Desktop View of "The Barbs Bro" */}
           <Box
             sx={{
               position: "absolute",
@@ -113,7 +141,6 @@ export default function Navbar() {
             </Typography>
           </Box>
 
-          {/* Mobile View of "The Barbs Bro" */}
           <Typography
             variant="h6"
             noWrap
@@ -131,14 +158,12 @@ export default function Navbar() {
             The Barbs Bro
           </Typography>
 
-          {/* LEFT MOBILE MENU */}
           <Box sx={{ display: { xs: "flex", md: "none" } }}>
             <IconButton onClick={handleOpenNavMenu} color="inherit">
               <MenuIcon />
             </IconButton>
           </Box>
 
-          {/* RIGHT SIDE CONTAINER (PAGES + AUTH) */}
           <Box
             sx={{
               flexGrow: 1,
@@ -147,7 +172,6 @@ export default function Navbar() {
               alignItems: "center",
             }}
           >
-            {/* NavBar Option/Pages */}
             <Box sx={{ display: { xs: "none", md: "flex" } }}>
               {pages.map((page) => {
                 const isActive = pathname === page.path;
@@ -160,8 +184,12 @@ export default function Navbar() {
                     sx={{
                       color: "white",
                       mx: 1,
-                      borderBottom: isActive ? "2px solid #FBBC05" : "2px solid transparent",
-                      "&:hover": { borderBottom: "1px solid #FBBC05" },
+                      borderBottom: isActive
+                        ? "2px solid #FBBC05"
+                        : "2px solid transparent",
+                      "&:hover": {
+                        borderBottom: "1px solid #FBBC05",
+                      },
                     }}
                   >
                     {page.label}
@@ -170,7 +198,6 @@ export default function Navbar() {
               })}
             </Box>
 
-            {/* Sign In Button / User Avatar */}
             <Box sx={{ ml: 2 }}>
               {!user ? (
                 <Button
@@ -185,7 +212,9 @@ export default function Navbar() {
                 <>
                   <Tooltip title="Open User Menu">
                     <IconButton onClick={handleOpenUserMenu}>
-                      <Avatar src={user.user_metadata?.avatar_url} />
+                      <Avatar
+                        src={user.user_metadata?.avatar_url}
+                      />
                     </IconButton>
                   </Tooltip>
 
@@ -198,7 +227,10 @@ export default function Navbar() {
                       Edit Profile
                     </MenuItem>
 
-                    <MenuItem component={Link} href="/myAppointments">
+                    <MenuItem
+                      component={Link}
+                      href="/myAppointments"
+                    >
                       My Appointments
                     </MenuItem>
 
@@ -210,7 +242,10 @@ export default function Navbar() {
                       Loyalty Card
                     </MenuItem>
 
-                    <MenuItem onClick={handleSignOut} sx={{ color: "#ff0000" }}>
+                    <MenuItem
+                      onClick={handleSignOut}
+                      sx={{ color: "#ff0000" }}
+                    >
                       Logout
                     </MenuItem>
                   </Menu>
@@ -219,13 +254,18 @@ export default function Navbar() {
             </Box>
           </Box>
 
-          {/* Mobile Hamburger Menu */}
           <Menu
             id="menu-appbar"
             anchorEl={anchorElNav}
-            anchorOrigin={{ vertical: "top", horizontal: "left" }}
+            anchorOrigin={{
+              vertical: "top",
+              horizontal: "left",
+            }}
             keepMounted
-            transformOrigin={{ vertical: "top", horizontal: "left" }}
+            transformOrigin={{
+              vertical: "top",
+              horizontal: "left",
+            }}
             open={Boolean(anchorElNav)}
             onClose={handleCloseNavMenu}
           >
@@ -236,7 +276,9 @@ export default function Navbar() {
                 component={Link}
                 href={page.path}
               >
-                <Typography sx={{ textAlign: "center" }}>{page.label}</Typography>
+                <Typography sx={{ textAlign: "center" }}>
+                  {page.label}
+                </Typography>
               </MenuItem>
             ))}
           </Menu>

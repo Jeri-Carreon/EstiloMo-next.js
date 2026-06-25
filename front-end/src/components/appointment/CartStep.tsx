@@ -60,18 +60,30 @@ export default function CartStep({
   };
 
   return (
-    <Box sx={{ display: 'flex', fontFamily: 'var(--font-nunito-sans)' }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', md: 'row' },
+        fontFamily: 'var(--font-nunito-sans)',
+        minWidth: 0,
+      }}
+    >
       <Box
         sx={{
-          width: 220,
+          width: { xs: '100%', md: 220 },
           backgroundColor: '#000',
-          borderRight: '3px solid #0b9cff',
-          px: 2,
-          py: 4,
-          minHeight: '100vh',
+          borderRight: { xs: 'none', md: '3px solid #0b9cff' },
+          borderBottom: { xs: '3px solid #0b9cff', md: 'none' },
+          px: { xs: 1.5, md: 2 },
+          py: { xs: 1.5, md: 4 },
+          minHeight: { xs: 'auto', md: '100vh' },
         }}
       >
-        <Stack spacing={4}>
+        <Stack
+          direction={{ xs: 'row', md: 'column' }}
+          spacing={{ xs: 1, md: 4 }}
+          sx={{ width: '100%' }}
+        >
           {steps.map((step, index) => {
             const completed = index < 3;
             const active = index === 3;
@@ -79,14 +91,19 @@ export default function CartStep({
             return (
               <Stack
                 key={step}
-                direction="row"
-                spacing={2}
-                sx={{ alignItems: 'center' }}
+                direction={{ xs: 'column', md: 'row' }}
+                spacing={{ xs: 0.5, md: 2 }}
+                sx={{
+                  alignItems: 'center',
+                  flex: { xs: 1, md: 'initial' },
+                  minWidth: 0,
+                }}
               >
                 <Box
                   sx={{
-                    width: 34,
-                    height: 34,
+                    width: { xs: 28, md: 34 },
+                    height: { xs: 28, md: 34 },
+                    flexShrink: 0,
                     borderRadius: '50%',
                     backgroundColor:
                       completed || active ? '#f4b400' : '#777',
@@ -95,17 +112,24 @@ export default function CartStep({
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: 900,
-                    fontSize: 14,
+                    fontSize: { xs: 12, md: 14 },
                   }}
                 >
-                  {completed ? <CheckIcon sx={{ fontSize: 20 }} /> : index + 1}
+                  {completed ? (
+                    <CheckIcon sx={{ fontSize: { xs: 18, md: 20 } }} />
+                  ) : (
+                    index + 1
+                  )}
                 </Box>
 
                 <Typography
                   sx={{
                     color: completed || active ? '#fff' : '#999',
                     fontWeight: active ? 900 : 800,
-                    fontSize: 18,
+                    fontSize: { xs: 10, sm: 12, md: 18 },
+                    lineHeight: 1.1,
+                    textAlign: 'center',
+                    overflowWrap: 'anywhere',
                   }}
                 >
                   {step}
@@ -119,8 +143,9 @@ export default function CartStep({
       <Box
         sx={{
           flex: 1,
+          minWidth: 0,
           backgroundColor: '#d9d9d9',
-          minHeight: '100vh',
+          minHeight: { xs: 'auto', md: '100vh' },
           display: 'flex',
           flexDirection: 'column',
         }}
@@ -128,14 +153,16 @@ export default function CartStep({
         <Box
           sx={{
             borderBottom: '1px solid #aaa',
-            px: 3,
-            py: 2,
+            px: { xs: 2, sm: 3 },
+            py: { xs: 1.5, sm: 2 },
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
           }}
         >
-          <Typography sx={{ fontWeight: 900, fontSize: 34, color: '#111' }}>
+          <Typography
+            sx={{ fontWeight: 900, fontSize: { xs: 28, sm: 34 }, color: '#111' }}
+          >
             Cart
           </Typography>
 
@@ -176,9 +203,10 @@ export default function CartStep({
         <Box
           sx={{
             flex: 1,
-            p: 3,
+            p: { xs: 2, sm: 3 },
             display: 'flex',
             flexDirection: 'column',
+            minWidth: 0,
           }}
         >
           <Box
@@ -188,6 +216,7 @@ export default function CartStep({
               flexWrap: 'wrap',
               gap: 2,
               alignItems: 'flex-start',
+              minWidth: 0,
             }}
           >
             {appointmentData.cartItems.length === 0 ? (
@@ -199,7 +228,8 @@ export default function CartStep({
                 <Box
                   key={`${item.serviceId}-${item.appointmentDate}-${item.startMinutes}-${index}`}
                   sx={{
-                    width: 255,
+                    width: { xs: '100%', sm: 255 },
+                    maxWidth: '100%',
                     minHeight: 300,
                     backgroundColor: '#fff',
                     borderRadius: 1,
@@ -224,7 +254,7 @@ export default function CartStep({
                   <Typography
                     sx={{
                       fontWeight: 900,
-                      fontSize: 22,
+                      fontSize: { xs: 20, sm: 22 },
                       pr: 4,
                       mb: 1,
                       color: '#111',
@@ -256,7 +286,13 @@ export default function CartStep({
             )}
           </Box>
 
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: { xs: 'stretch', sm: 'flex-end' },
+              mt: 3,
+            }}
+          >
             <Button
               startIcon={<AddCircleIcon sx={{ color: '#59d96b' }} />}
               onClick={resetToStart}
@@ -264,6 +300,7 @@ export default function CartStep({
                 backgroundColor: '#fff',
                 color: '#111',
                 borderRadius: 10,
+                width: { xs: '100%', sm: 'auto' },
                 px: 2,
                 py: 1,
                 fontWeight: 900,
@@ -281,10 +318,11 @@ export default function CartStep({
           sx={{
             borderTop: '1px solid #aaa',
             backgroundColor: '#f5f5f5',
-            px: 3,
-            py: 2,
+            px: { xs: 2, sm: 3 },
+            py: { xs: 1.5, sm: 2 },
             display: 'flex',
             justifyContent: 'space-between',
+            gap: 2,
           }}
         >
           <Button
@@ -292,7 +330,8 @@ export default function CartStep({
             sx={{
               backgroundColor: '#d3d3d3',
               color: '#111',
-              px: 6,
+              flex: { xs: 1, sm: 'initial' },
+              px: { xs: 2, sm: 6 },
               py: 1,
               borderRadius: 10,
               textTransform: 'none',
@@ -309,7 +348,8 @@ export default function CartStep({
             sx={{
               backgroundColor: '#f4b400',
               color: '#111',
-              px: 7,
+              flex: { xs: 1, sm: 'initial' },
+              px: { xs: 2, sm: 7 },
               py: 1,
               borderRadius: 10,
               textTransform: 'none',

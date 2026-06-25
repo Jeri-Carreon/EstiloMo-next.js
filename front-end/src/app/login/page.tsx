@@ -38,6 +38,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const router = useRouter();
 
@@ -46,10 +47,11 @@ export default function LoginPage() {
   const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setErrorMsg("")
+    setLoading(true)
 
     const supabase = createClient()
 
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
@@ -60,147 +62,178 @@ export default function LoginPage() {
       } else {
         setErrorMsg("Invalid email or password")
       }
+      setLoading(false)
       return
     }
 
-    // Get role from Prisma user record
+    // Wait for session to be available before calling the API
+    const { data: { session } } = await supabase.auth.getSession()
+
+    if (!session) {
+      setErrorMsg("Login failed. Please try again.")
+      setLoading(false)
+      return
+    }
+
+    // Now session cookie is set — safe to call the role API
     const res = await fetch('/api/user/role')
+
+    if (!res.ok) {
+      setErrorMsg("Failed to load user info. Please try again.")
+      setLoading(false)
+      return
+    }
+
     const user = await res.json()
 
-    if (user.role !== 'CUSTOMER') {
+    if (['OWNER','RECEPTIONIST'].includes(user.role)) {
       router.push('/admin/dashboard')
+    } else if (user.role === 'BARBER') {
+      router.push('/admin/barbers')
     } else {
       router.push('/myAppointments')
     }
   }
-
   
+
   return (
-  <Box // outside container for the whole page
-    sx={{
-      width: "100%",
-      minHeight: "100vh",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      backgroundColor: "#f5f5f5",
-    }}
-  >
-    <Paper
-      elevation={3}
+    <Box
       sx={{
         width: "100%",
-        maxWidth: 500,
-        p: 4,
-        borderRadius: 3,
-        textAlign: "center",
+        minHeight: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "#f5f5f5",
       }}
     >
-      <h1 style={{
-        color: "#000",
-        fontSize: "2.5rem",
-        marginBottom: "1rem",
-      }}>
-        Welcome!
-      </h1>
-
-      <Box
-        component="form"
-        onSubmit={handleLogin}
+      <Paper
+        elevation={3}
         sx={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
+          width: "100%",
+          maxWidth: 500,
+          p: 4,
+          borderRadius: 3,
+          textAlign: "center",
         }}
       >
-        <TextField
-          label={
-          <>
-          Enter Your Email <span style={{ color: 'red' }}>*</span>
-          </>
-          }
-          variant="outlined"
-          onChange={(e) => setEmail(e.target.value)}
-          fullWidth
-        />
-        {errorMsg && (
-          <p style={{ color: "red", margin: "4px 0 0 0", fontSize: "0.9rem" }}>
-            {errorMsg}
-          </p>
-        )}
-        <FormControl fullWidth variant="outlined">
-          <InputLabel>
-            Enter Your Password <span style={{ color: "red" }}>*</span>
-          </InputLabel>
+        <h1 style={{
+          color: "#000",
+          fontSize: "2.5rem",
+          marginBottom: "1rem",
+        }}>
+          Welcome!
+        </h1>
 
-          <OutlinedInput
-            type={showPassword ? "text" : "password"}
-            onChange={(e) => setPassword(e.target.value)}
-            label="Enter Your Password"
-          />
-        </FormControl>  
-
-  <Box
-    sx={{
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      width: "100%",
-    }}
-  >
-    <FormControlLabel
-      sx={{ m: 0 }}
-      control={
-        <Checkbox
-          checked={rememberMe}
-          onChange={(e) => setRememberMe(e.target.checked)}
-        />
-      }
-      label="Remember me"
-    />
-
-    <Button
-      variant="text"
-      sx={{
-        textTransform: "none",
-        fontSize: "0.9rem",
-        color: "#555",
-        backgroundColor: "transparent"
-      }}
-      onClick={() => router.push("/forgot-password")}
-    >
-      Forgot password?
-    </Button>
-      </Box>
-        <Button variant="contained" type="submit" 
+        <Box
+          component="form"
+          onSubmit={handleLogin}
           sx={{
-            maxWidth: '100%', 
-            borderRadius: 10,
-            fontSize: '1.2rem',
-            textTransform: 'none',
-            color: 'black',
-            backgroundColor: '#D9D9D9',
-            '&:hover': {
-              backgroundColor: '#FBBC05',
-            },
-            }}>
-          Login
-        </Button>
-
-        <Button
-          variant="text"
-          sx={{
-            textTransform: "none",
-            fontSize: "0.9rem",
-            color: "#555",
-            backgroundColor: "transparent"
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
           }}
-          onClick={() => router.push("/signUp")}
         >
-          Don't Have An Account Yet?
-        </Button>
-      </Box>
-    </Paper>
-  </Box>
-);
+          <TextField
+            label={
+              <>
+                Enter Your Email <span style={{ color: 'red' }}>*</span>
+              </>
+            }
+            variant="outlined"
+            onChange={(e) => setEmail(e.target.value)}
+            fullWidth
+          />
+
+          {errorMsg && (
+            <p style={{ color: "red", margin: "4px 0 0 0", fontSize: "0.9rem" }}>
+              {errorMsg}
+            </p>
+          )}
+
+          <FormControl fullWidth variant="outlined">
+            <InputLabel>
+              Enter Your Password <span style={{ color: "red" }}>*</span>
+            </InputLabel>
+
+            <OutlinedInput
+              type={showPassword ? "text" : "password"}
+              onChange={(e) => setPassword(e.target.value)}
+              label="Enter Your Password"
+              endAdornment={
+                <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
+                  {showPassword ? <VisibilityOff /> : <Visibility />}
+                </IconButton>
+              }
+            />
+          </FormControl>
+
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              width: "100%",
+            }}
+          >
+            <FormControlLabel
+              sx={{ m: 0 }}
+              control={
+                <Checkbox
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+              }
+              label="Remember me"
+            />
+
+            <Button
+              variant="text"
+              sx={{
+                textTransform: "none",
+                fontSize: "0.9rem",
+                color: "#555",
+                backgroundColor: "transparent"
+              }}
+              onClick={() => router.push("/forgot-password")}
+            >
+              Forgot password?
+            </Button>
+          </Box>
+
+          <Button
+            variant="contained"
+            type="submit"
+            disabled={loading}
+            sx={{
+              maxWidth: '100%',
+              borderRadius: 10,
+              fontSize: '1.2rem',
+              textTransform: 'none',
+              color: 'black',
+              backgroundColor: '#D9D9D9',
+              '&:hover': {
+                backgroundColor: '#FBBC05',
+              },
+            }}
+          >
+            {loading ? "Logging in..." : "Login"}
+          </Button>
+
+          <Button
+            variant="text"
+            sx={{
+              textTransform: "none",
+              fontSize: "0.9rem",
+              color: "#555",
+              backgroundColor: "transparent"
+            }}
+            onClick={() => router.push("/signUp")}
+          >
+            Don't Have An Account Yet?
+          </Button>
+        </Box>
+      </Paper>
+    </Box>
+  );
 }

@@ -206,18 +206,30 @@ export default function ScheduleStep({
   }, [currentMonth, appointmentData.barberId]);
 
   return (
-    <Box sx={{ display: 'flex', fontFamily: 'var(--font-nunito-sans)' }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', md: 'row' },
+        fontFamily: 'var(--font-nunito-sans)',
+        minWidth: 0,
+      }}
+    >
       <Box
         sx={{
-          width: 220,
+          width: { xs: '100%', md: 220 },
           backgroundColor: '#000',
-          borderRight: '3px solid #0b9cff',
-          px: 2,
-          py: 4,
-          minHeight: '100vh',
+          borderRight: { xs: 'none', md: '3px solid #0b9cff' },
+          borderBottom: { xs: '3px solid #0b9cff', md: 'none' },
+          px: { xs: 1.5, md: 2 },
+          py: { xs: 1.5, md: 4 },
+          minHeight: { xs: 'auto', md: '100vh' },
         }}
       >
-        <Stack spacing={4}>
+        <Stack
+          direction={{ xs: 'row', md: 'column' }}
+          spacing={{ xs: 1, md: 4 }}
+          sx={{ width: '100%' }}
+        >
           {steps.map((step, index) => {
             const completed = index < 2;
             const active = index === 2;
@@ -225,14 +237,19 @@ export default function ScheduleStep({
             return (
               <Stack
                 key={step}
-                direction="row"
-                spacing={2}
-                sx={{ alignItems: 'center' }}
+                direction={{ xs: 'column', md: 'row' }}
+                spacing={{ xs: 0.5, md: 2 }}
+                sx={{
+                  alignItems: 'center',
+                  flex: { xs: 1, md: 'initial' },
+                  minWidth: 0,
+                }}
               >
                 <Box
                   sx={{
-                    width: 34,
-                    height: 34,
+                    width: { xs: 28, md: 34 },
+                    height: { xs: 28, md: 34 },
+                    flexShrink: 0,
                     borderRadius: '50%',
                     backgroundColor:
                       completed || active ? '#f4b400' : '#777',
@@ -241,7 +258,7 @@ export default function ScheduleStep({
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: 900,
-                    fontSize: 14,
+                    fontSize: { xs: 12, md: 14 },
                   }}
                 >
                   {index + 1}
@@ -251,7 +268,10 @@ export default function ScheduleStep({
                   sx={{
                     color: completed || active ? '#fff' : '#999',
                     fontWeight: active ? 900 : 800,
-                    fontSize: 18,
+                    fontSize: { xs: 10, sm: 12, md: 18 },
+                    lineHeight: 1.1,
+                    textAlign: 'center',
+                    overflowWrap: 'anywhere',
                   }}
                 >
                   {step}
@@ -265,8 +285,9 @@ export default function ScheduleStep({
       <Box
         sx={{
           flex: 1,
+          minWidth: 0,
           backgroundColor: '#d9d9d9',
-          minHeight: '100vh',
+          minHeight: { xs: 'auto', md: '100vh' },
           display: 'flex',
           flexDirection: 'column',
         }}
@@ -274,14 +295,16 @@ export default function ScheduleStep({
         <Box
           sx={{
             borderBottom: '1px solid #aaa',
-            px: 3,
-            py: 2,
+            px: { xs: 2, sm: 3 },
+            py: { xs: 1.5, sm: 2 },
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
           }}
         >
-          <Typography sx={{ fontWeight: 900, fontSize: 34, color: '#111' }}>
+          <Typography
+            sx={{ fontWeight: 900, fontSize: { xs: 28, sm: 34 }, color: '#111' }}
+          >
             Schedule
           </Typography>
 
@@ -321,12 +344,25 @@ export default function ScheduleStep({
           </IconButton>
         </Box>
 
-        <Box sx={{ flex: 1, p: 3 }}>
-          <Box sx={{ display: 'flex', gap: 3 }}>
-            <Box sx={{ width: 390 }}>
+        <Box sx={{ flex: 1, p: { xs: 2, sm: 3 }, minWidth: 0 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column', lg: 'row' },
+              gap: { xs: 2, md: 3 },
+              minWidth: 0,
+            }}
+          >
+            <Box
+              sx={{
+                width: { xs: '100%', sm: 390 },
+                maxWidth: '100%',
+                mx: { xs: 'auto', lg: 0 },
+              }}
+            >
               <Stack
                 direction="row"
-                spacing={1}
+                spacing={{ xs: 0.5, sm: 1 }}
                 sx={{
                   justifyContent: 'center',
                   alignItems: 'center',
@@ -348,7 +384,10 @@ export default function ScheduleStep({
                 <Typography
                   sx={{
                     fontWeight: 700,
-                    fontSize: '1.5rem',
+                    fontSize: { xs: '1.1rem', sm: '1.5rem' },
+                    textAlign: 'center',
+                    minWidth: 0,
+                    flex: 1,
                   }}
                 >
                   {currentMonth.toLocaleString('default', {
@@ -387,12 +426,12 @@ export default function ScheduleStep({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontSize: 10,
+                        fontSize: { xs: 9, sm: 10 },
                         fontWeight: 700,
                         '&:last-child': { borderRight: 'none' },
                       }}
                     >
-                      {day}
+                      {day.slice(0, 3)}
                     </Box>
                   ))}
                 </Box>
@@ -433,7 +472,7 @@ export default function ScheduleStep({
                           }
                         }}
                         sx={{
-                          height: 68,
+                          height: { xs: 46, sm: 58, md: 68 },
                           borderRight: '1px solid #7b7b7b',
                           borderBottom: '1px solid #7b7b7b',
                           position: 'relative',
@@ -453,9 +492,10 @@ export default function ScheduleStep({
                             <Typography
                               sx={{
                                 position: 'absolute',
-                                top: 8,
-                                right: 8,
+                                top: { xs: 5, sm: 8 },
+                                right: { xs: 5, sm: 8 },
                                 fontWeight: isSelected ? 700 : 500,
+                                fontSize: { xs: 12, sm: 14 },
                                 color: '#555',
                               }}
                             >
@@ -469,7 +509,7 @@ export default function ScheduleStep({
                                   bottom: 4,
                                   left: 4,
                                   right: 4,
-                                  height: 8,
+                                  height: { xs: 6, sm: 8 },
                                   borderRadius: 5,
                                   backgroundColor: '#39d000',
                                 }}
@@ -487,9 +527,10 @@ export default function ScheduleStep({
             <Box
               sx={{
                 flex: 1,
+                minWidth: 0,
                 border: '1px solid #7b7b7b',
                 backgroundColor: '#efefef',
-                minHeight: 530,
+                minHeight: { xs: 320, md: 430, lg: 530 },
               }}
             >
               <Box sx={{ borderBottom: '1px solid #7b7b7b', py: 2 }}>
@@ -497,7 +538,7 @@ export default function ScheduleStep({
                   align="center"
                   sx={{
                     fontWeight: 700,
-                    fontSize: '1.5rem',
+                    fontSize: { xs: '1.25rem', sm: '1.5rem' },
                   }}
                 >
                   Time
@@ -508,8 +549,9 @@ export default function ScheduleStep({
                 <Typography
                   align="center"
                   sx={{
-                    fontSize: '2rem',
+                    fontSize: { xs: '1.35rem', sm: '2rem' },
                     fontWeight: 500,
+                    px: 2,
                   }}
                 >
                   {selectedDate
@@ -528,7 +570,8 @@ export default function ScheduleStep({
                   flexWrap: 'wrap',
                   justifyContent: 'center',
                   gap: 2,
-                  px: 3,
+                  px: { xs: 2, sm: 3 },
+                  pb: 3,
                 }}
               >
                 {loadingTimes && (
@@ -565,7 +608,7 @@ export default function ScheduleStep({
                       }
                       variant="outlined"
                       sx={{
-                        minWidth: 180,
+                        minWidth: { xs: '100%', sm: 180 },
                         height: 48,
                         borderRadius: 2,
                         border: selected
@@ -594,10 +637,11 @@ export default function ScheduleStep({
           sx={{
             borderTop: '1px solid #aaa',
             backgroundColor: '#f5f5f5',
-            px: 3,
-            py: 2,
+            px: { xs: 2, sm: 3 },
+            py: { xs: 1.5, sm: 2 },
             display: 'flex',
             justifyContent: 'space-between',
+            gap: 2,
           }}
         >
           <Button
@@ -605,7 +649,8 @@ export default function ScheduleStep({
             sx={{
               backgroundColor: '#d3d3d3',
               color: '#111',
-              px: 6,
+              flex: { xs: 1, sm: 'initial' },
+              px: { xs: 2, sm: 6 },
               py: 1,
               borderRadius: 10,
               textTransform: 'none',
@@ -625,7 +670,8 @@ export default function ScheduleStep({
             sx={{
               backgroundColor: '#f4b400',
               color: '#111',
-              px: 7,
+              flex: { xs: 1, sm: 'initial' },
+              px: { xs: 2, sm: 7 },
               py: 1,
               borderRadius: 10,
               textTransform: 'none',

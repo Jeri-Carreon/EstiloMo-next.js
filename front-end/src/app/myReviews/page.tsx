@@ -46,6 +46,11 @@ type Review = {
   status: "PENDING" | "COMPLETED" | "REJECTED" | "HIDDEN";
   isVisible: boolean;
   createdAt: string;
+  user?: {
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+  };
   appointment?: {
     appointmentCode: string;
     appointmentDate: string;
@@ -85,6 +90,16 @@ const ratingLabels: Record<string, string> = {
   "5.0": "Excellent",
 };
 
+function getReviewerDisplayName(review: Review) {
+  if (review.isAnonymous) return "Anonymous";
+
+  return (
+    [review.user?.firstName, review.user?.lastName].filter(Boolean).join(" ") ||
+    review.user?.email ||
+    "Customer"
+  );
+}
+
 export default function MyReviewsPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewables, setReviewables] = useState<ReviewableItem[]>([]);
@@ -97,52 +112,59 @@ export default function MyReviewsPage() {
   const [error, setError] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const loadMyReviews = async () => {
-    try {
-      const res = await fetch("/api/reviews?mine=true", {
-        cache: "no-store",
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(
-          res.status === 401
-            ? "Please sign in to view your reviews."
-            : data.error || "Unable to load your reviews."
-        );
-        setReviews([]);
-        return;
-      }
-
-      setReviews(data.reviews || []);
-    } catch {
-      setError("Unable to load your reviews.");
-    }
-  };
-
-  const loadReviewables = async () => {
-    try {
-      const res = await fetch("/api/reviews?completedAppointments=true", {
-        cache: "no-store",
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setReviewables([]);
-        return;
-      }
-
-      setReviewables(data.appointments || []);
-    } catch {
-      setReviewables([]);
-    }
-  };
-
   useEffect(() => {
-    loadMyReviews();
-    loadReviewables();
+    let active = true;
+
+    fetch("/api/reviews?mine=true", {
+      cache: "no-store",
+    })
+      .then(async (res) => {
+        const data = await res.json();
+
+        if (!active) return;
+
+        if (!res.ok) {
+          setError(
+            res.status === 401
+              ? "Please sign in to view your reviews."
+              : data.error || "Unable to load your reviews."
+          );
+          setReviews([]);
+          return;
+        }
+
+        setReviews(data.reviews || []);
+      })
+      .catch(() => {
+        if (active) {
+          setError("Unable to load your reviews.");
+        }
+      });
+
+    fetch("/api/reviews?completedAppointments=true", {
+      cache: "no-store",
+    })
+      .then(async (res) => {
+        const data = await res.json();
+
+        if (!active) return;
+
+        if (!res.ok) {
+          setReviewables([]);
+          return;
+        }
+
+        setReviewables(data.appointments || []);
+      })
+      .catch(() => {
+        if (active) {
+          setReviewables([]);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleOpenDialog = () => {
@@ -304,7 +326,7 @@ export default function MyReviewsPage() {
                 fontWeight: 700,
               }}
             >
-              You don't have any reviews.
+              You don&apos;t have any reviews.
             </Typography>
 
             <Typography
@@ -381,7 +403,7 @@ export default function MyReviewsPage() {
                       mb: 0.5,
                     }}
                   >
-                    Display name: {review.isAnonymous ? "Anonymous" : "Your name"}
+                    Display name: {getReviewerDisplayName(review)}
                   </Typography>
 
                   <Typography
