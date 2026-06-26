@@ -7,6 +7,12 @@ import Modal from '@mui/material/Modal';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
+import Drawer from '@mui/material/Drawer';
+import IconButton from '@mui/material/IconButton';
+import Divider from '@mui/material/Divider';
+
+import DeleteIcon from '@mui/icons-material/Delete';
+
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import BarberStep from '@/components/appointment/BarberStep';
@@ -42,11 +48,40 @@ export interface AppointmentData {
   cartItems: CartItem[];
 }
 
+interface ConfirmAppointmentResponse {
+  error?: string;
+}
+
+function formatTime(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hour = h % 12 || 12;
+
+  return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+function formatDate(date: string) {
+  if (!date) return '';
+
+  return new Date(date).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
 export default function AppointmentPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
   const [successOpen, setSuccessOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const [warningOpen, setWarningOpen] = useState(false);
+  const [warningTitle, setWarningTitle] = useState('');
+  const [warningMessage, setWarningMessage] = useState('');
+
+  const [cartOpen, setCartOpen] = useState(false);
 
   const [appointmentData, setAppointmentData] = useState<AppointmentData>({
     barberId: '',
@@ -61,6 +96,12 @@ export default function AppointmentPage() {
     endMinutes: 0,
     cartItems: [],
   });
+
+  const showWarning = (title: string, message: string) => {
+    setWarningTitle(title);
+    setWarningMessage(message);
+    setWarningOpen(true);
+  };
 
   const nextStep = (
     appointmentDate?: string,
@@ -105,6 +146,13 @@ export default function AppointmentPage() {
     setCurrentStep((prev) => prev - 1);
   };
 
+  const removeCartItem = (indexToRemove: number) => {
+    setAppointmentData((prev) => ({
+      ...prev,
+      cartItems: prev.cartItems.filter((_, index) => index !== indexToRemove),
+    }));
+  };
+
   const resetToStart = () => {
     const hasValidBooking =
       appointmentData.barberId &&
@@ -126,7 +174,10 @@ export default function AppointmentPage() {
     );
 
     if (isDuplicate) {
-      alert('This appointment is already in your cart.');
+      showWarning(
+        'Duplicate Appointment',
+        'This appointment is already in your cart.'
+      );
       return;
     }
 
@@ -170,12 +221,15 @@ export default function AppointmentPage() {
 
   const handleConfirm = async () => {
     if (appointmentData.cartItems.length === 0) {
-      alert('Your cart is empty.');
+      showWarning('Empty Cart', 'Your cart is empty.');
       return;
     }
 
     if (!paymentScreenshot) {
-      alert('Please upload your payment screenshot.');
+      showWarning(
+        'Missing Payment Screenshot',
+        'Please upload your payment screenshot.'
+      );
       return;
     }
 
@@ -198,24 +252,30 @@ export default function AppointmentPage() {
 
       const text = await res.text();
 
-      let data: any = {};
+      let data: ConfirmAppointmentResponse = {};
       try {
         data = JSON.parse(text);
       } catch {
         console.error('NON-JSON API RESPONSE:', text);
-        alert(text || 'Failed to confirm appointment.');
+        showWarning(
+          'Confirmation Failed',
+          text || 'Failed to confirm appointment.'
+        );
         return;
       }
 
       if (!res.ok) {
-        alert(data.error || 'Failed to confirm appointment.');
+        showWarning(
+          'Confirmation Failed',
+          data.error || 'Failed to confirm appointment.'
+        );
         return;
       }
 
       setSuccessOpen(true);
     } catch (error) {
       console.error(error);
-      alert('Something went wrong.');
+      showWarning('Something Went Wrong', 'Something went wrong.');
     } finally {
       setLoading(false);
     }
@@ -230,6 +290,8 @@ export default function AppointmentPage() {
           appointmentData={appointmentData}
           setAppointmentData={setAppointmentData}
           nextStep={nextStep}
+          cartCount={appointmentData.cartItems.length}
+          onCartClick={() => setCartOpen(true)}
         />
       )}
 
@@ -239,6 +301,8 @@ export default function AppointmentPage() {
           setAppointmentData={setAppointmentData}
           nextStep={nextStep}
           prevStep={prevStep}
+          cartCount={appointmentData.cartItems.length}
+          onCartClick={() => setCartOpen(true)}
         />
       )}
 
@@ -248,6 +312,8 @@ export default function AppointmentPage() {
           setAppointmentData={setAppointmentData}
           nextStep={nextStep}
           prevStep={prevStep}
+          cartCount={appointmentData.cartItems.length}
+          onCartClick={() => setCartOpen(true)}
         />
       )}
 
@@ -276,10 +342,182 @@ export default function AppointmentPage() {
 
       <Footer />
 
+      <Drawer
+        anchor="right"
+        open={cartOpen}
+        onClose={() => setCartOpen(false)}
+        slotProps={{
+          paper: {
+            sx: {
+              top: { xs: 72, sm: 96 },
+              bottom: { xs: 72, sm: 88 },
+              height: 'auto',
+              width: { xs: 'calc(100vw - 24px)', sm: 410 },
+              maxWidth: '100vw',
+              borderRadius: { xs: '12px 0 0 12px', sm: '16px 0 0 16px' },
+              overflow: 'hidden',
+            },
+          },
+        }}
+      >
+        <Box
+          sx={{
+            height: '100%',
+            p: { xs: 2, sm: 3 },
+            display: 'flex',
+            flexDirection: 'column',
+            minWidth: 0,
+          }}
+        >
+          <Typography sx={{ fontSize: { xs: 20, sm: 24 }, fontWeight: 900, mb: 2 }}>
+            Your Booking Cart
+          </Typography>
+
+          {appointmentData.cartItems.length === 0 ? (
+            <Typography sx={{ color: '#666' }}>Your cart is empty.</Typography>
+          ) : (
+            <>
+              <Box
+                sx={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  pr: 1,
+                }}
+              >
+                {appointmentData.cartItems.map((item, index) => (
+                  <Box
+                    key={`${item.serviceId}-${item.appointmentDate}-${item.startMinutes}-${index}`}
+                    sx={{
+                      border: '1px solid #ddd',
+                      borderRadius: 2,
+                      p: 2,
+                      mb: 2,
+                      bgcolor: '#fff',
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: 1,
+                      }}
+                    >
+                      <Typography sx={{ fontWeight: 900, fontSize: 17 }}>
+                        {item.serviceName}
+                      </Typography>
+
+                      <IconButton
+                        size="small"
+                        onClick={() => removeCartItem(index)}
+                        sx={{ color: '#b91c1c' }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+
+                    <Typography>Barber: {item.barberName}</Typography>
+                    <Typography>Duration: {item.serviceDurationMinutes} mins</Typography>
+                    <Typography>Date: {formatDate(item.appointmentDate)}</Typography>
+
+                    <Typography>
+                      Time: {formatTime(item.startMinutes)} - {formatTime(item.endMinutes)}
+                    </Typography>
+
+                    <Typography sx={{ fontWeight: 700, mt: 2 }}>
+                      ₱ {item.servicePrice.toFixed(2)}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+
+              <Divider sx={{ my: 2 }} />
+
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  mb: 3,
+                }}
+              >
+                <Typography sx={{ fontWeight: 900 }}>Total</Typography>
+                <Typography sx={{ fontWeight: 900 }}>
+                  ₱ {totalPrice.toFixed(2)}
+                </Typography>
+              </Box>
+
+              <Button
+                fullWidth
+                onClick={() => {
+                  setCartOpen(false);
+                  setCurrentStep(3);
+                }}
+                sx={{
+                  bgcolor: '#000',
+                  color: '#fff',
+                  borderRadius: 10,
+                  py: 1.2,
+                  textTransform: 'none',
+                  fontWeight: 900,
+                  '&:hover': { bgcolor: '#222' },
+                }}
+              >
+                Go to Cart
+              </Button>
+            </>
+          )}
+        </Box>
+      </Drawer>
+
+      <Modal open={warningOpen} onClose={() => setWarningOpen(false)}>
+        <Box
+          sx={{
+            width: { xs: 'calc(100% - 32px)', sm: 430 },
+            maxWidth: 430,
+            backgroundColor: '#fff',
+            borderRadius: 3,
+            p: { xs: 3, sm: 4 },
+            textAlign: 'center',
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            boxShadow: 24,
+            outline: 'none',
+          }}
+        >
+          <Typography sx={{ fontSize: { xs: 21, sm: 24 }, fontWeight: 1000, mb: 1.5 }}>
+            {warningTitle}
+          </Typography>
+
+          <Typography sx={{ color: '#666', fontWeight: 700, mb: 4 }}>
+            {warningMessage}
+          </Typography>
+
+          <Button
+            onClick={() => setWarningOpen(false)}
+            sx={{
+              backgroundColor: '#f4b400',
+              color: '#111',
+              px: 5,
+              py: 1.2,
+              borderRadius: 10,
+              textTransform: 'none',
+              fontWeight: 900,
+              '&:hover': { backgroundColor: '#e0a800' },
+            }}
+          >
+            OK
+          </Button>
+        </Box>
+      </Modal>
+
       <Modal open={successOpen}>
         <Box
           sx={{
-            width: { xs: '90%', md: 720 },
+            width: { xs: 'calc(100% - 32px)', md: 720 },
+            maxWidth: 720,
+            maxHeight: '90vh',
+            overflowY: 'auto',
             backgroundColor: '#fff',
             borderRadius: 3,
             p: { xs: 3, md: 6 },
@@ -294,8 +532,8 @@ export default function AppointmentPage() {
         >
           <Box
             sx={{
-              width: 115,
-              height: 115,
+              width: { xs: 86, sm: 115 },
+              height: { xs: 86, sm: 115 },
               backgroundColor: '#f1f1f1',
               borderRadius: '50%',
               mx: 'auto',
@@ -305,12 +543,12 @@ export default function AppointmentPage() {
               justifyContent: 'center',
             }}
           >
-            <CheckCircleIcon sx={{ fontSize: 70, color: '#2ebd4f' }} />
+            <CheckCircleIcon sx={{ fontSize: { xs: 54, sm: 70 }, color: '#2ebd4f' }} />
           </Box>
 
           <Typography
             sx={{
-              fontSize: { xs: 30, md: 40 },
+              fontSize: { xs: 24, sm: 30, md: 40 },
               fontWeight: 1000,
               color: '#09a84f',
               lineHeight: 1.1,
@@ -320,11 +558,11 @@ export default function AppointmentPage() {
             APPOINTMENT BOOKED SUCCESSFULLY!
           </Typography>
 
-          <Typography sx={{ fontWeight: 900, fontSize: 18, mb: 4 }}>
+          <Typography sx={{ fontWeight: 900, fontSize: { xs: 16, sm: 18 }, mb: 4 }}>
             We will notify you when your appointment is confirmed by our receptionist.
           </Typography>
 
-          <Typography sx={{ fontWeight: 900, fontSize: 18, mb: 5 }}>
+          <Typography sx={{ fontWeight: 900, fontSize: { xs: 16, sm: 18 }, mb: 5 }}>
             Thank you for trusting The Barbs Bro!
           </Typography>
 
@@ -333,12 +571,13 @@ export default function AppointmentPage() {
             sx={{
               backgroundColor: '#ddd',
               color: '#111',
-              px: 6,
+              width: { xs: '100%', sm: 'auto' },
+              px: { xs: 2, sm: 6 },
               py: 1.5,
               borderRadius: 10,
               textTransform: 'none',
               fontWeight: 900,
-              fontSize: 20,
+              fontSize: { xs: 16, sm: 20 },
               boxShadow: '0 3px 5px rgba(0,0,0,0.2)',
             }}
           >

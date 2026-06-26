@@ -61,6 +61,7 @@ export async function signupAction(formData: {
 
     const supabase = await createClient();
 
+    console.log('supabase client:', typeof supabase, typeof supabase?.auth?.signUp)
     const { data, error } = await supabase.auth.signUp({
       email,
       password: formData.password,

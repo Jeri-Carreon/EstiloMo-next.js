@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { customAlphabet } from "nanoid";
 
 export async function POST(req: Request) {
   try {
@@ -86,23 +87,12 @@ export async function POST(req: Request) {
       );
     }
 
+    const nanoid = customAlphabet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 8);
+
     const customer = await db.$transaction(async (tx) => {
-      const customerCounter = await tx.counter.update({
-        where: {
-          id: "customerCode",
-        },
-        data: {
-          value: {
-            increment: 1,
-          },
-        },
-      });
-
-      const customerCode = String(customerCounter.value).padStart(3, "0");
-
       const newCustomer = await tx.customer.create({
         data: {
-          customerCode,
+          customerCode: `CUST-${nanoid()}`,
           firstName,
           lastName,
           mobileNumber,

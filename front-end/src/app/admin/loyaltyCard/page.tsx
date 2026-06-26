@@ -50,6 +50,7 @@ type Activity = {
 
 export default function AdminLoyaltyCardPage() {
   const router = useRouter();
+  const supabase = createClient();
 
   const [cards, setCards] = useState<LoyaltyCard[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -58,14 +59,12 @@ export default function AdminLoyaltyCardPage() {
   const [processedSearch, setProcessedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
 
-  const supabase = createClient()
   const [loading, setLoading] = useState(true);
 
   const [editOpen, setEditOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [selectedCard, setSelectedCard] = useState<LoyaltyCard | null>(null);
-  const [editStickers, setEditStickers] = useState(0);
   const [editStatus, setEditStatus] = useState<"ACTIVE" | "COMPLETED">(
     "ACTIVE"
   );
@@ -112,26 +111,30 @@ export default function AdminLoyaltyCardPage() {
   useEffect(() => {
     const init = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
         if (!user) {
-          router.push('/login')
-          return
+          router.push("/login");
+          return;
         }
 
-        const res = await fetch('/api/user/role')
-        const data = await res.json()
+        const res = await fetch("/api/user/role");
+        const data = await res.json();
 
         if (!["OWNER", "RECEPTIONIST"].includes(data.role)) {
           router.push("/unauthorized");
           return;
         }
 
-        await loadCards()
+        await loadCards();
       } catch (err) {
-        console.error("Initialization failed:", err)
+        console.error("Initialization failed:", err);
       }
-    }
-    init()
+    };
+
+    init();
   }, [router]);
 
   const filteredCards = useMemo(() => {
@@ -153,7 +156,6 @@ export default function AdminLoyaltyCardPage() {
 
   const openEdit = (card: LoyaltyCard) => {
     setSelectedCard(card);
-    setEditStickers(card.stickers);
     setEditStatus(card.status);
     setEditOpen(true);
   };
@@ -168,7 +170,6 @@ export default function AdminLoyaltyCardPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          stars: editStickers,
           status: editStatus,
         }),
       });
@@ -214,7 +215,7 @@ export default function AdminLoyaltyCardPage() {
     }
   };
 
-  if (loading || status === "loading") {
+  if (loading) {
     return (
       <Box
         sx={{
@@ -248,14 +249,7 @@ export default function AdminLoyaltyCardPage() {
         </IconButton>
       </Box>
 
-      <Box
-        sx={{
-          display: "flex",
-          gap: 2,
-          mb: 3,
-          flexWrap: "wrap",
-        }}
-      >
+      <Box sx={{ display: "flex", gap: 2, mb: 3, flexWrap: "wrap" }}>
         <TextField
           size="small"
           placeholder="Search loyalty cards..."
@@ -270,10 +264,7 @@ export default function AdminLoyaltyCardPage() {
               ),
             },
           }}
-          sx={{
-            flex: 1,
-            maxWidth: 320,
-          }}
+          sx={{ flex: 1, maxWidth: 320 }}
         />
 
         <TextField
@@ -281,10 +272,7 @@ export default function AdminLoyaltyCardPage() {
           size="small"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          sx={{
-            width: 170,
-            bgcolor: "#fff",
-          }}
+          sx={{ width: 170, bgcolor: "#fff" }}
         >
           <MenuItem value="ALL">All Status</MenuItem>
           <MenuItem value="ACTIVE">Active</MenuItem>
@@ -340,9 +328,7 @@ export default function AdminLoyaltyCardPage() {
                   py: 1.4,
                   borderBottom: "1px solid #eee",
                   alignItems: "center",
-                  "&:hover": {
-                    bgcolor: "#fafafa",
-                  },
+                  "&:hover": { bgcolor: "#fafafa" },
                 }}
               >
                 <Typography sx={{ fontWeight: 800, color: "#777" }}>
@@ -534,25 +520,20 @@ export default function AdminLoyaltyCardPage() {
           />
 
           <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
-            Stickers <Box component="span" sx={{ color: "red" }}>*</Box>
+            Stickers
           </Typography>
-
           <TextField
-            select
             fullWidth
-            value={editStickers}
-            onChange={(e) => setEditStickers(Number(e.target.value))}
+            disabled
+            value={
+              selectedCard
+                ? `${selectedCard.stickers}/${selectedCard.maxStickers}`
+                : ""
+            }
             sx={{ mb: 2, bgcolor: "#fff" }}
-          >
-            {[...Array(11)].map((_, index) => (
-              <MenuItem key={index} value={index}>
-                {index}/10
-              </MenuItem>
-            ))}
-          </TextField>
+          />
 
           <Typography sx={{ fontWeight: 700, mb: 0.5 }}>Status</Typography>
-
           <TextField
             select
             fullWidth

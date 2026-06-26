@@ -113,6 +113,20 @@ function formatDateInput(date: Date) {
   )}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+function getAppointmentScheduleValue(appointment: Appointment) {
+  const dateValue = appointment.appointmentDate
+    ? new Date(appointment.appointmentDate).getTime()
+    : 0;
+
+  if (Number.isNaN(dateValue)) return 0;
+
+  return dateValue + (appointment.startMinutes ?? 0) * 60_000;
+}
+
+function compareNewestScheduleFirst(a: Appointment, b: Appointment) {
+  return getAppointmentScheduleValue(b) - getAppointmentScheduleValue(a);
+}
+
 export default function AppointmentsPage() {
   const router = useRouter();
 
@@ -569,13 +583,13 @@ export default function AppointmentsPage() {
     openEditScheduleModal,
   ]);
 
-  const filteredPendingAppointments = appointments.filter(
-    (appointment) => appointment.status.toUpperCase() === 'PENDING'
-  );
+  const filteredPendingAppointments = appointments
+    .filter((appointment) => appointment.status.toUpperCase() === 'PENDING')
+    .sort(compareNewestScheduleFirst);
 
-  const processedBaseAppointments = appointments.filter(
-  (appointment) => appointment.status.toUpperCase() !== 'PENDING'
-  );
+  const processedBaseAppointments = appointments
+    .filter((appointment) => appointment.status.toUpperCase() !== 'PENDING')
+    .sort(compareNewestScheduleFirst);
 
   const filteredProcessedAppointments = processedBaseAppointments.filter(
     (appointment) => {

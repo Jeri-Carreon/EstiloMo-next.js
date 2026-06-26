@@ -171,6 +171,20 @@ function formatDateInput(date: Date) {
   return date.toLocaleDateString('en-CA');
 }
 
+function getAppointmentScheduleValue(appointment: Appointment) {
+  const dateValue = appointment.appointmentDate
+    ? new Date(appointment.appointmentDate).getTime()
+    : 0;
+
+  if (Number.isNaN(dateValue)) return 0;
+
+  return dateValue + (appointment.startMinutes ?? 0) * 60_000;
+}
+
+function compareNewestScheduleFirst(a: Appointment, b: Appointment) {
+  return getAppointmentScheduleValue(b) - getAppointmentScheduleValue(a);
+}
+
 export default function BarbersPage() {
   const [openAvailability, setOpenAvailability] = useState(false);
   const [barbers, setBarbers] = useState<Barber[]>([]);
@@ -517,7 +531,7 @@ export default function BarbersPage() {
       const data = await res.json()
       setRole(data.role)
 
-      if (!['OWNER', 'RECEPTIONIST'].includes(data.role)) {
+      if (!['OWNER', 'RECEPTIONIST', 'BARBER'].includes(data.role)) {
         router.push('/unauthorized')
         return
       }
@@ -549,9 +563,9 @@ export default function BarbersPage() {
   };
 
   {/* Scheduled Appointments */}
-  const filteredScheduledAppointments = appointments.filter((appointment) => {
-    return appointment.status === "SCHEDULED";
-  });
+  const filteredScheduledAppointments = appointments
+    .filter((appointment) => appointment.status === "SCHEDULED")
+    .sort(compareNewestScheduleFirst);
 
   const paginatedScheduledAppointments = filteredScheduledAppointments.slice(
     (scheduledPage - 1) * itemsPerPage,
@@ -563,9 +577,14 @@ export default function BarbersPage() {
   );
 
   {/* Processed Appointments */}
-  const processedBaseAppointments = appointments.filter(
-  (appointment) => appointment.status.toUpperCase() !== 'SCHEDULED' && appointment.status.toUpperCase() !== 'PENDING' && appointment.status.toUpperCase() !== 'REJECTED'
-  );
+  const processedBaseAppointments = appointments
+    .filter(
+      (appointment) =>
+        appointment.status.toUpperCase() !== 'SCHEDULED' &&
+        appointment.status.toUpperCase() !== 'PENDING' &&
+        appointment.status.toUpperCase() !== 'REJECTED'
+    )
+    .sort(compareNewestScheduleFirst);
 
   const filteredProcessedAppointments = processedBaseAppointments.filter(
     (appointment) => {
