@@ -7,6 +7,9 @@ substitutions:
   _NEXT_PUBLIC_SUPABASE_ANON_KEY: ''
   _SUPABASE_SERVICE_ROLE_KEY: ''
 
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 steps:
   - name: gcr.io/cloud-builders/gcloud
     id: Check substitutions
