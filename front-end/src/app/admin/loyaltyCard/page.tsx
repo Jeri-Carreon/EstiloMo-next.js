@@ -280,7 +280,7 @@ export default function AdminLoyaltyCardPage() {
         </TextField>
       </Box>
 
-      <Box sx={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 3 }}>
+      <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", lg: "minmax(0,1fr) 320px",}, gap: 2, alignItems: "start",}}>
         <Paper
           elevation={0}
           sx={{
@@ -295,7 +295,7 @@ export default function AdminLoyaltyCardPage() {
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr 2fr 1fr 1fr 1fr",
+              gridTemplateColumns: "140px 140px minmax(180px,1fr) 90px 100px 60px",
               px: 2,
               py: 1.5,
               borderBottom: "1px solid #ddd",
@@ -308,7 +308,7 @@ export default function AdminLoyaltyCardPage() {
             <Typography sx={{ fontWeight: 800 }}>Name</Typography>
             <Typography sx={{ fontWeight: 800 }}>Stickers</Typography>
             <Typography sx={{ fontWeight: 800 }}>Status</Typography>
-            <Typography sx={{ fontWeight: 800 }}>Action</Typography>
+            <Typography sx={{ fontWeight: 800, textAlign: "center", }}>Action</Typography>
           </Box>
 
           {filteredCards.length === 0 ? (
@@ -323,19 +323,19 @@ export default function AdminLoyaltyCardPage() {
                 key={card.id}
                 sx={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr 2fr 1fr 1fr 1fr",
-                  px: 2,
+                  gridTemplateColumns: "140px 140px minmax(180px,1fr) 90px 100px 60px",
+                  px: 3,
                   py: 1.4,
                   borderBottom: "1px solid #eee",
                   alignItems: "center",
                   "&:hover": { bgcolor: "#fafafa" },
                 }}
               >
-                <Typography sx={{ fontWeight: 800, color: "#777" }}>
+                <Typography sx={{fontWeight: 800, color: "#777", lineHeight: 1.25, wordBreak: "break-word",}}>
                   {card.cardNumber}
                 </Typography>
 
-                <Typography sx={{ fontWeight: 800, color: "#777" }}>
+                <Typography sx={{fontWeight: 800,color: "#777",lineHeight: 1.25,wordBreak: "break-word",}}>
                   {card.customerCode}
                 </Typography>
 
@@ -356,17 +356,26 @@ export default function AdminLoyaltyCardPage() {
                   {card.status === "COMPLETED" ? "Completed" : "Active"}
                 </Typography>
 
-                <IconButton
-                  onClick={() => openEdit(card)}
+                <Box
                   sx={{
-                    width: 30,
-                    height: 30,
-                    bgcolor: "#ddd",
-                    "&:hover": { bgcolor: "#ccc" },
+                    display: "flex",
+                    justifyContent: "center",
                   }}
                 >
-                  <EditIcon sx={{ fontSize: 18 }} />
-                </IconButton>
+                  <IconButton
+                    onClick={() => openEdit(card)}
+                    sx={{
+                      width: 34,
+                      height: 34,
+                      bgcolor: "#ddd",
+                      "&:hover": {
+                        bgcolor: "#ccc",
+                      },
+                    }}
+                  >
+                    <EditIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </Box>
               </Box>
             ))
           )}
@@ -419,8 +428,10 @@ export default function AdminLoyaltyCardPage() {
           sx={{
             border: "1px solid #ddd",
             borderRadius: 2,
-            p: 3,
+            p: 2.5,
             minHeight: 520,
+            width: "100%",
+            overflowY: "auto",
           }}
         >
           <Typography sx={{ fontWeight: 900, mb: 3 }}>
@@ -437,8 +448,8 @@ export default function AdminLoyaltyCardPage() {
                 key={activity.id}
                 sx={{
                   display: "flex",
-                  gap: 1.5,
-                  mb: 2,
+                  gap: 1.25,
+                  mb: 2.5,
                   alignItems: "flex-start",
                 }}
               >

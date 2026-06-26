@@ -12,6 +12,7 @@ import IconButton from '@mui/material/IconButton';
 import Divider from '@mui/material/Divider';
 
 import DeleteIcon from '@mui/icons-material/Delete';
+import CloseIcon from '@mui/icons-material/Close';
 
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -369,9 +370,38 @@ export default function AppointmentPage() {
             minWidth: 0,
           }}
         >
-          <Typography sx={{ fontSize: { xs: 20, sm: 24 }, fontWeight: 900, mb: 2 }}>
-            Your Booking Cart
-          </Typography>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              mb: 2,
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: { xs: 20, sm: 24 },
+                fontWeight: 900,
+              }}
+            >
+              Your Booking Cart
+            </Typography>
+
+            <IconButton
+              onClick={() => setCartOpen(false)}
+              sx={{
+                color: '#555',
+                border: '1px solid #ddd',
+                width: 38,
+                height: 38,
+                '&:hover': {
+                  backgroundColor: '#f5f5f5',
+                },
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
 
           {appointmentData.cartItems.length === 0 ? (
             <Typography sx={{ color: '#666' }}>Your cart is empty.</Typography>
