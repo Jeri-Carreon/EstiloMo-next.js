@@ -57,7 +57,15 @@ export default function LoginPage() {
     })
 
     if (error) {
-      if (error.message.includes('locked') || error.message.includes('too many')) {
+      console.error("LOGIN ERROR:", error);
+
+      const message = error.message.toLowerCase();
+
+      if (message.includes('supabase browser client is not configured')) {
+        setErrorMsg("Login is not configured on this deployment. Please check the Supabase build environment variables.")
+      } else if (message.includes('email not confirmed')) {
+        setErrorMsg("Please confirm your email address before logging in.")
+      } else if (message.includes('locked') || message.includes('too many')) {
         setErrorMsg("You have been locked out. Try again after 1 minute.")
       } else {
         setErrorMsg("Invalid email or password")
