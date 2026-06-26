@@ -2,6 +2,7 @@ substitutions:
   _REGION: asia-southeast1
   _ARTIFACT_REPO: estilomo
   _IMAGE_NAME: estilomo-next-js
+  _SERVICE_NAME: estilomo-next-js
   _NEXT_PUBLIC_SUPABASE_URL: ""
   _NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
   _NEXT_PUBLIC_SUPABASE_SERVICE_KEY: ""
