@@ -37,6 +37,7 @@ steps:
 
   - name: gcr.io/cloud-builders/docker
     id: Build
+    dir: front-end
     args:
       - build
       - --build-arg
