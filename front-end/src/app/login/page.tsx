@@ -59,6 +59,23 @@ export default function LoginPage() {
         password,
       });
 
+    if (error) {
+      console.error("LOGIN ERROR:", error);
+
+      const message = error.message.toLowerCase();
+
+      if (message.includes('supabase browser client is not configured')) {
+        setErrorMsg("Login is not configured on this deployment. Please check the Supabase build environment variables.")
+      } else if (message.includes('email not confirmed')) {
+        setErrorMsg("Please confirm your email address before logging in.")
+      } else if (message.includes('locked') || message.includes('too many')) {
+        setErrorMsg("You have been locked out. Try again after 1 minute.")
+      } else {
+        setErrorMsg("Invalid email or password")
+      }
+      setLoading(false)
+      return
+    }
       if (error) {
         await fetch("/api/auth/security-login", {
           method: "POST",

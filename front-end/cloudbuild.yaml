@@ -1,0 +1,60 @@
+substitutions:
+  _REGION: asia-southeast1
+  _ARTIFACT_REPO: estilomo
+  _IMAGE_NAME: estilomo-next-js
+  _SERVICE_NAME: estilomo-next-js
+  _NEXT_PUBLIC_SUPABASE_URL: ''
+  _NEXT_PUBLIC_SUPABASE_ANON_KEY: ''
+  _SUPABASE_SERVICE_ROLE_KEY: ''
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - name: gcr.io/cloud-builders/gcloud
+    id: Check substitutions
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        missing=0
+        check_value() {
+          name="$$1"
+          value="$$2"
+          if [ -z "$$value" ]; then
+            echo "$$name=MISSING"
+            missing=1
+          else
+            echo "$$name=SET"
+          fi
+        }
+
+        check_value "_NEXT_PUBLIC_SUPABASE_URL" "${_NEXT_PUBLIC_SUPABASE_URL}"
+        check_value "_NEXT_PUBLIC_SUPABASE_ANON_KEY" "${_NEXT_PUBLIC_SUPABASE_ANON_KEY}"
+        check_value "_SUPABASE_SERVICE_ROLE_KEY" "${_SUPABASE_SERVICE_ROLE_KEY}"
+
+        if [ "$$missing" -ne 0 ]; then
+          echo "Cloud Build substitutions are missing. Set them on the trigger or pass --substitutions when running manually."
+          exit 1
+        fi
+
+  - name: gcr.io/cloud-builders/docker
+    id: Build
+    dir: front-end
+    args:
+      - build
+      - --build-arg
+      - NEXT_PUBLIC_SUPABASE_URL=${_NEXT_PUBLIC_SUPABASE_URL}
+      - --build-arg
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${_NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - --build-arg
+      - SUPABASE_SERVICE_ROLE_KEY=${_SUPABASE_SERVICE_ROLE_KEY}
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_IMAGE_NAME}:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_IMAGE_NAME}:latest
+      - .
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_IMAGE_NAME}:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_IMAGE_NAME}:latest

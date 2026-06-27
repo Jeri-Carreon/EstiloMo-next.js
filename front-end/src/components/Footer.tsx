@@ -11,7 +11,7 @@ export default function Footer() {
           <Box component="img" src="/images/logo.jpg" alt="The Barbs Bro Logo"
             sx={{ width:'45%', maxWidth:170, height:'auto', objectFit:'contain' }}/>
           <Typography sx={{ color:'#fff', fontSize:'1.7rem', fontFamily:'var(--font-nunito-sans)', fontWeight:700, ml:2 }}>
-            The Barbs Bro
+            EstiloMo
           </Typography>
         </Box>
 

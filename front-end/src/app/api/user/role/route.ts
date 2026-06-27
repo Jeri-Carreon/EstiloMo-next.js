@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
@@ -11,7 +11,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const dbUser = await prisma.user.findUnique({
+  const dbUser = await db.user.findUnique({
     where: { email: user.email! },
     select: { role: true }
   })

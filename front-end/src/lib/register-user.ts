@@ -1,7 +1,7 @@
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { nanoid } from "nanoid";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 
 export type RegisterUserInput = {
   id?: string;
@@ -19,7 +19,7 @@ export async function registerUser(input: RegisterUserInput) {
   const normalizedMobile = input.mobileNumber.replace(/\D/g, "");
   const id = input.id ?? crypto.randomUUID();
 
-  const existingUser = await prisma.user.findUnique({
+  const existingUser = await db.user.findUnique({
     where: { email: normalizedEmail },
   });
 
@@ -31,7 +31,7 @@ export async function registerUser(input: RegisterUserInput) {
     ? await bcrypt.hash(input.password, 10)
     : "";
 
-  return prisma.$transaction(async (tx) => {
+  return db.$transaction(async (tx) => {
     const existingDbUser = await tx.user.findUnique({
       where: { id },
     });

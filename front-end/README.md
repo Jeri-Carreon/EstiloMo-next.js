@@ -16,6 +16,26 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Cloud Build Deploy
+
+This app uses `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in the browser bundle, so they must be available during `next build`, not only as Cloud Run runtime variables.
+
+When running `cloudbuild.yaml`, set these substitutions in the Cloud Build trigger or pass them on the command line:
+
+```bash
+gcloud builds submit \
+  --config cloudbuild.yaml \
+  --substitutions=_NEXT_PUBLIC_SUPABASE_URL="https://YOUR_PROJECT.supabase.co",_NEXT_PUBLIC_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY",_SUPABASE_SERVICE_ROLE_KEY="YOUR_SUPABASE_SERVICE_ROLE_KEY"
+```
+
+For Cloud Build triggers, add the same values under **Substitution variables**:
+
+```text
+_NEXT_PUBLIC_SUPABASE_URL
+_NEXT_PUBLIC_SUPABASE_ANON_KEY
+_SUPABASE_SERVICE_ROLE_KEY
+```
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
