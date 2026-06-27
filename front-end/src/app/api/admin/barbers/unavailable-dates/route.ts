@@ -1,36 +1,45 @@
-import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-
-import { DateTime } from 'luxon';
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { DateTime } from "luxon";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
 
-    const barberId = searchParams.get('barberId');
-    const year = parseInt(searchParams.get('year')!);
-    const month = parseInt(searchParams.get('month')!); // 1-indexed
+    const barberId = searchParams.get("barberId");
+    const serviceId = searchParams.get("serviceId");
+    const year = Number(searchParams.get("year"));
+    const month = Number(searchParams.get("month"));
 
     if (!barberId || !year || !month) {
       return NextResponse.json(
-        { ok: false, message: 'Missing barberId, year, or month' },
+        { ok: false, message: "Missing barberId, year, or month" },
         { status: 400 }
       );
     }
 
-    // First and last day of the month
-    // Fix 1: month range in PH timezone
-    const startOfMonth = DateTime.fromObject(
-      { year, month, day: 1 },
-      { zone: 'Asia/Manila' }
-    ).startOf('month').toUTC().toJSDate();
+    const settings = await db.appointmentSetting.findFirst();
+    const bookingCutoffHours = settings?.bookingCutoffHours ?? 1;
 
-    const endOfMonth = DateTime.fromObject(
-      { year, month, day: 1 },
-      { zone: 'Asia/Manila' }
-    ).endOf('month').toUTC().toJSDate();
+    const service = serviceId
+      ? await db.service.findUnique({
+          where: { id: serviceId },
+          select: { durationMinutes: true },
+        })
+      : null;
 
-    // GET ALL ABSENCES FOR THE MONTH
+    const serviceDuration = service?.durationMinutes ?? 0;
+
+    const monthStartPH = DateTime.fromObject(
+      { year, month, day: 1 },
+      { zone: "Asia/Manila" }
+    ).startOf("month");
+
+    const monthEndPH = monthStartPH.endOf("month");
+
+    const startOfMonth = monthStartPH.toUTC().toJSDate();
+    const endOfMonth = monthEndPH.toUTC().toJSDate();
+
     const absences = await db.barberAbsent.findMany({
       where: {
         barberId,
@@ -41,55 +50,120 @@ export async function GET(req: Request) {
       },
       select: { date: true },
     });
-    
-    // GET ALL DAY-OFF SCHEDULES FOR THIS BARBER
-    const dayOffSchedules = await db.barberSchedule.findMany({
-      where: {
-        barberId,
+
+    const schedules = await db.barberSchedule.findMany({
+      where: { barberId },
+      select: {
+        dayOfWeek: true,
+        startTime: true,
+        endTime: true,
         isDayOff: true,
       },
-      select: { dayOfWeek: true },
     });
 
-    const dayOffSet = new Set(
-      dayOffSchedules.map((s) => s.dayOfWeek)
-    );
+    const appointments = await db.appointment.findMany({
+      where: {
+        barberId,
+        appointmentDate: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+        status: {
+          in: ["PENDING", "SCHEDULED"],
+        },
+      },
+      select: {
+        appointmentDate: true,
+        startMinutes: true,
+        endMinutes: true,
+      },
+    });
 
-    // BUILD LIST OF UNAVAILABLE DATES
-    const unavailableDates: string[] = [];
+    const unavailableSet = new Set<string>();
 
-    // Fix 2: format absence dates in PH timezone
     for (const absence of absences) {
-      const formatted = DateTime.fromJSDate(absence.date)
-        .setZone('Asia/Manila')
-        .toFormat('yyyy-MM-dd');
-
-      unavailableDates.push(formatted);
+      unavailableSet.add(
+        DateTime.fromJSDate(absence.date)
+          .setZone("Asia/Manila")
+          .toFormat("yyyy-MM-dd")
+      );
     }
 
-    // Add all dates in the month that fall on a day-off weekday
-    const totalDays = endOfMonth.getDate();
+    const nowPH = DateTime.now().setZone("Asia/Manila");
+    const cutoffPH = nowPH.plus({ hours: bookingCutoffHours });
 
-    for (let day = 1; day <= totalDays; day++) {
-      const date = new Date(year, month - 1, day);
-      const dayOfWeek = date.getDay();
+    for (let day = 1; day <= monthEndPH.day; day++) {
+      const datePH = DateTime.fromObject(
+        { year, month, day },
+        { zone: "Asia/Manila" }
+      );
 
-      if (dayOffSet.has(dayOfWeek)) {
-        const formatted = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const dateKey = datePH.toFormat("yyyy-MM-dd");
+      const dayOfWeek = datePH.weekday % 7;
 
-        // Avoid duplicates (e.g. absent AND day off)
-        if (!unavailableDates.includes(formatted)) {
-          unavailableDates.push(formatted);
+      if (unavailableSet.has(dateKey)) continue;
+
+      const schedule = schedules.find((s) => s.dayOfWeek === dayOfWeek);
+
+      if (!schedule || schedule.isDayOff) {
+        unavailableSet.add(dateKey);
+        continue;
+      }
+
+      if (!serviceId || serviceDuration <= 0) {
+        continue;
+      }
+
+      let hasAvailableSlot = false;
+
+      for (
+        let start = schedule.startTime;
+        start + serviceDuration <= schedule.endTime;
+        start += 30
+      ) {
+        const end = start + serviceDuration;
+
+        const slotDateTimePH = datePH.startOf("day").plus({ minutes: start });
+
+        if (slotDateTimePH < cutoffPH) {
+          continue;
         }
+
+        const hasConflict = appointments.some((appointment) => {
+          const appointmentDateKey = DateTime.fromJSDate(
+            appointment.appointmentDate
+          )
+            .setZone("Asia/Manila")
+            .toFormat("yyyy-MM-dd");
+
+          if (appointmentDateKey !== dateKey) return false;
+
+          return (
+            start < appointment.endMinutes &&
+            end > appointment.startMinutes
+          );
+        });
+
+        if (!hasConflict) {
+          hasAvailableSlot = true;
+          break;
+        }
+      }
+
+      if (!hasAvailableSlot) {
+        unavailableSet.add(dateKey);
       }
     }
 
-    return NextResponse.json({ ok: true, unavailableDates });
-
+    return NextResponse.json({
+      ok: true,
+      unavailableDates: Array.from(unavailableSet),
+    });
   } catch (error) {
-    console.error(error);
+    console.error("UNAVAILABLE DATES ERROR:", error);
+
     return NextResponse.json(
-      { ok: false, message: 'Internal server error' },
+      { ok: false, message: "Internal server error" },
       { status: 500 }
     );
   }

@@ -11,9 +11,9 @@ import IconButton from "@mui/material/IconButton";
 import CircularProgress from "@mui/material/CircularProgress";
 
 import SearchIcon from "@mui/icons-material/Search";
-import FilterListIcon from "@mui/icons-material/FilterList";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import MenuItem from "@mui/material/MenuItem";
 
 type SecurityLog = {
   id: string;
@@ -48,13 +48,16 @@ export default function SecurityPage() {
   const [totalPages, setTotalPages] = useState(1);
 
   const [loading, setLoading] = useState(true);
+  const [sectionFilter, setSectionFilter] = useState("ALL");
 
   async function loadLogs() {
     try {
       setLoading(true);
 
       const res = await fetch(
-        `/api/admin/security?search=${encodeURIComponent(search)}&page=${page}`
+        `/api/admin/security?search=${encodeURIComponent(
+          search
+        )}&section=${encodeURIComponent(sectionFilter)}&page=${page}`
       );
 
       const data = await res.json();
@@ -79,7 +82,7 @@ export default function SecurityPage() {
     }, 300);
 
     return () => clearTimeout(timeout);
-  }, [search, page]);
+  }, [search, sectionFilter, page]);
 
   const start = total === 0 ? 0 : (page - 1) * 5 + 1;
   const end = Math.min(page * 5, total);
@@ -133,22 +136,32 @@ export default function SecurityPage() {
         }}
         />
 
-        <Button
-          variant="outlined"
-          startIcon={<FilterListIcon />}
+        <TextField
+          select
+          size="small"
+          value={sectionFilter}
+          onChange={(e) => {
+            setSectionFilter(e.target.value);
+            setPage(1);
+          }}
           sx={{
-            height: 38,
-            px: 2,
-            borderRadius: "8px",
-            borderColor: "#e0e0e0",
-            color: "#888",
-            bgcolor: "#fff",
-            textTransform: "none",
-            fontWeight: 600,
+            width: 190,
+            "& .MuiOutlinedInput-root": {
+              height: 38,
+              borderRadius: "8px",
+              bgcolor: "#fff",
+            },
           }}
         >
-          Filter
-        </Button>
+          <MenuItem value="ALL">All Sections</MenuItem>
+          <MenuItem value="Authentication">Authentication</MenuItem>
+          <MenuItem value="Appointments">Appointments</MenuItem>
+          <MenuItem value="Customers">Customers</MenuItem>
+          <MenuItem value="Staff">Staff</MenuItem>
+          <MenuItem value="Sales">Sales</MenuItem>
+          <MenuItem value="Loyalty Card">Loyalty Card</MenuItem>
+          <MenuItem value="System">System</MenuItem>
+        </TextField>
       </Box>
 
       <Box>

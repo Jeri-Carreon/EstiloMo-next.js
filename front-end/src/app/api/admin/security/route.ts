@@ -13,18 +13,33 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
 
     const search = searchParams.get("search") || "";
+    const section = searchParams.get("section") || "ALL";
     const page = Number(searchParams.get("page") || "1");
     const limit = 5;
 
-    const where = search
-      ? {
-          OR: [
-            { userName: { contains: search, mode: "insensitive" as const } },
-            { section: { contains: search, mode: "insensitive" as const } },
-            { action: { contains: search, mode: "insensitive" as const } },
-          ],
-        }
-      : {};
+    const where: any = {
+      AND: [],
+    };
+
+    if (search) {
+      where.AND.push({
+        OR: [
+          { userName: { contains: search, mode: "insensitive" } },
+          { section: { contains: search, mode: "insensitive" } },
+          { action: { contains: search, mode: "insensitive" } },
+        ],
+      });
+    }
+
+    if (section !== "ALL") {
+      where.AND.push({
+        section,
+      });
+    }
+
+    if (where.AND.length === 0) {
+      delete where.AND;
+    }
 
     const [logs, total] = await Promise.all([
       db.securityLog.findMany({

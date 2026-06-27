@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-
 import { getAdminUser } from "@/lib/supabase/getUser";
+
+import {
+  logSaleCreated,
+  logDiscountApplied,
+} from "@/lib/securityLogEvents";
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -38,11 +42,7 @@ export async function GET() {
       include: {
         customer: true,
         barber: true,
-        items: {
-          include: {
-            service: true,
-          },
-        },
+        items: { include: { service: true } },
         payment: true,
         appointments: {
           include: {
@@ -52,9 +52,7 @@ export async function GET() {
           },
         },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: { createdAt: "desc" },
     });
 
     const sales = rawSales.filter((sale) => {
@@ -286,6 +284,14 @@ export async function POST(req: Request) {
         },
       });
     });
+
+    if (createdSale) {
+      await logSaleCreated(req, user, createdSale.saleCode);
+
+      if (Number(createdSale.discount || 0) > 0) {
+        await logDiscountApplied(req, user, createdSale.saleCode);
+      }
+    }
 
     return NextResponse.json(
       { success: true, sale: createdSale },

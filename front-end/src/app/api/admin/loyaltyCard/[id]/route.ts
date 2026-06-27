@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { logLoyaltyCardStatusUpdated } from "@/lib/securityLogEvents";
 
 export async function PUT(
   req: Request,
@@ -64,6 +65,13 @@ export async function PUT(
         message: `Loyalty card status updated to ${status}`,
       },
     });
+
+    await logLoyaltyCardStatusUpdated(
+      req,
+      user,
+      `${updatedCard.customer.firstName} ${updatedCard.customer.lastName}`,
+      status
+    );
 
     return NextResponse.json({ card: updatedCard });
   } catch (error) {

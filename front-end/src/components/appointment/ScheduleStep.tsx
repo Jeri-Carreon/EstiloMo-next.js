@@ -148,8 +148,18 @@ export default function ScheduleStep({
 
       const data = await response.json();
 
-      setAvailableTimes(data?.availableTimes ?? []);
-      setSelectedTime(null);
+      const times = data?.availableTimes ?? [];
+
+    setAvailableTimes(times);
+    setSelectedTime(null);
+
+    if (times.length === 0) {
+      setUnavailableDates((prev) => {
+        const updated = new Set(prev);
+        updated.add(formattedDate);
+        return updated;
+      });
+    }
     } catch (error) {
       console.error(error);
       setAvailableTimes([]);
@@ -169,7 +179,7 @@ export default function ScheduleStep({
       const m = String(month.getMonth() + 1).padStart(2, '0');
 
       const response = await fetch(
-        `/api/admin/barbers/unavailable-dates?barberId=${appointmentData.barberId}&year=${year}&month=${m}`
+        `/api/admin/barbers/unavailable-dates?barberId=${appointmentData.barberId}&serviceId=${appointmentData.serviceId}&year=${year}&month=${m}`
       );
 
       const data = await response.json();
@@ -203,7 +213,7 @@ export default function ScheduleStep({
 
   useEffect(() => {
     fetchUnavailableDates(currentMonth);
-  }, [currentMonth, appointmentData.barberId]);
+  }, [currentMonth, appointmentData.barberId, appointmentData.serviceId]);
 
   return (
     <Box

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 
 import { getAdminUser } from "@/lib/supabase/getUser";
 import { customAlphabet } from "nanoid";
+import { logCustomerCreated } from "@/lib/securityLogEvents";
 
 export async function POST(req: Request) {
   try {
@@ -110,6 +111,12 @@ export async function POST(req: Request) {
 
       return newCustomer;
     });
+
+    await logCustomerCreated(
+      req,
+      user,
+      `${customer.firstName} ${customer.lastName}`
+    );
 
     return NextResponse.json({
       ok: true,

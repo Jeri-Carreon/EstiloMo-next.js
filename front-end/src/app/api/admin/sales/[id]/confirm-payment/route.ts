@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-
 import { getAdminUser } from "@/lib/supabase/getUser";
+
+import {
+  logPaymentReceived,
+  logDiscountApplied,
+  logLoyaltyStickerEarned,
+  logLoyaltyRewardRedeemed,
+} from "@/lib/securityLogEvents";
 
 export async function PUT(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getAdminUser()
+    const user = await getAdminUser();
+
     if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -154,6 +161,44 @@ export async function PUT(
         });
       }
     });
+
+    await logPaymentReceived(req, user, sale.saleCode);
+
+    const customerName = `${sale.customer.firstName} ${sale.customer.lastName}`;
+
+    if (loyaltyCard) {
+      await logLoyaltyStickerEarned(
+        req,
+        user,
+        customerName,
+        updatedStars,
+        sale.saleCode
+      );
+
+      if (loyaltyRewardType === "FIFTY_PERCENT") {
+        await logLoyaltyRewardRedeemed(
+          req,
+          user,
+          customerName,
+          "50%",
+          sale.saleCode
+        );
+      }
+
+      if (loyaltyRewardType === "FREE") {
+        await logLoyaltyRewardRedeemed(
+          req,
+          user,
+          customerName,
+          "100%",
+          sale.saleCode
+        );
+      }
+    }
+
+    if (discount > 0) {
+      await logDiscountApplied(req, user, sale.saleCode);
+    }
 
     return NextResponse.json({
       success: true,

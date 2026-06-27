@@ -2667,9 +2667,16 @@ const renderAppointmentCalendar = () => {
                                 return;
                               }
 
+                              const uploadedUrl = uploadData.url;
+
+                              if (!uploadedUrl) {
+                                alert(uploadData.error || 'Failed to upload photo.');
+                                return;
+                              }
+
                               setPendingAfterServicePhotoUrls((prev) => [
                                 ...prev,
-                                uploadData.url,
+                                uploadedUrl,
                               ]);
 
                               setSelectedAppointment((prev) => {
@@ -2677,20 +2684,20 @@ const renderAppointmentCalendar = () => {
 
                                 const newPhoto = {
                                   id: `temp-${Date.now()}`,
-                                  imageUrl: uploadData.url,
+                                  imageUrl: uploadedUrl,
                                   createdAt: new Date().toISOString(),
                                 };
 
-                                const updated = {
+                                const updated: Appointment = {
                                   ...prev,
-                                  afterServicePhotoUrl: uploadData.url,
+                                  afterServicePhotoUrl: uploadedUrl,
                                   afterServicePhotos: [
                                     newPhoto,
                                     ...(prev.afterServicePhotos || []),
                                   ],
                                 };
 
-                                console.log('PHOTO URL SET TO STATE:', uploadData.url);
+                                console.log('PHOTO URL SET TO STATE:', uploadedUrl);
                                 console.log('UPDATED APPOINTMENT STATE:', updated);
 
                                 return updated;

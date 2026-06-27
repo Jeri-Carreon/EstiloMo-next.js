@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { logRefund, logSaleCancelled, } from "@/lib/securityLogEvents";
 
 type CancelReason = "PARTIAL" | "CANCELLED" | "REFUNDED";
 type AppointmentCancelStatus = "CANCELLED" | "NOSHOW";
@@ -110,6 +111,12 @@ export async function PUT(
         });
       }
     });
+
+    if (reason === "REFUNDED") {
+      await logRefund(req, user, sale.saleCode);
+    } else {
+      await logSaleCancelled(req, user, sale.saleCode);
+    }
 
     return NextResponse.json({
       ok: true,
