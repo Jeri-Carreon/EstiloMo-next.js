@@ -226,15 +226,30 @@ function getSaleStatusLabel(status: Sale["status"]) {
   return "Unpaid";
 }
 
+function minutesToTime(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
 
-function getSaleDisplayDate(sale: Sale | null | undefined) {
-  if (!sale) return formatToday();
+  return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
+}
 
-  if (sale.source === "BOOKING" && sale.appointments?.length) {
-    return formatDate(sale.appointments[0].appointmentDate);
-  }
+function getAppointmentSchedule(appt: {
+  appointmentDate: string;
+  startMinutes: number;
+  endMinutes: number;
+}) {
+  const dateOnly = appt.appointmentDate.split(" ")[0]; // "2026-06-29"
 
-  return formatDate(sale.createdAt);
+  const date = new Date(dateOnly).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "Asia/Manila",
+  });
+
+  return `${date} ${minutesToTime(appt.startMinutes)} - ${minutesToTime(appt.endMinutes)}`;
 }
 
 function fullName(person: any) {
@@ -987,7 +1002,7 @@ export default function SalesPage() {
                     <TableCell sx={headCell}>Transaction #</TableCell>
                     <TableCell sx={headCell}>ID</TableCell>
                     <TableCell sx={headCell}>Name</TableCell>
-                    <TableCell sx={headCell}>Date</TableCell>
+                    <TableCell sx={headCell}>Schedule</TableCell>
                     <TableCell sx={headCell}>Barber</TableCell>
                     <TableCell sx={headCell}>Total Amount</TableCell>
                     <TableCell sx={headCell}>Type</TableCell>
@@ -1014,9 +1029,12 @@ export default function SalesPage() {
                         {sale.customer.customerCode}
                       </TableCell>
                       <TableCell sx={bodyCell}>{sale.customer.name}</TableCell>
-                      <TableCell sx={bodyCell}>
-                        {getSaleDisplayDate(sale)}
-                      </TableCell>
+
+                      {sale.appointments.map((appt) => (
+                        <TableCell sx={bodyCell}>
+                          {getAppointmentSchedule(appt)}
+                        </TableCell>
+                      ))}
                       <TableCell sx={bodyCell}>
                         {sale.barber?.name || "—"}
                       </TableCell>
@@ -1370,17 +1388,19 @@ export default function SalesPage() {
                       {selectedSale?.saleCode || "TRX-New"}
                     </Typography>
 
-                    <Typography
-                      sx={{
-                        fontSize: 12,
-                        fontWeight: 800,
-                        color: "#999",
-                      }}
-                    >
-                      {selectedSale
-                        ? getSaleDisplayDate(selectedSale)
-                        : formatToday()}
-                    </Typography>
+                      <Typography
+                        sx={{
+                          fontSize: 12,
+                          fontWeight: 800,
+                          color: "#999",
+                        }}
+                      >
+                        {selectedSale
+                          ? selectedSale.source === "BOOKING" && selectedSale.appointments?.length
+                            ? getAppointmentSchedule(selectedSale.appointments[0])
+                            : formatDate(selectedSale.createdAt)
+                          : formatToday()}
+                      </Typography>
                   </Box>
 
                   <Box sx={{ textAlign: "right" }}>
@@ -1804,7 +1824,9 @@ export default function SalesPage() {
             <Box sx={detailRow}>
               <Typography sx={detailLabel}>Date</Typography>
               <Typography sx={detailValue}>
-                {selectedSale ? getSaleDisplayDate(selectedSale) : formatToday()}
+                {selectedSale?.appointments?.length
+                  ? getAppointmentSchedule(selectedSale.appointments[0])
+                  : formatToday()}
               </Typography>
             </Box>
           </Box>
