@@ -46,6 +46,7 @@ export async function GET() {
           stickers: Math.min(card.stars, 10),
           maxStickers: 10,
           status: card.status,
+          fiveRewardRedeemed: card.fiveRewardRedeemed,
         };
       })
     );

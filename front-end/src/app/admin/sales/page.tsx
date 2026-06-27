@@ -123,6 +123,7 @@ type LoyaltyCard = {
   stickers: number;
   maxStickers: number;
   status: "ACTIVE" | "COMPLETED";
+  fiveRewardRedeemed: boolean;
 };
 
 const headCell = {
@@ -346,7 +347,7 @@ export default function SalesPage() {
   );
 
   const stickerCount = selectedLoyaltyCard?.stickers || 0;
-  const canUse50Discount = stickerCount >= 5;
+  const canUse50Discount = stickerCount >= 5 && stickerCount < 10 && !selectedLoyaltyCard?.fiveRewardRedeemed;
   const canUse100Discount = stickerCount >= 10;
 
   const filteredCustomers = customers.filter((customer) => {
@@ -1647,10 +1648,13 @@ export default function SalesPage() {
                           onClick={() => setDiscountPercent(50)}
                           sx={{
                             minWidth: 72,
-                            color: "#111",
+                            color: canUse50Discount ? "#111" : "#999",
                             borderColor: "#ccc",
                             textTransform: "none",
                             fontWeight: 800,
+                            opacity: canUse50Discount ? 1 : 0.45,
+                            textDecoration: !canUse50Discount ? "line-through" : "none",
+                            cursor: canUse50Discount ? "pointer" : "not-allowed",
                           }}
                         >
                           50%
@@ -1663,10 +1667,13 @@ export default function SalesPage() {
                           onClick={() => setDiscountPercent(100)}
                           sx={{
                             minWidth: 78,
-                            color: "#111",
+                            color: canUse100Discount ? "#111" : "#999",
                             borderColor: "#ccc",
                             textTransform: "none",
                             fontWeight: 800,
+                            opacity: canUse100Discount ? 1 : 0.45,
+                            textDecoration: !canUse100Discount ? "line-through" : "none",
+                            cursor: canUse100Discount ? "pointer" : "not-allowed",
                           }}
                         >
                           100%

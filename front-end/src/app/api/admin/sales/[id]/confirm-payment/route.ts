@@ -9,6 +9,8 @@ import {
   logLoyaltyRewardRedeemed,
 } from "@/lib/securityLogEvents";
 
+type LoyaltyRewardType = "NONE" | "FIFTY_PERCENT" | "FREE";
+
 export async function PUT(
   req: Request,
   context: { params: Promise<{ id: string }> }
@@ -70,12 +72,14 @@ export async function PUT(
 
     const loyaltyCard = sale.customer.loyaltyCards;
 
-    let loyaltyRewardType: "NONE" | "FIFTY_PERCENT" | "FREE" = "NONE";
+    let loyaltyRewardType: LoyaltyRewardType = "NONE";
 
     if (
       body.loyaltyRewardType === "FIFTY_PERCENT" &&
       loyaltyCard &&
-      loyaltyCard.stars === 5
+      loyaltyCard.stars >= 5 &&
+      loyaltyCard.stars < 10 &&
+      !loyaltyCard.fiveRewardRedeemed
     ) {
       loyaltyRewardType = "FIFTY_PERCENT";
     }
@@ -86,6 +90,27 @@ export async function PUT(
       loyaltyCard.stars >= 10
     ) {
       loyaltyRewardType = "FREE";
+    }
+
+    if (
+      body.loyaltyRewardType === "FIFTY_PERCENT" &&
+      loyaltyRewardType !== "FIFTY_PERCENT"
+    ) {
+      return NextResponse.json(
+        {
+          error: "Customer has already redeemed the 50% loyalty reward.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (body.loyaltyRewardType === "FREE" && loyaltyRewardType !== "FREE") {
+      return NextResponse.json(
+        {
+          error: "Customer is not eligible for the 100% loyalty reward.",
+        },
+        { status: 400 }
+      );
     }
 
     let updatedStars = loyaltyCard?.stars ?? 0;
@@ -153,7 +178,7 @@ export async function PUT(
             customerName: `${sale.customer.firstName} ${sale.customer.lastName}`,
             message:
               loyaltyRewardType === "FREE"
-                ? `Free reward redeemed. Loyalty card reset to 1 sticker.`
+                ? "Free reward redeemed. Loyalty card reset to 1 sticker."
                 : loyaltyRewardType === "FIFTY_PERCENT"
                 ? `50% reward redeemed. Sticker ${updatedStars} recorded.`
                 : `Sticker ${updatedStars} earned from ${sale.saleCode}.`,
