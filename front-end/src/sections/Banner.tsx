@@ -21,10 +21,14 @@ export default function Banner() {
     >
       <Container maxWidth="lg">
         <Typography variant="h1" sx={{ fontWeight: 'bold', fontFamily: 'var(--font-nunito-sans)', }}>
-          The Barbs Bro
+          EstiloMo
         </Typography>
 
-        <Typography variant="h5" sx={{ mt: 5, fontFamily: 'var(--font-nunito-sans)', }}>
+        <Typography variant="h4" sx={{ fontWeight: 'bold', fontFamily: 'var(--font-nunito-sans)', }}>
+          By The Barbs Bro
+        </Typography>
+
+        <Typography variant="h5" sx={{ mt: 3, fontFamily: 'var(--font-nunito-sans)', }}>
           Sharp Cuts. Solid Confidence. We provide quality and affordable haircuts and services. The Barbs Bro. Undeniable excellence.
         </Typography>
 
