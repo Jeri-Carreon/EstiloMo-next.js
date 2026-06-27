@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { AppointmentStatus, SaleStatus, PaymentStatus } from "@prisma/client";
 
 export async function buildBusinessContext() {
@@ -47,7 +47,7 @@ export async function buildBusinessContext() {
     activeLoayltyCards,
   ] = await Promise.all([
     // Today's appointments
-    prisma.appointment.findMany({
+    db.appointment.findMany({
       where: { appointmentDate: { gte: startOfToday } },
       include: {
         customer: { select: { firstName: true, lastName: true, customerType: true } },
@@ -58,14 +58,14 @@ export async function buildBusinessContext() {
     }),
 
     // This month's appointments
-    prisma.appointment.groupBy({
+    db.appointment.groupBy({
       by: ["status"],
       where: { appointmentDate: { gte: startOfMonth } },
       _count: { id: true },
     }),
 
     // Last 30 days appointments breakdown
-    prisma.appointment.findMany({
+    db.appointment.findMany({
       where: { appointmentDate: { gte: startOf30DaysAgo } },
       select: {
         status: true,
@@ -77,7 +77,7 @@ export async function buildBusinessContext() {
     }),
 
     // This month's sales
-    prisma.sale.aggregate({
+    db.sale.aggregate({
       where: {
         createdAt: { gte: startOfMonth },
         status: SaleStatus.PAID,
@@ -88,7 +88,7 @@ export async function buildBusinessContext() {
     }),
 
     // Last month's sales (for comparison)
-    prisma.sale.aggregate({
+    db.sale.aggregate({
       where: {
         createdAt: { gte: startOfLastMonth, lte: endOfLastMonth },
         status: SaleStatus.PAID,
@@ -98,7 +98,7 @@ export async function buildBusinessContext() {
     }),
 
     // Last 30 days sales with items
-    prisma.sale.findMany({
+    db.sale.findMany({
       where: {
         createdAt: { gte: startOf30DaysAgo },
         status: SaleStatus.PAID,
@@ -114,7 +114,7 @@ export async function buildBusinessContext() {
     }),
 
     // Top services by bookings & revenue
-    prisma.service.findMany({
+    db.service.findMany({
       where: { isAvailable: true },
       orderBy: { totalBookings: "desc" },
       select: {
@@ -130,14 +130,14 @@ export async function buildBusinessContext() {
     }),
 
     // All services overview
-    prisma.service.groupBy({
+    db.service.groupBy({
       by: ["category"],
       _count: { id: true },
       _sum: { totalRevenue: true, totalBookings: true },
     }),
 
     // Barber performance last 30 days
-    prisma.barber.findMany({
+    db.barber.findMany({
       select: {
         firstName: true,
         lastName: true,
@@ -156,21 +156,21 @@ export async function buildBusinessContext() {
     }),
 
     // Total customers
-    prisma.customer.count({ where: { isActive: true } }),
+    db.customer.count({ where: { isActive: true } }),
 
     // New customers this month
-    prisma.customer.count({
+    db.customer.count({
       where: { createdAt: { gte: startOfMonth }, isActive: true },
     }),
 
     // Regular vs casual
-    prisma.customer.groupBy({
+    db.customer.groupBy({
       by: ["customerType"],
       _count: { id: true },
     }),
 
     // Top customers by loyalty points
-    prisma.customer.findMany({
+    db.customer.findMany({
       where: { isActive: true },
       orderBy: { loyaltyPoints: "desc" },
       select: {
@@ -183,14 +183,14 @@ export async function buildBusinessContext() {
     }),
 
     // Pending payments
-    prisma.payment.aggregate({
+    db.payment.aggregate({
       where: { status: PaymentStatus.PENDING },
       _sum: { amount: true },
       _count: { id: true },
     }),
 
     // Payment method breakdown this month
-    prisma.payment.groupBy({
+    db.payment.groupBy({
       by: ["method"],
       where: {
         createdAt: { gte: startOfMonth },
@@ -201,7 +201,7 @@ export async function buildBusinessContext() {
     }),
 
     // Recent reviews
-    prisma.review.findMany({
+    db.review.findMany({
       where: { createdAt: { gte: startOf30DaysAgo } },
       select: {
         rating: true,
@@ -215,17 +215,17 @@ export async function buildBusinessContext() {
     }),
 
     // Average rating
-    prisma.review.aggregate({
+    db.review.aggregate({
       where: { status: "COMPLETED", isVisible: true },
       _avg: { rating: true },
       _count: { id: true },
     }),
 
     // Loyalty settings
-    prisma.loyaltyCardSetting.findFirst(),
+    db.loyaltyCardSetting.findFirst(),
 
     // Active loyalty cards
-    prisma.loyaltyCard.count({ where: { status: "ACTIVE" } }),
+    db.loyaltyCard.count({ where: { status: "ACTIVE" } }),
   ]);
 
   // --- Derived Metrics ---

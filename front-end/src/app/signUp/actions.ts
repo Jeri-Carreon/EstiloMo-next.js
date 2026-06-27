@@ -2,7 +2,7 @@
 
 import { POST } from '@/app/api/register/route'
 import { createClient } from '@/lib/supabase/server'
-import { prisma } from '@/lib/prisma'
+import { db } from '@/lib/db'
 
 export async function signupAction(formData: {
   firstName: string
@@ -32,7 +32,7 @@ export async function signupAction(formData: {
 
 
     // Check existing email
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await db.user.findUnique({
       where: { email },
     });
 
@@ -45,7 +45,7 @@ export async function signupAction(formData: {
 
 
     // Check existing phone
-    const existingPhone = await prisma.user.findFirst({
+    const existingPhone = await db.user.findFirst({
       where: {
         mobileNumber: phone,
       },
@@ -61,6 +61,7 @@ export async function signupAction(formData: {
 
     const supabase = await createClient();
 
+    console.log('supabase client:', typeof supabase, typeof supabase?.auth?.signUp)
     const { data, error } = await supabase.auth.signUp({
       email,
       password: formData.password,

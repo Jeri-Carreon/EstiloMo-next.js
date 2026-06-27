@@ -11,6 +11,7 @@ import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
 import InputAdornment from "@mui/material/InputAdornment";
 import Paper from "@mui/material/Paper";
+import Card from "@mui/material/Card";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -28,6 +29,7 @@ import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import StarIcon from "@mui/icons-material/Star";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import PaymentsIcon from "@mui/icons-material/Payments";
+import BookmarkBorderIcon from "@mui/icons-material/BookmarkBorder";
 
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -53,6 +55,8 @@ type CustomerHistory = {
   serviceName: string;
   services: HistoryService[];
   appointmentDate: string;
+  date?: string;
+  time?: string;
   schedule: string;
   subtotal: number;
   discount: number;
@@ -65,10 +69,22 @@ type CustomerHistory = {
   afterServicePhotoUrl?: string | null;
 };
 
+type RecommendedService = {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+  reason: string;
+};
+
 const itemsPerPage = 5;
 
 function formatAmount(amount: number) {
   return `₱ ${Number(amount || 0).toFixed(2)}`;
+}
+
+function formatPeso(value: number) {
+  return `₱ ${Number(value || 0).toLocaleString("en-PH")}`;
 }
 
 function formatDisplayType(type: CustomerHistory["type"]) {
@@ -86,6 +102,9 @@ export default function MyAppointmentsPage() {
   const [displayName, setDisplayName] = useState("Customer");
   const [authLoading, setAuthLoading] = useState(true);
   const [history, setHistory] = useState<CustomerHistory[]>([]);
+  const [recommendedServices, setRecommendedServices] = useState<
+    RecommendedService[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
@@ -119,13 +138,16 @@ export default function MyAppointmentsPage() {
       if (!res.ok) {
         console.error("LOAD CUSTOMER HISTORY ERROR:", data);
         setHistory([]);
+        setRecommendedServices([]);
         return;
       }
 
       setHistory(data.appointments || []);
+      setRecommendedServices(data.recommendedServices || []);
     } catch (error) {
       console.error("LOAD CUSTOMER HISTORY FETCH ERROR:", error);
       setHistory([]);
+      setRecommendedServices([]);
     } finally {
       setLoading(false);
     }
@@ -177,7 +199,10 @@ export default function MyAppointmentsPage() {
     page * itemsPerPage
   );
 
-  const totalPages = Math.max(1, Math.ceil(filteredHistory.length / itemsPerPage));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredHistory.length / itemsPerPage)
+  );
 
   const showingFrom =
     filteredHistory.length === 0 ? 0 : (page - 1) * itemsPerPage + 1;
@@ -207,6 +232,92 @@ export default function MyAppointmentsPage() {
     setImageOpen(true);
   };
 
+  const renderHistoryActions = (item: CustomerHistory) => (
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 1,
+        flexWrap: "wrap",
+      }}
+    >
+      <IconButton
+        size="small"
+        aria-label="View after-service photo"
+        disabled={!item.afterServicePhotoUrl}
+        onClick={() =>
+          openImagePreview("After-Service Photo", item.afterServicePhotoUrl)
+        }
+        sx={{
+          bgcolor: item.afterServicePhotoUrl ? "#e5e5e5" : "#f1f1f1",
+          width: 34,
+          height: 34,
+          color: item.afterServicePhotoUrl ? "#555" : "#aaa",
+          "&:hover": {
+            bgcolor: item.afterServicePhotoUrl ? "#d4d4d4" : "#f1f1f1",
+          },
+        }}
+      >
+        <PhotoCameraIcon sx={{ fontSize: 18 }} />
+      </IconButton>
+
+      <IconButton
+        size="small"
+        aria-label="View payment screenshot"
+        disabled={!item.paymentScreenshotUrl}
+        onClick={() =>
+          openImagePreview("Payment Screenshot", item.paymentScreenshotUrl)
+        }
+        sx={{
+          bgcolor: item.paymentScreenshotUrl ? "#e5e5e5" : "#f1f1f1",
+          width: 34,
+          height: 34,
+          color: item.paymentScreenshotUrl ? "#555" : "#aaa",
+          "&:hover": {
+            bgcolor: item.paymentScreenshotUrl ? "#d4d4d4" : "#f1f1f1",
+          },
+        }}
+      >
+        <PaymentsIcon sx={{ fontSize: 18 }} />
+      </IconButton>
+
+      <IconButton
+        size="small"
+        aria-label="View receipt"
+        onClick={() => {
+          setSelectedItem(item);
+          setReceiptOpen(true);
+        }}
+        sx={{
+          bgcolor: "#e5e5e5",
+          width: 34,
+          height: 34,
+          color: "#555",
+          "&:hover": { bgcolor: "#d4d4d4" },
+        }}
+      >
+        <ReceiptLongIcon sx={{ fontSize: 18 }} />
+      </IconButton>
+
+      {["COMPLETED", "DONE"].includes(item.status.toUpperCase()) && (
+        <IconButton
+          size="small"
+          aria-label="Write review"
+          onClick={() => router.push("/myReviews")}
+          sx={{
+            bgcolor: "#e5e5e5",
+            width: 34,
+            height: 34,
+            color: "#555",
+            "&:hover": { bgcolor: "#d4d4d4" },
+          }}
+        >
+          <StarIcon sx={{ fontSize: 18 }} />
+        </IconButton>
+      )}
+    </Box>
+  );
+
   if (authLoading || loading) {
     return (
       <>
@@ -230,18 +341,31 @@ export default function MyAppointmentsPage() {
     <>
       <Navbar />
 
-      <Box sx={{ bgcolor: "#fff", minHeight: "70vh", px: 4, py: 5 }}>
-        <Typography align="center" sx={{ fontSize: 34, fontWeight: 900, mb: 3 }}>
+      <Box
+        sx={{
+          bgcolor: "#fff",
+          minHeight: "70vh",
+          px: { xs: 2, sm: 3, md: 4 },
+          py: { xs: 3, sm: 4, md: 5 },
+          overflowX: "hidden",
+        }}
+      >
+        <Typography
+          align="center"
+          sx={{ fontSize: { xs: 28, sm: 34 }, fontWeight: 900, mb: 3 }}
+        >
           My Appointments
         </Typography>
 
-        <Box sx={{ display: "flex", justifyContent: "center", mb: 4 }}>
+        <Box sx={{ display: "flex", justifyContent: "center", mb: { xs: 3, md: 4 } }}>
           <Button
             onClick={() => router.push("/appointment")}
             sx={{
               bgcolor: "#ddd",
               color: "#111",
-              px: 4,
+              width: { xs: "100%", sm: "auto" },
+              maxWidth: 360,
+              px: { xs: 2, sm: 4 },
               py: 1.4,
               borderRadius: 5,
               fontWeight: 900,
@@ -272,7 +396,11 @@ export default function MyAppointmentsPage() {
                 ),
               },
             }}
-            sx={{ flex: 1, maxWidth: 320 }}
+            sx={{
+              flex: { xs: "1 1 100%", md: 1 },
+              maxWidth: { xs: "100%", md: 320 },
+              bgcolor: "#fff",
+            }}
           />
 
           <TextField
@@ -283,7 +411,7 @@ export default function MyAppointmentsPage() {
               setStatusFilter(e.target.value);
               setPage(1);
             }}
-            sx={{ width: 180, bgcolor: "#fff" }}
+            sx={{ width: { xs: "100%", sm: 180 }, bgcolor: "#fff" }}
           >
             <MenuItem value="ALL">All Status</MenuItem>
             <MenuItem value="PENDING">Pending</MenuItem>
@@ -306,7 +434,7 @@ export default function MyAppointmentsPage() {
               setTypeFilter(e.target.value);
               setPage(1);
             }}
-            sx={{ width: 180, bgcolor: "#fff" }}
+            sx={{ width: { xs: "100%", sm: 180 }, bgcolor: "#fff" }}
           >
             <MenuItem value="ALL">All Type</MenuItem>
             <MenuItem value="APPOINTMENT">Appointment</MenuItem>
@@ -314,7 +442,11 @@ export default function MyAppointmentsPage() {
           </TextField>
         </Box>
 
-        <TableContainer component={Paper} elevation={0}>
+        <TableContainer
+          component={Paper}
+          elevation={0}
+          sx={{ display: { xs: "none", md: "block" } }}
+        >
           <Table>
             <TableHead>
               <TableRow>
@@ -329,6 +461,7 @@ export default function MyAppointmentsPage() {
                 </TableCell>
                 <TableCell sx={{ fontWeight: 900 }}>Service</TableCell>
                 <TableCell sx={{ fontWeight: 900 }}>Date</TableCell>
+                <TableCell sx={{ fontWeight: 900 }}>Time</TableCell>
                 <TableCell sx={{ fontWeight: 900 }}>Total Amount</TableCell>
                 <TableCell sx={{ fontWeight: 900 }}>Status</TableCell>
                 <TableCell sx={{ fontWeight: 900 }}>Actions</TableCell>
@@ -338,7 +471,7 @@ export default function MyAppointmentsPage() {
             <TableBody>
               {paginatedHistory.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
+                  <TableCell colSpan={9} align="center">
                     No history found.
                   </TableCell>
                 </TableRow>
@@ -361,28 +494,12 @@ export default function MyAppointmentsPage() {
                       {item.serviceName}
                     </TableCell>
 
-                    <TableCell sx={{ fontWeight: 900, minWidth: 340 }}>
-                      {splitSchedule(item.schedule || item.appointmentDate).map(
-                        (date, index) => (
-                          <Typography
-                            key={index}
-                            sx={{
-                              fontWeight: 900,
-                              fontSize: 14,
-                              whiteSpace: "nowrap",
-                              mb:
-                                index !==
-                                splitSchedule(item.schedule || item.appointmentDate)
-                                  .length -
-                                  1
-                                  ? 0.5
-                                  : 0,
-                            }}
-                          >
-                            {date}
-                          </Typography>
-                        )
-                      )}
+                    <TableCell sx={{ fontWeight: 900, whiteSpace: "nowrap" }}>
+                      {item.date || splitSchedule(item.schedule || item.appointmentDate)[0]}
+                    </TableCell>
+
+                    <TableCell sx={{ fontWeight: 900, whiteSpace: "nowrap" }}>
+                      {item.time || "N/A"}
                     </TableCell>
 
                     <TableCell
@@ -405,90 +522,7 @@ export default function MyAppointmentsPage() {
                     </TableCell>
 
                     <TableCell>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        <IconButton
-                          size="small"
-                          disabled={!item.afterServicePhotoUrl}
-                          onClick={() =>
-                            openImagePreview(
-                              "After-Service Photo",
-                              item.afterServicePhotoUrl
-                            )
-                          }
-                          sx={{
-                            bgcolor: item.afterServicePhotoUrl ? "#e5e5e5" : "#f1f1f1",
-                            width: 34,
-                            height: 34,
-                            color: item.afterServicePhotoUrl ? "#555" : "#aaa",
-                            "&:hover": {
-                              bgcolor: item.afterServicePhotoUrl
-                                ? "#d4d4d4"
-                                : "#f1f1f1",
-                            },
-                          }}
-                        >
-                          <PhotoCameraIcon sx={{ fontSize: 18 }} />
-                        </IconButton>
-
-                        <IconButton
-                          size="small"
-                          disabled={!item.paymentScreenshotUrl}
-                          onClick={() =>
-                            openImagePreview(
-                              "Payment Screenshot",
-                              item.paymentScreenshotUrl
-                            )
-                          }
-                          sx={{
-                            bgcolor: item.paymentScreenshotUrl ? "#e5e5e5" : "#f1f1f1",
-                            width: 34,
-                            height: 34,
-                            color: item.paymentScreenshotUrl ? "#555" : "#aaa",
-                            "&:hover": {
-                              bgcolor: item.paymentScreenshotUrl
-                                ? "#d4d4d4"
-                                : "#f1f1f1",
-                            },
-                          }}
-                        >
-                          <PaymentsIcon sx={{ fontSize: 18 }} />
-                        </IconButton>
-
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            setSelectedItem(item);
-                            setReceiptOpen(true);
-                          }}
-                          sx={{
-                            bgcolor: "#e5e5e5",
-                            width: 34,
-                            height: 34,
-                            color: "#555",
-                            "&:hover": { bgcolor: "#d4d4d4" },
-                          }}
-                        >
-                          <ReceiptLongIcon sx={{ fontSize: 18 }} />
-                        </IconButton>
-
-                        {["COMPLETED", "DONE"].includes(
-                          item.status.toUpperCase()
-                        ) && (
-                          <IconButton
-                            size="small"
-                            onClick={() => router.push("/myReviews")}
-                            sx={{
-                              bgcolor: "#e5e5e5",
-                              width: 34,
-                              height: 34,
-                              color: "#555",
-                              "&:hover": { bgcolor: "#d4d4d4" },
-                            }}
-                          >
-                            <StarIcon sx={{ fontSize: 18 }} />
-                          </IconButton>
-                        )}
-                      </Box>
+                      {renderHistoryActions(item)}
                     </TableCell>
                   </TableRow>
                 ))
@@ -499,14 +533,170 @@ export default function MyAppointmentsPage() {
 
         <Box
           sx={{
+            display: { xs: "flex", md: "none" },
+            flexDirection: "column",
+            gap: 2,
+          }}
+        >
+          {paginatedHistory.length === 0 ? (
+            <Paper
+              elevation={0}
+              sx={{
+                p: 3,
+                textAlign: "center",
+                border: "1px solid #e5e5e5",
+                borderRadius: 2,
+              }}
+            >
+              <Typography sx={{ fontWeight: 800, color: "#666" }}>
+                No history found.
+              </Typography>
+            </Paper>
+          ) : (
+            paginatedHistory.map((item) => (
+              <Paper
+                key={item.id}
+                elevation={0}
+                sx={{
+                  p: 2,
+                  border: "1px solid #e5e5e5",
+                  borderRadius: 2,
+                  bgcolor: "#fff",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                }}
+              >
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    gap: 2,
+                    mb: 1.5,
+                  }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography
+                      sx={{
+                        color: "#888",
+                        fontSize: 12,
+                        fontWeight: 900,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {formatDisplayType(item.type)}
+                    </Typography>
+
+                    <Typography
+                      sx={{
+                        fontSize: 18,
+                        fontWeight: 900,
+                        lineHeight: 1.2,
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      {item.serviceName}
+                    </Typography>
+                  </Box>
+
+                  <Typography
+                    sx={{
+                      color: getStatusColor(item.status),
+                      fontSize: 12,
+                      fontWeight: 900,
+                      textAlign: "right",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {item.status}
+                  </Typography>
+                </Box>
+
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 1.25,
+                    mb: 2,
+                  }}
+                >
+                  <Box>
+                    <Typography sx={{ color: "#888", fontSize: 12, fontWeight: 800 }}>
+                      Transaction #
+                    </Typography>
+                    <Typography sx={{ fontWeight: 900, overflowWrap: "anywhere" }}>
+                      {item.saleCode || item.appointmentCode}
+                    </Typography>
+                  </Box>
+
+                  <Box>
+                    <Typography sx={{ color: "#888", fontSize: 12, fontWeight: 800 }}>
+                      Barber
+                    </Typography>
+                    <Typography sx={{ fontWeight: 900, overflowWrap: "anywhere" }}>
+                      {item.barberName}
+                    </Typography>
+                  </Box>
+
+                  <Box>
+                    <Typography sx={{ color: "#888", fontSize: 12, fontWeight: 800 }}>
+                      Date
+                    </Typography>
+                    <Typography sx={{ fontWeight: 900 }}>
+                      {item.date ||
+                        splitSchedule(item.schedule || item.appointmentDate)[0] ||
+                        "N/A"}
+                    </Typography>
+                  </Box>
+
+                  <Box>
+                    <Typography sx={{ color: "#888", fontSize: 12, fontWeight: 800 }}>
+                      Time
+                    </Typography>
+                    <Typography sx={{ fontWeight: 900 }}>
+                      {item.time || "N/A"}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 2,
+                    borderTop: "1px solid #eee",
+                    pt: 1.5,
+                  }}
+                >
+                  <Box>
+                    <Typography sx={{ color: "#888", fontSize: 12, fontWeight: 800 }}>
+                      Total
+                    </Typography>
+                    <Typography sx={{ fontSize: 18, fontWeight: 900 }}>
+                      {formatAmount(item.totalAmount)}
+                    </Typography>
+                  </Box>
+
+                  {renderHistoryActions(item)}
+                </Box>
+              </Paper>
+            ))
+          )}
+        </Box>
+
+        <Box
+          sx={{
             display: "flex",
+            flexDirection: { xs: "column", sm: "row" },
             justifyContent: "space-between",
-            alignItems: "center",
+            alignItems: { xs: "stretch", sm: "center" },
+            gap: 2,
             mt: 3,
           }}
         >
-          <Typography sx={{ fontSize: 14 }}>
-            Showing {showingFrom} to {showingTo} of {filteredHistory.length} Entries
+          <Typography sx={{ fontSize: 14, textAlign: { xs: "center", sm: "left" } }}>
+            Showing {showingFrom} to {showingTo} of {filteredHistory.length}{" "}
+            Entries
           </Typography>
 
           <Pagination
@@ -514,8 +704,115 @@ export default function MyAppointmentsPage() {
             page={page}
             onChange={(_, value) => setPage(value)}
             size="small"
+            sx={{ display: "flex", justifyContent: "center" }}
           />
         </Box>
+
+        {recommendedServices.length > 0 && (
+          <Box sx={{ mt: { xs: 5, md: 8 } }}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                mb: 3,
+                minWidth: 0,
+              }}
+            >
+              <BookmarkBorderIcon />
+
+              <Typography
+                sx={{
+                  fontSize: { xs: 21, sm: 24 },
+                  fontWeight: 900,
+                  overflowWrap: "anywhere",
+                }}
+              >
+                Recommended For You
+              </Typography>
+            </Box>
+
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  sm: "repeat(2, 1fr)",
+                  md: "repeat(3, minmax(280px, 320px))",
+                },
+                justifyContent: "space-evenly",
+                gap: { xs: 2, md: 4 },
+                width: "100%",
+              }}
+            >
+              {recommendedServices.map((service) => (
+                <Card
+                  key={service.id}
+                  elevation={0}
+                  sx={{
+                    bgcolor: "#d9d9d9",
+                    borderRadius: 0,
+                    p: { xs: 1.5, sm: 2 },
+                    minWidth: 0,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: "100%",
+                      height: 170,
+                      position: "relative",
+                      mb: 1.5,
+                      bgcolor: "#ccc",
+                    }}
+                  >
+                    <Box
+                      component="img"
+                      src={service.image || "/images/service-placeholder.jpg"}
+                      alt={service.name}
+                      onError={(event) => {
+                        event.currentTarget.src =
+                          "/images/service-placeholder.jpg";
+                      }}
+                      sx={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        display: "block",
+                      }}
+                    />
+                  </Box>
+
+                  <Typography sx={{ fontWeight: 800, fontSize: 15 }}>
+                    {service.name} - {formatPeso(service.price)}
+                  </Typography>
+
+                  <Typography sx={{ fontSize: 11, mb: 1.5 }}>
+                    {service.reason}
+                  </Typography>
+
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    onClick={() => router.push("/appointment")}
+                    sx={{
+                      bgcolor: "#000",
+                      color: "#fff",
+                      borderRadius: 5,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      py: 0.7,
+                      "&:hover": {
+                        bgcolor: "#222",
+                      },
+                    }}
+                  >
+                    Book Now
+                  </Button>
+                </Card>
+              ))}
+            </Box>
+          </Box>
+        )}
       </Box>
 
       <Dialog
@@ -523,22 +820,61 @@ export default function MyAppointmentsPage() {
         onClose={() => setReceiptOpen(false)}
         maxWidth="md"
         fullWidth
+        slotProps={{
+          paper: {
+            sx: {
+              m: { xs: 1.5, sm: 3 },
+              width: { xs: "calc(100% - 24px)", sm: "100%" },
+              maxHeight: { xs: "calc(100% - 24px)", sm: "calc(100% - 64px)" },
+            },
+          },
+        }}
       >
-        <Box sx={{ p: 4, bgcolor: "#f3f3f3", position: "relative" }}>
+        <Box
+          sx={{
+            p: { xs: 2, sm: 4 },
+            bgcolor: "#f3f3f3",
+            position: "relative",
+            overflowX: "hidden",
+          }}
+        >
           <Box
             sx={{
               display: "flex",
+              flexDirection: { xs: "column", sm: "row" },
               justifyContent: "space-between",
-              alignItems: "center",
-              mb: 3,
+              alignItems: { xs: "stretch", sm: "center" },
+              gap: 1.5,
+              mb: { xs: 2, sm: 3 },
             }}
           >
-            <Typography sx={{ fontSize: 22, fontWeight: 900 }}>
+            <Typography
+              sx={{
+                fontSize: { xs: 20, sm: 22 },
+                fontWeight: 900,
+                overflowWrap: "anywhere",
+              }}
+            >
               {displayName}
             </Typography>
 
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Typography sx={{ fontSize: 18, fontWeight: 900, color: "#888" }}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 1,
+              }}
+            >
+              <Typography
+                sx={{
+                  fontSize: { xs: 15, sm: 18 },
+                  fontWeight: 900,
+                  color: "#888",
+                  minWidth: 0,
+                  overflowWrap: "anywhere",
+                }}
+              >
                 {selectedItem?.saleCode || selectedItem?.appointmentCode}
               </Typography>
 
@@ -557,8 +893,8 @@ export default function MyAppointmentsPage() {
             </Box>
           </Box>
 
-          <TableContainer sx={{ bgcolor: "#fff", mb: 2 }}>
-            <Table>
+          <TableContainer sx={{ bgcolor: "#fff", mb: 2, overflowX: "auto" }}>
+            <Table sx={{ minWidth: 680 }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 900, color: "#888" }}>
@@ -572,6 +908,9 @@ export default function MyAppointmentsPage() {
                   </TableCell>
                   <TableCell sx={{ fontWeight: 900, color: "#888" }}>
                     Date
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                    Time
                   </TableCell>
                   <TableCell sx={{ fontWeight: 900, color: "#888" }}>
                     Price
@@ -594,27 +933,13 @@ export default function MyAppointmentsPage() {
                       {service.quantity}
                     </TableCell>
 
-                    <TableCell
-                      sx={{
-                        fontWeight: 900,
-                        color: "#888",
-                        minWidth: 260,
-                      }}
-                    >
-                      {splitSchedule(selectedItem?.schedule || "").map(
-                        (date, index) => (
-                          <Typography
-                            key={index}
-                            sx={{
-                              fontWeight: 900,
-                              color: "#888",
-                              fontSize: 14,
-                            }}
-                          >
-                            {date}
-                          </Typography>
-                        )
-                      )}
+                    <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                      {selectedItem?.date ||
+                        splitSchedule(selectedItem?.schedule || "")[0]}
+                    </TableCell>
+
+                    <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                      {selectedItem?.time || "N/A"}
                     </TableCell>
 
                     <TableCell
@@ -634,7 +959,7 @@ export default function MyAppointmentsPage() {
             </Table>
           </TableContainer>
 
-          <Box sx={{ width: 400, mx: "auto" }}>
+          <Box sx={{ width: { xs: "100%", sm: 400 }, mx: "auto" }}>
             {[
               ["Subtotal", formatAmount(selectedItem?.subtotal || 0)],
               ["Discount", formatAmount(selectedItem?.discount || 0)],
@@ -647,6 +972,7 @@ export default function MyAppointmentsPage() {
                 key={label}
                 sx={{
                   display: "flex",
+                  gap: 2,
                   justifyContent: "space-between",
                   bgcolor: "#fff",
                   px: 2,
@@ -656,7 +982,14 @@ export default function MyAppointmentsPage() {
                 }}
               >
                 <Typography sx={{ fontWeight: 900 }}>{label}</Typography>
-                <Typography sx={{ fontWeight: 900, color: "#777" }}>
+                <Typography
+                  sx={{
+                    fontWeight: 900,
+                    color: "#777",
+                    textAlign: "right",
+                    overflowWrap: "anywhere",
+                  }}
+                >
                   {value}
                 </Typography>
               </Box>
@@ -670,8 +1003,23 @@ export default function MyAppointmentsPage() {
         onClose={() => setImageOpen(false)}
         maxWidth="sm"
         fullWidth
+        slotProps={{
+          paper: {
+            sx: {
+              m: { xs: 1.5, sm: 3 },
+              width: { xs: "calc(100% - 24px)", sm: "100%" },
+              maxHeight: { xs: "calc(100% - 24px)", sm: "calc(100% - 64px)" },
+            },
+          },
+        }}
       >
-        <Box sx={{ p: 4, bgcolor: "#f3f3f3", position: "relative" }}>
+        <Box
+          sx={{
+            p: { xs: 2, sm: 4 },
+            bgcolor: "#f3f3f3",
+            position: "relative",
+          }}
+        >
           <IconButton
             onClick={() => setImageOpen(false)}
             sx={{
@@ -686,7 +1034,13 @@ export default function MyAppointmentsPage() {
 
           <Typography
             align="center"
-            sx={{ fontSize: 20, fontWeight: 900, mb: 3 }}
+            sx={{
+              fontSize: { xs: 18, sm: 20 },
+              fontWeight: 900,
+              mb: 3,
+              px: 4,
+              overflowWrap: "anywhere",
+            }}
           >
             {imageTitle}
           </Typography>

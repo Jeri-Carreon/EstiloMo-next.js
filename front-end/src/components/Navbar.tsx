@@ -127,7 +127,7 @@ export default function Navbar() {
                 textDecoration: "none",
               }}
             >
-              The Barbs Bro
+              EstiloMo
             </Typography>
           </Box>
 
@@ -145,7 +145,7 @@ export default function Navbar() {
               textDecoration: "none",
             }}
           >
-            The Barbs Bro
+            EstiloMo
           </Typography>
 
           <Box sx={{ display: { xs: "flex", md: "none" } }}>

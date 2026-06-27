@@ -8,7 +8,7 @@ export async function GET() {
       include: {
         schedules: {
           orderBy: {
-            dayOfWeek: 'asc',
+            dayOfWeek: 'desc',
           },
         },
       },

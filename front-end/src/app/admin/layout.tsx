@@ -1,6 +1,6 @@
 import Sidebar from '@/components/admin/Sidebar';
 import { createClient } from '@/lib/supabase/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Box from '@mui/material/Box';
 
@@ -24,7 +24,7 @@ export default async function AdminLayout({
     // if no user returned redirect to login
   }
 
-  const dbUser = await prisma.user.findUnique({
+  const dbUser = await db.user.findUnique({
     where: { id: user.id },
     // checks Prisma db user.id if it matches with auth id
     select: { role: true, firstName: true, lastName: true, email: true }

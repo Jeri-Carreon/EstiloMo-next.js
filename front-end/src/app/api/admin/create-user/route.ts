@@ -202,10 +202,7 @@ export async function POST(req: Request) {
             data: { value: { increment: 1 } },
           });
 
-          const barberCode = `BRB-${String(barberCounter.value).padStart(
-            3,
-            "0"
-          )}`;
+          const barberCode = `BRB-${String(barberCounter.value).padStart(3,"0")}`;
 
           await tx.barber.create({
             data: {

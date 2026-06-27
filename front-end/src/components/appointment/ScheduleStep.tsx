@@ -1,28 +1,30 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from 'react';
 
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import Stack from "@mui/material/Stack";
-import Button from "@mui/material/Button";
-import IconButton from "@mui/material/IconButton";
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import Stack from '@mui/material/Stack';
+import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
+import Badge from '@mui/material/Badge';
 
-import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 
-import type { AppointmentData } from "@/app/appointment/page";
+import type { AppointmentData } from '@/app/appointment/page';
 
-const steps = ["Barber", "Service", "Schedule", "Cart", "Confirmation"];
+const steps = ['Barber', 'Service', 'Schedule', 'Cart', 'Confirmation'];
 
 const weekdays = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
 ];
 
 interface AvailableTime {
@@ -40,28 +42,32 @@ interface ScheduleStepProps {
     endMinutes: number
   ) => void;
   prevStep: () => void;
+  cartCount: number;
+  onCartClick: () => void;
 }
 
 function formatDateInput(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
     2,
-    "0"
-  )}-${String(date.getDate()).padStart(2, "0")}`;
+    '0'
+  )}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 function formatTime(minutes: number) {
   const hour = Math.floor(minutes / 60);
   const minute = minutes % 60;
-  const suffix = hour >= 12 ? "PM" : "AM";
+  const suffix = hour >= 12 ? 'PM' : 'AM';
   const normalHour = hour % 12 || 12;
 
-  return `${normalHour}:${String(minute).padStart(2, "0")} ${suffix}`;
+  return `${normalHour}:${String(minute).padStart(2, '0')} ${suffix}`;
 }
 
 export default function ScheduleStep({
   appointmentData,
   nextStep,
   prevStep,
+  cartCount,
+  onCartClick,
 }: ScheduleStepProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -134,7 +140,7 @@ export default function ScheduleStep({
             item.appointmentDate === formattedDate
         )
         .map((item) => `${item.startMinutes}-${item.endMinutes}`)
-        .join(",");
+        .join(',');
 
       const response = await fetch(
         `/api/admin/barbers/availability?barberId=${appointmentData.barberId}&serviceId=${appointmentData.serviceId}&date=${formattedDate}&blockedSlots=${blockedSlots}`
@@ -160,7 +166,7 @@ export default function ScheduleStep({
 
     try {
       const year = month.getFullYear();
-      const m = String(month.getMonth() + 1).padStart(2, "0");
+      const m = String(month.getMonth() + 1).padStart(2, '0');
 
       const response = await fetch(
         `/api/admin/barbers/unavailable-dates?barberId=${appointmentData.barberId}&year=${year}&month=${m}`
@@ -183,7 +189,7 @@ export default function ScheduleStep({
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const res = await fetch("/api/admin/appointments/settings");
+        const res = await fetch('/api/admin/appointments/settings');
         const data = await res.json();
 
         setBookingCutoffHours(data?.bookingCutoffHours ?? 1);
@@ -200,38 +206,59 @@ export default function ScheduleStep({
   }, [currentMonth, appointmentData.barberId]);
 
   return (
-    <Box sx={{ display: "flex" }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', md: 'row' },
+        fontFamily: 'var(--font-nunito-sans)',
+        minWidth: 0,
+      }}
+    >
       <Box
         sx={{
-          width: 220,
-          backgroundColor: "#000",
-          borderRight: "1px solid #222",
-          px: 3,
-          py: 5,
+          width: { xs: '100%', md: 220 },
+          backgroundColor: '#000',
+          borderRight: { xs: 'none', md: '3px solid #0b9cff' },
+          borderBottom: { xs: '3px solid #0b9cff', md: 'none' },
+          px: { xs: 1.5, md: 2 },
+          py: { xs: 1.5, md: 4 },
+          minHeight: { xs: 'auto', md: '100vh' },
         }}
       >
-        <Stack spacing={5}>
+        <Stack
+          direction={{ xs: 'row', md: 'column' }}
+          spacing={{ xs: 1, md: 4 }}
+          sx={{ width: '100%' }}
+        >
           {steps.map((step, index) => {
+            const completed = index < 2;
             const active = index === 2;
 
             return (
               <Stack
                 key={step}
-                direction="row"
-                spacing={2}
-                sx={{ alignItems: "center" }}
+                direction={{ xs: 'column', md: 'row' }}
+                spacing={{ xs: 0.5, md: 2 }}
+                sx={{
+                  alignItems: 'center',
+                  flex: { xs: 1, md: 'initial' },
+                  minWidth: 0,
+                }}
               >
                 <Box
                   sx={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: "50%",
-                    backgroundColor: active ? "#f4b400" : "#777",
-                    color: active ? "#000" : "#fff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: "bold",
+                    width: { xs: 28, md: 34 },
+                    height: { xs: 28, md: 34 },
+                    flexShrink: 0,
+                    borderRadius: '50%',
+                    backgroundColor:
+                      completed || active ? '#f4b400' : '#777',
+                    color: completed || active ? '#000' : '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 900,
+                    fontSize: { xs: 12, md: 14 },
                   }}
                 >
                   {index + 1}
@@ -239,9 +266,12 @@ export default function ScheduleStep({
 
                 <Typography
                   sx={{
-                    color: active ? "#fff" : "#aaa",
-                    fontWeight: active ? "bold" : "normal",
-                    fontFamily: "var(--font-nunito-sans)",
+                    color: completed || active ? '#fff' : '#999',
+                    fontWeight: active ? 900 : 800,
+                    fontSize: { xs: 10, sm: 12, md: 18 },
+                    lineHeight: 1.1,
+                    textAlign: 'center',
+                    overflowWrap: 'anywhere',
                   }}
                 >
                   {step}
@@ -255,31 +285,87 @@ export default function ScheduleStep({
       <Box
         sx={{
           flex: 1,
-          backgroundColor: "#e5e5e5",
-          minHeight: "100vh",
+          minWidth: 0,
+          backgroundColor: '#d9d9d9',
+          minHeight: { xs: 'auto', md: '100vh' },
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
-        <Box sx={{ borderBottom: "1px solid #bcbcbc", px: 4, py: 2.5 }}>
+        <Box
+          sx={{
+            borderBottom: '1px solid #aaa',
+            px: { xs: 2, sm: 3 },
+            py: { xs: 1.5, sm: 2 },
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
           <Typography
-            variant="h4"
-            sx={{
-              fontWeight: "bold",
-              fontFamily: "var(--font-nunito-sans)",
-            }}
+            sx={{ fontWeight: 900, fontSize: { xs: 28, sm: 34 }, color: '#111' }}
           >
             Schedule
           </Typography>
+
+          <IconButton
+            onClick={onCartClick}
+            disabled={cartCount === 0}
+            sx={{
+              backgroundColor: '#fff',
+              borderRadius: '50%',
+              width: 48,
+              height: 48,
+              position: 'relative',
+              '&:hover': { backgroundColor: '#f5f5f5' },
+              '&.Mui-disabled': {
+                backgroundColor: '#ddd',
+                color: '#999',
+              },
+            }}
+          >
+            <ShoppingCartIcon sx={{ color: cartCount === 0 ? '#999' : '#111' }} />
+
+            <Badge
+              badgeContent={cartCount}
+              color="error"
+              sx={{
+                position: 'absolute',
+                top: 5,
+                right: 5,
+                '& .MuiBadge-badge': {
+                  fontWeight: 900,
+                  fontSize: 11,
+                  minWidth: 18,
+                  height: 18,
+                },
+              }}
+            />
+          </IconButton>
         </Box>
 
-        <Box sx={{ p: 4 }}>
-          <Box sx={{ display: "flex", gap: 3 }}>
-            <Box sx={{ width: 390 }}>
+        <Box sx={{ flex: 1, p: { xs: 2, sm: 3 }, minWidth: 0 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column', lg: 'row' },
+              gap: { xs: 2, md: 3 },
+              minWidth: 0,
+            }}
+          >
+            <Box
+              sx={{
+                width: { xs: '100%', sm: 390 },
+                maxWidth: '100%',
+                mx: { xs: 'auto', lg: 0 },
+              }}
+            >
               <Stack
                 direction="row"
-                spacing={1}
+                spacing={{ xs: 0.5, sm: 1 }}
                 sx={{
-                  justifyContent: "center",
-                  alignItems: "center",
+                  justifyContent: 'center',
+                  alignItems: 'center',
                   mb: 2,
                 }}
               >
@@ -287,9 +373,9 @@ export default function ScheduleStep({
                   size="small"
                   onClick={handlePrevMonth}
                   sx={{
-                    backgroundColor: "#fff",
-                    border: "1px solid #d0d0d0",
-                    "&:hover": { backgroundColor: "#f5f5f5" },
+                    backgroundColor: '#fff',
+                    border: '1px solid #d0d0d0',
+                    '&:hover': { backgroundColor: '#f5f5f5' },
                   }}
                 >
                   <ChevronLeftIcon />
@@ -298,13 +384,15 @@ export default function ScheduleStep({
                 <Typography
                   sx={{
                     fontWeight: 700,
-                    fontSize: "1.5rem",
-                    fontFamily: "var(--font-nunito-sans)",
+                    fontSize: { xs: '1.1rem', sm: '1.5rem' },
+                    textAlign: 'center',
+                    minWidth: 0,
+                    flex: 1,
                   }}
                 >
-                  {currentMonth.toLocaleString("default", {
-                    month: "long",
-                    year: "numeric",
+                  {currentMonth.toLocaleString('default', {
+                    month: 'long',
+                    year: 'numeric',
                   })}
                 </Typography>
 
@@ -312,46 +400,46 @@ export default function ScheduleStep({
                   size="small"
                   onClick={handleNextMonth}
                   sx={{
-                    backgroundColor: "#fff",
-                    border: "1px solid #d0d0d0",
-                    "&:hover": { backgroundColor: "#f5f5f5" },
+                    backgroundColor: '#fff',
+                    border: '1px solid #d0d0d0',
+                    '&:hover': { backgroundColor: '#f5f5f5' },
                   }}
                 >
                   <ChevronRightIcon />
                 </IconButton>
               </Stack>
 
-              <Box sx={{ border: "1px solid #7b7b7b", backgroundColor: "#fff" }}>
+              <Box sx={{ border: '1px solid #7b7b7b', backgroundColor: '#fff' }}>
                 <Box
                   sx={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(7, 1fr)",
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(7, 1fr)',
                   }}
                 >
                   {weekdays.map((day) => (
                     <Box
                       key={day}
                       sx={{
-                        borderRight: "1px solid #7b7b7b",
-                        borderBottom: "1px solid #7b7b7b",
+                        borderRight: '1px solid #7b7b7b',
+                        borderBottom: '1px solid #7b7b7b',
                         height: 50,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 10,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: { xs: 9, sm: 10 },
                         fontWeight: 700,
-                        "&:last-child": { borderRight: "none" },
+                        '&:last-child': { borderRight: 'none' },
                       }}
                     >
-                      {day}
+                      {day.slice(0, 3)}
                     </Box>
                   ))}
                 </Box>
 
                 <Box
                   sx={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(7, 1fr)",
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(7, 1fr)',
                   }}
                 >
                   {days.map((date, index) => {
@@ -363,7 +451,7 @@ export default function ScheduleStep({
                     );
                     cutoffDate.setHours(0, 0, 0, 0);
 
-                    const formattedDate = date ? formatDateInput(date) : "";
+                    const formattedDate = date ? formatDateInput(date) : '';
                     const isPastDate = date ? date < cutoffDate : false;
                     const isUnavailable =
                       !!date && unavailableDates.has(formattedDate);
@@ -384,31 +472,31 @@ export default function ScheduleStep({
                           }
                         }}
                         sx={{
-                          height: 68,
-                          borderRight: "1px solid #7b7b7b",
-                          borderBottom: "1px solid #7b7b7b",
-                          position: "relative",
-                          cursor: isAvailable ? "pointer" : "not-allowed",
+                          height: { xs: 46, sm: 58, md: 68 },
+                          borderRight: '1px solid #7b7b7b',
+                          borderBottom: '1px solid #7b7b7b',
+                          position: 'relative',
+                          cursor: isAvailable ? 'pointer' : 'not-allowed',
                           backgroundColor:
                             isPastDate || isUnavailable
-                              ? "#e1e1e1"
+                              ? '#e1e1e1'
                               : isSelected
-                              ? "#d9d9d9"
-                              : "#efefef",
+                              ? '#d9d9d9'
+                              : '#efefef',
                           opacity: isPastDate || isUnavailable ? 0.5 : 1,
-                          "&:nth-of-type(7n)": { borderRight: "none" },
+                          '&:nth-of-type(7n)': { borderRight: 'none' },
                         }}
                       >
                         {day && (
                           <>
                             <Typography
                               sx={{
-                                position: "absolute",
-                                top: 8,
-                                right: 8,
+                                position: 'absolute',
+                                top: { xs: 5, sm: 8 },
+                                right: { xs: 5, sm: 8 },
                                 fontWeight: isSelected ? 700 : 500,
-                                color: "#555",
-                                fontFamily: "var(--font-nunito-sans)",
+                                fontSize: { xs: 12, sm: 14 },
+                                color: '#555',
                               }}
                             >
                               {day}
@@ -417,13 +505,13 @@ export default function ScheduleStep({
                             {isAvailable && (
                               <Box
                                 sx={{
-                                  position: "absolute",
+                                  position: 'absolute',
                                   bottom: 4,
                                   left: 4,
                                   right: 4,
-                                  height: 8,
+                                  height: { xs: 6, sm: 8 },
                                   borderRadius: 5,
-                                  backgroundColor: "#39d000",
+                                  backgroundColor: '#39d000',
                                 }}
                               />
                             )}
@@ -439,18 +527,18 @@ export default function ScheduleStep({
             <Box
               sx={{
                 flex: 1,
-                border: "1px solid #7b7b7b",
-                backgroundColor: "#efefef",
-                minHeight: 530,
+                minWidth: 0,
+                border: '1px solid #7b7b7b',
+                backgroundColor: '#efefef',
+                minHeight: { xs: 320, md: 430, lg: 530 },
               }}
             >
-              <Box sx={{ borderBottom: "1px solid #7b7b7b", py: 2 }}>
+              <Box sx={{ borderBottom: '1px solid #7b7b7b', py: 2 }}>
                 <Typography
                   align="center"
                   sx={{
                     fontWeight: 700,
-                    fontSize: "1.5rem",
-                    fontFamily: "var(--font-nunito-sans)",
+                    fontSize: { xs: '1.25rem', sm: '1.5rem' },
                   }}
                 >
                   Time
@@ -461,38 +549,39 @@ export default function ScheduleStep({
                 <Typography
                   align="center"
                   sx={{
-                    fontSize: "2rem",
+                    fontSize: { xs: '1.35rem', sm: '2rem' },
                     fontWeight: 500,
-                    fontFamily: "var(--font-nunito-sans)",
+                    px: 2,
                   }}
                 >
                   {selectedDate
-                    ? selectedDate.toLocaleDateString("en-US", {
-                        month: "long",
-                        day: "numeric",
-                        year: "numeric",
+                    ? selectedDate.toLocaleDateString('en-US', {
+                        month: 'long',
+                        day: 'numeric',
+                        year: 'numeric',
                       })
-                    : "Select a date"}
+                    : 'Select a date'}
                 </Typography>
               </Box>
 
               <Box
                 sx={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  justifyContent: "center",
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  justifyContent: 'center',
                   gap: 2,
-                  px: 3,
+                  px: { xs: 2, sm: 3 },
+                  pb: 3,
                 }}
               >
                 {loadingTimes && (
-                  <Typography sx={{ width: "100%", textAlign: "center" }}>
+                  <Typography sx={{ width: '100%', textAlign: 'center' }}>
                     Loading times...
                   </Typography>
                 )}
 
                 {!loadingTimes && selectedDate && availableTimes.length === 0 && (
-                  <Typography sx={{ width: "100%", textAlign: "center" }}>
+                  <Typography sx={{ width: '100%', textAlign: 'center' }}>
                     No available times.
                   </Typography>
                 )}
@@ -519,19 +608,19 @@ export default function ScheduleStep({
                       }
                       variant="outlined"
                       sx={{
-                        minWidth: 180,
+                        minWidth: { xs: '100%', sm: 180 },
                         height: 48,
                         borderRadius: 2,
                         border: selected
-                          ? "2px solid #000"
-                          : "1px solid #d5d5d5",
-                        backgroundColor: selected ? "#fff" : "#d9d9d9",
-                        color: "#000",
+                          ? '2px solid #000'
+                          : '1px solid #d5d5d5',
+                        backgroundColor: selected ? '#fff' : '#d9d9d9',
+                        color: '#000',
                         fontWeight: 700,
-                        textTransform: "none",
-                        "&:hover": {
-                          border: "2px solid #000",
-                          backgroundColor: "#fff",
+                        textTransform: 'none',
+                        '&:hover': {
+                          border: '2px solid #000',
+                          backgroundColor: '#fff',
                         },
                       }}
                     >
@@ -546,46 +635,52 @@ export default function ScheduleStep({
 
         <Box
           sx={{
-            borderTop: "1px solid #bbb",
-            px: 4,
-            py: 3,
-            display: "flex",
-            justifyContent: "space-between",
+            borderTop: '1px solid #aaa',
+            backgroundColor: '#f5f5f5',
+            px: { xs: 2, sm: 3 },
+            py: { xs: 1.5, sm: 2 },
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 2,
           }}
         >
           <Button
-            variant="contained"
             onClick={prevStep}
             sx={{
-              backgroundColor: "#d3d3d3",
-              color: "#000",
-              px: 6,
-              py: 1.5,
+              backgroundColor: '#d3d3d3',
+              color: '#111',
+              flex: { xs: 1, sm: 'initial' },
+              px: { xs: 2, sm: 6 },
+              py: 1,
               borderRadius: 10,
-              textTransform: "none",
-              fontWeight: 700,
-              boxShadow: "none",
+              textTransform: 'none',
+              fontWeight: 900,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              '&:hover': {
+                backgroundColor: '#c8c8c8',
+              },
             }}
           >
             Back
           </Button>
 
           <Button
-            variant="contained"
-            disabled={!selectedTime}
             onClick={handleNext}
+            disabled={!selectedTime}
             sx={{
-              backgroundColor: "#f4b400",
-              color: "#000",
-              px: 6,
-              py: 1.5,
+              backgroundColor: '#f4b400',
+              color: '#111',
+              flex: { xs: 1, sm: 'initial' },
+              px: { xs: 2, sm: 7 },
+              py: 1,
               borderRadius: 10,
-              textTransform: "none",
-              fontWeight: "bold",
-              boxShadow: "none",
-              "&.Mui-disabled": {
-                backgroundColor: "#d9d9d9",
-                color: "#888",
+              textTransform: 'none',
+              fontWeight: 900,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              '&:hover': { backgroundColor: '#e0a800' },
+              '&:disabled': {
+                backgroundColor: '#f5dc90',
+                color: '#777',
               },
             }}
           >

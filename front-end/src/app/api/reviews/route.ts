@@ -56,14 +56,23 @@ export async function GET(req: Request) {
         where: {
           customerId: dbUser.customer.id,
           status: "PAID",
-          id: { notIn: [...reviewedSaleIdSet] },
+          source: "WALKIN",
+          id: {
+            notIn: [...reviewedSaleIdSet],
+          },
         },
         include: {
           barber: true,
-          items: { include: { service: true } },
+          items: {
+            include: {
+              service: true,
+            },
+          },
           appointments: true,
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: {
+          createdAt: "desc",
+        },
       });
 
       const reviewables = [
