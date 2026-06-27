@@ -18,6 +18,7 @@ import MenuItem from "@mui/material/MenuItem";
 type SecurityLog = {
   id: string;
   userName: string | null;
+  userRole: string | null;
   section: string;
   action: string;
   createdAt: string;
@@ -49,6 +50,7 @@ export default function SecurityPage() {
 
   const [loading, setLoading] = useState(true);
   const [sectionFilter, setSectionFilter] = useState("ALL");
+  const [roleFilter, setRoleFilter] = useState("ALL");
 
   async function loadLogs() {
     try {
@@ -57,7 +59,9 @@ export default function SecurityPage() {
       const res = await fetch(
         `/api/admin/security?search=${encodeURIComponent(
           search
-        )}&section=${encodeURIComponent(sectionFilter)}&page=${page}`
+        )}&section=${encodeURIComponent(sectionFilter)}&role=${encodeURIComponent(
+          roleFilter
+        )}&page=${page}`
       );
 
       const data = await res.json();
@@ -139,9 +143,9 @@ export default function SecurityPage() {
         <TextField
           select
           size="small"
-          value={sectionFilter}
+          value={roleFilter}
           onChange={(e) => {
-            setSectionFilter(e.target.value);
+            setRoleFilter(e.target.value);
             setPage(1);
           }}
           sx={{
@@ -168,12 +172,12 @@ export default function SecurityPage() {
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: "170px 150px 150px 180px 1fr",
+            gridTemplateColumns: "160px 130px 150px 130px 170px 1fr",
             py: 1.5,
             borderBottom: "1px solid #e5e5e5",
           }}
         >
-          {["Date", "Time", "User", "Section", "Action"].map((item) => (
+          {["Date", "Time", "User", "Role", "Section", "Action"].map((item) => (
             <Typography
               key={item}
               sx={{
@@ -201,7 +205,7 @@ export default function SecurityPage() {
               key={log.id}
               sx={{
                 display: "grid",
-                gridTemplateColumns: "170px 150px 150px 180px 1fr",
+                gridTemplateColumns: "160px 130px 150px 130px 170px 1fr",
                 py: 2,
                 borderBottom: "1px solid #e5e5e5",
               }}
@@ -216,6 +220,10 @@ export default function SecurityPage() {
 
               <Typography sx={{ fontSize: 14, color: "#222", fontWeight: 700 }}>
                 {log.userName || "Unknown"}
+              </Typography>
+
+              <Typography sx={{ fontSize: 14, color: "#222", fontWeight: 700 }}>
+                {log.userRole || "Unknown"}
               </Typography>
 
               <Typography sx={{ fontSize: 14, color: "#222", fontWeight: 700 }}>
