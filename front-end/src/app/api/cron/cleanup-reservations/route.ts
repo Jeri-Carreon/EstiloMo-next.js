@@ -15,7 +15,6 @@ export async function GET(req: NextRequest) {
     // 2. Query all Sales that are PENDING and were created more than 15 minutes ago
     const expiredSales = await db.sale.findMany({
       where: {
-        status: "PENDING",
         createdAt: {
           lt: expiryThreshold,
         },
