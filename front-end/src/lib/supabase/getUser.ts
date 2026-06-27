@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 
 export async function getAdminUser() {
   const supabase = await createClient();
@@ -11,7 +11,7 @@ export async function getAdminUser() {
 
   if (!user) return null;
 
-  const dbUser = await prisma.user.findUnique({
+  const dbUser = await db.user.findUnique({
     where: { id: user.id },
     select: {
       id: true,

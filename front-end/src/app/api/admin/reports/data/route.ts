@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
 
 import { getAdminUser } from '@/lib/supabase/getUser';
 
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   endDate.setHours(23, 59, 59, 999);
 
   // All non-cancelled sales in range (for completion rate denominator)
-  const allSales = await prisma.sale.findMany({
+  const allSales = await db.sale.findMany({
     where: {
       createdAt: { gte: startDate, lte: endDate },
       status: { not: 'CANCELLED' },
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   });
 
   // Paid (completed/fulfilled) sales
-  const sales = await prisma.sale.findMany({
+  const sales = await db.sale.findMany({
     where: {
       createdAt: { gte: startDate, lte: endDate },
       status: 'PAID',
@@ -109,14 +109,14 @@ export async function GET(req: NextRequest) {
   const prevStart = new Date(startDate.getTime() - periodMs);
   const prevEnd = new Date(startDate.getTime() - 1);
 
-  const prevSales = await prisma.sale.findMany({
+  const prevSales = await db.sale.findMany({
     where: {
       createdAt: { gte: prevStart, lte: prevEnd },
       status: 'PAID',
     },
   });
 
-  const prevAllSales = await prisma.sale.findMany({
+  const prevAllSales = await db.sale.findMany({
     where: {
       createdAt: { gte: prevStart, lte: prevEnd },
       status: { not: 'CANCELLED' },
