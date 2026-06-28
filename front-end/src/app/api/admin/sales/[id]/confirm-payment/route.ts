@@ -3,6 +3,24 @@ import { db } from "@/lib/db";
 
 import { getAdminUser } from "@/lib/supabase/getUser";
 
+type LoyaltyRewardType = "NONE" | "FIFTY_PERCENT" | "FREE";
+
+function isSignatureHaircut(serviceName: string) {
+  return serviceName.trim().toLowerCase() === "signature haircut";
+}
+
+function getLoyaltyRewardErrorMessage(rewardType: LoyaltyRewardType) {
+  if (rewardType === "FREE") {
+    return "The free service reward can only be applied to Signature Haircut. Please add Signature Haircut to this transaction to use this reward.";
+  }
+
+  if (rewardType === "FIFTY_PERCENT") {
+    return "The 50% discount reward can only be applied to Signature Haircut. Please add Signature Haircut to this transaction to use this reward.";
+  }
+
+  return "";
+}
+
 export async function PUT(
   req: Request,
   context: { params: Promise<{ id: string }> }
@@ -21,6 +39,11 @@ export async function PUT(
       include: {
         payment: true,
         appointments: true,
+        items: {
+          include: {
+            service: true,
+          },
+        },
         customer: {
           include: {
             loyaltyCards: true,
@@ -48,13 +71,31 @@ export async function PUT(
     }
 
     const subtotal = Number(sale.subtotal || 0);
+    const requestedLoyaltyRewardType: LoyaltyRewardType =
+      body.loyaltyRewardType === "FIFTY_PERCENT" ||
+      body.loyaltyRewardType === "FREE"
+        ? body.loyaltyRewardType
+        : "NONE";
+    const signatureHaircutSubtotal = sale.items.reduce((sum, item) => {
+      if (!isSignatureHaircut(item.service.name)) return sum;
 
-    const discount = Math.min(
+      return sum + Number(item.subtotal || 0);
+    }, 0);
+
+    if (
+      requestedLoyaltyRewardType !== "NONE" &&
+      signatureHaircutSubtotal <= 0
+    ) {
+      return NextResponse.json(
+        { error: getLoyaltyRewardErrorMessage(requestedLoyaltyRewardType) },
+        { status: 400 }
+      );
+    }
+
+    let discount = Math.min(
       Math.max(Number(body.discount ?? sale.discount ?? 0), 0),
       subtotal
     );
-
-    const totalAmount = Math.max(subtotal - discount, 0);
 
     const method =
       body.method === "GCASH" || body.method === "CASH"
@@ -63,23 +104,53 @@ export async function PUT(
 
     const loyaltyCard = sale.customer.loyaltyCards;
 
-    let loyaltyRewardType: "NONE" | "FIFTY_PERCENT" | "FREE" = "NONE";
+    let loyaltyRewardType: LoyaltyRewardType = "NONE";
 
     if (
-      body.loyaltyRewardType === "FIFTY_PERCENT" &&
+      requestedLoyaltyRewardType === "FIFTY_PERCENT" &&
       loyaltyCard &&
-      loyaltyCard.stars === 5
+      loyaltyCard.stars >= 5
     ) {
       loyaltyRewardType = "FIFTY_PERCENT";
     }
 
     if (
-      body.loyaltyRewardType === "FREE" &&
+      requestedLoyaltyRewardType === "FREE" &&
       loyaltyCard &&
       loyaltyCard.stars >= 10
     ) {
       loyaltyRewardType = "FREE";
     }
+
+    if (
+      requestedLoyaltyRewardType === "FIFTY_PERCENT" &&
+      loyaltyRewardType !== "FIFTY_PERCENT"
+    ) {
+      return NextResponse.json(
+        { error: "Customer is not eligible for the 50% discount reward." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      requestedLoyaltyRewardType === "FREE" &&
+      loyaltyRewardType !== "FREE"
+    ) {
+      return NextResponse.json(
+        { error: "Customer is not eligible for the free service reward." },
+        { status: 400 }
+      );
+    }
+
+    if (loyaltyRewardType === "FIFTY_PERCENT") {
+      discount = Math.round(signatureHaircutSubtotal * 0.5);
+    }
+
+    if (loyaltyRewardType === "FREE") {
+      discount = signatureHaircutSubtotal;
+    }
+
+    const totalAmount = Math.max(subtotal - discount, 0);
 
     let updatedStars = loyaltyCard?.stars ?? 0;
 

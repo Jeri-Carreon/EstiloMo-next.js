@@ -62,8 +62,8 @@ model User {
   barber        Barber?
   customer      Customer?
   reviews       Review[]
-  sessions      Session[]
   securityLogs  SecurityLog[]
+  sessions      Session[]
 }
 
 model Customer {
@@ -157,15 +157,14 @@ model Review {
   createdAt     DateTime     @default(now())
   userId        String
   appointmentId String?      @unique
-  saleId        String?      @unique
   isAnonymous   Boolean      @default(false)
   isVisible     Boolean      @default(false)
+  saleId        String?      @unique
   status        ReviewStatus @default(PENDING)
   updatedAt     DateTime     @updatedAt
-
-  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  sale        Sale?        @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  sale          Sale?        @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("Review")
 }
@@ -232,10 +231,10 @@ model Sale {
   appointments        Appointment[]
   LoyaltyCardActivity LoyaltyCardActivity[]
   payment             Payment?
+  reviews             Review?
   barber              Barber?               @relation(fields: [barberId], references: [id])
   customer            Customer              @relation(fields: [customerId], references: [id])
   items               SaleItem[]
-  reviews             Review[]
 
   @@index([customerId])
   @@index([barberId])
@@ -262,13 +261,11 @@ model Payment {
   downPayment   Decimal        @default(0) @db.Decimal(10, 2)
   method        PaymentMethod?
   status        PaymentStatus  @default(PENDING)
-  screenshotUrl String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   discount      Decimal        @default(0) @db.Decimal(10, 2)
   paymentCode   String?        @unique
   saleId        String?        @unique
-  gcashRefNo    String?
   appointment   Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   sale          Sale?          @relation(fields: [saleId], references: [id], onDelete: Cascade)
 }
@@ -331,26 +328,23 @@ model Service {
   updatedAt           DateTime              @updatedAt
   serviceCode         String                @unique
   sortOrder           Int                   @default(0)
+  imageUrl            String?
   appointments        Appointment[]
   LoyaltyCardActivity LoyaltyCardActivity[]
   saleItems           SaleItem[]
   assignedStaff       Barber[]              @relation("StaffServices")
-  imageUrl            String?
 }
 
 model SecurityLog {
-  id String @id @default(cuid())
-
-  userId String?
-  user   User?   @relation(fields: [userId], references: [id])
-
+  id        String   @id @default(cuid())
+  userId    String?
   userName  String?
   section   String
   action    String
   ipAddress String?
   userAgent String?
-
   createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([section])
@@ -361,7 +355,7 @@ model ChatbotSetting {
   id        String   @id @default(cuid())
   key       String   @unique
   label     String
-  response  String   @db.Text
+  response  String
   options   Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -383,6 +377,7 @@ enum PaymentStatus {
   PENDING
   PAID
   REJECTED
+  PARTIAL
 }
 
 enum SaleSource {

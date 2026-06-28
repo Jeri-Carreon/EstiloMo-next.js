@@ -26,6 +26,16 @@ type CustomerLoyaltyCard = {
   fiveRewardRedeemed: boolean;
 };
 
+type CustomerInfo = {
+  id: string;
+  customerCode: string;
+  firstName: string;
+  lastName: string;
+  name: string;
+  email?: string | null;
+  mobileNumber: string;
+};
+
 type AppointmentService = {
   id: string;
   serviceId: string;
@@ -37,9 +47,10 @@ type AppointmentService = {
 
 type Appointment = {
   id: string;
-  appointmentCode: string;
-  type: "Appointment" | "Walk-in";
-  appointmentDate: string;
+  saleCode: string | null;
+  appointmentCode: string | null;
+  type: "Booking" | "Walk-in";
+  appointmentDate: string | null;
   startMinutes: number;
   endMinutes: number;
   barber: {
@@ -69,12 +80,22 @@ function formatPeso(value: string | number | null | undefined) {
   })}`;
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("en-PH", {
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleDateString("en-US", {
     year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
+    month: "long",
+    day: "numeric",
   });
+}
+
+function displayCode(value?: string | null) {
+  return value || "—";
 }
 
 export default function CustomerLoyaltyCardPage() {
@@ -83,7 +104,7 @@ export default function CustomerLoyaltyCardPage() {
 
   const [loyaltyCard, setLoyaltyCard] =
     useState<CustomerLoyaltyCard | null>(null);
-  const [customerInfo, setCustomerInfo] = useState<any>(null);
+  const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [selectedAppointment, setSelectedAppointment] =
     useState<Appointment | null>(null);
@@ -246,7 +267,7 @@ export default function CustomerLoyaltyCardPage() {
               mb: { xs: 4, md: 5 },
             }}
           >
-            Complete the stamps and get 50% and a Free Service
+            Complete the stamps and get 50% off Signature Haircut and Free Signature Haircut
           </Typography>
 
           <Box
@@ -367,17 +388,6 @@ export default function CustomerLoyaltyCardPage() {
               </Typography>
 
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Typography
-                  sx={{
-                    fontWeight: 800,
-                    color: "#777",
-                    fontSize: { xs: 14, sm: 18 },
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {selectedAppointment.appointmentCode}
-                </Typography>
-
                 <IconButton
                   onClick={() => setSelectedAppointment(null)}
                   sx={{
@@ -396,9 +406,17 @@ export default function CustomerLoyaltyCardPage() {
               </Box>
             </Box>
 
+            <Typography variant="body2" sx={{ fontWeight: 800, fontSize: "1.1rem"}}>
+              {displayCode(selectedAppointment.saleCode)}
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 2, fontWeight: 800, fontSize: "1.1rem" }}>
+              {selectedAppointment.appointmentCode ? displayCode(selectedAppointment.appointmentCode) : "—"}
+            </Typography>
+
             <Box
               sx={{
                 bgcolor: "#fff",
+                mt: 1,
                 border: "1px solid #eee",
                 borderRadius: 1,
                 overflowX: "auto",
@@ -656,6 +674,42 @@ function RewardBox({
           {label}
         </Typography>
       )}
+    </Box>
+  );
+}
+
+function StampDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <Box
+      sx={{
+        bgcolor: "#f7f7f7",
+        border: "1px solid #ececec",
+        borderRadius: 1,
+        px: 1.5,
+        py: 1.2,
+        minWidth: 0,
+      }}
+    >
+      <Typography
+        sx={{
+          color: "#777",
+          fontSize: 12,
+          fontWeight: 800,
+          mb: 0.4,
+        }}
+      >
+        {label}
+      </Typography>
+      <Typography
+        sx={{
+          color: "#111",
+          fontSize: 13,
+          fontWeight: 900,
+          overflowWrap: "anywhere",
+        }}
+      >
+        {value}
+      </Typography>
     </Box>
   );
 }

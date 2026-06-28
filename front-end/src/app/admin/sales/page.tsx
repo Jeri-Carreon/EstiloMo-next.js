@@ -115,6 +115,8 @@ type CartItem = {
   durationMinutes: number;
 };
 
+type LoyaltyRewardType = "NONE" | "FIFTY_PERCENT" | "FREE";
+
 type LoyaltyCard = {
   id: string;
   cardNumber: string;
@@ -226,6 +228,28 @@ function getSaleStatusLabel(status: Sale["status"]) {
   return "Unpaid";
 }
 
+function isSignatureHaircut(serviceName: string) {
+  return serviceName.trim().toLowerCase() === "signature haircut";
+}
+
+function getLoyaltyRewardPercent(rewardType: LoyaltyRewardType) {
+  if (rewardType === "FREE") return 100;
+  if (rewardType === "FIFTY_PERCENT") return 50;
+  return 0;
+}
+
+function getLoyaltyRewardErrorMessage(rewardType: LoyaltyRewardType) {
+  if (rewardType === "FREE") {
+    return "The free service reward can only be applied to Signature Haircut. Please add Signature Haircut to this transaction to use this reward.";
+  }
+
+  if (rewardType === "FIFTY_PERCENT") {
+    return "The 50% discount reward can only be applied to Signature Haircut. Please add Signature Haircut to this transaction to use this reward.";
+  }
+
+  return "";
+}
+
 
 function getSaleDisplayDate(sale: Sale | null | undefined) {
   if (!sale) return formatToday();
@@ -235,6 +259,12 @@ function getSaleDisplayDate(sale: Sale | null | undefined) {
   }
 
   return formatDate(sale.createdAt);
+}
+
+function getAppointmentCodes(sale: Pick<Sale, "appointments">) {
+  return sale.appointments
+    .map((appt) => appt.appointmentCode)
+    .filter(Boolean);
 }
 
 function fullName(person: any) {
@@ -295,6 +325,8 @@ export default function SalesPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [method, setMethod] = useState<"CASH" | "GCASH">("CASH");
   const [discountPercent, setDiscountPercent] = useState(0);
+  const [selectedLoyaltyRewardType, setSelectedLoyaltyRewardType] =
+    useState<LoyaltyRewardType>("NONE");
   const [cart, setCart] = useState<CartItem[]>([]);
 
   const [salesSearch, setSalesSearch] = useState("");
@@ -309,10 +341,50 @@ export default function SalesPage() {
     severity: "success" as "success" | "error",
   });
 
-  const subtotal = useMemo(
-    () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
-    [cart]
-  );
+  const cartSummary = useMemo(() => {
+    const rewardPercent = getLoyaltyRewardPercent(selectedLoyaltyRewardType);
+
+    const lines = cart.map((item) => {
+      const lineSubtotal = item.price * item.quantity;
+      const isRewardTarget =
+        selectedLoyaltyRewardType !== "NONE" &&
+        isSignatureHaircut(item.serviceName);
+      const lineDiscount =
+        selectedLoyaltyRewardType === "NONE"
+          ? Math.round(lineSubtotal * (discountPercent / 100))
+          : isRewardTarget
+          ? Math.round(lineSubtotal * (rewardPercent / 100))
+          : 0;
+      const lineTotal = Math.max(lineSubtotal - lineDiscount, 0);
+
+      return {
+        ...item,
+        lineSubtotal,
+        lineDiscount,
+        lineTotal,
+        isRewardTarget,
+      };
+    });
+
+    const subtotalValue = lines.reduce(
+      (sum, item) => sum + item.lineSubtotal,
+      0
+    );
+    const discountValue = lines.reduce(
+      (sum, item) => sum + item.lineDiscount,
+      0
+    );
+
+    return {
+      lines,
+      subtotal: subtotalValue,
+      discountAmount: discountValue,
+      total: Math.max(subtotalValue - discountValue, 0),
+      hasSignatureHaircut: cart.some((item) =>
+        isSignatureHaircut(item.serviceName)
+      ),
+    };
+  }, [cart, discountPercent, selectedLoyaltyRewardType]);
 
   const displayedServices = useMemo(() => {
     return services.filter((service) => service.isAvailable);
@@ -327,8 +399,10 @@ export default function SalesPage() {
     );
   }
 
-  const discountAmount = Math.round(subtotal * (discountPercent / 100));
-  const total = Math.max(subtotal - discountAmount, 0);
+  const subtotal = cartSummary.subtotal;
+  const discountAmount = cartSummary.discountAmount;
+  const total = cartSummary.total;
+  const hasSignatureHaircut = cartSummary.hasSignatureHaircut;
 
   const downPayment = selectedSale?.payment?.downPayment || 0;
 
@@ -375,6 +449,9 @@ export default function SalesPage() {
       sale.source.toLowerCase().includes(searchValue) ||
       sale.status.toLowerCase().includes(searchValue) ||
       getSaleStatusLabel(sale.status).toLowerCase().includes(searchValue) ||
+      sale.appointments.some((appt) =>
+        appt.appointmentCode.toLowerCase().includes(searchValue)
+      ) ||
       (sale.payment?.status || "").toLowerCase().includes(searchValue);
 
     const matchesStatus =
@@ -417,8 +494,27 @@ export default function SalesPage() {
     setSelectedCustomerId(selectedSale.customer.id);
     setMethod((selectedSale.payment?.method as "CASH" | "GCASH") || "CASH");
 
+    const signatureHaircutSubtotal = selectedSale.items.reduce((sum, item) => {
+      if (!isSignatureHaircut(item.serviceName)) return sum;
+
+      return sum + Number(item.subtotal);
+    }, 0);
+    const selectedSaleDiscount = Number(selectedSale.discount || 0);
+    const inferredLoyaltyRewardType: LoyaltyRewardType =
+      signatureHaircutSubtotal > 0 &&
+      selectedSaleDiscount === signatureHaircutSubtotal
+        ? "FREE"
+        : signatureHaircutSubtotal > 0 &&
+          selectedSaleDiscount === Math.round(signatureHaircutSubtotal * 0.5)
+        ? "FIFTY_PERCENT"
+        : "NONE";
+
+    setSelectedLoyaltyRewardType(inferredLoyaltyRewardType);
+
     setDiscountPercent(
-      selectedSale.subtotal > 0
+      inferredLoyaltyRewardType !== "NONE"
+        ? getLoyaltyRewardPercent(inferredLoyaltyRewardType)
+        : selectedSale.subtotal > 0
         ? Math.round((selectedSale.discount / selectedSale.subtotal) * 100)
         : 0
     );
@@ -494,6 +590,7 @@ export default function SalesPage() {
     setSelectedCustomerId("");
     setMethod("CASH");
     setDiscountPercent(0);
+    setSelectedLoyaltyRewardType("NONE");
     setCart([]);
     setGcashRefNo("");
     setSelectedBarberId("");
@@ -623,6 +720,8 @@ export default function SalesPage() {
 }
 
   function handleDiscountInput(value: string) {
+    setSelectedLoyaltyRewardType("NONE");
+
     if (value === "") {
       setDiscountPercent(0);
       return;
@@ -634,6 +733,39 @@ export default function SalesPage() {
 
     const safeValue = Math.min(Math.max(parsedValue, 0), 100);
     setDiscountPercent(safeValue);
+  }
+
+  function applyLoyaltyReward(rewardType: Exclude<LoyaltyRewardType, "NONE">) {
+    if (!hasSignatureHaircut) {
+      setSnackbar({
+        open: true,
+        message: getLoyaltyRewardErrorMessage(rewardType),
+        severity: "error",
+      });
+      return;
+    }
+
+    setSelectedLoyaltyRewardType(rewardType);
+    setDiscountPercent(getLoyaltyRewardPercent(rewardType));
+  }
+
+  function clearDiscount() {
+    setSelectedLoyaltyRewardType("NONE");
+    setDiscountPercent(0);
+  }
+
+  function validateSelectedLoyaltyReward() {
+    if (selectedLoyaltyRewardType === "NONE" || hasSignatureHaircut) {
+      return true;
+    }
+
+    setSnackbar({
+      open: true,
+      message: getLoyaltyRewardErrorMessage(selectedLoyaltyRewardType),
+      severity: "error",
+    });
+
+    return false;
   }
 
   async function createSale() {
@@ -678,6 +810,8 @@ export default function SalesPage() {
         return;
       }
 
+      if (!validateSelectedLoyaltyReward()) return;
+
       setSaving(true);
 
       const res = await fetch("/api/admin/sales", {
@@ -690,9 +824,11 @@ export default function SalesPage() {
           method,
           discount: discountAmount,
           barberId: selectedBarberId,
+          loyaltyRewardType: selectedLoyaltyRewardType,
           items: cart.map((item) => ({
             serviceId: item.serviceId,
             quantity: item.quantity,
+            price: item.price,
           })),
         }),
       });
@@ -700,7 +836,11 @@ export default function SalesPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to create sale");
+        throw new Error(
+          data.details
+            ? `${data.error || "Failed to create sale"}: ${data.details}`
+            : data.error || "Failed to create sale"
+        );
       }
 
       closePosAndReset();
@@ -727,6 +867,8 @@ export default function SalesPage() {
     try {
       if (!selectedSale) return;
 
+      if (!validateSelectedLoyaltyReward()) return;
+
       setSaving(true);
 
       if (method === "GCASH") {
@@ -752,12 +894,7 @@ export default function SalesPage() {
             discount: discountAmount,
             totalAmount: amountToPay,
             gcashRefNo: method === "GCASH" ? gcashRefNo : null,
-            loyaltyRewardType:
-              discountPercent === 100
-                ? "FREE"
-                : discountPercent === 50
-                ? "FIFTY_PERCENT"
-                : "NONE",
+            loyaltyRewardType: selectedLoyaltyRewardType,
           }),
         }
       );
@@ -984,7 +1121,18 @@ export default function SalesPage() {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={headCell}>Transaction #</TableCell>
+                    <TableCell sx={{ ...headCell, minWidth: 260 }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 2,
+                        }}
+                      >
+                        <Box component="span">Transaction #</Box>
+                        <Box component="span">Appointment #</Box>
+                      </Box>
+                    </TableCell>
                     <TableCell sx={headCell}>ID</TableCell>
                     <TableCell sx={headCell}>Name</TableCell>
                     <TableCell sx={headCell}>Date</TableCell>
@@ -1009,7 +1157,69 @@ export default function SalesPage() {
                         },
                       }}
                     >
-                      <TableCell sx={bodyCell}>{sale.saleCode}</TableCell>
+                      <TableCell sx={{ ...bodyCell, minWidth: 260 }}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            justifyContent: "space-between",
+                            gap: 2,
+                          }}
+                        >
+                          <Typography
+                            component="span"
+                            sx={{
+                              fontSize: 14,
+                              fontWeight: 900,
+                              color: "#222",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {sale.saleCode}
+                          </Typography>
+
+                          <Box
+                            sx={{
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "flex-end",
+                              gap: 0.25,
+                              textAlign: "right",
+                            }}
+                          >
+                            {getAppointmentCodes(sale).length ? (
+                              getAppointmentCodes(sale).map((appointmentCode) => (
+                                <Typography
+                                  key={appointmentCode}
+                                  component="span"
+                                  sx={{
+                                    fontSize: 13,
+                                    fontWeight: 800,
+                                    color: "#777",
+                                    lineHeight: 1.2,
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {appointmentCode}
+                                </Typography>
+                              ))
+                            ) : (
+                              <Typography
+                                component="span"
+                                sx={{
+                                  fontSize: 13,
+                                  fontWeight: 800,
+                                  color: "#777",
+                                  lineHeight: 1.2,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                —
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      </TableCell>
                       <TableCell sx={bodyCell}>
                         {sale.customer.customerCode}
                       </TableCell>
@@ -1440,7 +1650,7 @@ export default function SalesPage() {
                   </Box>
 
                   <Box sx={{ minHeight: 150, maxHeight: 190, overflowY: "auto" }}>
-                    {cart.map((item, index) => (
+                    {cartSummary.lines.map((item, index) => (
                       <Box
                         key={`${item.serviceId}-${index}`}
                         sx={{
@@ -1453,16 +1663,31 @@ export default function SalesPage() {
                           columnGap: 1,
                         }}
                       >
-                        <Typography
-                          sx={{
-                            fontWeight: 900,
-                            color: "#777",
-                            whiteSpace: "normal",
-                            wordBreak: "break-word",
-                          }}
-                        >
-                          {item.serviceName}
-                        </Typography>
+                        <Box>
+                          <Typography
+                            sx={{
+                              fontWeight: 900,
+                              color: "#777",
+                              whiteSpace: "normal",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {item.serviceName}
+                          </Typography>
+
+                          {item.isRewardTarget && item.lineDiscount > 0 && (
+                            <Typography
+                              sx={{
+                                fontSize: 11,
+                                fontWeight: 800,
+                                color: "#1f7a3a",
+                                mt: 0.4,
+                              }}
+                            >
+                              Signature Haircut reward applied
+                            </Typography>
+                          )}
+                        </Box>
 
                         <Box
                           sx={{ display: "flex", alignItems: "center", gap: 0.8 }}
@@ -1489,16 +1714,33 @@ export default function SalesPage() {
                             +
                           </Button>
 
-                          <Typography
-                            sx={{
-                              fontWeight: 900,
-                              color: "#777",
-                              minWidth: 55,
-                              textAlign: "right",
-                            }}
-                          >
-                            {formatPeso(item.price * item.quantity)}
-                          </Typography>
+                          <Box sx={{ minWidth: 72, textAlign: "right" }}>
+                            {item.isRewardTarget && item.lineDiscount > 0 && (
+                              <Typography
+                                sx={{
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  color: "#999",
+                                  textDecoration: "line-through",
+                                }}
+                              >
+                                {formatPeso(item.lineSubtotal)}
+                              </Typography>
+                            )}
+
+                            <Typography
+                              sx={{
+                                fontWeight: 900,
+                                color: "#777",
+                              }}
+                            >
+                              {formatPeso(
+                                item.isRewardTarget && item.lineDiscount > 0
+                                  ? item.lineTotal
+                                  : item.lineSubtotal
+                              )}
+                            </Typography>
+                          </Box>
 
                           <IconButton
                             size="small"
@@ -1534,7 +1776,13 @@ export default function SalesPage() {
                   </Box>
 
                   <Box sx={summaryRow}>
-                    <Typography>Discount</Typography>
+                    <Typography>
+                      {selectedLoyaltyRewardType === "FREE"
+                        ? "Signature Haircut Reward"
+                        : selectedLoyaltyRewardType === "FIFTY_PERCENT"
+                        ? "Signature Haircut 50% Reward"
+                        : "Discount"}
+                    </Typography>
                     <Typography>-{formatPeso(discountAmount)}</Typography>
                   </Box>
 
@@ -1628,7 +1876,7 @@ export default function SalesPage() {
                         <Button
                           size="small"
                           variant="outlined"
-                          onClick={() => setDiscountPercent(0)}
+                          onClick={clearDiscount}
                           sx={{
                             minWidth: 52,
                             color: "#111",
@@ -1644,7 +1892,7 @@ export default function SalesPage() {
                           size="small"
                           variant="outlined"
                           disabled={!canUse50Discount}
-                          onClick={() => setDiscountPercent(50)}
+                          onClick={() => applyLoyaltyReward("FIFTY_PERCENT")}
                           sx={{
                             minWidth: 72,
                             color: "#111",
@@ -1660,7 +1908,7 @@ export default function SalesPage() {
                           size="small"
                           variant="outlined"
                           disabled={!canUse100Discount}
-                          onClick={() => setDiscountPercent(100)}
+                          onClick={() => applyLoyaltyReward("FREE")}
                           sx={{
                             minWidth: 78,
                             color: "#111",
