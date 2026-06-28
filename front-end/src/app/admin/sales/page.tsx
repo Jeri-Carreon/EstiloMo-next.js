@@ -253,6 +253,20 @@ function getAppointmentSchedule(appt: {
   return `${date} ${minutesToTime(appt.startMinutes)} - ${minutesToTime(appt.endMinutes)}`;
 }
 
+function getAppointmentCodeLabel(sale: Pick<Sale, "appointments">) {
+  const appointmentCodes = sale.appointments
+    .map((appt) => appt.appointmentCode)
+    .filter(Boolean);
+
+  return appointmentCodes.length ? appointmentCodes.join(", ") : "—";
+}
+
+function getAppointmentScheduleLabel(sale: Pick<Sale, "appointments">) {
+  const schedules = sale.appointments.map((appt) => getAppointmentSchedule(appt));
+
+  return schedules.length ? schedules.join(", ") : "—";
+}
+
 function fullName(person: any) {
   return (
     [person?.firstName, person?.lastName].filter(Boolean).join(" ") ||
@@ -391,6 +405,9 @@ export default function SalesPage() {
       sale.source.toLowerCase().includes(searchValue) ||
       sale.status.toLowerCase().includes(searchValue) ||
       getSaleStatusLabel(sale.status).toLowerCase().includes(searchValue) ||
+      sale.appointments.some((appt) =>
+        appt.appointmentCode.toLowerCase().includes(searchValue)
+      ) ||
       (sale.payment?.status || "").toLowerCase().includes(searchValue);
 
     const matchesStatus =
@@ -1000,7 +1017,18 @@ export default function SalesPage() {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={headCell}>Transaction #</TableCell>
+                    <TableCell sx={{ ...headCell, minWidth: 260 }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 2,
+                        }}
+                      >
+                        <Box component="span">Transaction #</Box>
+                        <Box component="span">Appointment #</Box>
+                      </Box>
+                    </TableCell>
                     <TableCell sx={headCell}>ID</TableCell>
                     <TableCell sx={headCell}>Name</TableCell>
                     <TableCell sx={headCell}>Schedule</TableCell>
@@ -1025,17 +1053,49 @@ export default function SalesPage() {
                         },
                       }}
                     >
-                      <TableCell sx={bodyCell}>{sale.saleCode}</TableCell>
+                      <TableCell sx={{ ...bodyCell, minWidth: 260 }}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 2,
+                          }}
+                        >
+                          <Typography
+                            component="span"
+                            sx={{
+                              fontSize: 14,
+                              fontWeight: 900,
+                              color: "#222",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {sale.saleCode}
+                          </Typography>
+
+                          <Typography
+                            component="span"
+                            sx={{
+                              fontSize: 13,
+                              fontWeight: 800,
+                              color: "#777",
+                              textAlign: "right",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {getAppointmentCodeLabel(sale)}
+                          </Typography>
+                        </Box>
+                      </TableCell>
                       <TableCell sx={bodyCell}>
                         {sale.customer.customerCode}
                       </TableCell>
                       <TableCell sx={bodyCell}>{sale.customer.name}</TableCell>
 
-                      {sale.appointments.map((appt) => (
-                        <TableCell sx={bodyCell}>
-                          {getAppointmentSchedule(appt)}
-                        </TableCell>
-                      ))}
+                      <TableCell sx={bodyCell}>
+                        {getAppointmentScheduleLabel(sale)}
+                      </TableCell>
                       <TableCell sx={bodyCell}>
                         {sale.barber?.name || "—"}
                       </TableCell>
