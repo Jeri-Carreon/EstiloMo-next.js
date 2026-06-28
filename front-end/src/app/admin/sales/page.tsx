@@ -125,6 +125,7 @@ type LoyaltyCard = {
   stickers: number;
   maxStickers: number;
   status: "ACTIVE" | "COMPLETED";
+  fiveRewardRedeemed: boolean;
 };
 
 const headCell = {
@@ -220,6 +221,16 @@ function formatToday() {
   return formatDate(new Date());
 }
 
+function getSaleDisplayDate(sale: Sale | null | undefined) {
+  if (!sale) return formatToday();
+
+  if (sale.source === "BOOKING" && sale.appointments?.length) {
+    return formatDate(sale.appointments[0].appointmentDate);
+  }
+
+  return formatDate(sale.createdAt);
+}
+
 function getSaleStatusLabel(status: Sale["status"]) {
   if (status === "PAID") return "Paid";
   if (status === "PARTIAL") return "Partial";
@@ -250,15 +261,43 @@ function getLoyaltyRewardErrorMessage(rewardType: LoyaltyRewardType) {
   return "";
 }
 
+  function minutesToTime(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
+}
 
-function getSaleDisplayDate(sale: Sale | null | undefined) {
-  if (!sale) return formatToday();
+function getAppointmentSchedule(appt: {
+  appointmentDate: string;
+  startMinutes: number;
+  endMinutes: number;
+}) {
+  const dateOnly = appt.appointmentDate.split(" ")[0]; // "2026-06-29"
 
-  if (sale.source === "BOOKING" && sale.appointments?.length) {
-    return formatDate(sale.appointments[0].appointmentDate);
-  }
+  const date = new Date(dateOnly).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "Asia/Manila",
+  });
 
-  return formatDate(sale.createdAt);
+  return `${date} ${minutesToTime(appt.startMinutes)} - ${minutesToTime(appt.endMinutes)}`;
+}
+
+function getAppointmentCodeLabel(sale: Pick<Sale, "appointments">) {
+  const appointmentCodes = sale.appointments
+    .map((appt) => appt.appointmentCode)
+    .filter(Boolean);
+
+  return appointmentCodes.length ? appointmentCodes.join(", ") : "—";
+}
+
+function getAppointmentScheduleLabel(sale: Pick<Sale, "appointments">) {
+  const schedules = sale.appointments.map((appt) => getAppointmentSchedule(appt));
+
+  return schedules.length ? schedules.join(", ") : "—";
 }
 
 function getAppointmentCodes(sale: Pick<Sale, "appointments">) {
@@ -420,7 +459,7 @@ export default function SalesPage() {
   );
 
   const stickerCount = selectedLoyaltyCard?.stickers || 0;
-  const canUse50Discount = stickerCount >= 5;
+  const canUse50Discount = stickerCount >= 5 && stickerCount < 10 && !selectedLoyaltyCard?.fiveRewardRedeemed;
   const canUse100Discount = stickerCount >= 10;
 
   const filteredCustomers = customers.filter((customer) => {
@@ -1135,7 +1174,7 @@ export default function SalesPage() {
                     </TableCell>
                     <TableCell sx={headCell}>ID</TableCell>
                     <TableCell sx={headCell}>Name</TableCell>
-                    <TableCell sx={headCell}>Date</TableCell>
+                    <TableCell sx={headCell}>Schedule</TableCell>
                     <TableCell sx={headCell}>Barber</TableCell>
                     <TableCell sx={headCell}>Total Amount</TableCell>
                     <TableCell sx={headCell}>Type</TableCell>
@@ -1224,8 +1263,9 @@ export default function SalesPage() {
                         {sale.customer.customerCode}
                       </TableCell>
                       <TableCell sx={bodyCell}>{sale.customer.name}</TableCell>
+
                       <TableCell sx={bodyCell}>
-                        {getSaleDisplayDate(sale)}
+                        {getAppointmentScheduleLabel(sale)}
                       </TableCell>
                       <TableCell sx={bodyCell}>
                         {sale.barber?.name || "—"}
@@ -1580,17 +1620,19 @@ export default function SalesPage() {
                       {selectedSale?.saleCode || "TRX-New"}
                     </Typography>
 
-                    <Typography
-                      sx={{
-                        fontSize: 12,
-                        fontWeight: 800,
-                        color: "#999",
-                      }}
-                    >
-                      {selectedSale
-                        ? getSaleDisplayDate(selectedSale)
-                        : formatToday()}
-                    </Typography>
+                      <Typography
+                        sx={{
+                          fontSize: 12,
+                          fontWeight: 800,
+                          color: "#999",
+                        }}
+                      >
+                        {selectedSale
+                          ? selectedSale.source === "BOOKING" && selectedSale.appointments?.length
+                            ? getAppointmentSchedule(selectedSale.appointments[0])
+                            : formatDate(selectedSale.createdAt)
+                          : formatToday()}
+                      </Typography>
                   </Box>
 
                   <Box sx={{ textAlign: "right" }}>
@@ -1895,10 +1937,13 @@ export default function SalesPage() {
                           onClick={() => applyLoyaltyReward("FIFTY_PERCENT")}
                           sx={{
                             minWidth: 72,
-                            color: "#111",
+                            color: canUse50Discount ? "#111" : "#999",
                             borderColor: "#ccc",
                             textTransform: "none",
                             fontWeight: 800,
+                            opacity: canUse50Discount ? 1 : 0.45,
+                            textDecoration: !canUse50Discount ? "line-through" : "none",
+                            cursor: canUse50Discount ? "pointer" : "not-allowed",
                           }}
                         >
                           50%
@@ -1911,10 +1956,13 @@ export default function SalesPage() {
                           onClick={() => applyLoyaltyReward("FREE")}
                           sx={{
                             minWidth: 78,
-                            color: "#111",
+                            color: canUse100Discount ? "#111" : "#999",
                             borderColor: "#ccc",
                             textTransform: "none",
                             fontWeight: 800,
+                            opacity: canUse100Discount ? 1 : 0.45,
+                            textDecoration: !canUse100Discount ? "line-through" : "none",
+                            cursor: canUse100Discount ? "pointer" : "not-allowed",
                           }}
                         >
                           100%
@@ -2052,7 +2100,9 @@ export default function SalesPage() {
             <Box sx={detailRow}>
               <Typography sx={detailLabel}>Date</Typography>
               <Typography sx={detailValue}>
-                {selectedSale ? getSaleDisplayDate(selectedSale) : formatToday()}
+                {selectedSale?.appointments?.length
+                  ? getAppointmentSchedule(selectedSale.appointments[0])
+                  : formatToday()}
               </Typography>
             </Box>
           </Box>
