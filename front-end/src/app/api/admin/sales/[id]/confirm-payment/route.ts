@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
+import {
+  logDiscountApplied,
+  logLoyaltyRewardRedeemed,
+  logLoyaltyStickerEarned,
+  logPaymentReceived,
+} from "@/lib/securityLogEvents";
 
 type LoyaltyRewardType = "NONE" | "FIFTY_PERCENT" | "FREE";
 
@@ -150,7 +156,12 @@ export async function PUT(
       discount = signatureHaircutSubtotal;
     }
 
-    const totalAmount = Math.max(subtotal - discount, 0);
+    const fullTotalAmount = Math.max(subtotal - discount, 0);
+    const downPayment = Number(sale.payment.downPayment || 0);
+    const totalAmount =
+      sale.source === "BOOKING"
+        ? Math.max(fullTotalAmount - downPayment, 0)
+        : fullTotalAmount;
 
     let updatedStars = loyaltyCard?.stars ?? 0;
 
@@ -171,7 +182,7 @@ export async function PUT(
         data: {
           status: "PAID",
           discount,
-          totalAmount,
+          totalAmount: fullTotalAmount,
         },
       });
 

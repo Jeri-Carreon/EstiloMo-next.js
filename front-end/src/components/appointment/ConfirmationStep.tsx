@@ -6,16 +6,28 @@ import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import CheckIcon from '@mui/icons-material/Check';
 import PaymentIcon from '@mui/icons-material/Payment';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
+import type { SelectChangeEvent } from '@mui/material/Select';
 
 import type { AppointmentData } from '@/app/appointment/page';
 
 const steps = ['Barber', 'Service', 'Schedule', 'Cart', 'Confirmation'];
+
+type PaymentType = 'card' | 'ewallet';
+type EWalletProvider = 'gcash' | 'grabpay' | 'maya' | '';
 
 interface ConfirmationStepProps {
   appointmentData: AppointmentData;
   prevStep: () => void;
   totalPrice: number;
   downPayment: number;
+  paymentType: PaymentType;
+  setPaymentType: React.Dispatch<React.SetStateAction<PaymentType>>;
+  eWalletProvider: EWalletProvider;
+  setEWalletProvider: React.Dispatch<React.SetStateAction<EWalletProvider>>;
   loading: boolean;
   handleConfirm: () => void;
 }
@@ -44,6 +56,10 @@ export default function ConfirmationStep({
   prevStep,
   totalPrice,
   downPayment,
+  paymentType,
+  setPaymentType,
+  eWalletProvider,
+  setEWalletProvider,
   loading,
   handleConfirm,
 }: ConfirmationStepProps) {
@@ -180,7 +196,7 @@ export default function ConfirmationStep({
                 </Typography>
 
                 <Typography sx={{ color: '#666', fontWeight: 700, mb: 3 }}>
-                  You will be redirected to PayMongo to pay the downpayment. No screenshot upload is needed.
+                  Choose your payment method, then pay through the PayMongo webview. No screenshot upload is needed.
                 </Typography>
 
                 <Box
@@ -214,10 +230,65 @@ export default function ConfirmationStep({
                         Secure PayMongo Checkout
                       </Typography>
                       <Typography sx={{ color: '#666', fontWeight: 700 }}>
-                        Supports available PayMongo payment channels.
+                        Card and e-wallet downpayments are processed securely.
                       </Typography>
                     </Box>
                   </Stack>
+                </Box>
+
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                    gap: 2,
+                    mb: 3,
+                  }}
+                >
+                  <FormControl fullWidth>
+                    <InputLabel id="payment-type-label">
+                      Payment Type
+                    </InputLabel>
+                    <Select
+                      labelId="payment-type-label"
+                      value={paymentType}
+                      label="Payment Type"
+                      onChange={(event: SelectChangeEvent) => {
+                        const value = event.target.value as PaymentType;
+                        setPaymentType(value);
+
+                        if (value === 'card') {
+                          setEWalletProvider('');
+                        }
+                      }}
+                    >
+                      <MenuItem value="card">Card</MenuItem>
+                      <MenuItem value="ewallet">E-Wallets</MenuItem>
+                    </Select>
+                  </FormControl>
+
+                  {paymentType === 'ewallet' ? (
+                    <FormControl fullWidth>
+                      <InputLabel id="ewallet-provider-label">
+                        E-Wallet
+                      </InputLabel>
+                      <Select
+                        labelId="ewallet-provider-label"
+                        value={eWalletProvider}
+                        label="E-Wallet"
+                        onChange={(event: SelectChangeEvent) => {
+                          setEWalletProvider(
+                            event.target.value as EWalletProvider
+                          );
+                        }}
+                      >
+                        <MenuItem value="gcash">GCash</MenuItem>
+                        <MenuItem value="maya">Maya</MenuItem>
+                        <MenuItem value="grabpay" disabled>
+                          GrabPay
+                        </MenuItem>
+                      </Select>
+                    </FormControl>
+                  ) : null}
                 </Box>
 
                 <Stack spacing={1.5}>

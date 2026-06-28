@@ -1,25 +1,151 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 
 import { parsePHDateOnly, todayCodePH } from "@/lib/dateUtils";
 
-const PAYMONGO_TEST_LINK =
-  "https://pm.link/org-BA17dRCb7nm1wKHos2XqdoSo/test/gv92X8d";
+const ALLOWED_PAYMONGO_METHODS = ["card", "gcash", "qrph"];
+const CREATE_CHECKOUT_FUNCTION_NAME = "smooth-task";
 
-async function createAppointmentCode(tx: any) {
+type TransactionClient = Prisma.TransactionClient;
+
+interface AppointmentCartItem {
+  barberId: string;
+  serviceId: string;
+  servicePrice: number;
+  appointmentDate: string;
+  startMinutes: number;
+  endMinutes: number;
+}
+
+function getCreateCheckoutUrl() {
+  if (process.env.PAYMONGO_CREATE_CHECKOUT_URL) {
+    return process.env.PAYMONGO_CREATE_CHECKOUT_URL;
+  }
+
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/${CREATE_CHECKOUT_FUNCTION_NAME}`;
+  }
+
+  return "";
+}
+
+async function createPayMongoCheckout(params: {
+  checkoutEndpoint: string;
+  checkoutHeaders: Record<string, string>;
+  description: string;
+  referenceNumber: string;
+  paymentMethods: string[];
+  successUrl: string;
+  cancelUrl: string;
+  metadata: Record<string, string>;
+}) {
+  const secretKey = process.env.PAYMONGO_SECRET_KEY;
+
+  if (secretKey) {
+    const response = await fetch(
+      "https://api.paymongo.com/v2/checkout_sessions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Basic ${Buffer.from(`${secretKey}:`).toString(
+            "base64"
+          )}`,
+        },
+        body: JSON.stringify({
+          data: {
+            attributes: {
+              line_items: [
+                {
+                  name: params.description,
+                  amount: 15000,
+                  currency: "PHP",
+                  quantity: 1,
+                },
+              ],
+              payment_method_types: params.paymentMethods,
+              success_url: params.successUrl,
+              cancel_url: params.cancelUrl,
+              reference_number: params.referenceNumber,
+              send_email_receipt: true,
+              show_description: true,
+              show_line_items: true,
+              description: "EstiloMo Appointment Downpayment",
+              metadata: params.metadata,
+            },
+          },
+        }),
+      }
+    );
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        data,
+        error:
+          data.errors?.[0]?.detail || data.error || "Failed to create checkout",
+      };
+    }
+
+    return {
+      ok: true,
+      data: {
+        checkout_url: data.data.attributes.checkout_url,
+        checkout_session_id: data.data.id,
+      },
+    };
+  }
+
+  const response = await fetch(params.checkoutEndpoint, {
+    method: "POST",
+    headers: params.checkoutHeaders,
+    body: JSON.stringify({
+      amount: 150,
+      description: params.description,
+      referenceNumber: params.referenceNumber,
+      paymentMethods: params.paymentMethods,
+      successUrl: params.successUrl,
+      cancelUrl: params.cancelUrl,
+      metadata: params.metadata,
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      data,
+      error:
+        data.error ||
+        data.errors?.[0]?.detail ||
+        "Failed to create PayMongo checkout",
+    };
+  }
+
+  return {
+    ok: true,
+    data,
+  };
+}
+
+async function createAppointmentCode(tx: TransactionClient) {
   const today = todayCodePH();
   const count = await tx.appointment.count();
   return `APT-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
-async function createSaleCode(tx: any) {
+async function createSaleCode(tx: TransactionClient) {
   const today = todayCodePH();
   const count = await tx.sale.count();
   return `TRX-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
-async function createPaymentCode(tx: any) {
+async function createPaymentCode(tx: TransactionClient) {
   const today = todayCodePH();
   const count = await tx.payment.count();
   return `PAY-${today}-${String(count + 1).padStart(4, "0")}`;
@@ -39,8 +165,13 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
-    const cartItems = body.cartItems;
+    const cartItems = body.cartItems as AppointmentCartItem[];
     const downPayment = Number(body.downPayment || 150);
+    const paymentMethods = Array.isArray(body.paymentMethods)
+      ? body.paymentMethods.filter((method: unknown) => typeof method === "string")
+      : typeof body.paymentMethod === "string"
+      ? [body.paymentMethod]
+      : [];
 
     if (!Array.isArray(cartItems) || cartItems.length === 0) {
       return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
@@ -49,6 +180,18 @@ export async function POST(req: NextRequest) {
     if (downPayment !== 150) {
       return NextResponse.json(
         { error: "Invalid downpayment amount" },
+        { status: 400 }
+      );
+    }
+
+    if (
+      paymentMethods.length === 0 ||
+      paymentMethods.some(
+        (method: string) => !ALLOWED_PAYMONGO_METHODS.includes(method)
+      )
+    ) {
+      return NextResponse.json(
+        { error: "Invalid payment method" },
         { status: 400 }
       );
     }
@@ -76,7 +219,7 @@ export async function POST(req: NextRequest) {
         throw new Error("Missing barber");
       }
 
-      const serviceIds = cartItems.map((item: any) => item.serviceId);
+      const serviceIds = cartItems.map((item) => item.serviceId);
       const uniqueServiceIds = [...new Set(serviceIds)] as string[];
 
       const services = await tx.service.findMany({
@@ -88,13 +231,13 @@ export async function POST(req: NextRequest) {
       });
 
       if (services.length !== uniqueServiceIds.length) {
-        const foundIds = new Set(services.map((service: any) => service.id));
+        const foundIds = new Set(services.map((service) => service.id));
         const missingIds = uniqueServiceIds.filter((id) => !foundIds.has(id));
 
         throw new Error(`Services not found: ${missingIds.join(", ")}`);
       }
 
-      const subtotal = cartItems.reduce((sum: number, item: any) => {
+      const subtotal = cartItems.reduce((sum, item) => {
         return sum + Number(item.servicePrice || 0);
       }, 0);
 
@@ -116,7 +259,7 @@ export async function POST(req: NextRequest) {
       >[] = [];
 
       for (const item of cartItems) {
-        const service = services.find((s: any) => s.id === item.serviceId);
+        const service = services.find((s) => s.id === item.serviceId);
 
         if (!service) {
           throw new Error("Service not found");
@@ -161,7 +304,6 @@ export async function POST(req: NextRequest) {
           discount: 0,
           method: null,
           status: "PENDING",
-          paymongoCheckoutUrl: PAYMONGO_TEST_LINK,
         },
       });
 
@@ -172,9 +314,81 @@ export async function POST(req: NextRequest) {
       };
     });
 
+    const checkoutEndpoint = getCreateCheckoutUrl();
+
+    if (!checkoutEndpoint) {
+      return NextResponse.json(
+        { error: "PayMongo checkout function is not configured" },
+        { status: 500 }
+      );
+    }
+
+    const checkoutHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      checkoutHeaders.apikey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      checkoutHeaders.Authorization = `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`;
+    }
+
+    const appOrigin = req.headers.get("origin") || req.nextUrl.origin;
+    const checkoutSuccessUrl = `${appOrigin}/myAppointments?payment=success&saleId=${encodeURIComponent(
+      result.sale.id
+    )}&saleCode=${encodeURIComponent(result.sale.saleCode)}`;
+    const checkoutCancelUrl = `${appOrigin}/myAppointments?payment=cancel&saleId=${encodeURIComponent(
+      result.sale.id
+    )}&saleCode=${encodeURIComponent(result.sale.saleCode)}`;
+
+    const checkoutResult = await createPayMongoCheckout({
+      checkoutEndpoint,
+      checkoutHeaders,
+      description: "Appointment Downpayment",
+      referenceNumber: result.sale.saleCode,
+      paymentMethods,
+      successUrl: checkoutSuccessUrl,
+      cancelUrl: checkoutCancelUrl,
+      metadata: {
+        saleId: result.sale.id,
+        saleCode: result.sale.saleCode,
+        paymentId: result.payment.id,
+        customerId: result.sale.customerId,
+      },
+    });
+
+    const checkoutData = checkoutResult.data;
+
+    if (!checkoutResult.ok || !checkoutData?.checkout_url) {
+      console.error("PAYMONGO CHECKOUT ERROR:", checkoutData);
+
+      return NextResponse.json(
+        {
+          error:
+            checkoutResult.error ||
+            "Failed to create PayMongo checkout",
+        },
+        { status: 502 }
+      );
+    }
+
+    await db.payment.update({
+      where: {
+        id: result.payment.id,
+      },
+      data: {
+        paymongoCheckoutUrl: checkoutData.checkout_url,
+        paymongoCheckoutSessionId:
+          checkoutData.checkout_session_id || checkoutData.checkoutSessionId,
+      },
+    });
+
     return NextResponse.json({
       ok: true,
-      checkoutUrl: PAYMONGO_TEST_LINK,
+      checkoutUrl: checkoutData.checkout_url,
+      checkoutSessionId:
+        checkoutData.checkout_session_id || checkoutData.checkoutSessionId,
+      saleId: result.sale.id,
+      saleCode: result.sale.saleCode,
       sale: result.sale,
       payment: result.payment,
       appointments: result.appointments,

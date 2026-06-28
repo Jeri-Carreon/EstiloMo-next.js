@@ -30,6 +30,7 @@ import StarIcon from "@mui/icons-material/Star";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import PaymentsIcon from "@mui/icons-material/Payments";
 import BookmarkBorderIcon from "@mui/icons-material/BookmarkBorder";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -118,6 +119,7 @@ export default function MyAppointmentsPage() {
   const [imageOpen, setImageOpen] = useState(false);
   const [imageTitle, setImageTitle] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [bookingSuccessOpen, setBookingSuccessOpen] = useState(false);
 
   const loadHistory = async () => {
     try {
@@ -170,6 +172,46 @@ export default function MyAppointmentsPage() {
     };
 
     init();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const currentUrl = new URL(window.location.href);
+    const paymentResult = currentUrl.searchParams.get("payment");
+    const saleId = currentUrl.searchParams.get("saleId");
+    const saleCode = currentUrl.searchParams.get("saleCode");
+
+    if (paymentResult === "success" && (saleId || saleCode)) {
+      window.history.replaceState({}, "", "/myAppointments");
+
+      const timer = window.setInterval(async () => {
+        try {
+          const params = new URLSearchParams();
+          if (saleId) params.set("saleId", saleId);
+          if (saleCode) params.set("saleCode", saleCode);
+          params.set("confirmReturn", "1");
+
+          const res = await fetch(`/api/appointment/payment-status?${params}`);
+          const data = await res.json();
+
+          if (res.ok && data.isScheduled) {
+            window.clearInterval(timer);
+            window.localStorage.removeItem("estilomoPendingCheckout");
+            await loadHistory();
+            setBookingSuccessOpen(true);
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      }, 2000);
+
+      return () => window.clearInterval(timer);
+    }
+
+    if (paymentResult === "cancel") {
+      window.history.replaceState({}, "", "/myAppointments");
+    }
   }, []);
 
   const filteredHistory = useMemo(() => {
@@ -1063,6 +1105,73 @@ export default function MyAppointmentsPage() {
           ) : (
             <Typography align="center">No image available.</Typography>
           )}
+        </Box>
+      </Dialog>
+
+      <Dialog
+        open={bookingSuccessOpen}
+        onClose={() => setBookingSuccessOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: 3,
+              m: { xs: 2, sm: 3 },
+            },
+          },
+        }}
+      >
+        <Box
+          sx={{
+            p: { xs: 3, sm: 4 },
+            textAlign: "center",
+            bgcolor: "#fff",
+          }}
+        >
+          <Box
+            sx={{
+              width: 88,
+              height: 88,
+              borderRadius: "50%",
+              bgcolor: "#f1f1f1",
+              mx: "auto",
+              mb: 2.5,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <CheckCircleIcon sx={{ fontSize: 58, color: "#2ebd4f" }} />
+          </Box>
+
+          <Typography
+            sx={{
+              fontSize: { xs: 24, sm: 28 },
+              fontWeight: 1000,
+              color: "#09a84f",
+              lineHeight: 1.15,
+              mb: 3,
+            }}
+          >
+            Appointment Succesfully Booked
+          </Typography>
+
+          <Button
+            onClick={() => setBookingSuccessOpen(false)}
+            sx={{
+              bgcolor: "#f4b400",
+              color: "#111",
+              borderRadius: 10,
+              px: 5,
+              py: 1.2,
+              textTransform: "none",
+              fontWeight: 900,
+              "&:hover": { bgcolor: "#e0a800" },
+            }}
+          >
+            OK
+          </Button>
         </Box>
       </Dialog>
 
