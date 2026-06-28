@@ -16,7 +16,8 @@ import TextField from "@mui/material/TextField";
 import Paper from "@mui/material/Paper";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
-import DeleteIcon from "@mui/icons-material/Delete";
+import PersonOffIcon from "@mui/icons-material/PersonOff";
+import PersonIcon from "@mui/icons-material/Person";
 import EditIcon from "@mui/icons-material/Edit";
 import ErrorIcon from "@mui/icons-material/Error";
 import Button from "@mui/material/Button";
@@ -481,13 +482,18 @@ export default function AdminPage() {
 
                       <IconButton
                         size="small"
-                        color={user.isActive ? "error" : "success"}
+                        color={user.isActive ? "warning" : "success"}
                         onClick={() => {
                           setSelectedUser(user);
                           setOpenDel(true);
                         }}
+                        title={user.isActive ? "Deactivate User" : "Activate User"}
                       >
-                        <DeleteIcon fontSize="small" />
+                        {user.isActive ? (
+                          <PersonOffIcon fontSize="small" />
+                        ) : (
+                          <PersonIcon fontSize="small" />
+                        )}
                       </IconButton>
                     </TableCell>
                   </TableRow>

@@ -194,27 +194,30 @@ export default function BarberStep({
             onClick={onCartClick}
             disabled={cartCount === 0}
             sx={{
-              backgroundColor: '#fff',
+              bgcolor: '#fff',
+              border: '1px solid #ddd',
               borderRadius: '50%',
               width: 48,
               height: 48,
-              position: 'relative',
-              '&:hover': { backgroundColor: '#f5f5f5' },
+              flexShrink: 0,
+              '&:hover': {
+                bgcolor: '#f5f5f5',
+              },
               '&.Mui-disabled': {
-                backgroundColor: '#ddd',
+                bgcolor: '#ddd',
                 color: '#999',
               },
             }}
           >
-            <ShoppingCartIcon sx={{ color: cartCount === 0 ? '#999' : '#111' }} />
-
             <Badge
               badgeContent={cartCount}
               color="error"
+              overlap="circular"
+              anchorOrigin={{
+                vertical: 'top',
+                horizontal: 'right',
+              }}
               sx={{
-                position: 'absolute',
-                top: 5,
-                right: 5,
                 '& .MuiBadge-badge': {
                   fontWeight: 900,
                   fontSize: 11,
@@ -222,7 +225,14 @@ export default function BarberStep({
                   height: 18,
                 },
               }}
-            />
+            >
+              <ShoppingCartIcon
+                sx={{
+                  fontSize: 28,
+                  color: cartCount === 0 ? '#999' : '#111',
+                }}
+              />
+            </Badge>
           </IconButton>
         </Box>
 

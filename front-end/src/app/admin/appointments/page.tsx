@@ -503,7 +503,26 @@ export default function AppointmentsPage() {
 
       const data = await response.json();
 
-      setAvailableTimes(data?.availableTimes ?? []);
+     const times = data?.availableTimes ?? [];
+
+    setAvailableTimes(times);
+
+    if (times.length === 0) {
+      setUnavailableDates((prev) => {
+        const updated = new Set(prev);
+        updated.add(formattedDate);
+        return updated;
+      });
+
+      setAddForm((prev) => ({
+        ...prev,
+        appointmentDate: '',
+        startMinutes: '',
+        endMinutes: '',
+      }));
+
+      setSelectedTime(null);
+    }
       setSelectedTime(null);
     } catch (error) {
       console.error(error);
@@ -1529,7 +1548,7 @@ export default function AppointmentsPage() {
                         <Box
                           key={index}
                           onClick={() => {
-                            if (date && !isPastDate && !isUnavailable) {
+                            if (date && !isPastDate && !isUnavailable && addForm.serviceId) {
                               setSelectedAddDate(date);
                               setSelectedTime(null);
 

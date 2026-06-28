@@ -12,6 +12,11 @@ type ChatbotSetting = {
   options?: unknown;
 };
 
+type BarberOption = {
+  id: string;
+  name: string;
+};
+
 const protectedKeys = ["greeting", "fallback"];
 
 const starterOptions: ChatbotSetting[] = [
@@ -36,8 +41,7 @@ const starterOptions: ChatbotSetting[] = [
   {
     key: "barber_availability",
     label: "Barber Availability",
-    response:
-      "Barber availability depends on the selected date and time. Please check the appointment page for the available schedule.",
+    response: "Pick a barber to show availability.",
   },
   {
     key: "social_media",
@@ -67,6 +71,7 @@ async function readJsonSafe(res: Response) {
 
 export default function AdminChatbotPage() {
   const [settings, setSettings] = useState<ChatbotSetting[]>([]);
+  const [barbers, setBarbers] = useState<BarberOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -84,17 +89,29 @@ export default function AdminChatbotPage() {
       setLoading(true);
       setMessage("");
 
-      const res = await fetch("/api/admin/chatbot", {
-        cache: "no-store",
-      });
+      const [settingsRes, barbersRes] = await Promise.all([
+        fetch("/api/admin/chatbot", {
+          cache: "no-store",
+        }),
+        fetch("/api/chatbot/barbers", {
+          cache: "no-store",
+        }),
+      ]);
 
-      const data = await readJsonSafe(res);
+      const settingsData = await readJsonSafe(settingsRes);
+      const barbersData = await readJsonSafe(barbersRes);
 
-      if (!res.ok) {
-        throw new Error(data?.error || "Failed to load chatbot settings.");
+      if (!settingsRes.ok) {
+        throw new Error(
+          settingsData?.error || "Failed to load chatbot settings."
+        );
       }
 
-      setSettings(Array.isArray(data) ? data : []);
+      setSettings(Array.isArray(settingsData) ? settingsData : []);
+
+      if (barbersRes.ok && barbersData?.ok && Array.isArray(barbersData.barbers)) {
+        setBarbers(barbersData.barbers);
+      }
     } catch (error) {
       console.error("LOAD CHATBOT SETTINGS ERROR:", error);
       setMessage("Failed to load chatbot settings.");
@@ -485,6 +502,59 @@ export default function AdminChatbotPage() {
                 backgroundColor: "#fff",
               }}
             />
+
+            {item.key === "barber_availability" && (
+              <div style={{ marginTop: 14 }}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    marginBottom: 8,
+                  }}
+                >
+                  Dynamic Barber Options
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(220px, 1fr))",
+                    gap: 10,
+                  }}
+                >
+                  {barbers.length > 0 ? (
+                    barbers.map((barber, index) => (
+                      <div
+                        key={barber.id}
+                        style={{
+                          backgroundColor: "#fff",
+                          padding: "10px 12px",
+                          fontSize: 13,
+                        }}
+                      >
+                        {index + 1}. {barber.name}
+                      </div>
+                    ))
+                  ) : (
+                    <div
+                      style={{
+                        backgroundColor: "#fff",
+                        padding: "10px 12px",
+                        fontSize: 13,
+                        color: "#777",
+                      }}
+                    >
+                      No barbers found.
+                    </div>
+                  )}
+                </div>
+
+                <p style={{ fontSize: 12, color: "#666", marginTop: 8 }}>
+                  These are pulled automatically from the Barber Management
+                  records and schedules.
+                </p>
+              </div>
+            )}
           </div>
         ))}
 

@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { logLoyaltySettingsUpdated } from "@/lib/securityLogEvents";
 
 export async function GET() {
   try {
-    const user = await getAdminUser()
+    const user = await getAdminUser();
+
     if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -45,6 +46,7 @@ export async function GET() {
           stickers: Math.min(card.stars, 10),
           maxStickers: 10,
           status: card.status,
+          fiveRewardRedeemed: card.fiveRewardRedeemed,
         };
       })
     );
@@ -81,7 +83,8 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   try {
-    const user = await getAdminUser()
+    const user = await getAdminUser();
+
     if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -128,6 +131,8 @@ export async function PUT(req: Request) {
         },
       });
     }
+
+    await logLoyaltySettingsUpdated(req, user);
 
     return NextResponse.json({ settings });
   } catch (error) {

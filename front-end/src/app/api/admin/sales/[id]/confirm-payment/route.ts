@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-
 import { getAdminUser } from "@/lib/supabase/getUser";
 
 type LoyaltyRewardType = "NONE" | "FIFTY_PERCENT" | "FREE";
@@ -26,7 +25,8 @@ export async function PUT(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getAdminUser()
+    const user = await getAdminUser();
+
     if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -127,7 +127,7 @@ export async function PUT(
       loyaltyRewardType !== "FIFTY_PERCENT"
     ) {
       return NextResponse.json(
-        { error: "Customer is not eligible for the 50% discount reward." },
+        { error: "Customer has already redeemed the 50% discount reward." },
         { status: 400 }
       );
     }
@@ -217,7 +217,7 @@ export async function PUT(
             customerName: `${sale.customer.firstName} ${sale.customer.lastName}`,
             message:
               loyaltyRewardType === "FREE"
-                ? `Free reward redeemed. Loyalty card reset to 1 sticker.`
+                ? "Free reward redeemed. Loyalty card reset to 1 sticker."
                 : loyaltyRewardType === "FIFTY_PERCENT"
                 ? `50% reward redeemed. Sticker ${updatedStars} recorded.`
                 : `Sticker ${updatedStars} earned from ${sale.saleCode}.`,
@@ -225,6 +225,44 @@ export async function PUT(
         });
       }
     });
+
+    await logPaymentReceived(req, user, sale.saleCode);
+
+    const customerName = `${sale.customer.firstName} ${sale.customer.lastName}`;
+
+    if (loyaltyCard) {
+      await logLoyaltyStickerEarned(
+        req,
+        user,
+        customerName,
+        updatedStars,
+        sale.saleCode
+      );
+
+      if (loyaltyRewardType === "FIFTY_PERCENT") {
+        await logLoyaltyRewardRedeemed(
+          req,
+          user,
+          customerName,
+          "50%",
+          sale.saleCode
+        );
+      }
+
+      if (loyaltyRewardType === "FREE") {
+        await logLoyaltyRewardRedeemed(
+          req,
+          user,
+          customerName,
+          "100%",
+          sale.saleCode
+        );
+      }
+    }
+
+    if (discount > 0) {
+      await logDiscountApplied(req, user, sale.saleCode);
+    }
 
     return NextResponse.json({
       success: true,

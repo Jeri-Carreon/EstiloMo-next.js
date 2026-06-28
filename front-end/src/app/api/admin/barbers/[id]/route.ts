@@ -1,15 +1,14 @@
-import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-
-import { getAdminUser } from '@/lib/supabase/getUser';
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { getAdminUser } from "@/lib/supabase/getUser";
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  const ampm = h >= 12 ? 'PM' : 'AM';
+  const ampm = h >= 12 ? "PM" : "AM";
   const hour = h % 12 || 12;
 
-  return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
+  return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
 export async function GET(
@@ -17,15 +16,20 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const dbUser = await getAdminUser()
-    if (!dbUser || !["OWNER", "RECEPTIONIST", "BARBER"].includes(dbUser.role)) {
-       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const dbUser = await getAdminUser();
+
+    if (
+      !dbUser ||
+      !["OWNER", "RECEPTIONIST", "BARBER"].includes(dbUser.role)
+    ) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+
     const { id } = await params;
 
     if (!id) {
       return NextResponse.json(
-        { error: 'Missing barber id' },
+        { error: "Missing barber id" },
         { status: 400 }
       );
     }
@@ -41,19 +45,19 @@ export async function GET(
         payment: true,
         afterServicePhotos: {
           orderBy: {
-            createdAt: 'desc',
+            createdAt: "desc",
           },
         },
       },
       orderBy: [
         {
-          appointmentDate: 'desc',
+          appointmentDate: "desc",
         },
         {
-          startMinutes: 'desc',
+          startMinutes: "desc",
         },
         {
-          createdAt: 'desc',
+          createdAt: "desc",
         },
       ],
     });
@@ -73,21 +77,21 @@ export async function GET(
         customerCode: appointment.customer.customerCode,
         name: [appointment.customer.firstName, appointment.customer.lastName]
           .filter(Boolean)
-          .join(' '),
+          .join(" "),
       },
 
       schedule: {
-        date: appointment.appointmentDate.toLocaleDateString('en-US', {
-          month: 'numeric',
-          day: 'numeric',
-          year: 'numeric',
+        date: appointment.appointmentDate.toLocaleDateString("en-US", {
+          month: "numeric",
+          day: "numeric",
+          year: "numeric",
         }),
         startTime: minutesToTime(appointment.startMinutes),
         endTime: minutesToTime(appointment.endMinutes),
-        formatted: `${appointment.appointmentDate.toLocaleDateString('en-US', {
-          month: 'long',
-          day: 'numeric',
-          year: 'numeric',
+        formatted: `${appointment.appointmentDate.toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
         })} ${minutesToTime(appointment.startMinutes)} - ${minutesToTime(
           appointment.endMinutes
         )}`,
@@ -102,14 +106,14 @@ export async function GET(
         id: appointment.barber.id,
         name: [appointment.barber.firstName, appointment.barber.lastName]
           .filter(Boolean)
-          .join(' '),
+          .join(" "),
       },
 
       payment: {
         id: appointment.payment?.id || null,
         amount: appointment.payment?.amount ?? appointment.service.price ?? 0,
         downPayment: appointment.payment?.downPayment ?? 150,
-        method: appointment.payment?.method || 'GCASH',
+        method: appointment.payment?.method || "GCASH",
         screenshotUrl: appointment.payment?.screenshotUrl || null,
         proofUrl: appointment.payment?.screenshotUrl || null,
       },
@@ -123,11 +127,11 @@ export async function GET(
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('FETCH BARBER APPOINTMENTS ERROR:', error);
+    console.error("FETCH BARBER APPOINTMENTS ERROR:", error);
 
     return NextResponse.json(
       {
-        error: 'Failed to fetch barber appointments',
+        error: "Failed to fetch barber appointments",
         details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }

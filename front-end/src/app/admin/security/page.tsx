@@ -11,13 +11,14 @@ import IconButton from "@mui/material/IconButton";
 import CircularProgress from "@mui/material/CircularProgress";
 
 import SearchIcon from "@mui/icons-material/Search";
-import FilterListIcon from "@mui/icons-material/FilterList";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import MenuItem from "@mui/material/MenuItem";
 
 type SecurityLog = {
   id: string;
   userName: string | null;
+  userRole: string | null;
   section: string;
   action: string;
   createdAt: string;
@@ -48,13 +49,19 @@ export default function SecurityPage() {
   const [totalPages, setTotalPages] = useState(1);
 
   const [loading, setLoading] = useState(true);
+  const [sectionFilter, setSectionFilter] = useState("ALL");
+  const [roleFilter, setRoleFilter] = useState("ALL");
 
   async function loadLogs() {
     try {
       setLoading(true);
 
       const res = await fetch(
-        `/api/admin/security?search=${encodeURIComponent(search)}&page=${page}`
+        `/api/admin/security?search=${encodeURIComponent(
+          search
+        )}&section=${encodeURIComponent(sectionFilter)}&role=${encodeURIComponent(
+          roleFilter
+        )}&page=${page}`
       );
 
       const data = await res.json();
@@ -79,7 +86,7 @@ export default function SecurityPage() {
     }, 300);
 
     return () => clearTimeout(timeout);
-  }, [search, page]);
+  }, [search, sectionFilter, page]);
 
   const start = total === 0 ? 0 : (page - 1) * 5 + 1;
   const end = Math.min(page * 5, total);
@@ -133,34 +140,44 @@ export default function SecurityPage() {
         }}
         />
 
-        <Button
-          variant="outlined"
-          startIcon={<FilterListIcon />}
+        <TextField
+          select
+          size="small"
+          value={roleFilter}
+          onChange={(e) => {
+            setRoleFilter(e.target.value);
+            setPage(1);
+          }}
           sx={{
-            height: 38,
-            px: 2,
-            borderRadius: "8px",
-            borderColor: "#e0e0e0",
-            color: "#888",
-            bgcolor: "#fff",
-            textTransform: "none",
-            fontWeight: 600,
+            width: 190,
+            "& .MuiOutlinedInput-root": {
+              height: 38,
+              borderRadius: "8px",
+              bgcolor: "#fff",
+            },
           }}
         >
-          Filter
-        </Button>
+          <MenuItem value="ALL">All Sections</MenuItem>
+          <MenuItem value="Authentication">Authentication</MenuItem>
+          <MenuItem value="Appointments">Appointments</MenuItem>
+          <MenuItem value="Customers">Customers</MenuItem>
+          <MenuItem value="Staff">Staff</MenuItem>
+          <MenuItem value="Sales">Sales</MenuItem>
+          <MenuItem value="Loyalty Card">Loyalty Card</MenuItem>
+          <MenuItem value="System">System</MenuItem>
+        </TextField>
       </Box>
 
       <Box>
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: "170px 150px 150px 180px 1fr",
+            gridTemplateColumns: "160px 130px 150px 130px 170px 1fr",
             py: 1.5,
             borderBottom: "1px solid #e5e5e5",
           }}
         >
-          {["Date", "Time", "User", "Section", "Action"].map((item) => (
+          {["Date", "Time", "User", "Role", "Section", "Action"].map((item) => (
             <Typography
               key={item}
               sx={{
@@ -188,7 +205,7 @@ export default function SecurityPage() {
               key={log.id}
               sx={{
                 display: "grid",
-                gridTemplateColumns: "170px 150px 150px 180px 1fr",
+                gridTemplateColumns: "160px 130px 150px 130px 170px 1fr",
                 py: 2,
                 borderBottom: "1px solid #e5e5e5",
               }}
@@ -203,6 +220,10 @@ export default function SecurityPage() {
 
               <Typography sx={{ fontSize: 14, color: "#222", fontWeight: 700 }}>
                 {log.userName || "Unknown"}
+              </Typography>
+
+              <Typography sx={{ fontSize: 14, color: "#222", fontWeight: 700 }}>
+                {log.userRole || "Unknown"}
               </Typography>
 
               <Typography sx={{ fontSize: 14, color: "#222", fontWeight: 700 }}>

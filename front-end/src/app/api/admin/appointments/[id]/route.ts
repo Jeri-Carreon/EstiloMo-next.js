@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
-
-import {
-  logAppointmentEdited,
-  logAppointmentCancelled,
-} from "@/lib/securityLogEvents";
+import { logAppointmentEdited, logAppointmentCancelled, logAfterServicePhotoUploaded, } from "@/lib/securityLogEvents";
 
 async function createUniqueCode(prefix: string) {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -188,6 +184,12 @@ export async function PUT(
           imageUrl: afterServicePhotoUrl,
         },
       });
+
+      await logAfterServicePhotoUploaded(
+        req,
+        user,
+        existingAppointment.appointmentCode
+      );
     }
 
     const updatedAppointment = await db.appointment.findUnique({

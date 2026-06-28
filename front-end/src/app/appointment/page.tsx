@@ -12,6 +12,7 @@ import IconButton from '@mui/material/IconButton';
 import Divider from '@mui/material/Divider';
 
 import DeleteIcon from '@mui/icons-material/Delete';
+import CloseIcon from '@mui/icons-material/Close';
 
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -50,6 +51,7 @@ export interface AppointmentData {
 
 interface ConfirmAppointmentResponse {
   error?: string;
+  checkoutUrl?: string;
 }
 
 function formatTime(minutes: number) {
@@ -73,7 +75,6 @@ function formatDate(date: string) {
 
 export default function AppointmentPage() {
   const [currentStep, setCurrentStep] = useState(0);
-  const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
   const [successOpen, setSuccessOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -219,35 +220,28 @@ export default function AppointmentPage() {
 
   const downPayment = 150;
 
+  const PAYMONGO_TEST_LINK =
+  'https://pm.link/org-BA17dRCb7nm1wKHos2XqdoSo/test/gv92X8d';
+
   const handleConfirm = async () => {
     if (appointmentData.cartItems.length === 0) {
       showWarning('Empty Cart', 'Your cart is empty.');
       return;
     }
 
-    if (!paymentScreenshot) {
-      showWarning(
-        'Missing Payment Screenshot',
-        'Please upload your payment screenshot.'
-      );
-      return;
-    }
-
     try {
       setLoading(true);
 
-      const formData = new FormData();
-      formData.append('downPayment', String(downPayment));
-      formData.append('totalPrice', String(totalPrice));
-      formData.append('cartItems', JSON.stringify(appointmentData.cartItems));
-
-      if (paymentScreenshot) {
-        formData.append('paymentScreenshot', paymentScreenshot);
-      }
-
       const res = await fetch('/api/appointment/confirm', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          downPayment,
+          totalPrice,
+          cartItems: appointmentData.cartItems,
+        }),
       });
 
       const text = await res.text();
@@ -272,7 +266,7 @@ export default function AppointmentPage() {
         return;
       }
 
-      setSuccessOpen(true);
+      window.location.href = data.checkoutUrl || PAYMONGO_TEST_LINK;
     } catch (error) {
       console.error(error);
       showWarning('Something Went Wrong', 'Something went wrong.');
@@ -333,8 +327,6 @@ export default function AppointmentPage() {
           prevStep={prevStep}
           totalPrice={totalPrice}
           downPayment={downPayment}
-          paymentScreenshot={paymentScreenshot}
-          setPaymentScreenshot={setPaymentScreenshot}
           handleConfirm={handleConfirm}
           loading={loading}
         />
@@ -369,9 +361,38 @@ export default function AppointmentPage() {
             minWidth: 0,
           }}
         >
-          <Typography sx={{ fontSize: { xs: 20, sm: 24 }, fontWeight: 900, mb: 2 }}>
-            Your Booking Cart
-          </Typography>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              mb: 2,
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: { xs: 20, sm: 24 },
+                fontWeight: 900,
+              }}
+            >
+              Your Booking Cart
+            </Typography>
+
+            <IconButton
+              onClick={() => setCartOpen(false)}
+              sx={{
+                color: '#555',
+                border: '1px solid #ddd',
+                width: 38,
+                height: 38,
+                '&:hover': {
+                  backgroundColor: '#f5f5f5',
+                },
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
 
           {appointmentData.cartItems.length === 0 ? (
             <Typography sx={{ color: '#666' }}>Your cart is empty.</Typography>

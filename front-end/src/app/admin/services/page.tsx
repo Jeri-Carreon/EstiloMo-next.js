@@ -472,7 +472,24 @@ export default function ServicesPage() {
             setSortOrder(e.target.value as "asc" | "desc" | "");
             setPage(1);
           }}
-          sx={{ width: 200, bgcolor: "#fff" }}
+          slotProps={{
+            select: {
+              displayEmpty: true,
+              renderValue: (value) => {
+                if (!value) return "Default Order";
+                if (value === "asc") return "Sort Order (Asc)";
+                return "Sort Order (Desc)";
+              },
+            },
+          }}
+          sx={{
+            width: 240,
+            bgcolor: "#fff",
+            "& .MuiSelect-select": {
+              display: "flex",
+              alignItems: "center",
+            },
+          }}
         >
           <MenuItem value="">Default Order</MenuItem>
           <MenuItem value="asc">Sort Order (Asc)</MenuItem>
