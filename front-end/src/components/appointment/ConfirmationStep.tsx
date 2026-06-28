@@ -5,6 +5,7 @@ import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import CheckIcon from '@mui/icons-material/Check';
+import PaymentIcon from '@mui/icons-material/Payment';
 
 import type { AppointmentData } from '@/app/appointment/page';
 
@@ -15,8 +16,6 @@ interface ConfirmationStepProps {
   prevStep: () => void;
   totalPrice: number;
   downPayment: number;
-  paymentScreenshot: File | null;
-  setPaymentScreenshot: React.Dispatch<React.SetStateAction<File | null>>;
   loading: boolean;
   handleConfirm: () => void;
 }
@@ -45,11 +44,11 @@ export default function ConfirmationStep({
   prevStep,
   totalPrice,
   downPayment,
-  paymentScreenshot,
-  setPaymentScreenshot,
   loading,
   handleConfirm,
 }: ConfirmationStepProps) {
+  const remainingBalance = Math.max(totalPrice - downPayment, 0);
+
   return (
     <Box
       sx={{
@@ -96,8 +95,7 @@ export default function ConfirmationStep({
                     height: { xs: 28, md: 34 },
                     flexShrink: 0,
                     borderRadius: '50%',
-                    backgroundColor:
-                      completed || active ? '#f4b400' : '#777',
+                    backgroundColor: completed || active ? '#f4b400' : '#777',
                     color: '#000',
                     display: 'flex',
                     alignItems: 'center',
@@ -178,173 +176,132 @@ export default function ConfirmationStep({
                 <Typography
                   sx={{ fontWeight: 900, fontSize: { xs: 22, sm: 26 }, mb: 1 }}
                 >
-                  Deposit to Secure your Slot!
+                  Pay ₱{downPayment.toFixed(2)} Downpayment to Secure Your Slot
                 </Typography>
 
                 <Typography sx={{ color: '#666', fontWeight: 700, mb: 3 }}>
-                  Send your downpayment, then upload a screenshot of your payment.
+                  You will be redirected to PayMongo to pay the downpayment. No screenshot upload is needed.
                 </Typography>
 
                 <Box
                   sx={{
-                    display: 'grid',
-                    gridTemplateColumns: { xs: '1fr', md: '1fr 320px' },
-                    gap: 3,
-                    alignItems: 'start',
-                    minWidth: 0,
+                    backgroundColor: '#f4f4f4',
+                    border: '1px solid #bbb',
+                    borderRadius: 2,
+                    p: { xs: 2, sm: 3 },
+                    mb: 3,
                   }}
                 >
-                  <Box sx={{ minWidth: 0 }}>
+                  <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
                     <Box
                       sx={{
-                        border: '1px solid #bbb',
-                        borderRadius: 1,
-                        px: 2,
-                        py: 1.2,
-                        mb: 2,
-                      }}
-                    >
-                      <Typography
-                        sx={{ color: '#888', fontWeight: 900, fontSize: 13 }}
-                      >
-                        Mobile No.
-                      </Typography>
-
-                      <Typography sx={{ fontWeight: 900, fontSize: 18 }}>
-                        09273763938
-                      </Typography>
-                    </Box>
-
-                    <Box
-                      sx={{
-                        border: '1px solid #bbb',
-                        borderRadius: 1,
-                        px: 2,
-                        py: 1.2,
-                        mb: 3,
-                      }}
-                    >
-                      <Typography
-                        sx={{ color: '#888', fontWeight: 900, fontSize: 13 }}
-                      >
-                        Name
-                      </Typography>
-
-                      <Typography
-                        sx={{
-                          fontWeight: 900,
-                          fontSize: { xs: 16, sm: 18 },
-                          overflowWrap: 'anywhere',
-                        }}
-                      >
-                        (The Barbs Bro) Carlo Glenn C. Yoldi
-                      </Typography>
-                    </Box>
-
-                    <Typography sx={{ color: '#666', fontWeight: 800, mb: 1 }}>
-                      Screenshot of ₱{downPayment.toFixed(2)} DP (REQUIRED)
-                    </Typography>
-
-                    <Button
-                      component="label"
-                      sx={{
-                        backgroundColor: '#ddd',
+                        width: 52,
+                        height: 52,
+                        borderRadius: '50%',
+                        backgroundColor: '#f4b400',
                         color: '#111',
-                        borderRadius: 10,
-                        maxWidth: '100%',
-                        px: 3,
-                        py: 1,
-                        textTransform: 'none',
-                        fontWeight: 900,
-                        boxShadow: '0 3px 5px rgba(0,0,0,0.2)',
-                        '&:hover': { backgroundColor: '#ccc' },
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
                       }}
                     >
-                      {paymentScreenshot
-                        ? paymentScreenshot.name
-                        : 'Upload Payment Screenshot'}
+                      <PaymentIcon />
+                    </Box>
 
-                      <input
-                        hidden
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          setPaymentScreenshot(e.target.files?.[0] || null);
-                        }}
-                      />
-                    </Button>
-
-                    <Box sx={{ mt: 3 }}>
-                      <Typography sx={{ fontWeight: 900 }}>
-                        Downpayment amount: ₱{downPayment.toFixed(2)}
+                    <Box>
+                      <Typography sx={{ fontWeight: 900, fontSize: 18 }}>
+                        Secure PayMongo Checkout
                       </Typography>
-
-                      <Typography
-                        sx={{
-                          color: '#666',
-                          fontWeight: 700,
-                          fontSize: 13,
-                          mt: 1,
-                        }}
-                      >
-                        Downpayments are non-refundable in case of cancellation.
-                      </Typography>
-
-                      <Typography
-                        sx={{
-                          color: '#666',
-                          fontWeight: 700,
-                          fontSize: 13,
-                          mt: 1,
-                        }}
-                      >
-                        Arriving more than 30 minutes late will be considered a
-                        &quot;No-show&quot;.
+                      <Typography sx={{ color: '#666', fontWeight: 700 }}>
+                        Supports available PayMongo payment channels.
                       </Typography>
                     </Box>
+                  </Stack>
+                </Box>
+
+                <Stack spacing={1.5}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 2,
+                      borderBottom: '1px solid #ddd',
+                      pb: 1,
+                    }}
+                  >
+                    <Typography sx={{ fontWeight: 800 }}>Total Price</Typography>
+                    <Typography sx={{ fontWeight: 900 }}>
+                      ₱{totalPrice.toFixed(2)}
+                    </Typography>
                   </Box>
 
                   <Box
                     sx={{
-                      backgroundColor: '#f4f4f4',
-                      border: '1px solid #bbb',
-                      borderRadius: 2,
-                      p: 2,
-                      textAlign: 'center',
-                      minWidth: 0,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 2,
+                      borderBottom: '1px solid #ddd',
+                      pb: 1,
                     }}
                   >
-                    <Typography sx={{ fontWeight: 900, mb: 1 }}>
-                      Payment QR
+                    <Typography sx={{ fontWeight: 800 }}>
+                      PayMongo Downpayment
                     </Typography>
-
-                    <Box
-                      component="img"
-                      src="/images/qr.png"
-                      alt="Payment QR"
-                      sx={{
-                        width: { xs: '100%', sm: 280 },
-                        maxWidth: 280,
-                        height: 'auto',
-                        aspectRatio: '1 / 1',
-                        mx: 'auto',
-                        display: 'block',
-                        objectFit: 'contain',
-                        backgroundColor: '#fff',
-                        border: '2px solid #111',
-                        borderRadius: 1,
-                        p: 1,
-                      }}
-                    />
-
-                    <Typography sx={{ fontWeight: 800, fontSize: 13, mt: 1 }}>
-                      Scan to Pay
-                    </Typography>
-
-                    <Typography sx={{ color: '#666', fontSize: 12, mt: 0.5 }}>
-                      Downpayment Required
+                    <Typography sx={{ fontWeight: 900, color: '#21a44c' }}>
+                      ₱{downPayment.toFixed(2)}
                     </Typography>
                   </Box>
+
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 2,
+                    }}
+                  >
+                    <Typography sx={{ fontWeight: 800 }}>
+                      Remaining Balance
+                    </Typography>
+                    <Typography sx={{ fontWeight: 900 }}>
+                      ₱{remainingBalance.toFixed(2)}
+                    </Typography>
+                  </Box>
+                </Stack>
+
+                <Box sx={{ mt: 3 }}>
+                  <Typography
+                    sx={{
+                      color: '#666',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      mt: 1,
+                    }}
+                  >
+                    The remaining balance will be paid at the shop through Cash or GCash after the service.
+                  </Typography>
+
+                  <Typography
+                    sx={{
+                      color: '#666',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      mt: 1,
+                    }}
+                  >
+                    Downpayments are non-refundable in case of cancellation.
+                  </Typography>
+
+                  <Typography
+                    sx={{
+                      color: '#666',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      mt: 1,
+                    }}
+                  >
+                    Arriving more than 30 minutes late will be considered a &quot;No-show&quot;.
+                  </Typography>
                 </Box>
               </Box>
 
@@ -561,7 +518,7 @@ export default function ConfirmationStep({
               },
             }}
           >
-            {loading ? 'Confirming...' : 'Confirm'}
+            {loading ? 'Redirecting...' : `Pay ₱${downPayment.toFixed(2)} DP`}
           </Button>
         </Box>
       </Box>

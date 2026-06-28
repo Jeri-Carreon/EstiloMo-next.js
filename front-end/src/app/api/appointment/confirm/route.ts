@@ -1,46 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
 
-import { DateTime } from 'luxon';
-import { parsePHDateOnly, todayCodePH } from '@/lib/dateUtils';
+import { parsePHDateOnly, todayCodePH } from "@/lib/dateUtils";
 
-function getSupabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !key) {
-    throw new Error("Missing Supabase configuration");
-  }
-
-  return createAdminClient(url, key);
-}
-
+const PAYMONGO_TEST_LINK =
+  "https://pm.link/org-BA17dRCb7nm1wKHos2XqdoSo/test/gv92X8d";
 
 async function createAppointmentCode(tx: any) {
-  const today = todayCodePH(); // ← PH date
+  const today = todayCodePH();
   const count = await tx.appointment.count();
   return `APT-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 async function createSaleCode(tx: any) {
-  const today = todayCodePH(); // ← PH date
+  const today = todayCodePH();
   const count = await tx.sale.count();
   return `TRX-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 async function createPaymentCode(tx: any) {
-  const today = todayCodePH(); // ← PH date
+  const today = todayCodePH();
   const count = await tx.payment.count();
   return `PAY-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const supabaseAdmin = getSupabaseAdmin();
-    
     const supabase = await createClient();
+
     const {
       data: { user: authUser },
     } = await supabase.auth.getUser();
@@ -49,25 +37,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const formData = await req.formData();
+    const body = await req.json();
 
-    const cartItemsRaw = formData.get("cartItems");
-    const downPayment = Number(formData.get("downPayment") || 150);
-    const paymentScreenshot = formData.get("paymentScreenshot") as File | null;
-
-    if (!cartItemsRaw) {
-      return NextResponse.json({ error: "Missing cart items" }, { status: 400 });
-    }
-
-    const cartItems = JSON.parse(String(cartItemsRaw));
+    const cartItems = body.cartItems;
+    const downPayment = Number(body.downPayment || 150);
 
     if (!Array.isArray(cartItems) || cartItems.length === 0) {
       return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
     }
 
-    if (!paymentScreenshot) {
+    if (downPayment !== 150) {
       return NextResponse.json(
-        { error: "Payment screenshot is required" },
+        { error: "Invalid downpayment amount" },
         { status: 400 }
       );
     }
@@ -87,41 +68,6 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
-
-    const bytes = await paymentScreenshot.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    const fileExt = paymentScreenshot.name.split(".").pop() || "png";
-    const fileName = `${Date.now()}-${Math.random()
-      .toString(36)
-      .substring(2)}.${fileExt}`;
-
-    const filePath = `payments/${fileName}`;
-
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from("payment-screenshots")
-      .upload(filePath, buffer, {
-        contentType: paymentScreenshot.type,
-        upsert: false,
-      });
-
-    if (uploadError) {
-      console.error("SUPABASE UPLOAD ERROR:", uploadError);
-
-      return NextResponse.json(
-        {
-          error: "Failed to upload payment screenshot",
-          details: uploadError.message,
-        },
-        { status: 500 }
-      );
-    }
-
-    const { data: publicUrlData } = supabaseAdmin.storage
-      .from("payment-screenshots")
-      .getPublicUrl(filePath);
-
-    const screenshotUrl = publicUrlData.publicUrl;
 
     const result = await db.$transaction(async (tx) => {
       const firstItem = cartItems[0];
@@ -211,11 +157,11 @@ export async function POST(req: NextRequest) {
           saleId: sale.id,
           paymentCode: await createPaymentCode(tx),
           amount: subtotal,
-          downPayment,
+          downPayment: 150,
           discount: 0,
           method: null,
           status: "PENDING",
-          screenshotUrl,
+          paymongoCheckoutUrl: PAYMONGO_TEST_LINK,
         },
       });
 
@@ -228,6 +174,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      checkoutUrl: PAYMONGO_TEST_LINK,
       sale: result.sale,
       payment: result.payment,
       appointments: result.appointments,
