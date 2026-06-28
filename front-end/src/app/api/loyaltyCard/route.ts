@@ -10,21 +10,22 @@ type LoyaltyActivityWithSale = Awaited<
     id: string;
     saleCode: string;
     source: "BOOKING" | "WALKIN";
-    subtotal: any;
-    discount: any;
-    totalAmount: any;
+    subtotal: unknown;
+    discount: unknown;
+    totalAmount: unknown;
+    createdAt: Date;
     updatedAt: Date;
     barber: {
       firstName: string;
       lastName: string;
     } | null;
-    payment: any;
+    payment: unknown;
     items: {
       id: string;
       serviceId: string;
       quantity: number;
-      price: any;
-      subtotal: any;
+      price: unknown;
+      subtotal: unknown;
       service: {
         name: string;
       };
@@ -42,7 +43,7 @@ type LoyaltyActivityWithSale = Awaited<
       service: {
         name: string;
       };
-      payment: any;
+      payment: unknown;
     }[];
   } | null;
 };
@@ -127,7 +128,11 @@ export async function GET() {
       .filter((activity) => activity.Sale)
       .map((activity) => {
         const sale = activity.Sale!;
-        const appointment = sale.appointments[0];
+        const appointment =
+          sale.appointments.find(
+            (saleAppointment) => saleAppointment.id === activity.appointmentId
+          ) || sale.appointments[0];
+        const isBooking = sale.source === "BOOKING";
 
         const subtotal = Number(sale.subtotal || 0);
         const discount = Number(sale.discount || 0);
@@ -146,13 +151,14 @@ export async function GET() {
           id: appointment?.id || sale.id,
           saleId: sale.id,
           activityId: activity.id,
-          appointmentCode: appointment?.appointmentCode || sale.saleCode,
-          saleCode: sale.saleCode,
-          type: sale.source === "BOOKING" ? "Booking" : "Walk-in",
+          appointmentCode: appointment?.appointmentCode || null,
+          saleCode: sale.saleCode || null,
+          type: isBooking ? "Booking" : "Walk-in",
           stickerNumber: activity.stickerNumber,
           rewardUsed: activity.rewardUsed,
 
-          appointmentDate: appointment?.appointmentDate || sale.updatedAt,
+          appointmentDate:
+            isBooking ? appointment?.appointmentDate || null : sale.createdAt,
           startMinutes: appointment?.startMinutes || 0,
           endMinutes: appointment?.endMinutes || 0,
 

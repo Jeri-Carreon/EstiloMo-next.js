@@ -27,9 +27,13 @@ type CustomerLoyaltyCard = {
 };
 
 type CustomerInfo = {
+  id: string;
+  customerCode: string;
   firstName: string;
   lastName: string;
-  customerCode: string;
+  name: string;
+  email?: string | null;
+  mobileNumber: string;
 };
 
 type AppointmentService = {
@@ -43,9 +47,10 @@ type AppointmentService = {
 
 type Appointment = {
   id: string;
-  appointmentCode: string;
-  type: "Appointment" | "Walk-in";
-  appointmentDate: string;
+  saleCode: string | null;
+  appointmentCode: string | null;
+  type: "Booking" | "Walk-in";
+  appointmentDate: string | null;
   startMinutes: number;
   endMinutes: number;
   barber: {
@@ -75,12 +80,22 @@ function formatPeso(value: string | number | null | undefined) {
   })}`;
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("en-PH", {
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleDateString("en-US", {
     year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
+    month: "long",
+    day: "numeric",
   });
+}
+
+function displayCode(value?: string | null) {
+  return value || "—";
 }
 
 export default function CustomerLoyaltyCardPage() {
@@ -258,7 +273,7 @@ export default function CustomerLoyaltyCardPage() {
               maxWidth: { xs: 290, sm: "none" },
             }}
           >
-            Complete the stamps and get 50% and a Free Service
+            Complete the stamps and get 50% off Signature Haircut and Free Signature Haircut
           </Typography>
 
           <Box
@@ -385,27 +400,7 @@ export default function CustomerLoyaltyCardPage() {
                 {customerInfo.firstName} {customerInfo.lastName}
               </Typography>
 
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 1,
-                  width: { xs: "100%", sm: "auto" },
-                }}
-              >
-                <Typography
-                  sx={{
-                    fontWeight: 800,
-                    color: "#777",
-                    fontSize: { xs: 14, sm: 18 },
-                    minWidth: 0,
-                    overflowWrap: "anywhere",
-                  }}
-                >
-                  {selectedAppointment.appointmentCode}
-                </Typography>
-
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <IconButton
                   onClick={() => setSelectedAppointment(null)}
                   sx={{
@@ -424,9 +419,17 @@ export default function CustomerLoyaltyCardPage() {
               </Box>
             </Box>
 
+            <Typography variant="body2" sx={{ fontWeight: 800, fontSize: "1.1rem"}}>
+              {displayCode(selectedAppointment.saleCode)}
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 2, fontWeight: 800, fontSize: "1.1rem" }}>
+              {selectedAppointment.appointmentCode ? displayCode(selectedAppointment.appointmentCode) : "—"}
+            </Typography>
+
             <Box
               sx={{
                 bgcolor: "#fff",
+                mt: 1,
                 border: "1px solid #eee",
                 borderRadius: 1,
                 overflowX: "auto",
@@ -742,6 +745,42 @@ function RewardBox({
           {label}
         </Typography>
       )}
+    </Box>
+  );
+}
+
+function StampDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <Box
+      sx={{
+        bgcolor: "#f7f7f7",
+        border: "1px solid #ececec",
+        borderRadius: 1,
+        px: 1.5,
+        py: 1.2,
+        minWidth: 0,
+      }}
+    >
+      <Typography
+        sx={{
+          color: "#777",
+          fontSize: 12,
+          fontWeight: 800,
+          mb: 0.4,
+        }}
+      >
+        {label}
+      </Typography>
+      <Typography
+        sx={{
+          color: "#111",
+          fontSize: 13,
+          fontWeight: 900,
+          overflowWrap: "anywhere",
+        }}
+      >
+        {value}
+      </Typography>
     </Box>
   );
 }

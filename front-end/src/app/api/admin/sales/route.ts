@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
@@ -16,18 +17,62 @@ function minutesToTime(minutes: number) {
   return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
-async function createSaleCode() {
+/*function createCode(prefix: string) {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const count = await db.sale.count();
+  return `${prefix}-${today}-${randomUUID().slice(0, 8).toUpperCase()}`;
+}
 
-  return `TRX-${today}-${String(count + 1).padStart(4, "0")}`;
+async function createSaleCode() {
+  return createCode("TRX");
 }
 
 async function createPaymentCode() {
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const count = await db.payment.count();
+  return createCode("PAY");
+}
+*/
 
-  return `PAY-${today}-${String(count + 1).padStart(4, "0")}`;
+async function createUniqueCode(prefix: string) {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const fullPrefix = `${prefix}-${date}`;
+
+  // Only check the table relevant to this prefix
+  let existingCodes: Set<string>;
+
+  if (prefix === "APT") {
+    const rows = await db.appointment.findMany({
+      where: { appointmentCode: { startsWith: fullPrefix } },
+      select: { appointmentCode: true },
+    });
+    existingCodes = new Set(rows.map((r) => r.appointmentCode));
+  } else if (prefix === "TRX") {
+    const rows = await db.sale.findMany({
+      where: { saleCode: { startsWith: fullPrefix } },
+      select: { saleCode: true },
+    });
+    existingCodes = new Set(rows.map((r) => r.saleCode));
+  } else {
+    const rows = await db.payment.findMany({
+      where: { paymentCode: { startsWith: fullPrefix } },
+      select: { paymentCode: true },
+    });
+    existingCodes = new Set(rows.map((r) => r.paymentCode).filter(Boolean) as string[]);
+  }
+
+  // Try sequential first
+  const nextNumber = existingCodes.size + 1;
+  let candidate = `${fullPrefix}-${String(nextNumber).padStart(4, "0")}`;
+
+  // If collision, fall back to random loop
+  if (existingCodes.has(candidate)) {
+    let isUnique = false;
+    while (!isUnique) {
+      const randomNum = Math.floor(1000 + Math.random() * 9000);
+      candidate = `${fullPrefix}-${randomNum}`;
+      isUnique = !existingCodes.has(candidate);
+    }
+  }
+
+  return candidate;
 }
 
 export async function GET() {
@@ -181,26 +226,57 @@ export async function POST(req: Request) {
       );
     }
 
+    const customer = await db.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true, isActive: true },
+    });
+
+    if (!customer) {
+      return NextResponse.json({ error: "Selected customer was not found" }, { status: 400 });
+    }
+
+    if (!customer.isActive) {
+      return NextResponse.json(
+        { error: "Unavailable customer cannot be used for sales" },
+        { status: 400 }
+      );
+    }
+
+    if (barberId) {
+      const barber = await db.barber.findUnique({
+        where: { id: barberId },
+        select: { id: true },
+      });
+
+      if (!barber) {
+        return NextResponse.json({ error: "Selected barber was not found" }, { status: 400 });
+      }
+    }
+
     const parsedDiscount = Number(discount || 0);
-    const serviceIds = items.map((item: any) => item.serviceId);
+    const serviceIds = items.map((item: any) => item.serviceId).filter(Boolean);
+    const uniqueServiceIds = [...new Set(serviceIds)];
 
     const services = await db.service.findMany({
       where: {
-        id: { in: serviceIds },
+        id: { in: uniqueServiceIds },
         isAvailable: true,
       },
     });
 
-    if (services.length !== serviceIds.length) {
+    const foundIds = new Set(services.map((service) => service.id));
+    const missingIds = uniqueServiceIds.filter((id) => !foundIds.has(id));
+
+    if (missingIds.length > 0) {
       return NextResponse.json(
-        { error: "One or more services are invalid" },
+        { error: `One or more services are unavailable: ${missingIds.join(", ")}` },
         { status: 400 }
       );
     }
 
     const createdSale = await db.$transaction(async (tx) => {
-      const saleCode = await createSaleCode();
-      const paymentCode = await createPaymentCode();
+      const saleCode = await createUniqueCode("TRX");
+      const paymentCode = await createUniqueCode("PAY");
 
       let subtotal = 0;
 
@@ -301,7 +377,10 @@ export async function POST(req: Request) {
     console.error("CREATE SALE ERROR:", error);
 
     return NextResponse.json(
-      { error: "Failed to create sale" },
+      {
+        error: "Failed to create sale",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }

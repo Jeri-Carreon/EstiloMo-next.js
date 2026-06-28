@@ -3,11 +3,25 @@ import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
 import { logAppointmentEdited, logAppointmentCancelled, logAfterServicePhotoUploaded, } from "@/lib/securityLogEvents";
 
-function createCode(prefix: string) {
+async function createUniqueCode(prefix: string) {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const random = Math.floor(1000 + Math.random() * 9000);
 
-  return `${prefix}-${today}-${random}`;
+  for (let attempt = 0; attempt < 10000; attempt += 1) {
+    const random = String(attempt).padStart(4, "0");
+    const candidate = `${prefix}-${today}-${random}`;
+
+    const [appointmentExists, saleExists, paymentExists] = await Promise.all([
+      db.appointment.findUnique({ where: { appointmentCode: candidate }, select: { id: true } }),
+      db.sale.findUnique({ where: { saleCode: candidate }, select: { id: true } }),
+      db.payment.findUnique({ where: { paymentCode: candidate }, select: { id: true } }),
+    ]);
+
+    if (!appointmentExists && !saleExists && !paymentExists) {
+      return candidate;
+    }
+  }
+
+  throw new Error(`Unable to generate unique ${prefix} code after 10000 attempts`);
 }
 
 export async function PUT(
@@ -122,7 +136,7 @@ export async function PUT(
     if (data.status === "SCHEDULED" && !updatedBaseAppointment.saleId) {
       const sale = await db.sale.create({
         data: {
-          saleCode: createCode("TRX"),
+          saleCode: await createUniqueCode("TRX"),
           customerId: updatedBaseAppointment.customerId,
           barberId: updatedBaseAppointment.barberId,
           source: "BOOKING",
@@ -146,7 +160,7 @@ export async function PUT(
       await db.payment.create({
         data: {
           saleId: sale.id,
-          paymentCode: createCode("PAY"),
+          paymentCode: await createUniqueCode("PAY"),
           amount: Number(updatedBaseAppointment.service.price),
           downPayment: 0,
           discount: 0,
