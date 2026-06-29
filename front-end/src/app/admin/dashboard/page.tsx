@@ -297,12 +297,25 @@ export default function AdminDashboardPage() {
 
         // Peak hours: based on appointment start time, all statuses (matches original).
         const hourMap = new Map<string, number>();
+
+        // Completed appointments
         filteredAppts.forEach((appt: any) => {
           if (appt.startMinutes == null) return;
+          if (appt.status !== "COMPLETED") return;
           const h = Math.floor(appt.startMinutes / 60);
           const label = h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
           hourMap.set(label, (hourMap.get(label) ?? 0) + 1);
         });
+
+        // Paid walk-in sales
+        filteredSales
+          .filter((s: any) => s.source === "WALKIN" && s.status === "PAID")
+          .forEach((sale: any) => {
+            const date = new Date(sale.createdAt);
+            const h = date.getHours();
+            const label = h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
+            hourMap.set(label, (hourMap.get(label) ?? 0) + 1);
+          });
 
         // Walk-in sales — bucket by the hour they were created, since there's no separate appointment.
         const walkInSales = filteredSales.filter((s: any) => s.source === "WALKIN");
