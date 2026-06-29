@@ -42,13 +42,13 @@ export default async function AdminLayout({
   const currentRole = dbUser.role
 
   return (
-    <div style={{ display: 'flex' }}>
+    <div style={{ display: 'flex', width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
       <Sidebar
         currentName={currentName}
         currentRole={currentRole}
       />
 
-      <main style={{ flex: 1 }}>
+      <main style={{ flex: '1 1 0%', minWidth: 0, maxWidth: '100%', overflowX: 'hidden' }}>
         <Box sx={{ display: { xs: 'block', md: 'none' }, minHeight: 56 }} />
         {children}
       </main>

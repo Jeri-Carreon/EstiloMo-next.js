@@ -1,15 +1,25 @@
-import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { getAdminUser } from "@/lib/supabase/getUser";
 
-// normalize YYYY-MM-DD safely
+import {
+  logBarberAbsent,
+  logBarberAvailable,
+} from "@/lib/securityLogEvents";
+
 function toDate(dateStr: string) {
-  const [year, month, day] = dateStr.split('-').map(Number);
+  const [year, month, day] = dateStr.split("-").map(Number);
   return new Date(Date.UTC(year, month - 1, day));
 }
 
-// POST = create absence
 export async function POST(req: Request) {
   try {
+    const user = await getAdminUser();
+
+    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+      return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+    }
+
     const { barberId, date } = await req.json();
 
     if (!barberId || !date) {
@@ -17,6 +27,21 @@ export async function POST(req: Request) {
     }
 
     const normalized = toDate(date);
+
+    const barber = await db.barber.findUnique({
+      where: { id: barberId },
+      select: {
+        firstName: true,
+        lastName: true,
+      },
+    });
+
+    if (!barber) {
+      return NextResponse.json(
+        { ok: false, error: "Barber not found" },
+        { status: 404 }
+      );
+    }
 
     const exists = await db.barberAbsent.findFirst({
       where: {
@@ -32,16 +57,22 @@ export async function POST(req: Request) {
           date: normalized,
         },
       });
+
+      await logBarberAbsent(
+        req,
+        user,
+        `${barber.firstName} ${barber.lastName}`,
+        date
+      );
     }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error(err);
+    console.error("CREATE BARBER ABSENT ERROR:", err);
     return NextResponse.json({ ok: false }, { status: 500 });
   }
 }
 
-// GET = list absences
 export async function GET() {
   try {
     const absents = await db.barberAbsent.findMany({
@@ -65,9 +96,14 @@ export async function GET() {
   }
 }
 
-// DELETE = remove absence
 export async function DELETE(req: Request) {
   try {
+    const user = await getAdminUser();
+
+    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+      return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+    }
+
     const { barberId, date } = await req.json();
 
     if (!barberId || !date) {
@@ -76,6 +112,21 @@ export async function DELETE(req: Request) {
 
     const normalized = toDate(date);
 
+    const barber = await db.barber.findUnique({
+      where: { id: barberId },
+      select: {
+        firstName: true,
+        lastName: true,
+      },
+    });
+
+    if (!barber) {
+      return NextResponse.json(
+        { ok: false, error: "Barber not found" },
+        { status: 404 }
+      );
+    }
+
     await db.barberAbsent.deleteMany({
       where: {
         barberId,
@@ -83,9 +134,16 @@ export async function DELETE(req: Request) {
       },
     });
 
+    await logBarberAvailable(
+      req,
+      user,
+      `${barber.firstName} ${barber.lastName}`,
+      date
+    );
+
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error(err);
+    console.error("DELETE BARBER ABSENT ERROR:", err);
     return NextResponse.json({ ok: false }, { status: 500 });
   }
 }

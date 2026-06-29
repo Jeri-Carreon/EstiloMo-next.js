@@ -3,18 +3,30 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
 
+type MessageButton = {
+  label: string;
+  value: string;
+  type?: "barber";
+};
+
 type Message = {
   id: string;
   role: "user" | "bot";
   text: string;
   link?: string;
   linkLabel?: string;
+  buttons?: MessageButton[];
 };
 
 type ChatbotSetting = {
   key: string;
   label: string;
   response: string;
+};
+
+type BarberOption = {
+  id: string;
+  name: string;
 };
 
 const fallbackSettings: ChatbotSetting[] = [
@@ -42,8 +54,10 @@ export default function ChatbotFloatingButton() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [settings, setSettings] = useState<ChatbotSetting[]>(fallbackSettings);
+  const [barbers, setBarbers] = useState<BarberOption[]>([]);
   const [showQuickOptions, setShowQuickOptions] = useState(true);
   const [input, setInput] = useState("");
+  const [loadingBarbers, setLoadingBarbers] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -68,7 +82,21 @@ export default function ChatbotFloatingButton() {
       }
     };
 
+    const loadBarbers = async () => {
+      try {
+        const res = await fetch("/api/chatbot/barbers", { cache: "no-store" });
+        const data = await res.json();
+
+        if (res.ok && data?.ok && Array.isArray(data.barbers)) {
+          setBarbers(data.barbers);
+        }
+      } catch (error) {
+        console.error("LOAD CHATBOT BARBERS ERROR:", error);
+      }
+    };
+
     loadSettings();
+    loadBarbers();
   }, []);
 
   useEffect(() => {
@@ -97,6 +125,111 @@ export default function ChatbotFloatingButton() {
     );
   };
 
+  const isBarberAvailabilityOption = (text: string) => {
+    const value = normalizeText(text);
+
+    return (
+      value.includes("barber availability") ||
+      value.includes("barber schedule") ||
+      value.includes("availability") ||
+      value.includes("available barber")
+    );
+  };
+
+  const showBarberChoices = (userText?: string) => {
+    const userMessage: Message | null = userText
+      ? {
+          id: `${Date.now()}-user`,
+          role: "user",
+          text: userText,
+        }
+      : null;
+
+    const botMessage: Message = {
+      id: `${Date.now()}-bot`,
+      role: "bot",
+      text:
+        barbers.length > 0
+          ? "Pick a barber to show availability:"
+          : "No barbers are available right now.",
+      buttons: barbers.map((barber) => ({
+        label: barber.name,
+        value: barber.id,
+        type: "barber",
+      })),
+    };
+
+    setMessages((prev) =>
+      userMessage ? [...prev, userMessage, botMessage] : [...prev, botMessage]
+    );
+    setShowQuickOptions(false);
+  };
+
+  const handleBarberClick = async (barberId: string, barberName: string) => {
+    const userMessage: Message = {
+      id: `${Date.now()}-user`,
+      role: "user",
+      text: barberName,
+    };
+
+    setMessages((prev) => [
+      ...prev,
+      userMessage,
+      {
+        id: `${Date.now()}-loading`,
+        role: "bot",
+        text: "Checking barber schedule...",
+      },
+    ]);
+
+    setLoadingBarbers(true);
+
+    try {
+      const res = await fetch(`/api/chatbot/barbers/${barberId}/schedule`, {
+        cache: "no-store",
+      });
+
+      const data = await res.json();
+
+      setMessages((prev) => prev.filter((item) => !item.id.endsWith("-loading")));
+
+      if (!res.ok || !data?.ok) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `${Date.now()}-bot`,
+            role: "bot",
+            text: data?.error || "Failed to fetch barber schedule.",
+          },
+        ]);
+        return;
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `${Date.now()}-bot`,
+          role: "bot",
+          text: data.responseText,
+        },
+      ]);
+    } catch (error) {
+      console.error("FETCH BARBER SCHEDULE ERROR:", error);
+      setMessages((prev) => prev.filter((item) => !item.id.endsWith("-loading")));
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `${Date.now()}-bot`,
+          role: "bot",
+          text: "Failed to fetch barber schedule.",
+        },
+      ]);
+    } finally {
+      setLoadingBarbers(false);
+      setShowQuickOptions(false);
+    }
+  };
+
   const getBotReply = (text: string): Message => {
     const msg = normalizeText(text);
 
@@ -114,6 +247,24 @@ export default function ChatbotFloatingButton() {
     });
 
     if (directOptionMatch) {
+      if (
+        directOptionMatch.key === "barber_availability" ||
+        isBarberAvailabilityOption(directOptionMatch.label)
+      ) {
+        return {
+          id: `${Date.now()}-bot`,
+          role: "bot",
+          text:
+            directOptionMatch.response ||
+            "Pick a barber to show availability:",
+          buttons: barbers.map((barber) => ({
+            label: barber.name,
+            value: barber.id,
+            type: "barber",
+          })),
+        };
+      }
+
       const needsLink =
         directOptionMatch.key.includes("social") ||
         directOptionMatch.key.includes("receptionist") ||
@@ -126,6 +277,19 @@ export default function ChatbotFloatingButton() {
         text: directOptionMatch.response,
         link: needsLink ? facebookLink : undefined,
         linkLabel: needsLink ? "Open Facebook Page" : undefined,
+      };
+    }
+
+    if (isBarberAvailabilityOption(text)) {
+      return {
+        id: `${Date.now()}-bot`,
+        role: "bot",
+        text: "Pick a barber to show availability:",
+        buttons: barbers.map((barber) => ({
+          label: barber.name,
+          value: barber.id,
+          type: "barber",
+        })),
       };
     }
 
@@ -174,22 +338,6 @@ export default function ChatbotFloatingButton() {
     ) {
       const item = optionItems.find((option) =>
         normalizeText(option.label).includes("appointment")
-      );
-
-      return {
-        id: `${Date.now()}-bot`,
-        role: "bot",
-        text: item?.response || getResponse("fallback"),
-      };
-    }
-
-    if (
-      msg.includes("availability") ||
-      msg.includes("available") ||
-      msg.includes("barber")
-    ) {
-      const item = optionItems.find((option) =>
-        normalizeText(option.label).includes("availability")
       );
 
       return {
@@ -380,7 +528,7 @@ export default function ChatbotFloatingButton() {
                   style={{
                     alignSelf:
                       message.role === "user" ? "flex-end" : "flex-start",
-                    maxWidth: "78%",
+                    maxWidth: "80%",
                     padding: "11px 14px",
                     borderRadius:
                       message.role === "user"
@@ -419,6 +567,41 @@ export default function ChatbotFloatingButton() {
                     >
                       {message.linkLabel}
                     </a>
+                  )}
+
+                  {message.buttons && message.buttons.length > 0 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 8,
+                        marginTop: 10,
+                      }}
+                    >
+                      {message.buttons.map((button) => (
+                        <button
+                          key={button.value}
+                          type="button"
+                          disabled={loadingBarbers}
+                          onClick={() => {
+                            if (button.type === "barber") {
+                              handleBarberClick(button.value, button.label);
+                            }
+                          }}
+                          style={{
+                            border: "1px solid #ddd",
+                            borderRadius: 999,
+                            backgroundColor: "#fff",
+                            color: "#111",
+                            padding: "8px 12px",
+                            fontSize: 12,
+                            cursor: loadingBarbers ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          {button.label}
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
               ))}
@@ -547,46 +730,37 @@ export default function ChatbotFloatingButton() {
             backgroundColor: "#f8f8f8",
             color: "#111",
             cursor: "pointer",
-            boxShadow: "0 6px 16px rgba(0,0,0,.18)",
-            borderRadius: 16,
-
-            width: 260,
+            boxShadow: "0 5px 14px rgba(0,0,0,.18)",
+            borderRadius: 14,
+            padding: "10px 16px",
+            width: 230,
             maxWidth: "calc(100vw - 40px)",
-            height: 58,
-
+            height: 50,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: 12,
-
+            gap: 10,
             fontWeight: 600,
-            fontSize: 16,
-
+            fontSize: 14,
             transition: "all .2s ease",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "translateY(-2px)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "translateY(0)";
           }}
         >
           <ChatBubbleOutlineRoundedIcon
             sx={{
-              fontSize: 28,
+              fontSize: 24,
               color: "#444",
             }}
           />
 
-          <span>Chat with our chatbot!</span>
+          <span style={{ whiteSpace: "nowrap" }}>Chat with our chatbot!</span>
 
           <span
             style={{
               position: "absolute",
-              right: 24,
-              bottom: -8,
-              width: 18,
-              height: 18,
+              right: 22,
+              bottom: -7,
+              width: 14,
+              height: 14,
               background: "#f8f8f8",
               transform: "rotate(45deg)",
               borderRadius: 2,

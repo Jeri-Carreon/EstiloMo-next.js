@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { logSaleDeleted } from "@/lib/securityLogEvents";
 
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getAdminUser()
+    const user = await getAdminUser();
+
     if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -17,6 +18,11 @@ export async function DELETE(
 
     const sale = await db.sale.findUnique({
       where: { id },
+      select: {
+        id: true,
+        saleCode: true,
+        status: true,
+      },
     });
 
     if (!sale) {
@@ -33,6 +39,8 @@ export async function DELETE(
     await db.sale.delete({
       where: { id },
     });
+
+    await logSaleDeleted(req, user, sale.saleCode);
 
     return NextResponse.json({ success: true });
   } catch (error) {

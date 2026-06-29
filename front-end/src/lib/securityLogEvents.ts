@@ -26,6 +26,18 @@ export async function logLogin(req: Request, user: UserLike) {
   });
 }
 
+export async function logSignup(req: Request, user: UserLike) {
+  const meta = getRequestMeta(req);
+
+  await createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "Authentication",
+    action: "Created account",
+    ...meta,
+  });
+}
+
 export async function logLogout(req: Request, user: UserLike) {
   const meta = getRequestMeta(req);
 
@@ -222,53 +234,309 @@ export async function logCustomerDeactivated(
 }
 
 /* =========================
-   SERVICES
+   STAFF
 ========================= */
 
-export async function logServiceAdded(
+export async function logBarberCreated(
   req: Request,
   user: UserLike,
-  serviceName: string
+  barberName: string
 ) {
   const meta = getRequestMeta(req);
 
   await createSecurityLog({
     userId: user.id,
     userName: getUserName(user),
-    section: "Services",
-    action: `Added Service ${serviceName}`,
+    section: "Staff",
+    action: `Created Barber ${barberName}`,
     ...meta,
   });
 }
 
-export async function logServiceEdited(
+export async function logBarberUpdated(
   req: Request,
   user: UserLike,
-  serviceName: string
+  barberName: string
 ) {
   const meta = getRequestMeta(req);
 
   await createSecurityLog({
     userId: user.id,
     userName: getUserName(user),
-    section: "Services",
-    action: `Edited Service ${serviceName}`,
+    section: "Staff",
+    action: `Updated Barber ${barberName}`,
     ...meta,
   });
 }
 
-export async function logServiceArchived(
+export async function logScheduleUpdated(
   req: Request,
   user: UserLike,
-  serviceName: string
+  barberName: string
 ) {
   const meta = getRequestMeta(req);
 
   await createSecurityLog({
     userId: user.id,
     userName: getUserName(user),
-    section: "Services",
-    action: `Archived Service ${serviceName}`,
+    section: "Staff",
+    action: `Updated Availability for ${barberName}`,
+    ...meta,
+  });
+}
+
+export async function logAfterServicePhotoUploaded(
+  req: Request,
+  user: UserLike,
+  appointmentCode: string
+) {
+  const meta = getRequestMeta(req);
+
+  await createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "Appointments",
+    action: `Uploaded After Service Photo for Appointment ${appointmentCode}`,
+    ...meta,
+  });
+}
+
+export async function logBarberAbsent(
+  req: Request,
+  user: UserLike,
+  barberName: string,
+  date: string
+) {
+  const meta = getRequestMeta(req);
+
+  await createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "Staff",
+    action: `Marked ${barberName} absent on ${date}`,
+    ...meta,
+  });
+}
+
+export async function logBarberAvailable(
+  req: Request,
+  user: UserLike,
+  barberName: string,
+  date: string
+) {
+  const meta = getRequestMeta(req);
+
+  await createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "Staff",
+    action: `Removed absence for ${barberName} on ${date}`,
+    ...meta,
+  });
+}
+
+/* =========================
+   SALES
+========================= */
+
+export async function logSaleCreated(
+  req: Request,
+  user: UserLike,
+  saleCode: string
+) {
+  const meta = getRequestMeta(req);
+
+  await createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "Sales",
+    action: `Created Sale ${saleCode}`,
+    ...meta,
+  });
+}
+
+export async function logPaymentReceived(
+  req: Request,
+  user: UserLike,
+  saleCode: string
+) {
+  const meta = getRequestMeta(req);
+
+  await createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "Sales",
+    action: `Received Payment for ${saleCode}`,
+    ...meta,
+  });
+}
+
+export async function logDiscountApplied(
+  req: Request,
+  user: UserLike,
+  saleCode: string
+) {
+  const meta = getRequestMeta(req);
+
+  await createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "Sales",
+    action: `Applied Discount to ${saleCode}`,
+    ...meta,
+  });
+}
+
+export async function logRefund(
+  req: Request,
+  user: UserLike,
+  saleCode: string
+) {
+  const meta = getRequestMeta(req);
+
+  await createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "Sales",
+    action: `Refunded ${saleCode}`,
+    ...meta,
+  });
+}
+
+export async function logSaleCancelled(
+  req: Request,
+  user: UserLike,
+  saleCode: string
+) {
+  const meta = getRequestMeta(req);
+
+  await createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "Sales",
+    action: `Cancelled Sale ${saleCode}`,
+    ...meta,
+  });
+}
+
+export async function logSaleDeleted(
+  req: Request,
+  user: UserLike,
+  saleCode: string
+) {
+  const meta = getRequestMeta(req);
+
+  await createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "Sales",
+    action: `Deleted Sale ${saleCode}`,
+    ...meta,
+  });
+}
+
+/* =========================
+   LOYALTY CARD
+========================= */
+
+export async function logLoyaltyCardStatusUpdated(
+  req: Request,
+  user: UserLike,
+  customerName: string,
+  status: string
+) {
+  const meta = getRequestMeta(req);
+
+  await createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "Loyalty Card",
+    action: `Updated Loyalty Card Status for ${customerName} to ${status}`,
+    ...meta,
+  });
+}
+
+export async function logLoyaltyStickerEarned(
+  req: Request,
+  user: UserLike,
+  customerName: string,
+  stickerNumber: number,
+  saleCode: string
+) {
+  const meta = getRequestMeta(req);
+
+  await createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "Loyalty Card",
+    action: `Customer ${customerName} earned Sticker ${stickerNumber} from ${saleCode}`,
+    ...meta,
+  });
+}
+
+export async function logLoyaltyRewardRedeemed(
+  req: Request,
+  user: UserLike,
+  customerName: string,
+  rewardType: string,
+  saleCode: string
+) {
+  const meta = getRequestMeta(req);
+
+  await createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "Loyalty Card",
+    action: `Customer ${customerName} redeemed ${rewardType} reward from ${saleCode}`,
+    ...meta,
+  });
+}
+
+/* =========================
+   SYSTEM
+========================= */
+
+export async function logChatbotSettingsChanged(
+  req: Request,
+  user: UserLike
+) {
+  const meta = getRequestMeta(req);
+
+  await createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "System",
+    action: "Updated Chatbot Settings",
+    ...meta,
+  });
+}
+
+export async function logBusinessSettingsUpdated(
+  req: Request,
+  user: UserLike
+) {
+  const meta = getRequestMeta(req);
+
+  await createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "System",
+    action: "Updated Business Settings",
+    ...meta,
+  });
+}
+
+export async function logLoyaltySettingsUpdated(
+  req: Request,
+  user: UserLike
+) {
+  const meta = getRequestMeta(req);
+
+  await createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "System",
+    action: "Updated Loyalty Settings",
     ...meta,
   });
 }

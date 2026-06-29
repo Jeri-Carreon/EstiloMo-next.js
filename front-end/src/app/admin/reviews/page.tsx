@@ -434,28 +434,15 @@ export default function AdminReviewsPage() {
               </Typography>
 
               <Typography sx={{ mb: 1, fontWeight: 700 }}>
-                Barber: {getBarberName(viewReview)} | Rating:{" "}
-                <Rating
-                  value={Number(viewReview.rating)}
-                  precision={0.5}
-                  readOnly
-                  size="small"
-                />
+                Barber: {getBarberName(viewReview)}
               </Typography>
 
               <Typography sx={{ mb: 1, fontWeight: 700 }}>
-                Selected Service/s: {getServiceName(viewReview)} | Rating:{" "}
-                <Rating
-                  value={Number(viewReview.rating)}
-                  precision={0.5}
-                  readOnly
-                  size="small"
-                />
+                Selected Service/s: {getServiceName(viewReview)}
               </Typography>
 
               <Typography sx={{ mb: 1, fontWeight: 700 }}>
-                Date of Review:{" "}
-                {new Date(viewReview.createdAt).toLocaleDateString()}
+                Date of Review: {new Date(viewReview.createdAt).toLocaleDateString()}
               </Typography>
 
               <Typography sx={{ mb: 1, fontWeight: 700 }}>

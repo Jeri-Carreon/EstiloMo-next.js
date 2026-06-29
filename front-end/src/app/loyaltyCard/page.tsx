@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import Box from "@mui/material/Box";
@@ -100,7 +100,7 @@ function displayCode(value?: string | null) {
 
 export default function CustomerLoyaltyCardPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [loyaltyCard, setLoyaltyCard] =
     useState<CustomerLoyaltyCard | null>(null);
@@ -110,7 +110,7 @@ export default function CustomerLoyaltyCardPage() {
     useState<Appointment | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadLoyaltyCard = async () => {
+  const loadLoyaltyCard = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -137,7 +137,7 @@ export default function CustomerLoyaltyCardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
 
   useEffect(() => {
     const init = async () => {
@@ -151,7 +151,7 @@ export default function CustomerLoyaltyCardPage() {
           loadLoyaltyCard();
       };
         init();
-    }, []);
+    }, [loadLoyaltyCard, router, supabase]);
     
 
   if (loading) {
@@ -209,13 +209,15 @@ export default function CustomerLoyaltyCardPage() {
 
       <Box
         sx={{
-          minHeight: "calc(100vh - 120px)",
+          minHeight: "auto",
           bgcolor: "#fff",
           display: "flex",
           justifyContent: "center",
-          alignItems: "center",
-          px: 2,
-          py: { xs: 6, md: 9 },
+          alignItems: { xs: "flex-start", md: "center" },
+          px: { xs: 1.5, sm: 2 },
+          pt: { xs: 3, sm: 5, md: 7 },
+          pb: { xs: 2, sm: 3, md: 4 },
+          overflowX: "hidden",
         }}
       >
         <Paper
@@ -223,11 +225,12 @@ export default function CustomerLoyaltyCardPage() {
           sx={{
             width: "100%",
             maxWidth: 1050,
+            mx: "auto",
             minHeight: { xs: "auto", md: 560 },
             bgcolor: "#ffdc73",
             borderRadius: 1,
-            px: { xs: 3, sm: 5, md: 8 },
-            py: { xs: 5, md: 7 },
+            px: { xs: 2, sm: 5, md: 8 },
+            py: { xs: 3, sm: 5, md: 7 },
             color: "#000",
             position: "relative",
             display: "flex",
@@ -240,9 +243,10 @@ export default function CustomerLoyaltyCardPage() {
             sx={{
               textAlign: "center",
               fontWeight: 700,
-              fontSize: { xs: "1rem", md: "1.3rem" },
+              fontSize: { xs: "0.9rem", sm: "1rem", md: "1.3rem" },
               mb: 1,
               color: "#333",
+              overflowWrap: "anywhere",
             }}
           >
             {customerInfo.firstName} {customerInfo.lastName}
@@ -252,9 +256,9 @@ export default function CustomerLoyaltyCardPage() {
             sx={{
               textAlign: "center",
               fontWeight: 900,
-              fontSize: { xs: "2.6rem", sm: "3.5rem", md: "4.5rem" },
-              lineHeight: 1,
-              mb: 2,
+              fontSize: { xs: "2rem", sm: "3.5rem", md: "4.5rem" },
+              lineHeight: { xs: 1.05, sm: 1 },
+              mb: { xs: 1.5, sm: 2 },
             }}
           >
             Loyalty Card
@@ -263,8 +267,10 @@ export default function CustomerLoyaltyCardPage() {
           <Typography
             sx={{
               textAlign: "center",
-              fontSize: { xs: "0.95rem", md: "1.25rem" },
-              mb: { xs: 4, md: 5 },
+              fontSize: { xs: "0.85rem", sm: "0.95rem", md: "1.25rem" },
+              lineHeight: 1.35,
+              mb: { xs: 3, sm: 4, md: 5 },
+              maxWidth: { xs: 290, sm: "none" },
             }}
           >
             Complete the stamps and get 50% off Signature Haircut and Free Signature Haircut
@@ -274,17 +280,14 @@ export default function CustomerLoyaltyCardPage() {
             sx={{
               display: "grid",
               gridTemplateColumns: {
-                xs: "repeat(5, 56px)",
+                xs: "repeat(5, minmax(0, 1fr))",
                 sm: "repeat(5, 88px)",
                 md: "repeat(5, 110px)",
               },
-              gridTemplateRows: {
-                xs: "repeat(2, 56px)",
-                sm: "repeat(2, 88px)",
-                md: "repeat(2, 110px)",
-              },
-              columnGap: { xs: 1.5, sm: 2.5, md: 4 },
-              rowGap: { xs: 2, sm: 3, md: 4 },
+              width: "100%",
+              maxWidth: { xs: 330, sm: "none" },
+              columnGap: { xs: 1, sm: 2.5, md: 4 },
+              rowGap: { xs: 1.25, sm: 3, md: 4 },
               justifyContent: "center",
               alignItems: "center",
             }}
@@ -345,9 +348,10 @@ export default function CustomerLoyaltyCardPage() {
             sx={{
               width: "100%",
               textAlign: "right",
-              mt: 5,
+              mt: { xs: 3, sm: 5 },
               fontWeight: 800,
-              fontSize: "1rem",
+              fontSize: { xs: "0.85rem", sm: "1rem" },
+              overflowWrap: "anywhere",
             }}
           >
             {customerInfo.customerCode}
@@ -363,10 +367,12 @@ export default function CustomerLoyaltyCardPage() {
         slotProps={{
           paper: {
             sx: {
-              borderRadius: 2,
+              m: { xs: 1.5, sm: 3 },
+              borderRadius: 1,
               p: { xs: 2, sm: 3 },
-              width: "100%",
+              width: { xs: "calc(100% - 24px)", sm: "100%" },
               maxWidth: 980,
+              maxHeight: { xs: "calc(100% - 24px)", sm: "calc(100% - 64px)" },
               overflow: "hidden",
             },
           },
@@ -378,12 +384,19 @@ export default function CustomerLoyaltyCardPage() {
               sx={{
                 display: "flex",
                 justifyContent: "space-between",
-                alignItems: "center",
+                alignItems: { xs: "flex-start", sm: "center" },
                 gap: 2,
+                flexDirection: { xs: "column", sm: "row" },
                 mb: 2.5,
               }}
             >
-              <Typography sx={{ fontWeight: 900, fontSize: 18 }}>
+              <Typography
+                sx={{
+                  fontWeight: 900,
+                  fontSize: { xs: 17, sm: 18 },
+                  overflowWrap: "anywhere",
+                }}
+              >
                 {customerInfo.firstName} {customerInfo.lastName}
               </Typography>
 
@@ -420,6 +433,7 @@ export default function CustomerLoyaltyCardPage() {
                 border: "1px solid #eee",
                 borderRadius: 1,
                 overflowX: "auto",
+                display: { xs: "none", sm: "block" },
               }}
             >
               <Box sx={{ minWidth: 700 }}>
@@ -498,12 +512,63 @@ export default function CustomerLoyaltyCardPage() {
 
             <Box
               sx={{
-                mt: 3,
+                display: { xs: "flex", sm: "none" },
+                flexDirection: "column",
+                gap: 1.25,
+              }}
+            >
+              {selectedServices.map((service) => (
+                <Box
+                  key={service.id}
+                  sx={{
+                    border: "1px solid #eee",
+                    borderRadius: 1,
+                    p: 1.5,
+                    bgcolor: "#fff",
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontWeight: 900,
+                      lineHeight: 1.25,
+                      mb: 1.25,
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    {service.name}
+                  </Typography>
+
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: 1,
+                    }}
+                  >
+                    <DetailItem label="Type" value={selectedAppointment.type} />
+                    <DetailItem label="Qty" value={String(service.quantity)} />
+                    <DetailItem
+                      label="Date"
+                      value={formatDate(selectedAppointment.appointmentDate)}
+                    />
+                    <DetailItem
+                      align="right"
+                      label="Price"
+                      value={formatPeso(service.subtotal)}
+                    />
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+
+            <Box
+              sx={{
+                mt: { xs: 2, sm: 3 },
                 mx: "auto",
                 width: { xs: "100%", sm: 360 },
                 bgcolor: "#f7f7f7",
-                borderRadius: 2,
-                p: 2,
+                borderRadius: 1,
+                p: { xs: 1.5, sm: 2 },
               }}
             >
               <ReceiptRow
@@ -535,7 +600,9 @@ export default function CustomerLoyaltyCardPage() {
         )}
       </Dialog>
 
-      <Footer />
+      <Box sx={{ "& footer": { mt: { xs: 3, md: 4 } } }}>
+        <Footer />
+      </Box>
       <ChatbotFloatingButton />
     </>
   );
@@ -554,9 +621,10 @@ function StampBox({
     <Box
       onClick={onClick}
       sx={{
-        width: { xs: 56, sm: 88, md: 110 },
-        height: { xs: 56, sm: 88, md: 110 },
-        borderRadius: { xs: 2.5, md: 4 },
+        width: "100%",
+        height: { xs: "auto", sm: 88, md: 110 },
+        aspectRatio: "1 / 1",
+        borderRadius: { xs: 1.5, sm: 2.5, md: 4 },
         bgcolor: filled ? "#e8e8e8" : "#fff",
         display: "flex",
         justifyContent: "center",
@@ -572,8 +640,8 @@ function StampBox({
       {filled && (
         <Box
           sx={{
-            width: { xs: 34, sm: 48, md: 58 },
-            height: { xs: 34, sm: 48, md: 58 },
+            width: { xs: "58%", sm: 48, md: 58 },
+            height: { xs: "58%", sm: 48, md: 58 },
             borderRadius: "50%",
             bgcolor: "#111",
             display: "flex",
@@ -611,11 +679,12 @@ function RewardBox({
     <Box
       onClick={() => unlocked && appointment && onClick()}
       sx={{
-        width: { xs: 56, sm: 88, md: 110 },
-        height: { xs: 56, sm: 88, md: 110 },
-        borderRadius: { xs: 2.5, md: 4 },
+        width: "100%",
+        height: { xs: "auto", sm: 88, md: 110 },
+        aspectRatio: "1 / 1",
+        borderRadius: { xs: 1.5, sm: 2.5, md: 4 },
         bgcolor: unlocked ? "#e8e8e8" : "#fff",
-        border: { xs: "2px solid #111", md: "3px solid #111" },
+        border: { xs: "1.5px solid #111", sm: "2px solid #111", md: "3px solid #111" },
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
@@ -632,11 +701,12 @@ function RewardBox({
           sx={{
             fontWeight: 900,
             fontSize: {
-              xs: "0.65rem",
+              xs: "0.58rem",
               sm: "0.85rem",
               md: "1rem",
             },
             textTransform: "uppercase",
+            lineHeight: 1,
           }}
         >
           Redeemed
@@ -644,8 +714,8 @@ function RewardBox({
       ) : unlocked ? (
         <Box
           sx={{
-            width: { xs: 34, sm: 48, md: 58 },
-            height: { xs: 34, sm: 48, md: 58 },
+            width: { xs: "58%", sm: 48, md: 58 },
+            height: { xs: "58%", sm: 48, md: 58 },
             borderRadius: "50%",
             bgcolor: "#111",
             display: "flex",
@@ -665,10 +735,11 @@ function RewardBox({
         <Typography
           sx={{
             fontWeight: 900,
+            lineHeight: 1,
             fontSize:
               label === "FREE"
-                ? { xs: "0.85rem", sm: "1.25rem", md: "1.8rem" }
-                : { xs: "1rem", sm: "1.5rem", md: "2rem" },
+                ? { xs: "0.72rem", sm: "1.25rem", md: "1.8rem" }
+                : { xs: "0.85rem", sm: "1.5rem", md: "2rem" },
           }}
         >
           {label}
@@ -716,9 +787,39 @@ function StampDetail({ label, value }: { label: string; value: string }) {
 
 function ReceiptRow({ label, value }: { label: string; value: string }) {
   return (
-    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, mb: 1 }}>
       <Typography sx={{ fontWeight: 800, fontSize: 13 }}>{label}</Typography>
-      <Typography sx={{ fontWeight: 800, fontSize: 13 }}>{value}</Typography>
+      <Typography sx={{ fontWeight: 800, fontSize: 13, textAlign: "right" }}>
+        {value}
+      </Typography>
+    </Box>
+  );
+}
+
+function DetailItem({
+  label,
+  value,
+  align = "left",
+}: {
+  label: string;
+  value: string;
+  align?: "left" | "right";
+}) {
+  return (
+    <Box sx={{ minWidth: 0, textAlign: align }}>
+      <Typography sx={{ color: "#777", fontSize: 12, fontWeight: 800 }}>
+        {label}
+      </Typography>
+      <Typography
+        sx={{
+          fontWeight: 900,
+          fontSize: 13,
+          lineHeight: 1.25,
+          overflowWrap: "anywhere",
+        }}
+      >
+        {value}
+      </Typography>
     </Box>
   );
 }

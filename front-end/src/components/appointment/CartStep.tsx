@@ -5,6 +5,8 @@ import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
+import Badge from '@mui/material/Badge';
+
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
@@ -161,42 +163,58 @@ export default function CartStep({
           }}
         >
           <Typography
-            sx={{ fontWeight: 900, fontSize: { xs: 28, sm: 34 }, color: '#111' }}
+            sx={{
+              fontWeight: 900,
+              fontSize: { xs: 28, sm: 34 },
+              color: '#111',
+            }}
           >
             Cart
           </Typography>
 
           <IconButton
+            disabled={appointmentData.cartItems.length === 0}
             sx={{
-              backgroundColor: '#fff',
+              bgcolor: '#fff',
+              border: '1px solid #ddd',
               borderRadius: '50%',
               width: 48,
               height: 48,
-              position: 'relative',
-              '&:hover': { backgroundColor: '#f5f5f5' },
+              flexShrink: 0,
+              '&:hover': {
+                bgcolor: '#f5f5f5',
+              },
+              '&.Mui-disabled': {
+                bgcolor: '#ddd',
+                color: '#999',
+              },
             }}
           >
-            <ShoppingCartIcon sx={{ color: '#111' }} />
-
-            <Box
+            <Badge
+              badgeContent={appointmentData.cartItems.length}
+              color="error"
+              overlap="circular"
+              anchorOrigin={{
+                vertical: 'top',
+                horizontal: 'right',
+              }}
               sx={{
-                position: 'absolute',
-                top: 4,
-                right: 4,
-                width: 18,
-                height: 18,
-                borderRadius: '50%',
-                backgroundColor: '#ff2f2f',
-                color: '#fff',
-                fontSize: 11,
-                fontWeight: 900,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                '& .MuiBadge-badge': {
+                  fontWeight: 900,
+                  fontSize: 11,
+                  minWidth: 18,
+                  height: 18,
+                },
               }}
             >
-              {appointmentData.cartItems.length}
-            </Box>
+              <ShoppingCartIcon
+                sx={{
+                  fontSize: 28,
+                  color:
+                    appointmentData.cartItems.length === 0 ? '#999' : '#111',
+                }}
+              />
+            </Badge>
           </IconButton>
         </Box>
 
@@ -263,7 +281,14 @@ export default function CartStep({
                     {item.serviceName}
                   </Typography>
 
-                  <Typography sx={{ fontWeight: 800, fontSize: 13, color: '#666', mb: 3 }}>
+                  <Typography
+                    sx={{
+                      fontWeight: 800,
+                      fontSize: 13,
+                      color: '#666',
+                      mb: 3,
+                    }}
+                  >
                     Duration: {item.serviceDurationMinutes} mins
                   </Typography>
 

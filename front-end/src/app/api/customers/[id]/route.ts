@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { logCustomerUpdated, logCustomerDeactivated, } from "@/lib/securityLogEvents";
 
 export async function PUT(
   req: Request,
@@ -22,12 +23,14 @@ export async function PUT(
     }
 
     const { id } = await params;
+    console.log("PARAM ID:", id);
 
     if (!id) {
       return NextResponse.json({ error: "Missing customer id" }, { status: 400 });
     }
 
     const body = await req.json();
+    console.log("BODY:", body);
 
     let { firstName, lastName, mobileNumber, isActive } = body;
 
@@ -54,18 +57,57 @@ export async function PUT(
       return NextResponse.json({ error: "isActive must be boolean" }, { status: 400 });
     }
 
-    const existingMobile = await db.customer.findFirst({
-      where: { mobileNumber, NOT: { id } },
+    const currentCustomer = await db.customer.findFirst({
+      where: {
+        OR: [
+          { id },
+          { customerCode: id },
+          { userId: id },
+        ],
+      },
+      select: {
+        id: true,
+        mobileNumber: true,
+        isActive: true,
+      },
     });
+    console.log("FOUND CUSTOMER:", currentCustomer);
 
-    if (existingMobile) {
-      return NextResponse.json({ error: "Mobile number already exists" }, { status: 400 });
+    if (!currentCustomer) {
+      return NextResponse.json(
+        { error: "Customer not found" },
+        { status: 404 }
+      );
+    }
+
+    if (mobileNumber !== currentCustomer.mobileNumber) {
+      const existingMobile = await db.customer.findFirst({
+        where: {
+          mobileNumber,
+          NOT: { id: currentCustomer.id },
+        },
+      });
+
+      if (existingMobile) {
+        return NextResponse.json(
+          { error: "Mobile number already exists" },
+          { status: 400 }
+        );
+      }
     }
 
     const updatedCustomer = await db.customer.update({
-      where: { id },
+      where: { id: currentCustomer.id },
       data: { firstName, lastName, mobileNumber, isActive },
     });
+
+    const customerName = `${updatedCustomer.firstName} ${updatedCustomer.lastName}`;
+
+    if (currentCustomer.isActive === true && updatedCustomer.isActive === false) {
+      await logCustomerDeactivated(req, adminUser, customerName);
+    } else {
+      await logCustomerUpdated(req, adminUser, customerName);
+    }
 
     return NextResponse.json({
       ok: true,

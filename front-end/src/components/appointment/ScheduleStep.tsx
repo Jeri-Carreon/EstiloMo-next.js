@@ -148,8 +148,18 @@ export default function ScheduleStep({
 
       const data = await response.json();
 
-      setAvailableTimes(data?.availableTimes ?? []);
-      setSelectedTime(null);
+      const times = data?.availableTimes ?? [];
+
+    setAvailableTimes(times);
+    setSelectedTime(null);
+
+    if (times.length === 0) {
+      setUnavailableDates((prev) => {
+        const updated = new Set(prev);
+        updated.add(formattedDate);
+        return updated;
+      });
+    }
     } catch (error) {
       console.error(error);
       setAvailableTimes([]);
@@ -169,7 +179,7 @@ export default function ScheduleStep({
       const m = String(month.getMonth() + 1).padStart(2, '0');
 
       const response = await fetch(
-        `/api/admin/barbers/unavailable-dates?barberId=${appointmentData.barberId}&year=${year}&month=${m}`
+        `/api/admin/barbers/unavailable-dates?barberId=${appointmentData.barberId}&serviceId=${appointmentData.serviceId}&year=${year}&month=${m}`
       );
 
       const data = await response.json();
@@ -203,7 +213,7 @@ export default function ScheduleStep({
 
   useEffect(() => {
     fetchUnavailableDates(currentMonth);
-  }, [currentMonth, appointmentData.barberId]);
+  }, [currentMonth, appointmentData.barberId, appointmentData.serviceId]);
 
   return (
     <Box
@@ -303,7 +313,11 @@ export default function ScheduleStep({
           }}
         >
           <Typography
-            sx={{ fontWeight: 900, fontSize: { xs: 28, sm: 34 }, color: '#111' }}
+            sx={{
+              fontWeight: 900,
+              fontSize: { xs: 28, sm: 34 },
+              color: '#111',
+            }}
           >
             Schedule
           </Typography>
@@ -312,27 +326,30 @@ export default function ScheduleStep({
             onClick={onCartClick}
             disabled={cartCount === 0}
             sx={{
-              backgroundColor: '#fff',
+              bgcolor: '#fff',
+              border: '1px solid #ddd',
               borderRadius: '50%',
               width: 48,
               height: 48,
-              position: 'relative',
-              '&:hover': { backgroundColor: '#f5f5f5' },
+              flexShrink: 0,
+              '&:hover': {
+                bgcolor: '#f5f5f5',
+              },
               '&.Mui-disabled': {
-                backgroundColor: '#ddd',
+                bgcolor: '#ddd',
                 color: '#999',
               },
             }}
           >
-            <ShoppingCartIcon sx={{ color: cartCount === 0 ? '#999' : '#111' }} />
-
             <Badge
               badgeContent={cartCount}
               color="error"
+              overlap="circular"
+              anchorOrigin={{
+                vertical: 'top',
+                horizontal: 'right',
+              }}
               sx={{
-                position: 'absolute',
-                top: 5,
-                right: 5,
                 '& .MuiBadge-badge': {
                   fontWeight: 900,
                   fontSize: 11,
@@ -340,7 +357,14 @@ export default function ScheduleStep({
                   height: 18,
                 },
               }}
-            />
+            >
+              <ShoppingCartIcon
+                sx={{
+                  fontSize: 28,
+                  color: cartCount === 0 ? '#999' : '#111',
+                }}
+              />
+            </Badge>
           </IconButton>
         </Box>
 

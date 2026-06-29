@@ -1,0 +1,3 @@
+ALTER TABLE "Payment"
+ADD COLUMN IF NOT EXISTS "screenshotUrl" TEXT,
+ADD COLUMN IF NOT EXISTS "gcashRefNo" TEXT;
