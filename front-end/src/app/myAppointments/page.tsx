@@ -305,26 +305,6 @@ export default function MyAppointmentsPage() {
 
       <IconButton
         size="small"
-        aria-label="View payment screenshot"
-        disabled={!item.paymentScreenshotUrl}
-        onClick={() =>
-          openImagePreview("Payment Screenshot", item.paymentScreenshotUrl)
-        }
-        sx={{
-          bgcolor: item.paymentScreenshotUrl ? "#e5e5e5" : "#f1f1f1",
-          width: 34,
-          height: 34,
-          color: item.paymentScreenshotUrl ? "#555" : "#aaa",
-          "&:hover": {
-            bgcolor: item.paymentScreenshotUrl ? "#d4d4d4" : "#f1f1f1",
-          },
-        }}
-      >
-        <PaymentsIcon sx={{ fontSize: 18 }} />
-      </IconButton>
-
-      <IconButton
-        size="small"
         aria-label="View receipt"
         onClick={() => {
           setSelectedItem(item);

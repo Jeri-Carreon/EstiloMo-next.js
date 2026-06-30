@@ -255,24 +255,24 @@ model SaleItem {
 }
 
 model Payment {
-  id            String         @id @default(cuid())
-  appointmentId String?        @unique
-  amount        Decimal        @db.Decimal(10, 2)
-  downPayment   Decimal        @default(0) @db.Decimal(10, 2)
-  method        PaymentMethod?
-  status        PaymentStatus  @default(PENDING)
-  screenshotUrl String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  discount      Decimal        @default(0) @db.Decimal(10, 2)
-  paymentCode   String?        @unique
-  saleId        String?        @unique
-  gcashRefNo    String?
-  paymongoCheckoutSessionId String? @unique
+  id                        String         @id @default(cuid())
+  appointmentId             String?        @unique
+  amount                    Decimal        @db.Decimal(10, 2)
+  downPayment               Decimal        @default(0) @db.Decimal(10, 2)
+  method                    PaymentMethod?
+  status                    PaymentStatus  @default(PENDING)
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
+  discount                  Decimal        @default(0) @db.Decimal(10, 2)
+  paymentCode               String?        @unique
+  saleId                    String?        @unique
+  paymongoCheckoutSessionId String?        @unique
   paymongoPaymentId         String?
   paymongoCheckoutUrl       String?
-  appointment   Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  sale          Sale?          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  screenshotUrl             String?
+  gcashRefNo                String?
+  appointment               Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  sale                      Sale?          @relation(fields: [saleId], references: [id], onDelete: Cascade)
 }
 
 model LoyaltyCard {
@@ -380,9 +380,9 @@ enum PaymentMethod {
 
 enum PaymentStatus {
   PENDING
-  PARTIAL
   PAID
   REJECTED
+  PARTIAL
 }
 
 enum SaleSource {

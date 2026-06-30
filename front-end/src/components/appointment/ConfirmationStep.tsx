@@ -163,7 +163,11 @@ export default function ConfirmationStep({
           }}
         >
           <Typography
-            sx={{ fontWeight: 900, fontSize: { xs: 28, sm: 34 }, color: '#111' }}
+            sx={{
+              fontWeight: 900,
+              fontSize: { xs: 28, sm: 34 },
+              color: '#111',
+            }}
           >
             Confirmation
           </Typography>
@@ -190,13 +194,18 @@ export default function ConfirmationStep({
             >
               <Box sx={{ p: { xs: 2, sm: 3 }, flex: 1, minWidth: 0 }}>
                 <Typography
-                  sx={{ fontWeight: 900, fontSize: { xs: 22, sm: 26 }, mb: 1 }}
+                  sx={{
+                    fontWeight: 900,
+                    fontSize: { xs: 22, sm: 26 },
+                    mb: 1,
+                  }}
                 >
                   Pay ₱{downPayment.toFixed(2)} Downpayment to Secure Your Slot
                 </Typography>
 
                 <Typography sx={{ color: '#666', fontWeight: 700, mb: 3 }}>
-                  Choose your payment method, then pay through the PayMongo webview. No screenshot upload is needed.
+                  Choose your payment method, then pay through the PayMongo
+                  webview. No screenshot upload is needed.
                 </Typography>
 
                 <Box
@@ -208,7 +217,11 @@ export default function ConfirmationStep({
                     mb: 3,
                   }}
                 >
-                  <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+                  <Stack
+                    direction="row"
+                    spacing={2}
+                    sx={{ alignItems: 'center' }}
+                  >
                     <Box
                       sx={{
                         width: 52,
@@ -229,6 +242,7 @@ export default function ConfirmationStep({
                       <Typography sx={{ fontWeight: 900, fontSize: 18 }}>
                         Secure PayMongo Checkout
                       </Typography>
+
                       <Typography sx={{ color: '#666', fontWeight: 700 }}>
                         Card and e-wallet downpayments are processed securely.
                       </Typography>
@@ -248,6 +262,7 @@ export default function ConfirmationStep({
                     <InputLabel id="payment-type-label">
                       Payment Type
                     </InputLabel>
+
                     <Select
                       labelId="payment-type-label"
                       value={paymentType}
@@ -271,6 +286,7 @@ export default function ConfirmationStep({
                       <InputLabel id="ewallet-provider-label">
                         E-Wallet
                       </InputLabel>
+
                       <Select
                         labelId="ewallet-provider-label"
                         value={eWalletProvider}
@@ -291,55 +307,6 @@ export default function ConfirmationStep({
                   ) : null}
                 </Box>
 
-                <Stack spacing={1.5}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 2,
-                      borderBottom: '1px solid #ddd',
-                      pb: 1,
-                    }}
-                  >
-                    <Typography sx={{ fontWeight: 800 }}>Total Price</Typography>
-                    <Typography sx={{ fontWeight: 900 }}>
-                      ₱{totalPrice.toFixed(2)}
-                    </Typography>
-                  </Box>
-
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 2,
-                      borderBottom: '1px solid #ddd',
-                      pb: 1,
-                    }}
-                  >
-                    <Typography sx={{ fontWeight: 800 }}>
-                      PayMongo Downpayment
-                    </Typography>
-                    <Typography sx={{ fontWeight: 900, color: '#21a44c' }}>
-                      ₱{downPayment.toFixed(2)}
-                    </Typography>
-                  </Box>
-
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 2,
-                    }}
-                  >
-                    <Typography sx={{ fontWeight: 800 }}>
-                      Remaining Balance
-                    </Typography>
-                    <Typography sx={{ fontWeight: 900 }}>
-                      ₱{remainingBalance.toFixed(2)}
-                    </Typography>
-                  </Box>
-                </Stack>
-
                 <Box sx={{ mt: 3 }}>
                   <Typography
                     sx={{
@@ -349,7 +316,8 @@ export default function ConfirmationStep({
                       mt: 1,
                     }}
                   >
-                    The remaining balance will be paid at the shop through Cash or GCash after the service.
+                    The remaining balance will be paid at the shop through Cash
+                    or GCash after the service.
                   </Typography>
 
                   <Typography
@@ -371,31 +339,10 @@ export default function ConfirmationStep({
                       mt: 1,
                     }}
                   >
-                    Arriving more than 30 minutes late will be considered a &quot;No-show&quot;.
+                    Arriving more than 30 minutes late will be considered a
+                    &quot;No-show&quot;.
                   </Typography>
                 </Box>
-              </Box>
-
-              <Box
-                sx={{
-                  backgroundColor: '#b9e5c1',
-                  px: { xs: 2, sm: 3 },
-                  py: 2,
-                  display: 'flex',
-                  flexDirection: { xs: 'column', sm: 'row' },
-                  justifyContent: 'space-between',
-                  alignItems: { xs: 'flex-start', sm: 'center' },
-                  gap: 1,
-                  borderTop: '1px solid #999',
-                }}
-              >
-                <Typography sx={{ color: '#21a44c', fontWeight: 900 }}>
-                  Total Price
-                </Typography>
-
-                <Typography sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 900 }}>
-                  ₱ {totalPrice.toFixed(2)}
-                </Typography>
               </Box>
             </Box>
 
@@ -494,45 +441,62 @@ export default function ConfirmationStep({
                     mb: 2,
                   }}
                 >
-                  COST BREAKDOWN
+                  PAYMENT BREAKDOWN
                 </Typography>
 
-                {appointmentData.cartItems.map((item, index) => (
+                <Stack spacing={1.5}>
                   <Box
-                    key={`${item.serviceId}-${index}`}
                     sx={{
                       display: 'flex',
                       justifyContent: 'space-between',
                       gap: 2,
-                      mb: 1,
+                      borderBottom: '1px solid #ddd',
+                      pb: 1,
                     }}
                   >
-                    <Typography sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
-                      {item.serviceName}
+                    <Typography sx={{ fontWeight: 800 }}>
+                      Total Price
                     </Typography>
-                    <Typography>₱{item.servicePrice.toFixed(2)}</Typography>
+
+                    <Typography sx={{ fontWeight: 900 }}>
+                      ₱{totalPrice.toFixed(2)}
+                    </Typography>
                   </Box>
-                ))}
 
-                <Box sx={{ borderBottom: '1px solid #111', my: 1.5 }} />
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 2,
+                      borderBottom: '1px solid #ddd',
+                      pb: 1,
+                    }}
+                  >
+                    <Typography sx={{ fontWeight: 800 }}>
+                      PayMongo Downpayment
+                    </Typography>
 
-                <Box
-                  sx={{
-                    display: 'flex',
-                    flexDirection: { xs: 'column', sm: 'row' },
-                    justifyContent: 'space-between',
-                    alignItems: { xs: 'flex-start', sm: 'center' },
-                    gap: 1,
-                  }}
-                >
-                  <Typography sx={{ fontWeight: 900, fontSize: { xs: 20, sm: 24 } }}>
-                    Total Price
-                  </Typography>
+                    <Typography sx={{ fontWeight: 900, color: '#21a44c' }}>
+                      ₱{downPayment.toFixed(2)}
+                    </Typography>
+                  </Box>
 
-                  <Typography sx={{ fontWeight: 900, fontSize: { xs: 20, sm: 24 } }}>
-                    ₱{totalPrice.toFixed(2)}
-                  </Typography>
-                </Box>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 2,
+                    }}
+                  >
+                    <Typography sx={{ fontWeight: 800 }}>
+                      Remaining Balance
+                    </Typography>
+
+                    <Typography sx={{ fontWeight: 900 }}>
+                      ₱{remainingBalance.toFixed(2)}
+                    </Typography>
+                  </Box>
+                </Stack>
               </Box>
             </Box>
           </Box>

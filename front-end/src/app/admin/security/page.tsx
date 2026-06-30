@@ -5,20 +5,18 @@ import { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
-import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
 import IconButton from "@mui/material/IconButton";
 import CircularProgress from "@mui/material/CircularProgress";
+import MenuItem from "@mui/material/MenuItem";
 
 import SearchIcon from "@mui/icons-material/Search";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import MenuItem from "@mui/material/MenuItem";
 
 type SecurityLog = {
   id: string;
   userName: string | null;
-  userRole: string | null;
   section: string;
   action: string;
   createdAt: string;
@@ -43,14 +41,12 @@ function formatTime(date: string) {
 export default function SecurityPage() {
   const [logs, setLogs] = useState<SecurityLog[]>([]);
   const [search, setSearch] = useState("");
+  const [sectionFilter, setSectionFilter] = useState("ALL");
   const [page, setPage] = useState(1);
 
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-
   const [loading, setLoading] = useState(true);
-  const [sectionFilter, setSectionFilter] = useState("ALL");
-  const [roleFilter, setRoleFilter] = useState("ALL");
 
   async function loadLogs() {
     try {
@@ -59,9 +55,7 @@ export default function SecurityPage() {
       const res = await fetch(
         `/api/admin/security?search=${encodeURIComponent(
           search
-        )}&section=${encodeURIComponent(sectionFilter)}&role=${encodeURIComponent(
-          roleFilter
-        )}&page=${page}`
+        )}&section=${encodeURIComponent(sectionFilter)}&page=${page}`
       );
 
       const data = await res.json();
@@ -75,6 +69,9 @@ export default function SecurityPage() {
       setTotalPages(data.totalPages || 1);
     } catch (error) {
       console.error("LOAD SECURITY LOGS ERROR:", error);
+      setLogs([]);
+      setTotal(0);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
@@ -98,7 +95,7 @@ export default function SecurityPage() {
         bgcolor: "#fff",
         px: "62px",
         py: "46px",
-        position: "relative",
+        pb: "130px",
       }}
     >
       <Typography
@@ -106,50 +103,50 @@ export default function SecurityPage() {
           fontSize: "32px",
           fontWeight: 800,
           color: "#111",
-          mb: "6px",
+          mb: "14px",
         }}
       >
         Security Logs
       </Typography>
 
-      <Box sx={{ display: "flex", gap: 1.5, mb: 3.5 }}>
+      <Box sx={{ display: "flex", gap: 1.5, mb: 3.5, flexWrap: "wrap" }}>
         <TextField
-        size="small"
-        placeholder="Search action..."
-        value={search}
-        onChange={(e) => {
+          size="small"
+          placeholder="Search user, section, or action..."
+          value={search}
+          onChange={(e) => {
             setSearch(e.target.value);
             setPage(1);
-        }}
-        sx={{
+          }}
+          sx={{
             width: 360,
             "& .MuiOutlinedInput-root": {
-            height: 38,
-            borderRadius: "8px",
-            bgcolor: "#fff",
+              height: 38,
+              borderRadius: "8px",
+              bgcolor: "#fff",
             },
-        }}
-        slotProps={{
+          }}
+          slotProps={{
             input: {
-            startAdornment: (
+              startAdornment: (
                 <InputAdornment position="start">
-                <SearchIcon sx={{ color: "#999" }} />
+                  <SearchIcon sx={{ color: "#999" }} />
                 </InputAdornment>
-            ),
+              ),
             },
-        }}
+          }}
         />
 
         <TextField
           select
           size="small"
-          value={roleFilter}
+          value={sectionFilter}
           onChange={(e) => {
-            setRoleFilter(e.target.value);
+            setSectionFilter(e.target.value);
             setPage(1);
           }}
           sx={{
-            width: 190,
+            width: 210,
             "& .MuiOutlinedInput-root": {
               height: 38,
               borderRadius: "8px",
@@ -172,12 +169,12 @@ export default function SecurityPage() {
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: "160px 130px 150px 130px 170px 1fr",
+            gridTemplateColumns: "160px 130px 180px 190px 1fr",
             py: 1.5,
             borderBottom: "1px solid #e5e5e5",
           }}
         >
-          {["Date", "Time", "User", "Role", "Section", "Action"].map((item) => (
+          {["Date", "Time", "User", "Section", "Action"].map((item) => (
             <Typography
               key={item}
               sx={{
@@ -205,7 +202,7 @@ export default function SecurityPage() {
               key={log.id}
               sx={{
                 display: "grid",
-                gridTemplateColumns: "160px 130px 150px 130px 170px 1fr",
+                gridTemplateColumns: "160px 130px 180px 190px 1fr",
                 py: 2,
                 borderBottom: "1px solid #e5e5e5",
               }}
@@ -220,10 +217,6 @@ export default function SecurityPage() {
 
               <Typography sx={{ fontSize: 14, color: "#222", fontWeight: 700 }}>
                 {log.userName || "Unknown"}
-              </Typography>
-
-              <Typography sx={{ fontSize: 14, color: "#222", fontWeight: 700 }}>
-                {log.userRole || "Unknown"}
               </Typography>
 
               <Typography sx={{ fontSize: 14, color: "#222", fontWeight: 700 }}>
@@ -247,6 +240,8 @@ export default function SecurityPage() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          bgcolor: "#fff",
+          py: 1,
         }}
       >
         <Typography sx={{ fontSize: 18, color: "#111", fontWeight: 500 }}>
