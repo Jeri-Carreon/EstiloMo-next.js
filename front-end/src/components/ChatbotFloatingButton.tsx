@@ -58,6 +58,7 @@ export default function ChatbotFloatingButton() {
   const [showQuickOptions, setShowQuickOptions] = useState(true);
   const [input, setInput] = useState("");
   const [loadingBarbers, setLoadingBarbers] = useState(false);
+  const [loadingBot, setLoadingBot] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -95,8 +96,8 @@ export default function ChatbotFloatingButton() {
       }
     };
 
-    loadSettings();
-    loadBarbers();
+    void loadSettings();
+    void loadBarbers();
   }, []);
 
   useEffect(() => {
@@ -136,47 +137,58 @@ export default function ChatbotFloatingButton() {
     );
   };
 
-  const showBarberChoices = (userText?: string) => {
-    const userMessage: Message | null = userText
-      ? {
-          id: `${Date.now()}-user`,
-          role: "user",
-          text: userText,
-        }
-      : null;
+  const isServicesOption = (text: string) => {
+    const value = normalizeText(text);
 
-    const botMessage: Message = {
-      id: `${Date.now()}-bot`,
-      role: "bot",
-      text:
-        barbers.length > 0
-          ? "Pick a barber to show availability:"
-          : "No barbers are available right now.",
-      buttons: barbers.map((barber) => ({
-        label: barber.name,
-        value: barber.id,
-        type: "barber",
-      })),
-    };
-
-    setMessages((prev) =>
-      userMessage ? [...prev, userMessage, botMessage] : [...prev, botMessage]
+    return (
+      value.includes("service") ||
+      value.includes("services") ||
+      value.includes("price") ||
+      value.includes("prices") ||
+      value.includes("haircut") ||
+      value.includes("beard") ||
+      value.includes("hot oil") ||
+      value.includes("bleach") ||
+      value.includes("color") ||
+      value.includes("treatment") ||
+      value.includes("mask") ||
+      value.includes("scalp")
     );
-    setShowQuickOptions(false);
+  };
+
+  const fetchServicesText = async () => {
+    try {
+      const res = await fetch("/api/chatbot/services", {
+        cache: "no-store",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data?.ok) {
+        return data?.error || "Failed to fetch available services.";
+      }
+
+      return data.responseText || "No available services are listed right now.";
+    } catch (error) {
+      console.error("FETCH CHATBOT SERVICES ERROR:", error);
+      return "Failed to fetch available services.";
+    }
   };
 
   const handleBarberClick = async (barberId: string, barberName: string) => {
-    const userMessage: Message = {
-      id: `${Date.now()}-user`,
-      role: "user",
-      text: barberName,
-    };
+    if (loadingBarbers) return;
+
+    const loadingId = `${Date.now()}-loading-barber`;
 
     setMessages((prev) => [
       ...prev,
-      userMessage,
       {
-        id: `${Date.now()}-loading`,
+        id: `${Date.now()}-user`,
+        role: "user",
+        text: barberName,
+      },
+      {
+        id: loadingId,
         role: "bot",
         text: "Checking barber schedule...",
       },
@@ -191,7 +203,7 @@ export default function ChatbotFloatingButton() {
 
       const data = await res.json();
 
-      setMessages((prev) => prev.filter((item) => !item.id.endsWith("-loading")));
+      setMessages((prev) => prev.filter((item) => item.id !== loadingId));
 
       if (!res.ok || !data?.ok) {
         setMessages((prev) => [
@@ -215,7 +227,9 @@ export default function ChatbotFloatingButton() {
       ]);
     } catch (error) {
       console.error("FETCH BARBER SCHEDULE ERROR:", error);
-      setMessages((prev) => prev.filter((item) => !item.id.endsWith("-loading")));
+
+      setMessages((prev) => prev.filter((item) => item.id !== loadingId));
+
       setMessages((prev) => [
         ...prev,
         {
@@ -230,7 +244,7 @@ export default function ChatbotFloatingButton() {
     }
   };
 
-  const getBotReply = (text: string): Message => {
+  const getBotReply = async (text: string): Promise<Message> => {
     const msg = normalizeText(text);
 
     if (msg.includes("hi") || msg.includes("hello") || msg.includes("hey")) {
@@ -248,6 +262,19 @@ export default function ChatbotFloatingButton() {
 
     if (directOptionMatch) {
       if (
+        directOptionMatch.key === "services_prices" ||
+        isServicesOption(directOptionMatch.label)
+      ) {
+        const servicesText = await fetchServicesText();
+
+        return {
+          id: `${Date.now()}-bot`,
+          role: "bot",
+          text: servicesText,
+        };
+      }
+
+      if (
         directOptionMatch.key === "barber_availability" ||
         isBarberAvailabilityOption(directOptionMatch.label)
       ) {
@@ -255,8 +282,7 @@ export default function ChatbotFloatingButton() {
           id: `${Date.now()}-bot`,
           role: "bot",
           text:
-            directOptionMatch.response ||
-            "Pick a barber to show availability:",
+            directOptionMatch.response || "Pick a barber to show availability:",
           buttons: barbers.map((barber) => ({
             label: barber.name,
             value: barber.id,
@@ -277,6 +303,16 @@ export default function ChatbotFloatingButton() {
         text: directOptionMatch.response,
         link: needsLink ? facebookLink : undefined,
         linkLabel: needsLink ? "Open Facebook Page" : undefined,
+      };
+    }
+
+    if (isServicesOption(text)) {
+      const servicesText = await fetchServicesText();
+
+      return {
+        id: `${Date.now()}-bot`,
+        role: "bot",
+        text: servicesText,
       };
     }
 
@@ -368,24 +404,6 @@ export default function ChatbotFloatingButton() {
       };
     }
 
-    if (
-      msg.includes("service") ||
-      msg.includes("price") ||
-      msg.includes("haircut") ||
-      msg.includes("beard")
-    ) {
-      const item = optionItems.find((option) => {
-        const label = normalizeText(option.label);
-        return label.includes("service") || label.includes("price");
-      });
-
-      return {
-        id: `${Date.now()}-bot`,
-        role: "bot",
-        text: item?.response || getResponse("fallback"),
-      };
-    }
-
     if (msg.includes("thank")) {
       return {
         id: `${Date.now()}-bot`,
@@ -401,22 +419,41 @@ export default function ChatbotFloatingButton() {
     };
   };
 
-  const sendMessage = (text?: string) => {
+  const sendMessage = async (text?: string) => {
+    if (loadingBot) return;
+
     const messageText = (text ?? input).trim();
 
     if (!messageText) return;
 
-    const userMessage: Message = {
-      id: `${Date.now()}-user`,
-      role: "user",
-      text: messageText,
-    };
+    const loadingId = `${Date.now()}-loading-bot`;
 
-    const botMessage = getBotReply(messageText);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-user`,
+        role: "user",
+        text: messageText,
+      },
+      {
+        id: loadingId,
+        role: "bot",
+        text: "Checking...",
+      },
+    ]);
 
-    setMessages((prev) => [...prev, userMessage, botMessage]);
     setInput("");
     setShowQuickOptions(false);
+    setLoadingBot(true);
+
+    const botMessage = await getBotReply(messageText);
+
+    setMessages((prev) => [
+      ...prev.filter((item) => item.id !== loadingId),
+      botMessage,
+    ]);
+
+    setLoadingBot(false);
   };
 
   const greetingParts = getResponse("greeting").split("\n\n");
@@ -585,7 +622,7 @@ export default function ChatbotFloatingButton() {
                           disabled={loadingBarbers}
                           onClick={() => {
                             if (button.type === "barber") {
-                              handleBarberClick(button.value, button.label);
+                              void handleBarberClick(button.value, button.label);
                             }
                           }}
                           style={{
@@ -622,7 +659,8 @@ export default function ChatbotFloatingButton() {
                   <button
                     key={item.key}
                     type="button"
-                    onClick={() => sendMessage(item.label)}
+                    disabled={loadingBot}
+                    onClick={() => void sendMessage(item.label)}
                     style={{
                       border: "1px solid #ddd",
                       borderRadius: 999,
@@ -630,7 +668,7 @@ export default function ChatbotFloatingButton() {
                       color: "#111",
                       padding: "9px 13px",
                       fontSize: 13,
-                      cursor: "pointer",
+                      cursor: loadingBot ? "not-allowed" : "pointer",
                     }}
                   >
                     {item.label}
@@ -680,9 +718,12 @@ export default function ChatbotFloatingButton() {
               <input
                 type="text"
                 value={input}
+                disabled={loadingBot}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") sendMessage();
+                  if (e.key === "Enter") {
+                    void sendMessage();
+                  }
                 }}
                 placeholder="Type a message..."
                 style={{
@@ -693,12 +734,14 @@ export default function ChatbotFloatingButton() {
                   color: "#111",
                   fontSize: 14,
                   minWidth: 0,
+                  opacity: loadingBot ? 0.7 : 1,
                 }}
               />
 
               <button
                 type="button"
-                onClick={() => sendMessage()}
+                disabled={loadingBot}
+                onClick={() => void sendMessage()}
                 style={{
                   width: 38,
                   height: 38,
@@ -706,9 +749,10 @@ export default function ChatbotFloatingButton() {
                   border: "none",
                   backgroundColor: "#111",
                   color: "#fff",
-                  cursor: "pointer",
+                  cursor: loadingBot ? "not-allowed" : "pointer",
                   fontSize: 18,
                   flexShrink: 0,
+                  opacity: loadingBot ? 0.7 : 1,
                 }}
                 aria-label="Send message"
               >
