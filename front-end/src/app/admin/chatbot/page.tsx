@@ -17,6 +17,12 @@ type BarberOption = {
   name: string;
 };
 
+type ServiceOption = {
+  id: string;
+  name: string;
+  priceLabel: string;
+};
+
 const protectedKeys = ["greeting", "fallback"];
 
 const starterOptions: ChatbotSetting[] = [
@@ -29,8 +35,7 @@ const starterOptions: ChatbotSetting[] = [
   {
     key: "services_prices",
     label: "Services & Prices",
-    response:
-      "Here are our available services:\n\nHaircut - ₱150\nBeard Trim - ₱100\nHaircut + Beard Trim - ₱220\nKids Haircut - ₱120\nSenior Citizen Haircut - ₱130",
+    response: "Services and prices are pulled automatically from Service Management.",
   },
   {
     key: "shop_location_hours",
@@ -72,6 +77,7 @@ async function readJsonSafe(res: Response) {
 export default function AdminChatbotPage() {
   const [settings, setSettings] = useState<ChatbotSetting[]>([]);
   const [barbers, setBarbers] = useState<BarberOption[]>([]);
+  const [services, setServices] = useState<ServiceOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -89,17 +95,21 @@ export default function AdminChatbotPage() {
       setLoading(true);
       setMessage("");
 
-      const [settingsRes, barbersRes] = await Promise.all([
+      const [settingsRes, barbersRes, servicesRes] = await Promise.all([
         fetch("/api/admin/chatbot", {
           cache: "no-store",
         }),
         fetch("/api/chatbot/barbers", {
           cache: "no-store",
         }),
+        fetch("/api/chatbot/services", {
+          cache: "no-store",
+        }),
       ]);
 
       const settingsData = await readJsonSafe(settingsRes);
       const barbersData = await readJsonSafe(barbersRes);
+      const servicesData = await readJsonSafe(servicesRes);
 
       if (!settingsRes.ok) {
         throw new Error(
@@ -109,8 +119,20 @@ export default function AdminChatbotPage() {
 
       setSettings(Array.isArray(settingsData) ? settingsData : []);
 
-      if (barbersRes.ok && barbersData?.ok && Array.isArray(barbersData.barbers)) {
+      if (
+        barbersRes.ok &&
+        barbersData?.ok &&
+        Array.isArray(barbersData.barbers)
+      ) {
         setBarbers(barbersData.barbers);
+      }
+
+      if (
+        servicesRes.ok &&
+        servicesData?.ok &&
+        Array.isArray(servicesData.services)
+      ) {
+        setServices(servicesData.services);
       }
     } catch (error) {
       console.error("LOAD CHATBOT SETTINGS ERROR:", error);
@@ -121,7 +143,7 @@ export default function AdminChatbotPage() {
   };
 
   useEffect(() => {
-    loadSettings();
+    void loadSettings();
   }, []);
 
   const updateSetting = (
@@ -227,7 +249,10 @@ export default function AdminChatbotPage() {
         .map((item) => ({
           ...item,
           label: item.label.trim(),
-          response: item.response.trim(),
+          response:
+            item.key === "services_prices"
+              ? "Services and prices are pulled automatically from Service Management."
+              : item.response.trim(),
         }))
         .filter((item) => item.key && item.label && item.response);
 
@@ -480,28 +505,84 @@ export default function AdminChatbotPage() {
               }}
             />
 
-            <label style={{ fontSize: 13, fontWeight: 700 }}>
-              Response <span style={{ color: "red" }}>*</span>
-            </label>
+            {item.key !== "services_prices" && (
+              <>
+                <label style={{ fontSize: 13, fontWeight: 700 }}>
+                  Response <span style={{ color: "red" }}>*</span>
+                </label>
 
-            <textarea
-              value={item.response}
-              onChange={(e) =>
-                updateSetting(item.key, "response", e.target.value)
-              }
-              style={{
-                display: "block",
-                width: "100%",
-                maxWidth: 520,
-                minHeight: 80,
-                marginTop: 8,
-                padding: 12,
-                border: "none",
-                resize: "vertical",
-                fontFamily: "inherit",
-                backgroundColor: "#fff",
-              }}
-            />
+                <textarea
+                  value={item.response}
+                  onChange={(e) =>
+                    updateSetting(item.key, "response", e.target.value)
+                  }
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    maxWidth: 520,
+                    minHeight: 80,
+                    marginTop: 8,
+                    padding: 12,
+                    border: "none",
+                    resize: "vertical",
+                    fontFamily: "inherit",
+                    backgroundColor: "#fff",
+                  }}
+                />
+              </>
+            )}
+
+            {item.key === "services_prices" && (
+              <div style={{ marginTop: 14 }}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    marginBottom: 8,
+                  }}
+                >
+                  Dynamic Service Options
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(220px, 1fr))",
+                    gap: 10,
+                  }}
+                >
+                  {services.length > 0 ? (
+                    services.map((service, index) => (
+                      <div
+                        key={service.id}
+                        style={{
+                          backgroundColor: "#fff",
+                          padding: "10px 12px",
+                          fontSize: 13,
+                        }}
+                      >
+                        {index + 1}. {service.name} - {service.priceLabel}
+                      </div>
+                    ))
+                  ) : (
+                    <div
+                      style={{
+                        backgroundColor: "#fff",
+                        padding: "10px 12px",
+                        fontSize: 13,
+                        color: "#777",
+                      }}
+                    >
+                      No services found.
+                    </div>
+                  )}
+                </div>
+
+                <p style={{ fontSize: 12, color: "#666", marginTop: 8 }}>
+                  These are pulled automatically from Service Management.
+                </p>
+              </div>
+            )}
 
             {item.key === "barber_availability" && (
               <div style={{ marginTop: 14 }}>
