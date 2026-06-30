@@ -157,7 +157,7 @@ export default function AdminReviewsPage() {
   };
 
   const getTransactionNo = (review: Review) => {
-    return review.appointment?.appointmentCode || review.sale?.saleCode || "N/A";
+    return review.sale?.saleCode || review.appointment?.appointmentCode || "N/A";
   };
 
   const getTransactionType = (review: Review) => {
