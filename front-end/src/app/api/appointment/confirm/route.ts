@@ -336,7 +336,7 @@ export async function POST(req: NextRequest) {
     const checkoutSuccessUrl = `${appOrigin}/myAppointments?payment=success&saleId=${encodeURIComponent(
       result.sale.id
     )}&saleCode=${encodeURIComponent(result.sale.saleCode)}`;
-    const checkoutCancelUrl = `${appOrigin}/myAppointments?payment=cancel&saleId=${encodeURIComponent(
+    const checkoutCancelUrl = `${appOrigin}/appointment?payment=cancel&saleId=${encodeURIComponent(
       result.sale.id
     )}&saleCode=${encodeURIComponent(result.sale.saleCode)}`;
 

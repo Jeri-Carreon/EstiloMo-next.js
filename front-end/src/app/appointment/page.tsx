@@ -148,29 +148,69 @@ export default function AppointmentPage() {
     });
   };
 
-  const persistPendingCheckout = (saleId: string, saleCode: string) => {
+  const persistPendingCheckout = (
+    saleId: string,
+    saleCode: string,
+    checkoutUrl: string
+  ) => {
     window.localStorage.setItem(
       'estilomoPendingCheckout',
-      JSON.stringify({ saleId, saleCode })
+      JSON.stringify({
+        saleId,
+        saleCode,
+        checkoutUrl,
+        appointmentData,
+        paymentType,
+        eWalletProvider,
+      })
     );
   };
 
   const getPendingCheckout = () => {
     try {
       const raw = window.localStorage.getItem('estilomoPendingCheckout');
-      if (!raw) return { saleId: '', saleCode: '' };
+
+      if (!raw) {
+        return {
+          saleId: '',
+          saleCode: '',
+          checkoutUrl: '',
+          appointmentData: null as AppointmentData | null,
+          paymentType: 'card' as PaymentType,
+          eWalletProvider: '' as EWalletProvider,
+          currentStep: 0,
+        };
+      }
 
       const parsed = JSON.parse(raw) as {
         saleId?: string;
         saleCode?: string;
+        checkoutUrl?: string;
+        appointmentData?: AppointmentData;
+        paymentType?: PaymentType;
+        eWalletProvider?: EWalletProvider;
+        currentStep?: number;
       };
 
       return {
         saleId: parsed.saleId || '',
         saleCode: parsed.saleCode || '',
+        checkoutUrl: parsed.checkoutUrl || '',
+        appointmentData: parsed.appointmentData || null,
+        paymentType: parsed.paymentType || ('card' as PaymentType),
+        eWalletProvider: parsed.eWalletProvider || ('' as EWalletProvider),
+        currentStep: parsed.currentStep ?? 0,
       };
     } catch {
-      return { saleId: '', saleCode: '' };
+      return {
+        saleId: '',
+        saleCode: '',
+        checkoutUrl: '',
+        appointmentData: null as AppointmentData | null,
+        paymentType: 'card' as PaymentType,
+        eWalletProvider: '' as EWalletProvider,
+        currentStep: 0,
+      };
     }
   };
 
@@ -180,40 +220,99 @@ export default function AppointmentPage() {
     endMinutes?: number
   ) => {
     if (currentStep === 2 && appointmentDate) {
-      setAppointmentData((prev) => ({
-        ...prev,
-        cartItems: [
-          ...prev.cartItems,
-          {
-            barberId: prev.barberId,
-            barberName: prev.barberName,
-            serviceId: prev.serviceId,
-            serviceName: prev.serviceName,
-            servicePrice: prev.servicePrice,
-            serviceDescription: prev.serviceDescription,
-            serviceDurationMinutes: prev.serviceDurationMinutes,
-            appointmentDate: appointmentDate ?? '',
-            startMinutes: startMinutes ?? 0,
-            endMinutes: endMinutes ?? 0,
-          },
-        ],
-        barberId: '',
-        barberName: '',
-        serviceId: '',
-        serviceName: '',
-        servicePrice: 0,
-        serviceDescription: '',
-        appointmentDate: '',
-        startMinutes: 0,
-        endMinutes: 0,
-        serviceDurationMinutes: 0,
-      }));
+      setAppointmentData((prev) => {
+        const nextCartItem = {
+          barberId: prev.barberId,
+          barberName: prev.barberName,
+          serviceId: prev.serviceId,
+          serviceName: prev.serviceName,
+          servicePrice: prev.servicePrice,
+          serviceDescription: prev.serviceDescription,
+          serviceDurationMinutes: prev.serviceDurationMinutes,
+          appointmentDate,
+          startMinutes: startMinutes ?? 0,
+          endMinutes: endMinutes ?? 0,
+        };
+
+        const existingIndex = prev.cartItems.findIndex(
+          (item) =>
+            item.barberId === prev.barberId &&
+            item.serviceId === prev.serviceId &&
+            item.appointmentDate === prev.appointmentDate &&
+            item.startMinutes === prev.startMinutes &&
+            item.endMinutes === prev.endMinutes
+        );
+
+        let updatedCartItems = [...prev.cartItems];
+
+        if (existingIndex >= 0) {
+          updatedCartItems[existingIndex] = nextCartItem;
+        } else {
+          updatedCartItems.push(nextCartItem);
+        }
+
+        return {
+          ...prev,
+          cartItems: updatedCartItems,
+          barberId: '',
+          barberName: '',
+          serviceId: '',
+          serviceName: '',
+          servicePrice: 0,
+          serviceDescription: '',
+          appointmentDate: '',
+          startMinutes: 0,
+          endMinutes: 0,
+          serviceDurationMinutes: 0,
+        };
+      });
     }
 
     setCurrentStep((prev) => prev + 1);
   };
 
+  // keep your current file exactly the same,
+// only replace your prevStep function with this:
+
   const prevStep = () => {
+    if (currentStep === 3) {
+      const lastItem =
+        appointmentData.cartItems[appointmentData.cartItems.length - 1];
+
+      if (!lastItem) {
+        setAppointmentData((prev) => ({
+          ...prev,
+          barberId: '',
+          barberName: '',
+          serviceId: '',
+          serviceName: '',
+          servicePrice: 0,
+          serviceDescription: '',
+          serviceDurationMinutes: 0,
+          appointmentDate: '',
+          startMinutes: 0,
+          endMinutes: 0,
+        }));
+
+        setCurrentStep(0);
+        return;
+      }
+
+      setAppointmentData((prev) => ({
+        ...prev,
+        barberId: lastItem.barberId,
+        barberName: lastItem.barberName,
+        serviceId: lastItem.serviceId,
+        serviceName: lastItem.serviceName,
+        servicePrice: lastItem.servicePrice,
+        serviceDescription: lastItem.serviceDescription,
+        serviceDurationMinutes: lastItem.serviceDurationMinutes,
+        appointmentDate: lastItem.appointmentDate,
+        startMinutes: lastItem.startMinutes,
+        endMinutes: lastItem.endMinutes,
+      }));
+    }
+
     setCurrentStep((prev) => prev - 1);
   };
 
@@ -282,6 +381,24 @@ export default function AppointmentPage() {
 
     setCurrentStep(0);
   };
+
+  const goToBarberStep = () => {
+      setAppointmentData((prev) => ({
+        ...prev,
+        barberId: '',
+        barberName: '',
+        serviceId: '',
+        serviceName: '',
+        servicePrice: 0,
+        serviceDescription: '',
+        serviceDurationMinutes: 0,
+        appointmentDate: '',
+        startMinutes: 0,
+        endMinutes: 0,
+      }));
+
+      setCurrentStep(0);
+    };
 
   const totalPrice = appointmentData.cartItems.reduce(
     (sum, item) => sum + item.servicePrice,
@@ -355,7 +472,7 @@ export default function AppointmentPage() {
       setCheckoutUrl(data.checkoutUrl);
       setCheckoutSaleId(data.saleId);
       setCheckoutSaleCode(data.saleCode);
-      persistPendingCheckout(data.saleId, data.saleCode);
+      persistPendingCheckout(data.saleId, data.saleCode, data.checkoutUrl);
       setCheckoutOpen(true);
     } catch (error) {
       console.error(error);
@@ -474,11 +591,26 @@ export default function AppointmentPage() {
     }
 
     if (paymentResult === 'cancel') {
+      if (pendingCheckout.appointmentData) {
+        setAppointmentData(pendingCheckout.appointmentData);
+      }
+
+      if (pendingCheckout.checkoutUrl) {
+        setCheckoutUrl(pendingCheckout.checkoutUrl);
+      }
+
+      setCheckoutSaleId(saleId || pendingCheckout.saleId);
+      setCheckoutSaleCode(saleCode || pendingCheckout.saleCode);
+      setPaymentType(pendingCheckout.paymentType);
+      setEWalletProvider(pendingCheckout.eWalletProvider);
+
       window.history.replaceState({}, '', '/appointment');
+      setCurrentStep(4);
+
       window.setTimeout(() => {
         showWarning(
           'Payment Cancelled',
-          'Your PayMongo downpayment was not completed.'
+          'Your payment was not completed. Your booking details are still saved, so you can try again.'
         );
       }, 0);
     }
@@ -527,6 +659,7 @@ export default function AppointmentPage() {
           nextStep={nextStep}
           prevStep={prevStep}
           resetToStart={resetToStart}
+          goToBarberStep={goToBarberStep}
         />
       )}
 

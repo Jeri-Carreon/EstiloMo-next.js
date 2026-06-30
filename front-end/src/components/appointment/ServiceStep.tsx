@@ -103,11 +103,11 @@ export default function ServiceStep({
 
     setLoading(true);
     setServices([]);
-    setSelectedService('');
+    setSelectedService(appointmentData.serviceId || '');
     setError('');
 
     loadServices();
-  }, [appointmentData.barberId]);
+  }, [appointmentData.barberId, appointmentData.serviceId]);
 
   const handleNext = () => {
     if (!selectedService) return;
