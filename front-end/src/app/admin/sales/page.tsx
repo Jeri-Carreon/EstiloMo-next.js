@@ -1365,22 +1365,39 @@ export default function SalesPage() {
                   ‹
                 </Box>
 
-                {Array.from({ length: totalPages }).map((_, index) => {
-                  const pageNumberValue = index + 1;
+                {Array.from({ length: totalPages })
+                .map((_, i) => i + 1)
+                .filter(
+                  (p) =>
+                    p === 1 ||
+                    p === totalPages ||
+                    (p >= page - 2 && p <= page + 2)
+                )
+                .map((p, i, arr) => {
+                  const previous = arr[i - 1];
 
                   return (
-                    <Box
-                      key={pageNumberValue}
-                      onClick={() => setPage(pageNumberValue)}
-                      sx={{
-                        ...pageNumber,
-                        bgcolor:
-                          page === pageNumberValue ? "#ffc107" : "#d9d9d9",
-                        color: page === pageNumberValue ? "#000" : "#666",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {pageNumberValue}
+                    <Box key={p} sx={{ display: "flex", gap: 1 }}>
+                      {previous && p - previous > 1 && (
+                        <Typography sx={{ px: 1 }}>...</Typography>
+                      )}
+
+                      <Box
+                        onClick={() => setPage(p)}
+                        sx={{
+                          width: 30,
+                          height: 30,
+                          borderRadius: "8px",
+                          bgcolor: page === p ? "#ffc107" : "#e0e0e0",
+                          color: page === p ? "#000" : "#666",
+                          display: "grid",
+                          placeItems: "center",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {p}
+                      </Box>
                     </Box>
                   );
                 })}
