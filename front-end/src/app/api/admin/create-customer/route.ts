@@ -1,134 +1,164 @@
-import { NextResponse } from "next/server";
+"use server";
+
+import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
+import { POST } from "@/app/api/register/route";
 import { db } from "@/lib/db";
 
-import { getAdminUser } from "@/lib/supabase/getUser";
-import { customAlphabet } from "nanoid";
-import { logCustomerCreated } from "@/lib/securityLogEvents";
+function isStrongPassword(password: string) {
+  return (
+    password.length >= 8 &&
+    /[a-z]/.test(password) &&
+    /[A-Z]/.test(password) &&
+    /\d/.test(password) &&
+    /[!@#$%^&*(),.?":{}|<>]/.test(password)
+  );
+}
 
-export async function POST(req: Request) {
+function getSupabaseAdminClient() {
+  return createSupabaseAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
+export async function signupAction(formData: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  mobileNumber: string;
+}) {
+  let createdAuthUserId: string | null = null;
+
   try {
-    const user = await getAdminUser()
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json(
-        { ok: false, error: "Forbidden" },
-        { status: 403 }
-      );
+    const firstName = formData.firstName.trim();
+    const lastName = formData.lastName.trim();
+    const email = formData.email.toLowerCase().trim();
+    const password = formData.password;
+    const mobileNumber = formData.mobileNumber.replace(/\D/g, "");
+
+    if (!firstName) return { ok: false, error: "First name is required." };
+    if (!lastName) return { ok: false, error: "Last name is required." };
+    if (!email) return { ok: false, error: "Email is required." };
+
+    if (!isStrongPassword(password)) {
+      return {
+        ok: false,
+        error:
+          "Password must be at least 8 characters and include uppercase, lowercase, number, and symbol.",
+      };
     }
 
-    let { firstName, lastName, email, mobileNumber } = await req.json();
-
-    firstName = (firstName ?? "").trim();
-    lastName = (lastName ?? "").trim();
-    email = (email ?? "").toLowerCase().trim() || null;
-    mobileNumber = (mobileNumber ?? "").replace(/\D/g, "");
-
-    if (!firstName || !lastName || !mobileNumber) {
-      return NextResponse.json(
-        { ok: false, error: "Missing required fields" },
-        { status: 400 }
-      );
+    if (!/^09\d{9}$/.test(mobileNumber)) {
+      return {
+        ok: false,
+        error: "Mobile number must start with 09 and contain exactly 11 digits.",
+      };
     }
 
-    if (firstName.length > 50 || lastName.length > 50) {
-      return NextResponse.json(
-        { ok: false, error: "Name too long" },
-        { status: 400 }
-      );
+    const existingUser = await db.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      return {
+        ok: false,
+        error: "An account with this email already exists.",
+      };
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (email && !emailRegex.test(email)) {
-      return NextResponse.json(
-        { ok: false, error: "Invalid email format" },
-        { status: 400 }
-      );
-    }
-
-    if (email && email.length > 100) {
-      return NextResponse.json(
-        { ok: false, error: "Email is too long" },
-        { status: 400 }
-      );
-    }
-
-    const mobileRegex = /^09\d{9}$/;
-
-    if (!mobileRegex.test(mobileNumber)) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Mobile number must be valid and formatted like 09123456789",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (email) {
-      const existingCustomer = await db.customer.findUnique({
-        where: { email },
-      });
-
-      if (existingCustomer) {
-        return NextResponse.json(
-          { ok: false, error: "Email already exists" },
-          { status: 400 }
-        );
-      }
-    }
-
-    const existingMobile = await db.customer.findFirst({
+    const existingPhone = await db.user.findFirst({
       where: { mobileNumber },
     });
 
-    if (existingMobile) {
-      return NextResponse.json(
-        { ok: false, error: "Mobile number already exists" },
-        { status: 400 }
-      );
+    if (existingPhone) {
+      return {
+        ok: false,
+        error: "Mobile number already exists.",
+      };
     }
 
-    const nanoid = customAlphabet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 8);
+    const supabase = await createClient();
 
-    const customer = await db.$transaction(async (tx) => {
-      const newCustomer = await tx.customer.create({
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
         data: {
-          customerCode: `CUST-${nanoid()}`,
-          firstName,
-          lastName,
-          mobileNumber,
-          isActive: true,
-          customerType: "CASUAL",
-          ...(email ? { email } : {}),
+          full_name: `${firstName} ${lastName}`,
+          first_name: firstName,
+          last_name: lastName,
+          mobile_number: mobileNumber,
         },
-      });
-
-      await tx.loyaltyCard.create({
-        data: {
-          customerId: newCustomer.id,
-        },
-      });
-
-      return newCustomer;
+      },
     });
 
-    await logCustomerCreated(
-      req,
-      user,
-      `${customer.firstName} ${customer.lastName}`
-    );
+    if (error) {
+      return {
+        ok: false,
+        error: error.message,
+      };
+    }
 
-    return NextResponse.json({
-      ok: true,
-      message: "Customer created successfully",
-      customer,
+    const supabaseUserId = data.user?.id;
+
+    if (!supabaseUserId) {
+      return {
+        ok: false,
+        error: "Failed to create auth user.",
+      };
+    }
+
+    createdAuthUserId = supabaseUserId;
+
+    const apiRequest = new Request("http://localhost/api/register", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        id: supabaseUserId,
+        firstName,
+        lastName,
+        email,
+        password,
+        mobileNumber,
+      }),
     });
-  } catch (error) {
-    console.error("Create customer error:", error);
 
-    return NextResponse.json(
-      { ok: false, error: "Failed to create customer" },
-      { status: 500 }
-    );
+    const apiResponse = await POST(apiRequest);
+    const apiResult = await apiResponse.json();
+
+    if (!apiResponse.ok || !apiResult.ok) {
+      const supabaseAdmin = getSupabaseAdminClient();
+
+      await supabaseAdmin.auth.admin.deleteUser(supabaseUserId);
+
+      createdAuthUserId = null;
+
+      return {
+        ok: false,
+        error: apiResult.error ?? "Registration failed.",
+      };
+    }
+
+    return { ok: true };
+  } catch (err: any) {
+    console.error("signupAction error:", err);
+
+    if (createdAuthUserId) {
+      try {
+        const supabaseAdmin = getSupabaseAdminClient();
+        await supabaseAdmin.auth.admin.deleteUser(createdAuthUserId);
+      } catch (deleteError) {
+        console.error("Failed to rollback Supabase auth user:", deleteError);
+      }
+    }
+
+    return {
+      ok: false,
+      error: err.message ?? "Registration failed.",
+    };
   }
 }
