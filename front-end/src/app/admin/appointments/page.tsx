@@ -104,7 +104,7 @@ const weekdays = [
   'Saturday',
 ];
 
-const itemsPerPage = 4;
+const itemsPerPage = 8;
 
 function formatDateInput(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
@@ -1161,63 +1161,10 @@ export default function AppointmentsPage() {
         </Typography>
       ) : (
         <>
-        <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 2,
-        }}
-      >
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          Pending appointments
-        </Typography>
-
-      </Box>
-
-          {renderAppointmentTable(paginatedPendingAppointments)}
-
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              mt: 3,
-              mb: 4,
-            }}
-          >
-            <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>
-              Showing {paginatedPendingAppointments.length} of{' '}
-              {filteredPendingAppointments.length} entries
-            </Typography>
-
-            <Pagination
-              count={totalPagesPending || 1}
-              page={pendingPage}
-              onChange={(_, value) => setPendingPage(value)}
-              size="small"
-            />
-          </Box>
-
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 2,
-              mb: 2,
-              flexWrap: 'wrap',
-            }}
-          >
-            <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              Processed appointments
-            </Typography>
-          </Box>
-
           <Box sx={{ display: 'flex', gap: 2, mb: 4, flexWrap: 'wrap' }}>
               <TextField
                 size="small"
-                placeholder="Search processed appointments..."
+                placeholder="Search appointments..."
                 value={processedSearch}
                 onChange={(e) => {
                   setProcessedSearch(e.target.value);
