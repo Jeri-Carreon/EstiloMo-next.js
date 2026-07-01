@@ -6,28 +6,16 @@ import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import CheckIcon from '@mui/icons-material/Check';
 import PaymentIcon from '@mui/icons-material/Payment';
-import FormControl from '@mui/material/FormControl';
-import InputLabel from '@mui/material/InputLabel';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
-import type { SelectChangeEvent } from '@mui/material/Select';
 
 import type { AppointmentData } from '@/app/appointment/page';
 
 const steps = ['Barber', 'Service', 'Schedule', 'Cart', 'Confirmation'];
-
-type PaymentType = 'card' | 'ewallet';
-type EWalletProvider = 'gcash' | 'grabpay' | 'maya' | '';
 
 interface ConfirmationStepProps {
   appointmentData: AppointmentData;
   prevStep: () => void;
   totalPrice: number;
   downPayment: number;
-  paymentType: PaymentType;
-  setPaymentType: React.Dispatch<React.SetStateAction<PaymentType>>;
-  eWalletProvider: EWalletProvider;
-  setEWalletProvider: React.Dispatch<React.SetStateAction<EWalletProvider>>;
   loading: boolean;
   handleConfirm: () => void;
 }
@@ -56,10 +44,6 @@ export default function ConfirmationStep({
   prevStep,
   totalPrice,
   downPayment,
-  paymentType,
-  setPaymentType,
-  eWalletProvider,
-  setEWalletProvider,
   loading,
   handleConfirm,
 }: ConfirmationStepProps) {
@@ -204,8 +188,8 @@ export default function ConfirmationStep({
                 </Typography>
 
                 <Typography sx={{ color: '#666', fontWeight: 700, mb: 3 }}>
-                  Choose your payment method, then pay through the PayMongo
-                  webview. No screenshot upload is needed.
+                  You will be redirected to PayMongo to complete your
+                  downpayment. No screenshot upload is needed.
                 </Typography>
 
                 <Box
@@ -217,11 +201,7 @@ export default function ConfirmationStep({
                     mb: 3,
                   }}
                 >
-                  <Stack
-                    direction="row"
-                    spacing={2}
-                    sx={{ alignItems: 'center' }}
-                  >
+                  <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
                     <Box
                       sx={{
                         width: 52,
@@ -250,95 +230,17 @@ export default function ConfirmationStep({
                   </Stack>
                 </Box>
 
-                <Box
-                  sx={{
-                    display: 'grid',
-                    gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-                    gap: 2,
-                    mb: 3,
-                  }}
-                >
-                  <FormControl fullWidth>
-                    <InputLabel id="payment-type-label">
-                      Payment Type
-                    </InputLabel>
-
-                    <Select
-                      labelId="payment-type-label"
-                      value={paymentType}
-                      label="Payment Type"
-                      onChange={(event: SelectChangeEvent) => {
-                        const value = event.target.value as PaymentType;
-                        setPaymentType(value);
-
-                        if (value === 'card') {
-                          setEWalletProvider('');
-                        }
-                      }}
-                    >
-                      <MenuItem value="card">Card</MenuItem>
-                      <MenuItem value="ewallet">E-Wallets</MenuItem>
-                    </Select>
-                  </FormControl>
-
-                  {paymentType === 'ewallet' ? (
-                    <FormControl fullWidth>
-                      <InputLabel id="ewallet-provider-label">
-                        E-Wallet
-                      </InputLabel>
-
-                      <Select
-                        labelId="ewallet-provider-label"
-                        value={eWalletProvider}
-                        label="E-Wallet"
-                        onChange={(event: SelectChangeEvent) => {
-                          setEWalletProvider(
-                            event.target.value as EWalletProvider
-                          );
-                        }}
-                      >
-                        <MenuItem value="gcash">GCash</MenuItem>
-                        <MenuItem value="maya">Maya</MenuItem>
-                        <MenuItem value="grabpay" disabled>
-                          GrabPay
-                        </MenuItem>
-                      </Select>
-                    </FormControl>
-                  ) : null}
-                </Box>
-
                 <Box sx={{ mt: 3 }}>
-                  <Typography
-                    sx={{
-                      color: '#666',
-                      fontWeight: 700,
-                      fontSize: 13,
-                      mt: 1,
-                    }}
-                  >
+                  <Typography sx={{ color: '#666', fontWeight: 700, fontSize: 13, mt: 1 }}>
                     The remaining balance will be paid at the shop through Cash
                     or GCash after the service.
                   </Typography>
 
-                  <Typography
-                    sx={{
-                      color: '#666',
-                      fontWeight: 700,
-                      fontSize: 13,
-                      mt: 1,
-                    }}
-                  >
+                  <Typography sx={{ color: '#666', fontWeight: 700, fontSize: 13, mt: 1 }}>
                     Downpayments are non-refundable in case of cancellation.
                   </Typography>
 
-                  <Typography
-                    sx={{
-                      color: '#666',
-                      fontWeight: 700,
-                      fontSize: 13,
-                      mt: 1,
-                    }}
-                  >
+                  <Typography sx={{ color: '#666', fontWeight: 700, fontSize: 13, mt: 1 }}>
                     Arriving more than 30 minutes late will be considered a
                     &quot;No-show&quot;.
                   </Typography>
@@ -361,13 +263,6 @@ export default function ConfirmationStep({
                   p: { xs: 2, sm: 3 },
                   flex: 1,
                   overflowY: { xs: 'visible', md: 'auto' },
-                  '&::-webkit-scrollbar': {
-                    width: '6px',
-                  },
-                  '&::-webkit-scrollbar-thumb': {
-                    backgroundColor: '#bbb',
-                    borderRadius: '10px',
-                  },
                 }}
               >
                 <Typography
@@ -401,25 +296,11 @@ export default function ConfirmationStep({
                       {item.serviceName}
                     </Typography>
 
-                    <Typography
-                      sx={{
-                        color: '#666',
-                        fontWeight: 800,
-                        fontSize: 14,
-                        mt: 0.5,
-                      }}
-                    >
+                    <Typography sx={{ color: '#666', fontWeight: 800, fontSize: 14, mt: 0.5 }}>
                       Duration: {item.serviceDurationMinutes} mins
                     </Typography>
 
-                    <Typography
-                      sx={{
-                        color: '#f4b400',
-                        fontWeight: 900,
-                        fontSize: 16,
-                        mt: 0.5,
-                      }}
-                    >
+                    <Typography sx={{ color: '#f4b400', fontWeight: 900, fontSize: 16, mt: 0.5 }}>
                       {formatDate(item.appointmentDate)},{' '}
                       {formatTime(item.startMinutes)}
                     </Typography>
@@ -445,53 +326,26 @@ export default function ConfirmationStep({
                 </Typography>
 
                 <Stack spacing={1.5}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 2,
-                      borderBottom: '1px solid #ddd',
-                      pb: 1,
-                    }}
-                  >
-                    <Typography sx={{ fontWeight: 800 }}>
-                      Total Price
-                    </Typography>
-
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, borderBottom: '1px solid #ddd', pb: 1 }}>
+                    <Typography sx={{ fontWeight: 800 }}>Total Price</Typography>
                     <Typography sx={{ fontWeight: 900 }}>
                       ₱{totalPrice.toFixed(2)}
                     </Typography>
                   </Box>
 
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 2,
-                      borderBottom: '1px solid #ddd',
-                      pb: 1,
-                    }}
-                  >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, borderBottom: '1px solid #ddd', pb: 1 }}>
                     <Typography sx={{ fontWeight: 800 }}>
                       PayMongo Downpayment
                     </Typography>
-
                     <Typography sx={{ fontWeight: 900, color: '#21a44c' }}>
                       ₱{downPayment.toFixed(2)}
                     </Typography>
                   </Box>
 
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 2,
-                    }}
-                  >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
                     <Typography sx={{ fontWeight: 800 }}>
                       Remaining Balance
                     </Typography>
-
                     <Typography sx={{ fontWeight: 900 }}>
                       ₱{remainingBalance.toFixed(2)}
                     </Typography>
@@ -524,10 +378,6 @@ export default function ConfirmationStep({
               borderRadius: 10,
               textTransform: 'none',
               fontWeight: 900,
-              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-              '&:hover': {
-                backgroundColor: '#c8c8c8',
-              },
             }}
           >
             Back
@@ -545,7 +395,6 @@ export default function ConfirmationStep({
               borderRadius: 10,
               textTransform: 'none',
               fontWeight: 900,
-              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
               '&:hover': { backgroundColor: '#e0a800' },
               '&:disabled': {
                 backgroundColor: '#f5dc90',

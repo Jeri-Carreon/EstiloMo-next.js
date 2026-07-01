@@ -40,6 +40,7 @@ async function createPayMongoCheckout(params: {
   paymentMethods: string[];
   successUrl: string;
   cancelUrl: string;
+  failedUrl: string;
   metadata: Record<string, string>;
 }) {
   const secretKey = process.env.PAYMONGO_SECRET_KEY;
@@ -69,6 +70,7 @@ async function createPayMongoCheckout(params: {
               payment_method_types: params.paymentMethods,
               success_url: params.successUrl,
               cancel_url: params.cancelUrl,
+              failed_url: params.failedUrl,
               reference_number: params.referenceNumber,
               send_email_receipt: true,
               show_description: true,
@@ -322,6 +324,9 @@ export async function POST(req: NextRequest) {
     const checkoutCancelUrl = `${appOrigin}/appointment?payment=cancel&saleId=${encodeURIComponent(
       result.sale.id
     )}&saleCode=${encodeURIComponent(result.sale.saleCode)}`;
+    const checkoutFailedUrl = `${appOrigin}/appointment?payment=failed&saleId=${encodeURIComponent(
+      result.sale.id
+    )}&saleCode=${encodeURIComponent(result.sale.saleCode)}`;
 
     const checkoutResult = await createPayMongoCheckout({
       checkoutEndpoint,
@@ -331,6 +336,7 @@ export async function POST(req: NextRequest) {
       paymentMethods,
       successUrl: checkoutSuccessUrl,
       cancelUrl: checkoutCancelUrl,
+      failedUrl: checkoutFailedUrl,
       metadata: {
         saleId: result.sale.id,
         saleCode: result.sale.saleCode,
