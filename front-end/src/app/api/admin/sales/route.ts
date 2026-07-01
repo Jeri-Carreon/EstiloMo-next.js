@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { createUniqueCode } from "@/lib/createCode";
 
 import {
   logSaleCreated,
@@ -30,50 +31,6 @@ async function createPaymentCode() {
   return createCode("PAY");
 }
 */
-
-async function createUniqueCode(prefix: string) {
-  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const fullPrefix = `${prefix}-${date}`;
-
-  // Only check the table relevant to this prefix
-  let existingCodes: Set<string>;
-
-  if (prefix === "APT") {
-    const rows = await db.appointment.findMany({
-      where: { appointmentCode: { startsWith: fullPrefix } },
-      select: { appointmentCode: true },
-    });
-    existingCodes = new Set(rows.map((r) => r.appointmentCode));
-  } else if (prefix === "TRX") {
-    const rows = await db.sale.findMany({
-      where: { saleCode: { startsWith: fullPrefix } },
-      select: { saleCode: true },
-    });
-    existingCodes = new Set(rows.map((r) => r.saleCode));
-  } else {
-    const rows = await db.payment.findMany({
-      where: { paymentCode: { startsWith: fullPrefix } },
-      select: { paymentCode: true },
-    });
-    existingCodes = new Set(rows.map((r) => r.paymentCode).filter(Boolean) as string[]);
-  }
-
-  // Try sequential first
-  const nextNumber = existingCodes.size + 1;
-  let candidate = `${fullPrefix}-${String(nextNumber).padStart(4, "0")}`;
-
-  // If collision, fall back to random loop
-  if (existingCodes.has(candidate)) {
-    let isUnique = false;
-    while (!isUnique) {
-      const randomNum = Math.floor(1000 + Math.random() * 9000);
-      candidate = `${fullPrefix}-${randomNum}`;
-      isUnique = !existingCodes.has(candidate);
-    }
-  }
-
-  return candidate;
-}
 
 export async function GET() {
   try {

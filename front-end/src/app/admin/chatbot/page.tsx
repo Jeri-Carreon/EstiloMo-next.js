@@ -35,7 +35,8 @@ const starterOptions: ChatbotSetting[] = [
   {
     key: "services_prices",
     label: "Services & Prices",
-    response: "Services and prices are pulled automatically from Service Management.",
+    response:
+      "Services and prices are pulled automatically from Service Management.",
   },
   {
     key: "shop_location_hours",
@@ -64,7 +65,6 @@ const starterOptions: ChatbotSetting[] = [
 
 async function readJsonSafe(res: Response) {
   const text = await res.text();
-
   if (!text) return null;
 
   try {
@@ -82,6 +82,10 @@ export default function AdminChatbotPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteTargetKey, setDeleteTargetKey] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   const optionItems = useMemo(
     () =>
       settings.filter(
@@ -90,21 +94,20 @@ export default function AdminChatbotPage() {
     [settings]
   );
 
+  const deleteTarget = useMemo(() => {
+    if (!deleteTargetKey) return null;
+    return settings.find((item) => item.key === deleteTargetKey) || null;
+  }, [deleteTargetKey, settings]);
+
   const loadSettings = async () => {
     try {
       setLoading(true);
       setMessage("");
 
       const [settingsRes, barbersRes, servicesRes] = await Promise.all([
-        fetch("/api/admin/chatbot", {
-          cache: "no-store",
-        }),
-        fetch("/api/chatbot/barbers", {
-          cache: "no-store",
-        }),
-        fetch("/api/chatbot/services", {
-          cache: "no-store",
-        }),
+        fetch("/api/admin/chatbot", { cache: "no-store" }),
+        fetch("/api/chatbot/barbers", { cache: "no-store" }),
+        fetch("/api/chatbot/services", { cache: "no-store" }),
       ]);
 
       const settingsData = await readJsonSafe(settingsRes);
@@ -197,33 +200,52 @@ export default function AdminChatbotPage() {
     setMessage("Starter options restored. Click Save to store them.");
   };
 
-  const deleteOption = async (key: string) => {
-    const item = settings.find((setting) => setting.key === key);
-
-    if (!item) return;
-
+  const openDeleteModal = (key: string) => {
     if (protectedKeys.includes(key)) {
       setMessage("Greeting and fallback cannot be deleted.");
       return;
     }
 
-    if (!confirm(`Delete "${item.label}"? This also deletes its response.`)) {
+    setDeleteTargetKey(key);
+    setDeleteOpen(true);
+  };
+
+  const closeDeleteModal = () => {
+    if (deleting) return;
+
+    setDeleteOpen(false);
+    setDeleteTargetKey(null);
+  };
+
+  const confirmDeleteOption = async () => {
+    if (!deleteTargetKey) return;
+
+    const item = settings.find((setting) => setting.key === deleteTargetKey);
+
+    if (!item) {
+      closeDeleteModal();
       return;
     }
 
     if (!item.id) {
-      setSettings((prev) => prev.filter((setting) => setting.key !== key));
+      setSettings((prev) =>
+        prev.filter((setting) => setting.key !== deleteTargetKey)
+      );
       setMessage("Unsaved chatbot option removed.");
+      setDeleteOpen(false);
+      setDeleteTargetKey(null);
       return;
     }
 
     try {
+      setDeleting(true);
+
       const res = await fetch("/api/admin/chatbot", {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ key }),
+        body: JSON.stringify({ key: deleteTargetKey }),
       });
 
       const data = await readJsonSafe(res);
@@ -234,9 +256,13 @@ export default function AdminChatbotPage() {
 
       setSettings(Array.isArray(data?.settings) ? data.settings : []);
       setMessage("Chatbot option deleted successfully.");
+      setDeleteOpen(false);
+      setDeleteTargetKey(null);
     } catch (error) {
       console.error("DELETE CHATBOT OPTION ERROR:", error);
       setMessage("Failed to delete chatbot option.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -393,7 +419,7 @@ export default function AdminChatbotPage() {
 
                   <button
                     type="button"
-                    onClick={() => deleteOption(item.key)}
+                    onClick={() => openDeleteModal(item.key)}
                     title="Delete option"
                     style={{
                       border: "none",
@@ -469,7 +495,7 @@ export default function AdminChatbotPage() {
 
               <button
                 type="button"
-                onClick={() => deleteOption(item.key)}
+                onClick={() => openDeleteModal(item.key)}
                 style={{
                   border: "none",
                   backgroundColor: "#b00020",
@@ -534,13 +560,7 @@ export default function AdminChatbotPage() {
 
             {item.key === "services_prices" && (
               <div style={{ marginTop: 14 }}>
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 700,
-                    marginBottom: 8,
-                  }}
-                >
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
                   Dynamic Service Options
                 </div>
 
@@ -586,13 +606,7 @@ export default function AdminChatbotPage() {
 
             {item.key === "barber_availability" && (
               <div style={{ marginTop: 14 }}>
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 700,
-                    marginBottom: 8,
-                  }}
-                >
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
                   Dynamic Barber Options
                 </div>
 
@@ -700,6 +714,82 @@ export default function AdminChatbotPage() {
           </button>
         </div>
       </section>
+
+      {deleteOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+        >
+          <div
+            style={{
+              width: 420,
+              maxWidth: "calc(100% - 32px)",
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              padding: 28,
+              boxShadow: "0 20px 70px rgba(0,0,0,0.3)",
+              textAlign: "center",
+            }}
+          >
+            <h2 style={{ margin: "0 0 10px", fontSize: 24 }}>
+              Delete chatbot option?
+            </h2>
+
+            <p style={{ color: "#666", fontWeight: 600, marginBottom: 28 }}>
+              {deleteTarget
+                ? `Delete "${deleteTarget.label}" from the chatbot quick options?`
+                : "This option will be removed from the chatbot quick options."}
+            </p>
+
+            <div style={{ display: "flex", gap: 12 }}>
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                disabled={deleting}
+                style={{
+                  flex: 1,
+                  border: "none",
+                  backgroundColor: "#ddd",
+                  color: "#111",
+                  padding: "12px 0",
+                  borderRadius: 8,
+                  fontWeight: 800,
+                  cursor: deleting ? "not-allowed" : "pointer",
+                  opacity: deleting ? 0.7 : 1,
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmDeleteOption}
+                disabled={deleting}
+                style={{
+                  flex: 1,
+                  border: "none",
+                  backgroundColor: "#b00020",
+                  color: "#fff",
+                  padding: "12px 0",
+                  borderRadius: 8,
+                  fontWeight: 800,
+                  cursor: deleting ? "not-allowed" : "pointer",
+                  opacity: deleting ? 0.7 : 1,
+                }}
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
