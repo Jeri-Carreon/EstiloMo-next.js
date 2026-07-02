@@ -3,7 +3,8 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 
-import { parsePHDateOnly, todayCodePH } from "@/lib/dateUtils";
+import { parsePHDateOnly } from "@/lib/dateUtils";
+import { createUniqueCode } from "@/lib/createCode";
 
 const ALLOWED_PAYMONGO_METHODS = ["card", "gcash", "qrph"];
 const CREATE_CHECKOUT_FUNCTION_NAME = "smooth-task";
@@ -39,6 +40,7 @@ async function createPayMongoCheckout(params: {
   paymentMethods: string[];
   successUrl: string;
   cancelUrl: string;
+  failedUrl: string;
   metadata: Record<string, string>;
 }) {
   const secretKey = process.env.PAYMONGO_SECRET_KEY;
@@ -68,6 +70,7 @@ async function createPayMongoCheckout(params: {
               payment_method_types: params.paymentMethods,
               success_url: params.successUrl,
               cancel_url: params.cancelUrl,
+              failed_url: params.failedUrl,
               reference_number: params.referenceNumber,
               send_email_receipt: true,
               show_description: true,
@@ -131,24 +134,6 @@ async function createPayMongoCheckout(params: {
     ok: true,
     data,
   };
-}
-
-async function createAppointmentCode(tx: TransactionClient) {
-  const today = todayCodePH();
-  const count = await tx.appointment.count();
-  return `APT-${today}-${String(count + 1).padStart(4, "0")}`;
-}
-
-async function createSaleCode(tx: TransactionClient) {
-  const today = todayCodePH();
-  const count = await tx.sale.count();
-  return `TRX-${today}-${String(count + 1).padStart(4, "0")}`;
-}
-
-async function createPaymentCode(tx: TransactionClient) {
-  const today = todayCodePH();
-  const count = await tx.payment.count();
-  return `PAY-${today}-${String(count + 1).padStart(4, "0")}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -243,7 +228,7 @@ export async function POST(req: NextRequest) {
 
       const sale = await tx.sale.create({
         data: {
-          saleCode: await createSaleCode(tx),
+          saleCode: await createUniqueCode("TRX"),
           customerId: dbUser.customer!.id,
           barberId: firstItem.barberId,
           source: "BOOKING",
@@ -279,7 +264,7 @@ export async function POST(req: NextRequest) {
 
         const appointment = await tx.appointment.create({
           data: {
-            appointmentCode: await createAppointmentCode(tx),
+            appointmentCode: await createUniqueCode("APT"),
             customerId: dbUser.customer!.id,
             barberId: item.barberId,
             serviceId: item.serviceId,
@@ -298,7 +283,7 @@ export async function POST(req: NextRequest) {
       const payment = await tx.payment.create({
         data: {
           saleId: sale.id,
-          paymentCode: await createPaymentCode(tx),
+          paymentCode: await createUniqueCode("PAY"),
           amount: subtotal,
           downPayment: 150,
           discount: 0,
@@ -336,7 +321,10 @@ export async function POST(req: NextRequest) {
     const checkoutSuccessUrl = `${appOrigin}/myAppointments?payment=success&saleId=${encodeURIComponent(
       result.sale.id
     )}&saleCode=${encodeURIComponent(result.sale.saleCode)}`;
-    const checkoutCancelUrl = `${appOrigin}/myAppointments?payment=cancel&saleId=${encodeURIComponent(
+    const checkoutCancelUrl = `${appOrigin}/appointment?payment=cancel&saleId=${encodeURIComponent(
+      result.sale.id
+    )}&saleCode=${encodeURIComponent(result.sale.saleCode)}`;
+    const checkoutFailedUrl = `${appOrigin}/appointment?payment=failed&saleId=${encodeURIComponent(
       result.sale.id
     )}&saleCode=${encodeURIComponent(result.sale.saleCode)}`;
 
@@ -348,6 +336,7 @@ export async function POST(req: NextRequest) {
       paymentMethods,
       successUrl: checkoutSuccessUrl,
       cancelUrl: checkoutCancelUrl,
+      failedUrl: checkoutFailedUrl,
       metadata: {
         saleId: result.sale.id,
         saleCode: result.sale.saleCode,

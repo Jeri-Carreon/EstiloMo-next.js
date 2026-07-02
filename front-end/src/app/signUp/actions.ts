@@ -1,37 +1,62 @@
-'use server'
+"use server";
 
-import { POST } from '@/app/api/register/route'
-import { createClient } from '@/lib/supabase/server'
-import { db } from '@/lib/db'
+import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
+import { POST } from "@/app/api/register/route";
+import { db } from "@/lib/db";
+
+function isStrongPassword(password: string) {
+  return (
+    password.length >= 8 &&
+    /[a-z]/.test(password) &&
+    /[A-Z]/.test(password) &&
+    /\d/.test(password) &&
+    /[!@#$%^&*(),.?":{}|<>]/.test(password)
+  );
+}
+
+function getSupabaseAdminClient() {
+  return createSupabaseAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function signupAction(formData: {
-  firstName: string
-  lastName: string
-  email: string
-  password: string
-  mobileNumber: string
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  mobileNumber: string;
 }) {
-  console.log('signupAction called with:', formData.email)
+  let createdAuthUserId: string | null = null;
 
   try {
+    const firstName = formData.firstName.trim();
+    const lastName = formData.lastName.trim();
     const email = formData.email.toLowerCase().trim();
+    const password = formData.password;
+    const mobileNumber = formData.mobileNumber.replace(/\D/g, "");
 
-    // Keep as local PH format only
-    const cleanedPhone = formData.mobileNumber.replace(/\D/g, "");
+    if (!firstName) return { ok: false, error: "First name is required." };
+    if (!lastName) return { ok: false, error: "Last name is required." };
+    if (!email) return { ok: false, error: "Email is required." };
 
-    // Validate PH mobile format
-    if (!/^09\d{9}$/.test(cleanedPhone)) {
+    if (!isStrongPassword(password)) {
       return {
         ok: false,
-        error: "Invalid mobile number format",
+        error:
+          "Password must be at least 8 characters and include uppercase, lowercase, number, and symbol.",
       };
     }
 
-    // Store as-is (09XXXXXXXXX)
-    const phone = cleanedPhone;
+    if (!/^09\d{9}$/.test(mobileNumber)) {
+      return {
+        ok: false,
+        error: "Mobile number must start with 09 and contain exactly 11 digits.",
+      };
+    }
 
-
-    // Check existing email
     const existingUser = await db.user.findUnique({
       where: { email },
     });
@@ -39,37 +64,32 @@ export async function signupAction(formData: {
     if (existingUser) {
       return {
         ok: false,
-        error: "An account with this email already exists."
+        error: "An account with this email already exists.",
       };
     }
 
-
-    // Check existing phone
     const existingPhone = await db.user.findFirst({
-      where: {
-        mobileNumber: phone,
-      },
+      where: { mobileNumber },
     });
 
     if (existingPhone) {
       return {
         ok: false,
-        error: "Mobile number already exists."
+        error: "Mobile number already exists.",
       };
     }
 
-
     const supabase = await createClient();
 
-    console.log('supabase client:', typeof supabase, typeof supabase?.auth?.signUp)
     const { data, error } = await supabase.auth.signUp({
       email,
-      password: formData.password,
+      password,
       options: {
         data: {
-          full_name: `${formData.firstName} ${formData.lastName}`.trim(),
-          first_name: formData.firstName,
-          last_name: formData.lastName,
+          full_name: `${firstName} ${lastName}`,
+          first_name: firstName,
+          last_name: lastName,
+          mobile_number: mobileNumber,
         },
       },
     });
@@ -86,20 +106,24 @@ export async function signupAction(formData: {
     if (!supabaseUserId) {
       return {
         ok: false,
-        error: 'Failed to create auth user',
+        error: "Failed to create auth user.",
       };
     }
 
-    const apiRequest = new Request('http://localhost/api/register', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
+    createdAuthUserId = supabaseUserId;
+
+    const apiRequest = new Request("http://localhost/api/register", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
       body: JSON.stringify({
         id: supabaseUserId,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
+        firstName,
+        lastName,
         email,
-        password: formData.password,
-        mobileNumber: phone,
+        password,
+        mobileNumber,
       }),
     });
 
@@ -107,24 +131,34 @@ export async function signupAction(formData: {
     const apiResult = await apiResponse.json();
 
     if (!apiResponse.ok || !apiResult.ok) {
+      const supabaseAdmin = getSupabaseAdminClient();
+
+      await supabaseAdmin.auth.admin.deleteUser(supabaseUserId);
+
+      createdAuthUserId = null;
+
       return {
         ok: false,
-        error: apiResult.error ?? 'Registration failed',
+        error: apiResult.error ?? "Registration failed.",
       };
     }
 
-    return {
-      ok: true,
-    };
-
-
+    return { ok: true };
   } catch (err: any) {
-
     console.error("signupAction error:", err);
+
+    if (createdAuthUserId) {
+      try {
+        const supabaseAdmin = getSupabaseAdminClient();
+        await supabaseAdmin.auth.admin.deleteUser(createdAuthUserId);
+      } catch (deleteError) {
+        console.error("Failed to rollback Supabase auth user:", deleteError);
+      }
+    }
 
     return {
       ok: false,
-      error: err.message ?? "Unknown error"
+      error: err.message ?? "Registration failed.",
     };
   }
 }

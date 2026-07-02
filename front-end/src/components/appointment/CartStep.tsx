@@ -26,6 +26,7 @@ interface CartStepProps {
   ) => void;
   prevStep: () => void;
   resetToStart: () => void;
+  goToBarberStep: () => void;
 }
 
 function minutesToTime(minutes: number) {
@@ -53,6 +54,7 @@ export default function CartStep({
   nextStep,
   prevStep,
   resetToStart,
+  goToBarberStep,
 }: CartStepProps) {
   const handleDelete = (index: number) => {
     setAppointmentData((prev) => ({
@@ -227,116 +229,152 @@ export default function CartStep({
             minWidth: 0,
           }}
         >
-          <Box
-            sx={{
-              flex: 1,
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 2,
-              alignItems: 'flex-start',
-              minWidth: 0,
-            }}
-          >
-            {appointmentData.cartItems.length === 0 ? (
-              <Typography sx={{ fontWeight: 800, color: '#555' }}>
-                Your cart is empty.
-              </Typography>
-            ) : (
-              appointmentData.cartItems.map((item, index) => (
-                <Box
-                  key={`${item.serviceId}-${item.appointmentDate}-${item.startMinutes}-${index}`}
-                  sx={{
-                    width: { xs: '100%', sm: 255 },
-                    maxWidth: '100%',
-                    minHeight: 300,
-                    backgroundColor: '#fff',
-                    borderRadius: 1,
-                    p: 2,
-                    boxShadow: '0 2px 5px rgba(0,0,0,0.25)',
-                    position: 'relative',
-                  }}
-                >
-                  <IconButton
-                    size="small"
-                    onClick={() => handleDelete(index)}
-                    sx={{
-                      position: 'absolute',
-                      top: 10,
-                      right: 8,
-                      color: '#ff2f2f',
-                    }}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-
-                  <Typography
-                    sx={{
-                      fontWeight: 900,
-                      fontSize: { xs: 20, sm: 22 },
-                      pr: 4,
-                      mb: 1,
-                      color: '#111',
-                    }}
-                  >
-                    {item.serviceName}
-                  </Typography>
-
-                  <Typography
-                    sx={{
-                      fontWeight: 800,
-                      fontSize: 13,
-                      color: '#666',
-                      mb: 3,
-                    }}
-                  >
-                    Duration: {item.serviceDurationMinutes} mins
-                  </Typography>
-
-                  <Typography sx={{ fontWeight: 900, fontSize: 14, mb: 2 }}>
-                    Barber: {item.barberName}
-                  </Typography>
-
-                  <Typography sx={{ fontWeight: 900, fontSize: 14, mb: 2 }}>
-                    Schedule: {formatDate(item.appointmentDate)}
-                    <br />
-                    {minutesToTime(item.startMinutes)} -{' '}
-                    {minutesToTime(item.endMinutes)}
-                  </Typography>
-
-                  <Typography sx={{ fontWeight: 900, fontSize: 14 }}>
-                    Total: ₱ {item.servicePrice.toFixed(2)}
-                  </Typography>
-                </Box>
-              ))
-            )}
-          </Box>
-
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: { xs: 'stretch', sm: 'flex-end' },
-              mt: 3,
-            }}
-          >
-            <Button
-              startIcon={<AddCircleIcon sx={{ color: '#59d96b' }} />}
-              onClick={resetToStart}
+          {appointmentData.cartItems.length === 0 ? (
+            <Box
               sx={{
-                backgroundColor: '#fff',
-                color: '#111',
-                borderRadius: 10,
-                width: { xs: '100%', sm: 'auto' },
-                px: 2,
-                py: 1,
-                fontWeight: 900,
-                textTransform: 'none',
-                boxShadow: '0 2px 5px rgba(0,0,0,0.22)',
-                '&:hover': { backgroundColor: '#f5f5f5' },
+                flex: 1,
+                minHeight: { xs: 320, sm: 420 },
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                gap: 2,
               }}
             >
-              Add new Booking
-            </Button>
-          </Box>
+              <Typography
+                sx={{
+                  fontWeight: 900,
+                  fontSize: { xs: 22, sm: 28 },
+                  color: '#333',
+                }}
+              >
+                Cart is empty. Add booking?
+              </Typography>
+
+              <Button
+                onClick={goToBarberStep}
+                sx={{
+                  backgroundColor: '#f4b400',
+                  color: '#111',
+                  borderRadius: 10,
+                  px: 5,
+                  py: 1.2,
+                  textTransform: 'none',
+                  fontWeight: 900,
+                }}
+              >
+                Add Booking
+              </Button>
+            </Box>
+          ) : (
+            <>
+              <Box
+                sx={{
+                  flex: 1,
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 2,
+                  alignItems: 'flex-start',
+                  minWidth: 0,
+                }}
+              >
+                {appointmentData.cartItems.map((item, index) => (
+                  <Box
+                    key={`${item.serviceId}-${item.appointmentDate}-${item.startMinutes}-${index}`}
+                    sx={{
+                      width: { xs: '100%', sm: 255 },
+                      maxWidth: '100%',
+                      minHeight: 300,
+                      backgroundColor: '#fff',
+                      borderRadius: 1,
+                      p: 2,
+                      boxShadow: '0 2px 5px rgba(0,0,0,0.25)',
+                      position: 'relative',
+                    }}
+                  >
+                    <IconButton
+                      size="small"
+                      onClick={() => handleDelete(index)}
+                      sx={{
+                        position: 'absolute',
+                        top: 10,
+                        right: 8,
+                        color: '#ff2f2f',
+                      }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+
+                    <Typography
+                      sx={{
+                        fontWeight: 900,
+                        fontSize: { xs: 20, sm: 22 },
+                        pr: 4,
+                        mb: 1,
+                        color: '#111',
+                      }}
+                    >
+                      {item.serviceName}
+                    </Typography>
+
+                    <Typography
+                      sx={{
+                        fontWeight: 800,
+                        fontSize: 13,
+                        color: '#666',
+                        mb: 3,
+                      }}
+                    >
+                      Duration: {item.serviceDurationMinutes} mins
+                    </Typography>
+
+                    <Typography sx={{ fontWeight: 900, fontSize: 14, mb: 2 }}>
+                      Barber: {item.barberName}
+                    </Typography>
+
+                    <Typography sx={{ fontWeight: 900, fontSize: 14, mb: 2 }}>
+                      Schedule: {formatDate(item.appointmentDate)}
+                      <br />
+                      {minutesToTime(item.startMinutes)} -{' '}
+                      {minutesToTime(item.endMinutes)}
+                    </Typography>
+
+                    <Typography sx={{ fontWeight: 900, fontSize: 14 }}>
+                      Total: ₱ {item.servicePrice.toFixed(2)}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: { xs: 'stretch', sm: 'flex-end' },
+                  mt: 3,
+                }}
+              >
+                <Button
+                  startIcon={<AddCircleIcon sx={{ color: '#59d96b' }} />}
+                  onClick={resetToStart}
+                  sx={{
+                    backgroundColor: '#fff',
+                    color: '#111',
+                    borderRadius: 10,
+                    width: { xs: '100%', sm: 'auto' },
+                    px: 2,
+                    py: 1,
+                    fontWeight: 900,
+                    textTransform: 'none',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.22)',
+                    '&:hover': { backgroundColor: '#f5f5f5' },
+                  }}
+                >
+                  Add new Booking
+                </Button>
+              </Box>
+            </>
+          )}
         </Box>
 
         <Box
@@ -362,6 +400,9 @@ export default function CartStep({
               textTransform: 'none',
               fontWeight: 900,
               boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              '&:hover': {
+                backgroundColor: '#c8c8c8',
+              },
             }}
           >
             Back

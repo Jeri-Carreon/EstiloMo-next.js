@@ -34,7 +34,6 @@ export default function SignUpPage() {
   });
 
   const [confirmPassword, setConfirmPassword] = useState("");
-
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -55,54 +54,17 @@ export default function SignUpPage() {
     const password = formData.password;
     const mobileNumber = cleanMobileNumber(formData.mobileNumber);
 
-    if (!firstName) {
-      setErrorMsg("First name is required.");
-      return;
-    }
-
-    if (!lastName) {
-      setErrorMsg("Last name is required.");
-      return;
-    }
-
-    if (!email) {
-      setErrorMsg("Email is required.");
-      return;
-    }
-
-    if (!isValidEmail(email)) {
-      setErrorMsg("Please enter a valid email address.");
-      return;
-    }
-
-    if (!password) {
-      setErrorMsg("Password is required.");
-      return;
-    }
-
-    if (password.length < 6) {
-      setErrorMsg("Password must be at least 6 characters.");
-      return;
-    }
-
-    if (!confirmPassword) {
-      setErrorMsg("Please retype your password.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setErrorMsg("Passwords do not match.");
-      return;
-    }
-
-    if (!mobileNumber) {
-      setErrorMsg("Mobile number is required.");
-      return;
-    }
-
+    if (!firstName) return setErrorMsg("First name is required.");
+    if (!lastName) return setErrorMsg("Last name is required.");
+    if (!email) return setErrorMsg("Email is required.");
+    if (!isValidEmail(email)) return setErrorMsg("Please enter a valid email address.");
+    if (!password) return setErrorMsg("Password is required.");
+    if (password.length < 6) return setErrorMsg("Password must be at least 6 characters.");
+    if (!confirmPassword) return setErrorMsg("Please retype your password.");
+    if (password !== confirmPassword) return setErrorMsg("Passwords do not match.");
+    if (!mobileNumber) return setErrorMsg("Mobile number is required.");
     if (!/^09\d{9}$/.test(mobileNumber)) {
-      setErrorMsg("Mobile number must start with 09 and contain exactly 11 digits.");
-      return;
+      return setErrorMsg("Mobile number must start with 09 and contain exactly 11 digits.");
     }
 
     setLoading(true);
@@ -133,34 +95,67 @@ export default function SignUpPage() {
   return (
     <Box
       sx={{
-        width: "100%",
         minHeight: "100vh",
+        width: "100%",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: "#f5f5f5",
         px: 2,
+        py: 4,
+        backgroundImage:
+          'linear-gradient(rgba(0,0,0,0.62), rgba(0,0,0,0.72)), url("/images/banner.jpg")',
+        backgroundSize: "cover",
+        backgroundPosition: "center",
       }}
     >
       <Paper
-        elevation={3}
+        elevation={0}
         sx={{
           width: "100%",
-          maxWidth: 500,
-          p: 4,
-          borderRadius: 3,
+          maxWidth: 520,
+          px: { xs: 3, sm: 6 },
+          py: 4,
+          borderRadius: "28px",
           textAlign: "center",
+          color: "#fff",
+          background: "rgba(255,255,255,0.12)",
+          border: "1px solid rgba(255,255,255,0.25)",
+          backdropFilter: "blur(6px)",
         }}
       >
-        <h1
-          style={{
-            color: "#000",
-            fontSize: "2.5rem",
-            marginBottom: "1rem",
+        <Box
+          component="img"
+          src="/images/logo.jpg"
+          alt="The Barbs Bro Logo"
+          sx={{
+            width: { xs: 130, sm: 160 },
+            height: { xs: 130, sm: 160 },
+            objectFit: "contain",
+            mb: 1,
+          }}
+        />
+
+        <Box
+          component="h1"
+          sx={{
+            m: 0,
+            fontSize: { xs: "2rem", sm: "2.3rem" },
+            fontWeight: 800,
+            color: "#fff",
           }}
         >
-          Create Account
-        </h1>
+          EstiloMo
+        </Box>
+
+        <Box
+          sx={{
+            color: "rgba(255,255,255,0.8)",
+            fontSize: "1rem",
+            mb: 3,
+          }}
+        >
+          Sharp cuts. Sharper style.
+        </Box>
 
         <Box
           component="form"
@@ -168,31 +163,37 @@ export default function SignUpPage() {
           sx={{
             display: "flex",
             flexDirection: "column",
-            gap: 2,
+            gap: 1.6,
           }}
         >
           <TextField
             label="First Name *"
             value={formData.firstName}
             onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                firstName: e.target.value,
-              }))
+              setFormData((prev) => ({ ...prev, firstName: e.target.value }))
             }
             fullWidth
+            sx={fieldSx}
+            slotProps={{
+              inputLabel: {
+                shrink: true,
+              },
+            }}
           />
 
           <TextField
             label="Last Name *"
             value={formData.lastName}
             onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                lastName: e.target.value,
-              }))
+              setFormData((prev) => ({ ...prev, lastName: e.target.value }))
             }
             fullWidth
+            sx={fieldSx}
+            slotProps={{
+              inputLabel: {
+                shrink: true,
+              },
+            }}
           />
 
           <TextField
@@ -200,24 +201,24 @@ export default function SignUpPage() {
             type="email"
             value={formData.email}
             onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                email: e.target.value,
-              }))
+              setFormData((prev) => ({ ...prev, email: e.target.value }))
             }
             fullWidth
+            sx={fieldSx}
+            slotProps={{
+              inputLabel: {
+                shrink: true,
+              },
+            }}
           />
 
-          <FormControl fullWidth variant="outlined">
-            <InputLabel>Password *</InputLabel>
+          <FormControl fullWidth variant="outlined" sx={fieldSx}>
+            <InputLabel shrink>Password *</InputLabel>
             <OutlinedInput
               type={showPassword ? "text" : "password"}
               value={formData.password}
               onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  password: e.target.value,
-                }))
+                setFormData((prev) => ({ ...prev, password: e.target.value }))
               }
               label="Password *"
               endAdornment={
@@ -225,6 +226,7 @@ export default function SignUpPage() {
                   <IconButton
                     onClick={() => setShowPassword((prev) => !prev)}
                     edge="end"
+                    sx={{ color: "#fff" }}
                   >
                     {showPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
@@ -233,8 +235,8 @@ export default function SignUpPage() {
             />
           </FormControl>
 
-          <FormControl fullWidth variant="outlined">
-            <InputLabel>Retype Password *</InputLabel>
+          <FormControl fullWidth variant="outlined" sx={fieldSx}>
+            <InputLabel shrink>Retype Password *</InputLabel>
             <OutlinedInput
               type={showConfirmPassword ? "text" : "password"}
               value={confirmPassword}
@@ -245,6 +247,7 @@ export default function SignUpPage() {
                   <IconButton
                     onClick={() => setShowConfirmPassword((prev) => !prev)}
                     edge="end"
+                    sx={{ color: "#fff" }}
                   >
                     {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
@@ -264,6 +267,9 @@ export default function SignUpPage() {
               }))
             }
             slotProps={{
+              inputLabel: {
+                shrink: true,
+              },
               htmlInput: {
                 maxLength: 11,
                 inputMode: "numeric",
@@ -271,46 +277,40 @@ export default function SignUpPage() {
               },
             }}
             fullWidth
+            sx={fieldSx}
           />
 
           {errorMsg && (
-            <p
-              style={{
-                color: "red",
-                margin: "4px 0 0 0",
+            <Box
+              sx={{
+                color: "#ffb4b4",
                 fontSize: "0.9rem",
+                textAlign: "center",
               }}
             >
               {errorMsg}
-            </p>
+            </Box>
           )}
 
           <Button
             variant="contained"
             type="submit"
             disabled={loading}
-            sx={{
-              maxWidth: "100%",
-              borderRadius: 10,
-              fontSize: "1.2rem",
-              textTransform: "none",
-              color: "black",
-              backgroundColor: "#D9D9D9",
-              "&:hover": {
-                backgroundColor: loading ? "#D9D9D9" : "#FBBC05",
-              },
-            }}
+            sx={primaryButtonSx}
           >
-            {loading ? "Creating Account..." : "Sign Up"}
+            {loading ? "Creating Account..." : "Register"}
           </Button>
 
           <Button
             variant="text"
             sx={{
               textTransform: "none",
-              fontSize: "0.9rem",
-              color: "#555",
+              fontSize: "0.95rem",
+              color: "#fff",
               backgroundColor: "transparent",
+              "&:hover": {
+                backgroundColor: "rgba(255,255,255,0.08)",
+              },
             }}
             onClick={() => router.push("/login")}
           >
@@ -321,3 +321,70 @@ export default function SignUpPage() {
     </Box>
   );
 }
+
+const fieldSx = {
+  "& .MuiOutlinedInput-root": {
+    color: "#fff",
+    borderRadius: "14px",
+    backgroundColor: "rgba(0,0,0,0.25)",
+    "& fieldset": {
+      borderColor: "rgba(255,255,255,0.45)",
+    },
+    "&:hover fieldset": {
+      borderColor: "#fff",
+    },
+    "&.Mui-focused fieldset": {
+      borderColor: "#fff",
+    },
+  },
+  "& .MuiInputLabel-root": {
+    color: "rgba(255,255,255,0.8)",
+  },
+  "& .MuiInputLabel-root.Mui-focused": {
+    color: "#fff",
+  },
+  "& .MuiInputBase-input::placeholder": {
+    color: "rgba(255,255,255,0.65)",
+    opacity: 1,
+  },
+  "& input:-webkit-autofill": {
+    WebkitBoxShadow: "0 0 0 1000px rgba(0,0,0,0.25) inset",
+    WebkitTextFillColor: "#fff",
+    caretColor: "#fff",
+    borderRadius: "14px",
+    transition: "background-color 9999s ease-in-out 0s",
+  },
+  "& input:-webkit-autofill:hover": {
+    WebkitBoxShadow: "0 0 0 1000px rgba(0,0,0,0.25) inset",
+    WebkitTextFillColor: "#fff",
+  },
+  "& input:-webkit-autofill:focus": {
+    WebkitBoxShadow: "0 0 0 1000px rgba(0,0,0,0.25) inset",
+    WebkitTextFillColor: "#fff",
+  },
+  "& .MuiOutlinedInput-input:-webkit-autofill": {
+    WebkitBoxShadow: "0 0 0 1000px rgba(0,0,0,0.25) inset",
+    WebkitTextFillColor: "#fff",
+    caretColor: "#fff",
+  },
+};
+
+const primaryButtonSx = {
+  mt: 1,
+  height: 56,
+  borderRadius: "999px",
+  fontSize: "1.1rem",
+  fontWeight: 800,
+  textTransform: "none",
+  color: "#111",
+  backgroundColor: "#fff",
+  boxShadow: "none",
+  "&:hover": {
+    backgroundColor: "#f2f2f2",
+    boxShadow: "none",
+  },
+  "&.Mui-disabled": {
+    backgroundColor: "rgba(255,255,255,0.7)",
+    color: "rgba(0,0,0,0.55)",
+  },
+};

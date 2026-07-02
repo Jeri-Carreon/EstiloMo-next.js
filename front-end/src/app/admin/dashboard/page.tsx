@@ -34,9 +34,9 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type DashboardData = {
-  pendingAppointments: number;
+/*pendingAppointments: number; */
   todaySales: number;
-  newAppointments: number;
+/*newAppointments: number; */
   scheduledAppointments: number;
   cancellationsAppointments: number;
   cancellationsTotal: number;
@@ -199,10 +199,8 @@ export default function AdminDashboardPage() {
         const filteredAppts = appts.filter((appt: any) =>
           isInPeriod(new Date(appt.appointmentDate), now, period)
         );
-
-        // newAppointments intentionally counts ALL pending appts (not period-filtered),
-        // matching original behavior — "pending to confirm" is an all-time queue, not a period stat.
-        const newAppointments = appts.filter((a) => a.status === "PENDING").length;
+        
+        // const newAppointments = appts.filter((a) => a.status === "PENDING").length;
         const scheduledAppointments = filteredAppts.filter((a) => a.status === "SCHEDULED").length;
 
         // ── Sales: filtered by createdAt ──
@@ -402,9 +400,7 @@ export default function AdminDashboardPage() {
           .map((c, i) => ({ rank: i + 1, ...c }));
 
         setData({
-          pendingAppointments: newAppointments,
           todaySales,
-          newAppointments,
           cancellationsAppointments,
           cancellationsTotal,
           scheduledAppointments,
@@ -451,22 +447,7 @@ export default function AdminDashboardPage() {
       <Typography sx={{ fontSize: { xs: 26, md: 34 }, fontWeight: 900, mb: 0.5 }}>
         Dashboard
       </Typography>
-
-      {data.pendingAppointments > 0 && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 3, flexWrap: "wrap" }}>
-          <Typography sx={{ color: "#444", fontSize: 14 }}>
-            You have {data.pendingAppointments} new appointments to confirm
-          </Typography>
-          <Button
-            size="small"
-            onClick={() => router.push("/admin/appointments")}
-            sx={{ bgcolor: "#111", color: "#fff", textTransform: "none", px: 2, py: 0.5, borderRadius: 1, fontSize: 13, "&:hover": { bgcolor: "#333" } }}
-          >
-            View
-          </Button>
-        </Box>
-      )}
-
+      
       <Box sx={{ display: "flex", mb: 3, width: "fit-content" }}>
         {(["Day", "Week", "Month"] as const).map((p) => (
           <Button
@@ -486,7 +467,6 @@ export default function AdminDashboardPage() {
       </Box>
 
       <Box sx={{ display: "flex", gap: 2, mb: 4, flexWrap: "wrap" }}>
-        <MetricCard label="New Appointments" value={data.newAppointments} icon={<PersonAddIcon sx={{ color: "#ff9800", fontSize: 20 }} />} iconBg="#fff3e0" />
         <MetricCard label="Scheduled Appointments" value={data.scheduledAppointments} icon={<CalendarTodayIcon sx={{ color: "#2196f3", fontSize: 20 }} />} iconBg="#e3f2fd" />
         <MetricCard label="Completed Appointments" value={data.completedAppointments} icon={<CheckCircleOutlineIcon sx={{ color: "#4caf50", fontSize: 20 }} />} iconBg="#e8f5e9" />
         <MetricCard label="Cancelled Appointments" value={data.cancellationsAppointments} icon={<CancelIcon sx={{ color: "#f44336", fontSize: 20 }} />} iconBg="#fdecea" />

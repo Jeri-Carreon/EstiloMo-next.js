@@ -57,20 +57,6 @@ interface ConfirmAppointmentResponse {
   checkoutSessionId?: string;
 }
 
-type PaymentType = 'card' | 'ewallet';
-type EWalletProvider = 'gcash' | 'grabpay' | 'maya' | '';
-
-function getPayMongoPaymentMethods(
-  paymentType: PaymentType,
-  eWalletProvider: EWalletProvider
-) {
-  if (paymentType === 'card') return ['card'];
-  if (eWalletProvider === 'gcash') return ['gcash'];
-  if (eWalletProvider === 'maya') return ['qrph'];
-
-  return [];
-}
-
 function formatTime(minutes: number) {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
@@ -94,14 +80,6 @@ export default function AppointmentPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [successOpen, setSuccessOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [paymentType, setPaymentType] = useState<PaymentType>('card');
-  const [eWalletProvider, setEWalletProvider] =
-    useState<EWalletProvider>('');
-  const [checkoutUrl, setCheckoutUrl] = useState('');
-  const [checkoutSaleId, setCheckoutSaleId] = useState('');
-  const [checkoutSaleCode, setCheckoutSaleCode] = useState('');
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [paymentChecking, setPaymentChecking] = useState(false);
 
   const [warningOpen, setWarningOpen] = useState(false);
   const [warningTitle, setWarningTitle] = useState('');
@@ -123,6 +101,13 @@ export default function AppointmentPage() {
     cartItems: [],
   });
 
+  const totalPrice = appointmentData.cartItems.reduce(
+    (sum, item) => sum + item.servicePrice,
+    0
+  );
+
+  const downPayment = 150;
+
   const showWarning = (title: string, message: string) => {
     setWarningTitle(title);
     setWarningMessage(message);
@@ -131,7 +116,6 @@ export default function AppointmentPage() {
 
   const showBookedConfirmation = () => {
     window.localStorage.removeItem('estilomoPendingCheckout');
-    setCheckoutOpen(false);
     setSuccessOpen(true);
     setAppointmentData({
       barberId: '',
@@ -148,29 +132,55 @@ export default function AppointmentPage() {
     });
   };
 
-  const persistPendingCheckout = (saleId: string, saleCode: string) => {
+  const persistPendingCheckout = (
+    saleId: string,
+    saleCode: string,
+    checkoutUrl: string
+  ) => {
     window.localStorage.setItem(
       'estilomoPendingCheckout',
-      JSON.stringify({ saleId, saleCode })
+      JSON.stringify({
+        saleId,
+        saleCode,
+        checkoutUrl,
+        appointmentData,
+      })
     );
   };
 
   const getPendingCheckout = () => {
     try {
       const raw = window.localStorage.getItem('estilomoPendingCheckout');
-      if (!raw) return { saleId: '', saleCode: '' };
+
+      if (!raw) {
+        return {
+          saleId: '',
+          saleCode: '',
+          checkoutUrl: '',
+          appointmentData: null as AppointmentData | null,
+        };
+      }
 
       const parsed = JSON.parse(raw) as {
         saleId?: string;
         saleCode?: string;
+        checkoutUrl?: string;
+        appointmentData?: AppointmentData;
       };
 
       return {
         saleId: parsed.saleId || '',
         saleCode: parsed.saleCode || '',
+        checkoutUrl: parsed.checkoutUrl || '',
+        appointmentData: parsed.appointmentData || null,
       };
     } catch {
-      return { saleId: '', saleCode: '' };
+      return {
+        saleId: '',
+        saleCode: '',
+        checkoutUrl: '',
+        appointmentData: null as AppointmentData | null,
+      };
     }
   };
 
@@ -180,41 +190,83 @@ export default function AppointmentPage() {
     endMinutes?: number
   ) => {
     if (currentStep === 2 && appointmentDate) {
-      setAppointmentData((prev) => ({
-        ...prev,
-        cartItems: [
-          ...prev.cartItems,
-          {
-            barberId: prev.barberId,
-            barberName: prev.barberName,
-            serviceId: prev.serviceId,
-            serviceName: prev.serviceName,
-            servicePrice: prev.servicePrice,
-            serviceDescription: prev.serviceDescription,
-            serviceDurationMinutes: prev.serviceDurationMinutes,
-            appointmentDate: appointmentDate ?? '',
-            startMinutes: startMinutes ?? 0,
-            endMinutes: endMinutes ?? 0,
-          },
-        ],
-        barberId: '',
-        barberName: '',
-        serviceId: '',
-        serviceName: '',
-        servicePrice: 0,
-        serviceDescription: '',
-        appointmentDate: '',
-        startMinutes: 0,
-        endMinutes: 0,
-        serviceDurationMinutes: 0,
-      }));
+      setAppointmentData((prev) => {
+        const nextCartItem: CartItem = {
+          barberId: prev.barberId,
+          barberName: prev.barberName,
+          serviceId: prev.serviceId,
+          serviceName: prev.serviceName,
+          servicePrice: prev.servicePrice,
+          serviceDescription: prev.serviceDescription,
+          serviceDurationMinutes: prev.serviceDurationMinutes,
+          appointmentDate,
+          startMinutes: startMinutes ?? 0,
+          endMinutes: endMinutes ?? 0,
+        };
+
+        const existingIndex = prev.cartItems.findIndex(
+          (item) =>
+            item.barberId === prev.barberId &&
+            item.serviceId === prev.serviceId &&
+            item.appointmentDate === appointmentDate &&
+            item.startMinutes === startMinutes &&
+            item.endMinutes === endMinutes
+        );
+
+        const updatedCartItems = [...prev.cartItems];
+
+        if (existingIndex >= 0) {
+          updatedCartItems[existingIndex] = nextCartItem;
+        } else {
+          updatedCartItems.push(nextCartItem);
+        }
+
+        return {
+          ...prev,
+          cartItems: updatedCartItems,
+          barberId: '',
+          barberName: '',
+          serviceId: '',
+          serviceName: '',
+          servicePrice: 0,
+          serviceDescription: '',
+          appointmentDate: '',
+          startMinutes: 0,
+          endMinutes: 0,
+          serviceDurationMinutes: 0,
+        };
+      });
     }
 
     setCurrentStep((prev) => prev + 1);
   };
 
   const prevStep = () => {
-    setCurrentStep((prev) => prev - 1);
+    if (currentStep === 3) {
+      const lastItem =
+        appointmentData.cartItems[appointmentData.cartItems.length - 1];
+
+      if (!lastItem) {
+        setCurrentStep(0);
+        return;
+      }
+
+      setAppointmentData((prev) => ({
+        ...prev,
+        barberId: lastItem.barberId,
+        barberName: lastItem.barberName,
+        serviceId: lastItem.serviceId,
+        serviceName: lastItem.serviceName,
+        servicePrice: lastItem.servicePrice,
+        serviceDescription: lastItem.serviceDescription,
+        serviceDurationMinutes: lastItem.serviceDurationMinutes,
+        appointmentDate: lastItem.appointmentDate,
+        startMinutes: lastItem.startMinutes,
+        endMinutes: lastItem.endMinutes,
+      }));
+    }
+
+    setCurrentStep((prev) => Math.max(prev - 1, 0));
   };
 
   const removeCartItem = (indexToRemove: number) => {
@@ -283,12 +335,23 @@ export default function AppointmentPage() {
     setCurrentStep(0);
   };
 
-  const totalPrice = appointmentData.cartItems.reduce(
-    (sum, item) => sum + item.servicePrice,
-    0
-  );
+  const goToBarberStep = () => {
+    setAppointmentData((prev) => ({
+      ...prev,
+      barberId: '',
+      barberName: '',
+      serviceId: '',
+      serviceName: '',
+      servicePrice: 0,
+      serviceDescription: '',
+      serviceDurationMinutes: 0,
+      appointmentDate: '',
+      startMinutes: 0,
+      endMinutes: 0,
+    }));
 
-  const downPayment = 150;
+    setCurrentStep(0);
+  };
 
   const handleConfirm = async () => {
     if (appointmentData.cartItems.length === 0) {
@@ -296,15 +359,7 @@ export default function AppointmentPage() {
       return;
     }
 
-    const paymentMethods = getPayMongoPaymentMethods(
-      paymentType,
-      eWalletProvider
-    );
-
-    if (paymentMethods.length === 0) {
-      showWarning('Payment Method Required', 'Please select a payment method.');
-      return;
-    }
+    const paymentMethods = ['card', 'gcash', 'qrph'];
 
     try {
       setLoading(true);
@@ -325,10 +380,10 @@ export default function AppointmentPage() {
       const text = await res.text();
 
       let data: ConfirmAppointmentResponse = {};
+
       try {
         data = JSON.parse(text);
       } catch {
-        console.error('NON-JSON API RESPONSE:', text);
         showWarning(
           'Confirmation Failed',
           text || 'Failed to confirm appointment.'
@@ -352,11 +407,8 @@ export default function AppointmentPage() {
         return;
       }
 
-      setCheckoutUrl(data.checkoutUrl);
-      setCheckoutSaleId(data.saleId);
-      setCheckoutSaleCode(data.saleCode);
-      persistPendingCheckout(data.saleId, data.saleCode);
-      setCheckoutOpen(true);
+      persistPendingCheckout(data.saleId, data.saleCode, data.checkoutUrl);
+      window.location.href = data.checkoutUrl;
     } catch (error) {
       console.error(error);
       showWarning('Something Went Wrong', 'Something went wrong.');
@@ -365,84 +417,13 @@ export default function AppointmentPage() {
     }
   };
 
-  const checkPaymentStatus = async (
-    saleIdOverride?: string,
-    showPendingWarning = true,
-    saleCodeOverride?: string
-  ) => {
-    const pendingCheckout = getPendingCheckout();
-    const saleIdToCheck =
-      saleIdOverride || checkoutSaleId || pendingCheckout.saleId;
-    const saleCodeToCheck =
-      saleCodeOverride || checkoutSaleCode || pendingCheckout.saleCode;
-
-    if (!saleIdToCheck && !saleCodeToCheck) return;
-
-    try {
-      setPaymentChecking(true);
-
-      const params = new URLSearchParams();
-      if (saleIdToCheck) params.set('saleId', saleIdToCheck);
-      if (saleCodeToCheck) params.set('saleCode', saleCodeToCheck);
-
-      const res = await fetch(`/api/appointment/payment-status?${params}`);
-      const data = await res.json();
-
-      if (!res.ok) {
-        showWarning(
-          'Payment Check Failed',
-          data.error || 'Failed to check payment status.'
-        );
-        return;
-      }
-
-      if (data.isScheduled) {
-        showBookedConfirmation();
-      } else if (showPendingWarning) {
-        showWarning(
-          'Payment Pending',
-          'Your downpayment is still being confirmed. Please wait a moment, then check again.'
-        );
-      }
-    } catch (error) {
-      console.error(error);
-      showWarning('Something Went Wrong', 'Something went wrong.');
-    } finally {
-      setPaymentChecking(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!checkoutOpen || !checkoutSaleId) return;
-
-    const timer = window.setInterval(async () => {
-      try {
-        const params = new URLSearchParams({
-          saleId: checkoutSaleId,
-          saleCode: checkoutSaleCode,
-        });
-
-        const res = await fetch(`/api/appointment/payment-status?${params}`);
-        const data = await res.json();
-
-        if (res.ok && data.isScheduled) {
-          window.clearInterval(timer);
-          showBookedConfirmation();
-        }
-      } catch (error) {
-        console.error(error);
-      }
-    }, 4000);
-
-    return () => window.clearInterval(timer);
-  }, [checkoutOpen, checkoutSaleId, checkoutSaleCode]);
-
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const currentUrl = new URL(window.location.href);
     const paymentResult = currentUrl.searchParams.get('payment');
     const pendingCheckout = getPendingCheckout();
+
     const saleId =
       currentUrl.searchParams.get('saleId') || pendingCheckout.saleId;
     const saleCode =
@@ -454,8 +435,10 @@ export default function AppointmentPage() {
       const timer = window.setInterval(async () => {
         try {
           const params = new URLSearchParams();
+
           if (saleId) params.set('saleId', saleId);
           if (saleCode) params.set('saleCode', saleCode);
+
           params.set('confirmReturn', '1');
 
           const res = await fetch(`/api/appointment/payment-status?${params}`);
@@ -474,11 +457,49 @@ export default function AppointmentPage() {
     }
 
     if (paymentResult === 'cancel') {
+      if (pendingCheckout.appointmentData) {
+        setAppointmentData(pendingCheckout.appointmentData);
+      }
+
       window.history.replaceState({}, '', '/appointment');
+      setCurrentStep(4);
+
       window.setTimeout(() => {
         showWarning(
           'Payment Cancelled',
-          'Your PayMongo downpayment was not completed.'
+          'Your payment was not completed. Your booking details are still saved, so you can try again.'
+        );
+      }, 0);
+    }
+
+    if (paymentResult === 'failed') {
+      if (pendingCheckout.appointmentData) {
+        setAppointmentData(pendingCheckout.appointmentData);
+      }
+
+      window.history.replaceState({}, '', '/appointment');
+      setCurrentStep(4);
+
+      window.setTimeout(() => {
+        showWarning(
+          'Payment Failed',
+          'Your payment did not go through. Your booking details are still saved, so you can try again.'
+        );
+      }, 0);
+    }
+
+    if (paymentResult === 'expired') {
+      if (pendingCheckout.appointmentData) {
+        setAppointmentData(pendingCheckout.appointmentData);
+      }
+
+      window.history.replaceState({}, '', '/appointment');
+      setCurrentStep(4);
+
+      window.setTimeout(() => {
+        showWarning(
+          'Payment Not Completed',
+          'Your payment was cancelled, failed, or expired. Your booking details are still saved, so you can try again.'
         );
       }, 0);
     }
@@ -527,6 +548,7 @@ export default function AppointmentPage() {
           nextStep={nextStep}
           prevStep={prevStep}
           resetToStart={resetToStart}
+          goToBarberStep={goToBarberStep}
         />
       )}
 
@@ -536,10 +558,6 @@ export default function AppointmentPage() {
           prevStep={prevStep}
           totalPrice={totalPrice}
           downPayment={downPayment}
-          paymentType={paymentType}
-          setPaymentType={setPaymentType}
-          eWalletProvider={eWalletProvider}
-          setEWalletProvider={setEWalletProvider}
           handleConfirm={handleConfirm}
           loading={loading}
         />
@@ -582,12 +600,7 @@ export default function AppointmentPage() {
               mb: 2,
             }}
           >
-            <Typography
-              sx={{
-                fontSize: { xs: 20, sm: 24 },
-                fontWeight: 900,
-              }}
-            >
+            <Typography sx={{ fontSize: { xs: 20, sm: 24 }, fontWeight: 900 }}>
               Your Booking Cart
             </Typography>
 
@@ -598,9 +611,6 @@ export default function AppointmentPage() {
                 border: '1px solid #ddd',
                 width: 38,
                 height: 38,
-                '&:hover': {
-                  backgroundColor: '#f5f5f5',
-                },
               }}
             >
               <CloseIcon />
@@ -611,13 +621,7 @@ export default function AppointmentPage() {
             <Typography sx={{ color: '#666' }}>Your cart is empty.</Typography>
           ) : (
             <>
-              <Box
-                sx={{
-                  flex: 1,
-                  overflowY: 'auto',
-                  pr: 1,
-                }}
-              >
+              <Box sx={{ flex: 1, overflowY: 'auto', pr: 1 }}>
                 {appointmentData.cartItems.map((item, index) => (
                   <Box
                     key={`${item.serviceId}-${item.appointmentDate}-${item.startMinutes}-${index}`}
@@ -650,11 +654,13 @@ export default function AppointmentPage() {
                     </Box>
 
                     <Typography>Barber: {item.barberName}</Typography>
-                    <Typography>Duration: {item.serviceDurationMinutes} mins</Typography>
-                    <Typography>Date: {formatDate(item.appointmentDate)}</Typography>
-
                     <Typography>
-                      Time: {formatTime(item.startMinutes)} - {formatTime(item.endMinutes)}
+                      Duration: {item.serviceDurationMinutes} mins
+                    </Typography>
+                    <Typography>Date: {formatDate(item.appointmentDate)}</Typography>
+                    <Typography>
+                      Time: {formatTime(item.startMinutes)} -{' '}
+                      {formatTime(item.endMinutes)}
                     </Typography>
 
                     <Typography sx={{ fontWeight: 700, mt: 2 }}>
@@ -692,7 +698,6 @@ export default function AppointmentPage() {
                   py: 1.2,
                   textTransform: 'none',
                   fontWeight: 900,
-                  '&:hover': { bgcolor: '#222' },
                 }}
               >
                 Go to Cart
@@ -719,7 +724,13 @@ export default function AppointmentPage() {
             outline: 'none',
           }}
         >
-          <Typography sx={{ fontSize: { xs: 21, sm: 24 }, fontWeight: 1000, mb: 1.5 }}>
+          <Typography
+            sx={{
+              fontSize: { xs: 21, sm: 24 },
+              fontWeight: 1000,
+              mb: 1.5,
+            }}
+          >
             {warningTitle}
           </Typography>
 
@@ -737,7 +748,6 @@ export default function AppointmentPage() {
               borderRadius: 10,
               textTransform: 'none',
               fontWeight: 900,
-              '&:hover': { backgroundColor: '#e0a800' },
             }}
           >
             OK
@@ -777,7 +787,9 @@ export default function AppointmentPage() {
               justifyContent: 'center',
             }}
           >
-            <CheckCircleIcon sx={{ fontSize: { xs: 54, sm: 70 }, color: '#2ebd4f' }} />
+            <CheckCircleIcon
+              sx={{ fontSize: { xs: 54, sm: 70 }, color: '#2ebd4f' }}
+            />
           </Box>
 
           <Typography
@@ -792,11 +804,16 @@ export default function AppointmentPage() {
             APPOINTMENT BOOKED SUCCESSFULLY!
           </Typography>
 
-          <Typography sx={{ fontWeight: 900, fontSize: { xs: 16, sm: 18 }, mb: 4 }}>
-            We will notify you when your appointment is confirmed by our receptionist.
+          <Typography
+            sx={{ fontWeight: 900, fontSize: { xs: 16, sm: 18 }, mb: 4 }}
+          >
+            We will notify you when your appointment is confirmed by our
+            receptionist.
           </Typography>
 
-          <Typography sx={{ fontWeight: 900, fontSize: { xs: 16, sm: 18 }, mb: 5 }}>
+          <Typography
+            sx={{ fontWeight: 900, fontSize: { xs: 16, sm: 18 }, mb: 5 }}
+          >
             Thank you for trusting The Barbs Bro!
           </Typography>
 
@@ -812,140 +829,10 @@ export default function AppointmentPage() {
               textTransform: 'none',
               fontWeight: 900,
               fontSize: { xs: 16, sm: 20 },
-              boxShadow: '0 3px 5px rgba(0,0,0,0.2)',
             }}
           >
             View Appointments
           </Button>
-        </Box>
-      </Modal>
-
-      <Modal open={checkoutOpen} onClose={() => setCheckoutOpen(false)}>
-        <Box
-          sx={{
-            width: { xs: 'calc(100% - 20px)', md: 'min(960px, 92vw)' },
-            height: { xs: '88vh', md: '86vh' },
-            backgroundColor: '#fff',
-            borderRadius: 2,
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            boxShadow: 24,
-            outline: 'none',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <Box
-            sx={{
-              px: { xs: 2, sm: 3 },
-              py: 1.5,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              borderBottom: '1px solid #ddd',
-              gap: 2,
-            }}
-          >
-            <Typography sx={{ fontWeight: 900, fontSize: { xs: 18, sm: 22 } }}>
-              PayMongo Downpayment
-            </Typography>
-
-            <IconButton onClick={() => setCheckoutOpen(false)}>
-              <CloseIcon />
-            </IconButton>
-          </Box>
-
-          <Box
-            sx={{
-              flex: 1,
-              p: { xs: 3, sm: 5 },
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              textAlign: 'center',
-              gap: 2,
-              backgroundColor: '#f7f7f7',
-            }}
-          >
-            <Typography sx={{ fontWeight: 1000, fontSize: { xs: 24, sm: 32 } }}>
-              Continue to PayMongo
-            </Typography>
-
-            <Typography
-              sx={{
-                color: '#666',
-                fontWeight: 700,
-                maxWidth: 520,
-                lineHeight: 1.6,
-              }}
-            >
-              PayMongo does not allow this checkout to load inside an embedded
-              frame. Continue in this tab, then you will return here after the
-              downpayment is confirmed.
-            </Typography>
-          </Box>
-
-          <Box
-            sx={{
-              px: { xs: 2, sm: 3 },
-              py: 1.5,
-              display: 'flex',
-              flexDirection: { xs: 'column', sm: 'row' },
-              justifyContent: 'space-between',
-              alignItems: { xs: 'stretch', sm: 'center' },
-              gap: 1.5,
-              borderTop: '1px solid #ddd',
-            }}
-          >
-            <Typography sx={{ color: '#666', fontWeight: 700, fontSize: 13 }}>
-              Keep this payment window open until PayMongo finishes redirecting.
-            </Typography>
-
-            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-              <Button
-                onClick={() => {
-                  if (checkoutUrl) {
-                    window.location.href = checkoutUrl;
-                  }
-                }}
-                sx={{
-                  backgroundColor: '#ddd',
-                  color: '#111',
-                  borderRadius: 10,
-                  px: 2.5,
-                  textTransform: 'none',
-                  fontWeight: 900,
-                }}
-              >
-                Continue to Secure Checkout
-              </Button>
-
-              <Button
-                onClick={() => {
-                  void checkPaymentStatus();
-                }}
-                disabled={paymentChecking}
-                sx={{
-                  backgroundColor: '#f4b400',
-                  color: '#111',
-                  borderRadius: 10,
-                  px: 2.5,
-                  textTransform: 'none',
-                  fontWeight: 900,
-                  '&:disabled': {
-                    backgroundColor: '#f5dc90',
-                    color: '#777',
-                  },
-                }}
-              >
-                {paymentChecking ? 'Checking...' : 'I Finished Paying'}
-              </Button>
-            </Box>
-          </Box>
         </Box>
       </Modal>
     </Box>

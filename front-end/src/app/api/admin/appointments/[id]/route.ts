@@ -2,27 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
 import { logAppointmentEdited, logAppointmentCancelled, logAfterServicePhotoUploaded, } from "@/lib/securityLogEvents";
-
-async function createUniqueCode(prefix: string) {
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-
-  for (let attempt = 0; attempt < 10000; attempt += 1) {
-    const random = String(attempt).padStart(4, "0");
-    const candidate = `${prefix}-${today}-${random}`;
-
-    const [appointmentExists, saleExists, paymentExists] = await Promise.all([
-      db.appointment.findUnique({ where: { appointmentCode: candidate }, select: { id: true } }),
-      db.sale.findUnique({ where: { saleCode: candidate }, select: { id: true } }),
-      db.payment.findUnique({ where: { paymentCode: candidate }, select: { id: true } }),
-    ]);
-
-    if (!appointmentExists && !saleExists && !paymentExists) {
-      return candidate;
-    }
-  }
-
-  throw new Error(`Unable to generate unique ${prefix} code after 10000 attempts`);
-}
+import { createUniqueCode } from "@/lib/createCode";
 
 export async function PUT(
   req: Request,

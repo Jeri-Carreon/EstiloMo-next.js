@@ -69,15 +69,46 @@ export default function ScheduleStep({
   cartCount,
   onCartClick,
 }: ScheduleStepProps) {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedTime, setSelectedTime] = useState<AvailableTime | null>(null);
+  const [currentMonth, setCurrentMonth] = useState<Date>(() => {
+    if (!appointmentData.appointmentDate) return new Date();
+
+    return new Date(`${appointmentData.appointmentDate}T00:00:00`);
+  });
+  const [selectedDate, setSelectedDate] = useState<Date | null>(() => {
+    if (!appointmentData.appointmentDate) return null;
+    return new Date(`${appointmentData.appointmentDate}T00:00:00`);
+  });
+  const [selectedTime, setSelectedTime] = useState<AvailableTime | null>(() => {
+    if (
+      appointmentData.startMinutes === undefined ||
+      appointmentData.endMinutes === undefined
+    ) {
+      return null;
+    }
+
+    return {
+      startMinutes: appointmentData.startMinutes,
+      endMinutes: appointmentData.endMinutes,
+      label: `${formatTime(appointmentData.startMinutes)} - ${formatTime(
+        appointmentData.endMinutes
+      )}`,
+    };
+  });
   const [availableTimes, setAvailableTimes] = useState<AvailableTime[]>([]);
   const [loadingTimes, setLoadingTimes] = useState(false);
   const [bookingCutoffHours, setBookingCutoffHours] = useState<number>(1);
   const [unavailableDates, setUnavailableDates] = useState<Set<string>>(
     new Set()
   );
+
+  useEffect(() => {
+    if (!appointmentData.appointmentDate) return;
+
+    const selected = new Date(`${appointmentData.appointmentDate}T00:00:00`);
+
+    setCurrentMonth(new Date(selected.getFullYear(), selected.getMonth(), 1));
+    setSelectedDate(selected);
+  }, [appointmentData.appointmentDate]);
 
   const days = useMemo(() => {
     const year = currentMonth.getFullYear();
@@ -134,11 +165,19 @@ export default function ScheduleStep({
       const formattedDate = formatDateInput(date);
 
       const blockedSlots = appointmentData.cartItems
-        .filter(
-          (item) =>
+        .filter((item) => {
+          const sameBarber = item.barberId === appointmentData.barberId;
+          const sameDate = item.appointmentDate === formattedDate;
+
+          const isCurrentRestoredSelection =
             item.barberId === appointmentData.barberId &&
-            item.appointmentDate === formattedDate
-        )
+            item.serviceId === appointmentData.serviceId &&
+            item.appointmentDate === appointmentData.appointmentDate &&
+            item.startMinutes === appointmentData.startMinutes &&
+            item.endMinutes === appointmentData.endMinutes;
+
+          return sameBarber && sameDate && !isCurrentRestoredSelection;
+        })
         .map((item) => `${item.startMinutes}-${item.endMinutes}`)
         .join(',');
 
@@ -151,7 +190,26 @@ export default function ScheduleStep({
       const times = data?.availableTimes ?? [];
 
     setAvailableTimes(times);
-    setSelectedTime(null);
+
+    const restoredTime = times.find(
+      (time: AvailableTime) =>
+        time.startMinutes === appointmentData.startMinutes &&
+        time.endMinutes === appointmentData.endMinutes
+    );
+
+    setSelectedTime(
+      restoredTime
+        ? {
+            startMinutes: restoredTime.startMinutes,
+            endMinutes: restoredTime.endMinutes,
+            label:
+              restoredTime.label ||
+              `${formatTime(restoredTime.startMinutes)} - ${formatTime(
+                restoredTime.endMinutes
+              )}`,
+          }
+        : null
+    );
 
     if (times.length === 0) {
       setUnavailableDates((prev) => {
