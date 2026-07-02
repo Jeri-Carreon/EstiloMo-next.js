@@ -1,164 +1,60 @@
-"use server";
+import { NextRequest, NextResponse } from "next/server";
+import { registerUser } from "@/lib/register-user";
 
-import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
-import { POST } from "@/app/api/register/route";
-import { db } from "@/lib/db";
-
-function isStrongPassword(password: string) {
-  return (
-    password.length >= 8 &&
-    /[a-z]/.test(password) &&
-    /[A-Z]/.test(password) &&
-    /\d/.test(password) &&
-    /[!@#$%^&*(),.?":{}|<>]/.test(password)
-  );
-}
-
-function getSupabaseAdminClient() {
-  return createSupabaseAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
-
-export async function signupAction(formData: {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
-  mobileNumber: string;
-}) {
-  let createdAuthUserId: string | null = null;
-
+export async function POST(req: NextRequest) {
   try {
-    const firstName = formData.firstName.trim();
-    const lastName = formData.lastName.trim();
-    const email = formData.email.toLowerCase().trim();
-    const password = formData.password;
-    const mobileNumber = formData.mobileNumber.replace(/\D/g, "");
+    let { firstName, lastName, email, mobileNumber } = await req.json();
 
-    if (!firstName) return { ok: false, error: "First name is required." };
-    if (!lastName) return { ok: false, error: "Last name is required." };
-    if (!email) return { ok: false, error: "Email is required." };
+    firstName = (firstName ?? "").trim();
+    lastName = (lastName ?? "").trim();
+    email = (email ?? "").toLowerCase().trim();
+    mobileNumber = (mobileNumber ?? "").replace(/\D/g, "");
 
-    if (!isStrongPassword(password)) {
-      return {
-        ok: false,
-        error:
-          "Password must be at least 8 characters and include uppercase, lowercase, number, and symbol.",
-      };
+    if (!firstName || !lastName || !email || !mobileNumber) {
+      return NextResponse.json({ ok: false, error: "Missing fields" }, { status: 400 });
     }
 
-    if (!/^09\d{9}$/.test(mobileNumber)) {
-      return {
-        ok: false,
-        error: "Mobile number must start with 09 and contain exactly 11 digits.",
-      };
+    if (firstName.length > 50 || lastName.length > 50) {
+      return NextResponse.json({ ok: false, error: "Name too long" }, { status: 400 });
     }
 
-    const existingUser = await db.user.findUnique({
-      where: { email },
-    });
-
-    if (existingUser) {
-      return {
-        ok: false,
-        error: "An account with this email already exists.",
-      };
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json({ ok: false, error: "Invalid email format" }, { status: 400 });
     }
 
-    const existingPhone = await db.user.findFirst({
-      where: { mobileNumber },
-    });
-
-    if (existingPhone) {
-      return {
-        ok: false,
-        error: "Mobile number already exists.",
-      };
+    if (email.length > 100) {
+      return NextResponse.json({ ok: false, error: "Email is too long" }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    const mobileRegex = /^09\d{9}$/;
+    if (!mobileRegex.test(mobileNumber)) {
+      return NextResponse.json(
+        { ok: false, error: "Mobile number must be valid (09123456789 format)" },
+        { status: 400 }
+      );
+    }
 
-    const { data, error } = await supabase.auth.signUp({
+    const { user, customer } = await registerUser({
+      firstName,
+      lastName,
       email,
-      password,
-      options: {
-        data: {
-          full_name: `${firstName} ${lastName}`,
-          first_name: firstName,
-          last_name: lastName,
-          mobile_number: mobileNumber,
-        },
-      },
+      mobileNumber,
     });
 
-    if (error) {
-      return {
-        ok: false,
-        error: error.message,
-      };
-    }
+    const { password: _, ...safeUser } = user;
 
-    const supabaseUserId = data.user?.id;
-
-    if (!supabaseUserId) {
-      return {
-        ok: false,
-        error: "Failed to create auth user.",
-      };
-    }
-
-    createdAuthUserId = supabaseUserId;
-
-    const apiRequest = new Request("http://localhost/api/register", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        id: supabaseUserId,
-        firstName,
-        lastName,
-        email,
-        password,
-        mobileNumber,
-      }),
+    return NextResponse.json({
+      ok: true,
+      message: "Customer created successfully",
+      user: safeUser,
+      customer,
     });
-
-    const apiResponse = await POST(apiRequest);
-    const apiResult = await apiResponse.json();
-
-    if (!apiResponse.ok || !apiResult.ok) {
-      const supabaseAdmin = getSupabaseAdminClient();
-
-      await supabaseAdmin.auth.admin.deleteUser(supabaseUserId);
-
-      createdAuthUserId = null;
-
-      return {
-        ok: false,
-        error: apiResult.error ?? "Registration failed.",
-      };
-    }
-
-    return { ok: true };
-  } catch (err: any) {
-    console.error("signupAction error:", err);
-
-    if (createdAuthUserId) {
-      try {
-        const supabaseAdmin = getSupabaseAdminClient();
-        await supabaseAdmin.auth.admin.deleteUser(createdAuthUserId);
-      } catch (deleteError) {
-        console.error("Failed to rollback Supabase auth user:", deleteError);
-      }
-    }
-
-    return {
-      ok: false,
-      error: err.message ?? "Registration failed.",
-    };
+  } catch (error: any) {
+    console.error("create-customer error:", error);
+    return NextResponse.json(
+      { ok: false, error: error.message ?? "Failed to create customer" },
+      { status: 400 }
+    );
   }
 }
