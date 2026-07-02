@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toPHDateKey } from '@/lib/dateUtils';
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -129,6 +130,7 @@ function compareNewestScheduleFirst(a: Appointment, b: Appointment) {
 
 export default function AppointmentsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const [warningOpen, setWarningOpen] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
@@ -139,13 +141,11 @@ export default function AppointmentsPage() {
   };
   
   const [originalAppointmentStatus, setOriginalAppointmentStatus] = useState('');
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [barbers, setBarbers] = useState<BarberOption[]>([]);
   const [services, setServices] = useState<ServiceOption[]>([]);
 
   const supabase = createClient()
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -324,85 +324,86 @@ export default function AppointmentsPage() {
     return '#333';
   };
 
-  const loadAppointments = async () => {
-    try {
-      setLoading(true);
-
+  const {
+    data: appointments = [],
+    isLoading: loading,
+    isError: appointmentsError,
+  } = useQuery<Appointment[]>({
+    queryKey: ['adminAppointments'],
+    queryFn: async () => {
       const res = await fetch('/api/admin/appointments', {
         cache: 'no-store',
       });
 
       if (res.status === 403) {
         router.push('/unauthorized');
-        return;
+        return [];
       }
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'Unable to load appointments.');
-        setAppointments([]);
-        return;
+        throw new Error(data.error || 'Unable to load appointments.');
       }
 
-      setAppointments(
-        (data.appointments || []).map((appointment: any) => ({
-          id: appointment.id,
-          appointmentCode: appointment.appointmentCode || '',
-          customerId: appointment.customerId,
-          customerCode: appointment.customer?.customerCode || '',
-          customerName:
-            appointment.customer?.name ||
-            [appointment.customer?.firstName, appointment.customer?.lastName]
-              .filter(Boolean)
-              .join(' ') ||
-            '',
-          schedule:
-            appointment.schedule?.formatted ||
-            appointment.schedule ||
-            '',
-          appointmentDate: appointment.appointmentDate || '',
-          startMinutes: appointment.startMinutes,
-          endMinutes: appointment.endMinutes,
-          barberId: appointment.barberId,
-          barberName:
-            appointment.barber?.name ||
-            [appointment.barber?.firstName, appointment.barber?.lastName]
-              .filter(Boolean)
-              .join(' ') ||
-            '',
-          serviceId: appointment.serviceId,
-          serviceName: appointment.service?.name || '',
-          totalAmount:
-            appointment.payment?.amount !== undefined &&
-            appointment.payment?.amount !== null
-              ? appointment.payment.amount
-              : null,
-          status: appointment.status || '',
-          paymentScreenshotUrl: appointment.payment?.screenshotUrl || null,
-          afterServicePhotos: appointment.afterServicePhotos || [],
-          afterServicePhotoUrl:
-            appointment.afterServicePhotoUrl ||
-            appointment.afterServicePhotos?.[0]?.imageUrl ||
-            null,
-        }))
-      );
-
-      setSettings(data.settings);
+      setSettings(data.settings || null);
 
       if (data.settings) {
         setBookingCutoffHours(data.settings.bookingCutoffHours);
       }
 
       setError('');
-    } catch (error) {
-      console.error(error);
+
+      return (data.appointments || []).map((appointment: any) => ({
+        id: appointment.id,
+        appointmentCode: appointment.appointmentCode || '',
+        customerId: appointment.customerId,
+        customerCode: appointment.customer?.customerCode || '',
+        customerName:
+          appointment.customer?.name ||
+          [appointment.customer?.firstName, appointment.customer?.lastName]
+            .filter(Boolean)
+            .join(' ') ||
+          '',
+        schedule:
+          appointment.schedule?.formatted ||
+          appointment.schedule ||
+          '',
+        appointmentDate: appointment.appointmentDate || '',
+        startMinutes: appointment.startMinutes,
+        endMinutes: appointment.endMinutes,
+        barberId: appointment.barberId,
+        barberName:
+          appointment.barber?.name ||
+          [appointment.barber?.firstName, appointment.barber?.lastName]
+            .filter(Boolean)
+            .join(' ') ||
+          '',
+        serviceId: appointment.serviceId,
+        serviceName: appointment.service?.name || '',
+        totalAmount:
+          appointment.payment?.amount !== undefined &&
+          appointment.payment?.amount !== null
+            ? appointment.payment.amount
+            : null,
+        status: appointment.status || '',
+        paymentScreenshotUrl: appointment.payment?.screenshotUrl || null,
+        afterServicePhotos: appointment.afterServicePhotos || [],
+        afterServicePhotoUrl:
+          appointment.afterServicePhotoUrl ||
+          appointment.afterServicePhotos?.[0]?.imageUrl ||
+          null,
+      }));
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+
+  useEffect(() => {
+    if (appointmentsError) {
       setError('Unable to load appointments.');
-      setAppointments([]);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [appointmentsError]);
 
   const loadOptions = async () => {
   try {
@@ -576,7 +577,6 @@ export default function AppointmentsPage() {
             return
           }
         
-      loadAppointments();
       loadOptions();
       } catch (err) {
         console.error("Initialization failed:", err)
@@ -723,7 +723,7 @@ export default function AppointmentsPage() {
       resetAddModal();
       setSuccessMessage('Appointment successfully added!');
       setSuccessOpen(true);
-      await loadAppointments();
+      await queryClient.invalidateQueries({ queryKey: ['adminAppointments'] });
     } catch (error) {
       console.error('ADD APPOINTMENT ERROR:', error);
       showWarning('Failed to add appointment.');
@@ -765,7 +765,7 @@ export default function AppointmentsPage() {
       setSelectedAppointment(null);
       setSuccessMessage('Appointment successfully updated!');
       setSuccessOpen(true);
-      await loadAppointments();
+      await queryClient.invalidateQueries({ queryKey: ['adminAppointments'] });
     } catch (error) {
       console.error('UPDATE APPOINTMENT ERROR:', error);
       showWarning('Failed to update appointment.');
@@ -1092,7 +1092,7 @@ export default function AppointmentsPage() {
       }
 
       setSettingsOpen(false);
-      await loadAppointments();
+      await queryClient.invalidateQueries({ queryKey: ['adminAppointments'] });
     } catch (error) {
       console.error(error);
     }

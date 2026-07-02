@@ -6,6 +6,8 @@ import { parsePHDateOnly } from "@/lib/dateUtils";
 import { ensureSingleAppointmentSetting } from "@/lib/appointmentSettings";
 import { createUniqueCode } from "@/lib/createCode";
 
+export const dynamic = "force-dynamic";
+
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;

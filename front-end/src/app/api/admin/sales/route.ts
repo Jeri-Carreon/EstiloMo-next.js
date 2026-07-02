@@ -3,11 +3,9 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
 import { createUniqueCode } from "@/lib/createCode";
+import { logSaleCreated,logDiscountApplied, } from "@/lib/securityLogEvents";
 
-import {
-  logSaleCreated,
-  logDiscountApplied,
-} from "@/lib/securityLogEvents";
+export const dynamic = "force-dynamic";
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);

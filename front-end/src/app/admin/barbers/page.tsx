@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toPHDateKey } from "@/lib/dateUtils";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -228,15 +229,16 @@ function compareNewestScheduleFirst(a: Appointment, b: Appointment) {
 }
 
 export default function BarbersPage() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const supabase = useMemo(() => createClient(), []);
+
   const [openAvailability, setOpenAvailability] = useState(false);
-  const [barbers, setBarbers] = useState<Barber[]>([]);
-  const [barberLoading, setBarberLoading] = useState(true);
   const [currentBarberIndex, setCurrentBarberIndex] = useState(0);
 
   const [availabilityDraft, setAvailabilityDraft] = useState<
     AvailabilityRow[] | null
   >(null);
-  const [absentMap, setAbsentMap] = useState<Record<string, boolean>>({});
   const [availabilityCalendarMonth, setAvailabilityCalendarMonth] = useState(
     new Date(),
   );
@@ -248,13 +250,7 @@ export default function BarbersPage() {
   >({});
 
   // Session
-  const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
   const [role, setRole] = useState<string>("");
-
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [appointmentLoading, setAppointmentLoading] = useState(true);
-  const [error, setError] = useState("");
 
   const [scheduledPage, setScheduledPage] = useState(1);
   const [processedPage, setProcessedPage] = useState(1);
@@ -263,6 +259,61 @@ export default function BarbersPage() {
   const [processedSearch, setProcessedSearch] = useState("");
   const [processedStatusFilter, setProcessedStatusFilter] = useState("ALL");
   const itemsPerPage = 4;
+
+  const { data: barbers = [], isLoading: barberLoading } = useQuery<Barber[]>({
+    queryKey: ["adminBarbers"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/barbers", {
+        cache: "no-store",
+      });
+
+      if (res.status === 403) {
+        router.push("/unauthorized");
+        return [];
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Unable to load barbers.");
+      }
+
+      return data.barbers || [];
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+
+  const { data: absentMap = {} } = useQuery<Record<string, boolean>>({
+    queryKey: ["adminBarberAbsents"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/barbers/absent", {
+        cache: "no-store",
+      });
+
+      const data = (await res.json()) as AbsentApiRow[] | ApiErrorResponse;
+
+      if (!res.ok) {
+        throw new Error(
+          !Array.isArray(data) && data.error
+            ? data.error
+            : "Unable to load barber absences.",
+        );
+      }
+
+      const map: Record<string, boolean> = {};
+
+      if (Array.isArray(data)) {
+        data.forEach((item) => {
+          map[`${item.barberId}-${item.date}`] = true;
+        });
+      }
+
+      return map;
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
 
   const currentBarber = barbers[currentBarberIndex];
   const defaultAvailability = useMemo(() => {
@@ -283,6 +334,75 @@ export default function BarbersPage() {
     });
   }, [currentBarber]);
   const availability = availabilityDraft || defaultAvailability;
+  const currentBarberId = currentBarber?.id || "";
+
+  const {
+    data: appointments = [],
+    isLoading: appointmentLoading,
+    error: appointmentsQueryError,
+  } = useQuery<Appointment[]>({
+    queryKey: ["adminBarberAppointments", currentBarberId],
+    enabled: !!currentBarberId,
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/barbers/${currentBarberId}`, {
+        cache: "no-store",
+      });
+
+      if (res.status === 403) {
+        router.push("/unauthorized");
+        return [];
+      }
+
+      const data = (await res.json()) as AppointmentApiRow[] | ApiErrorResponse;
+
+      if (!res.ok) {
+        throw new Error(
+          !Array.isArray(data) && data.error
+            ? data.error
+            : "Unable to load appointments.",
+        );
+      }
+
+      const appointmentRows = Array.isArray(data) ? data : [];
+
+      return appointmentRows.map((appointment) => ({
+        id: appointment.id,
+        appointmentCode: appointment.appointmentCode,
+        customerCode: appointment.customer?.customerCode || "",
+        customerName: appointment.customer?.name || "",
+        appointmentDate: appointment.appointmentDate || "",
+        startMinutes: appointment.schedule?.startTime
+          ? timeToMinutes(appointment.schedule.startTime)
+          : undefined,
+        endMinutes: appointment.schedule?.endTime
+          ? timeToMinutes(appointment.schedule.endTime)
+          : undefined,
+        schedule: appointment.schedule?.formatted || "",
+        barberId: appointment.barberId,
+        barberName:
+          appointment.barber?.name ||
+          [appointment.barber?.firstName, appointment.barber?.lastName]
+            .filter(Boolean)
+            .join(" ") ||
+          "",
+        serviceId: appointment.serviceId,
+        serviceName: appointment.service?.name || "",
+        totalAmount:
+          appointment.payment?.amount !== undefined &&
+          appointment.payment?.amount !== null
+            ? appointment.payment.amount
+            : null,
+        status: appointment.status || "",
+        paymentScreenshotUrl: appointment.payment?.screenshotUrl || null,
+        afterServicePhotoUrl: appointment.afterServicePhotoUrl || null,
+        afterServicePhotos: appointment.afterServicePhotos || [],
+      }));
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+
+  const error = appointmentsQueryError instanceof Error ? appointmentsQueryError.message : "";
 
   const [openEditModal, setOpenEditModal] = useState(false);
   const [openEditDayModal, setOpenEditDayModal] = useState(false);
@@ -321,11 +441,6 @@ export default function BarbersPage() {
       })),
     [barbers],
   );
-
-  useEffect(() => {
-    fetchBarbers();
-    fetchAbsents();
-  }, []);
 
   const canUploadAfterServicePhoto =
     selectedAppointment?.status?.toUpperCase() === "COMPLETED";
@@ -466,7 +581,9 @@ export default function BarbersPage() {
       setSelectedAppointment(null);
 
       if (currentBarber?.id) {
-        await loadAppointments(currentBarber.id);
+        queryClient.invalidateQueries({
+          queryKey: ["adminBarberAppointments", currentBarber.id],
+        });
       }
     } catch (error) {
       console.error("SAVE AFTER SERVICE PHOTO ERROR:", error);
@@ -475,31 +592,6 @@ export default function BarbersPage() {
       setSaving(false);
     }
   };
-
-  async function fetchBarbers() {
-    try {
-      const res = await fetch("/api/admin/barbers");
-      console.log("BARBERS STATUS:", res.status);
-      const data = await res.json();
-      console.log("BARBERS DATA:", data);
-      setBarbers(data.barbers || []);
-    } finally {
-      setBarberLoading(false);
-    }
-  }
-
-  async function fetchAbsents() {
-    const res = await fetch("/api/admin/barbers/absent");
-    const data = (await res.json()) as AbsentApiRow[];
-
-    const map: Record<string, boolean> = {};
-
-    data.forEach((a) => {
-      map[`${a.barberId}-${a.date}`] = true;
-    });
-
-    setAbsentMap(map);
-  }
 
   async function saveAvailability() {
     await fetch(`/api/admin/barbers/${currentBarber.id}/schedule`, {
@@ -528,90 +620,16 @@ export default function BarbersPage() {
       });
     }
 
-    setAbsentMap(absentDraftMap);
     setPendingAbsentChanges({});
     setOpenAvailability(false);
     setAvailabilityDraft(null);
 
-    await fetchBarbers();
-    await fetchAbsents();
+    queryClient.invalidateQueries({ queryKey: ["adminBarbers"] });
+    queryClient.invalidateQueries({ queryKey: ["adminBarberAbsents"] });
+    queryClient.invalidateQueries({
+      queryKey: ["adminBarberAppointments", currentBarber.id],
+    });
   }
-
-  const loadAppointments = useCallback(
-    async (barberId: string) => {
-      try {
-        setError("");
-        setAppointments([]);
-        setAppointmentLoading(true);
-
-        const res = await fetch(`/api/admin/barbers/${barberId}`, {
-          cache: "no-store",
-        });
-
-        if (res.status === 403) {
-          router.push("/unauthorized");
-          return;
-        }
-
-        const data = (await res.json()) as
-          AppointmentApiRow[] | ApiErrorResponse;
-
-        if (!res.ok) {
-          setError(
-            !Array.isArray(data) && data.error
-              ? data.error
-              : "Unable to load appointments.",
-          );
-          setAppointments([]);
-        } else {
-          const appointmentRows = Array.isArray(data) ? data : [];
-
-          setAppointments(
-            appointmentRows.map((appointment) => ({
-              id: appointment.id,
-              appointmentCode: appointment.appointmentCode,
-              customerCode: appointment.customer?.customerCode || "",
-              customerName: appointment.customer?.name || "",
-              appointmentDate: appointment.appointmentDate || "",
-              startMinutes: appointment.schedule?.startTime
-                ? timeToMinutes(appointment.schedule.startTime)
-                : undefined,
-              endMinutes: appointment.schedule?.endTime
-                ? timeToMinutes(appointment.schedule.endTime)
-                : undefined,
-              schedule: appointment.schedule?.formatted || "",
-              barberId: appointment.barberId,
-              barberName:
-                appointment.barber?.name ||
-                [appointment.barber?.firstName, appointment.barber?.lastName]
-                  .filter(Boolean)
-                  .join(" ") ||
-                "",
-              serviceId: appointment.serviceId,
-              serviceName: appointment.service?.name || "",
-              totalAmount:
-                appointment.payment?.amount !== undefined &&
-                appointment.payment?.amount !== null
-                  ? appointment.payment.amount
-                  : null,
-              status: appointment.status || "",
-              paymentScreenshotUrl: appointment.payment?.screenshotUrl || null,
-              afterServicePhotoUrl: appointment.afterServicePhotoUrl || null,
-              afterServicePhotos: appointment.afterServicePhotos || [],
-            })),
-          );
-          setError("");
-        }
-      } catch (error) {
-        console.error("LOAD APPOINTMENTS ERROR:", error);
-        setError("Unable to load appointments.");
-        setAppointments([]);
-      }
-
-      setAppointmentLoading(false);
-    },
-    [router],
-  );
 
   useEffect(() => {
     const init = async () => {
@@ -640,11 +658,12 @@ export default function BarbersPage() {
     init();
   }, [router, supabase]);
 
+
   useEffect(() => {
-    if (currentBarber?.id) {
-      loadAppointments(currentBarber.id);
+    if (barbers.length > 0 && currentBarberIndex > barbers.length - 1) {
+      setCurrentBarberIndex(0);
     }
-  }, [currentBarber, loadAppointments]);
+  }, [barbers.length, currentBarberIndex]);
 
   const formatAmount = (amount: number | string | null) => {
     if (amount === null || amount === undefined) {

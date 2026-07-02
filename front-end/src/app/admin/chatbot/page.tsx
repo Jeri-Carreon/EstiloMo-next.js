@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 type ChatbotSetting = {
   id?: string;
@@ -75,10 +76,10 @@ async function readJsonSafe(res: Response) {
 }
 
 export default function AdminChatbotPage() {
+  const queryClient = useQueryClient();
+
   const [settings, setSettings] = useState<ChatbotSetting[]>([]);
-  const [barbers, setBarbers] = useState<BarberOption[]>([]);
-  const [services, setServices] = useState<ServiceOption[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isDirty, setIsDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -89,9 +90,9 @@ export default function AdminChatbotPage() {
   const optionItems = useMemo(
     () =>
       settings.filter(
-        (item) => item.key !== "greeting" && item.key !== "fallback"
+        (item) => item.key !== "greeting" && item.key !== "fallback",
       ),
-    [settings]
+    [settings],
   );
 
   const deleteTarget = useMemo(() => {
@@ -99,11 +100,13 @@ export default function AdminChatbotPage() {
     return settings.find((item) => item.key === deleteTargetKey) || null;
   }, [deleteTargetKey, settings]);
 
-  const loadSettings = async () => {
-    try {
-      setLoading(true);
-      setMessage("");
-
+  const {
+    data: chatbotData,
+    isLoading: loading,
+    isError,
+  } = useQuery({
+    queryKey: ["adminChatbotSettings"],
+    queryFn: async () => {
       const [settingsRes, barbersRes, servicesRes] = await Promise.all([
         fetch("/api/admin/chatbot", { cache: "no-store" }),
         fetch("/api/chatbot/barbers", { cache: "no-store" }),
@@ -116,48 +119,52 @@ export default function AdminChatbotPage() {
 
       if (!settingsRes.ok) {
         throw new Error(
-          settingsData?.error || "Failed to load chatbot settings."
+          settingsData?.error || "Failed to load chatbot settings.",
         );
       }
 
-      setSettings(Array.isArray(settingsData) ? settingsData : []);
+      return {
+        settings: Array.isArray(settingsData) ? settingsData : [],
+        barbers:
+          barbersRes.ok && barbersData?.ok && Array.isArray(barbersData.barbers)
+            ? barbersData.barbers
+            : [],
+        services:
+          servicesRes.ok &&
+          servicesData?.ok &&
+          Array.isArray(servicesData.services)
+            ? servicesData.services
+            : [],
+      };
+    },
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+  });
 
-      if (
-        barbersRes.ok &&
-        barbersData?.ok &&
-        Array.isArray(barbersData.barbers)
-      ) {
-        setBarbers(barbersData.barbers);
-      }
-
-      if (
-        servicesRes.ok &&
-        servicesData?.ok &&
-        Array.isArray(servicesData.services)
-      ) {
-        setServices(servicesData.services);
-      }
-    } catch (error) {
-      console.error("LOAD CHATBOT SETTINGS ERROR:", error);
-      setMessage("Failed to load chatbot settings.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const barbers: BarberOption[] = chatbotData?.barbers || [];
+  const services: ServiceOption[] = chatbotData?.services || [];
 
   useEffect(() => {
-    void loadSettings();
-  }, []);
+    if (!chatbotData || isDirty || saving || deleting || deleteOpen) return;
+    setSettings(chatbotData.settings);
+  }, [chatbotData, isDirty, saving, deleting, deleteOpen]);
+
+  useEffect(() => {
+    if (isError) {
+      setMessage("Failed to load chatbot settings.");
+    }
+  }, [isError]);
 
   const updateSetting = (
     key: string,
     field: "label" | "response",
-    value: string
+    value: string,
   ) => {
+    setIsDirty(true);
     setSettings((prev) =>
       prev.map((item) =>
-        item.key === key ? { ...item, [field]: value } : item
-      )
+        item.key === key ? { ...item, [field]: value } : item,
+      ),
     );
   };
 
@@ -166,6 +173,8 @@ export default function AdminChatbotPage() {
       settings.filter((item) => item.key.startsWith("custom_")).length + 1;
 
     const newKey = `custom_${Date.now()}`;
+
+    setIsDirty(true);
 
     setSettings((prev) => [
       ...prev,
@@ -188,7 +197,7 @@ export default function AdminChatbotPage() {
   const restoreStarterOptions = () => {
     const existingKeys = new Set(settings.map((item) => item.key));
     const missingOptions = starterOptions.filter(
-      (item) => !existingKeys.has(item.key)
+      (item) => !existingKeys.has(item.key),
     );
 
     if (missingOptions.length === 0) {
@@ -196,6 +205,7 @@ export default function AdminChatbotPage() {
       return;
     }
 
+    setIsDirty(true);
     setSettings((prev) => [...prev, ...missingOptions]);
     setMessage("Starter options restored. Click Save to store them.");
   };
@@ -228,8 +238,9 @@ export default function AdminChatbotPage() {
     }
 
     if (!item.id) {
+      setIsDirty(true);
       setSettings((prev) =>
-        prev.filter((setting) => setting.key !== deleteTargetKey)
+        prev.filter((setting) => setting.key !== deleteTargetKey),
       );
       setMessage("Unsaved chatbot option removed.");
       setDeleteOpen(false);
@@ -255,6 +266,8 @@ export default function AdminChatbotPage() {
       }
 
       setSettings(Array.isArray(data?.settings) ? data.settings : []);
+      setIsDirty(false);
+      queryClient.invalidateQueries({ queryKey: ["adminChatbotSettings"] });
       setMessage("Chatbot option deleted successfully.");
       setDeleteOpen(false);
       setDeleteTargetKey(null);
@@ -297,7 +310,11 @@ export default function AdminChatbotPage() {
       }
 
       setMessage("Chatbot settings saved successfully.");
-      setSettings(Array.isArray(data?.settings) ? data.settings : validSettings);
+      setSettings(
+        Array.isArray(data?.settings) ? data.settings : validSettings,
+      );
+      setIsDirty(false);
+      queryClient.invalidateQueries({ queryKey: ["adminChatbotSettings"] });
     } catch (error) {
       console.error("SAVE CHATBOT SETTINGS ERROR:", error);
       setMessage("Failed to save chatbot settings.");

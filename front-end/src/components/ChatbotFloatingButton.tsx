@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
 
 type MessageButton = {
@@ -53,8 +54,6 @@ function normalizeText(value: string) {
 export default function ChatbotFloatingButton() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [settings, setSettings] = useState<ChatbotSetting[]>(fallbackSettings);
-  const [barbers, setBarbers] = useState<BarberOption[]>([]);
   const [showQuickOptions, setShowQuickOptions] = useState(true);
   const [input, setInput] = useState("");
   const [loadingBarbers, setLoadingBarbers] = useState(false);
@@ -69,36 +68,46 @@ export default function ChatbotFloatingButton() {
     });
   };
 
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const res = await fetch("/api/admin/chatbot", { cache: "no-store" });
-        const data = await res.json();
+  const { data: chatbotSettings = fallbackSettings } = useQuery<ChatbotSetting[]>({
+    queryKey: ["publicChatbotSettings"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/chatbot", {
+        cache: "no-store",
+      });
 
-        if (res.ok && Array.isArray(data)) {
-          setSettings(data);
-        }
-      } catch (error) {
-        console.error("LOAD CHATBOT SETTINGS ERROR:", error);
+      const data = await res.json();
+
+      if (!res.ok || !Array.isArray(data)) {
+        throw new Error(data?.error || "Failed to load chatbot settings.");
       }
-    };
 
-    const loadBarbers = async () => {
-      try {
-        const res = await fetch("/api/chatbot/barbers", { cache: "no-store" });
-        const data = await res.json();
+      return data;
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
 
-        if (res.ok && data?.ok && Array.isArray(data.barbers)) {
-          setBarbers(data.barbers);
-        }
-      } catch (error) {
-        console.error("LOAD CHATBOT BARBERS ERROR:", error);
+  const { data: chatbotBarbers = [] } = useQuery<BarberOption[]>({
+    queryKey: ["publicChatbotBarbers"],
+    queryFn: async () => {
+      const res = await fetch("/api/chatbot/barbers", {
+        cache: "no-store",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data?.ok || !Array.isArray(data.barbers)) {
+        throw new Error(data?.error || "Failed to load chatbot barbers.");
       }
-    };
 
-    void loadSettings();
-    void loadBarbers();
-  }, []);
+      return data.barbers;
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+
+  const settings = chatbotSettings ?? fallbackSettings;
+  const barbers = chatbotBarbers ?? [];
 
   useEffect(() => {
     scrollToBottom();

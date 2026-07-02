@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -94,12 +95,133 @@ export default function ScheduleStep({
       )}`,
     };
   });
-  const [availableTimes, setAvailableTimes] = useState<AvailableTime[]>([]);
-  const [loadingTimes, setLoadingTimes] = useState(false);
-  const [bookingCutoffHours, setBookingCutoffHours] = useState<number>(1);
-  const [unavailableDates, setUnavailableDates] = useState<Set<string>>(
-    new Set()
+  const selectedDateKey = selectedDate ? formatDateInput(selectedDate) : '';
+
+  const blockedSlots = useMemo(() => {
+    if (!selectedDateKey) return '';
+
+    return appointmentData.cartItems
+      .filter((item) => {
+        const sameBarber = item.barberId === appointmentData.barberId;
+        const sameDate = item.appointmentDate === selectedDateKey;
+
+        const isCurrentRestoredSelection =
+          item.barberId === appointmentData.barberId &&
+          item.serviceId === appointmentData.serviceId &&
+          item.appointmentDate === appointmentData.appointmentDate &&
+          item.startMinutes === appointmentData.startMinutes &&
+          item.endMinutes === appointmentData.endMinutes;
+
+        return sameBarber && sameDate && !isCurrentRestoredSelection;
+      })
+      .map((item) => `${item.startMinutes}-${item.endMinutes}`)
+      .join(',');
+  }, [
+    appointmentData.barberId,
+    appointmentData.serviceId,
+    appointmentData.appointmentDate,
+    appointmentData.startMinutes,
+    appointmentData.endMinutes,
+    appointmentData.cartItems,
+    selectedDateKey,
+  ]);
+
+  const monthQuery = useMemo(() => {
+    const year = currentMonth.getFullYear();
+    const month = String(currentMonth.getMonth() + 1).padStart(2, '0');
+
+    return {
+      year,
+      month,
+      key: `${year}-${month}`,
+    };
+  }, [currentMonth]);
+
+  const { data: bookingCutoffHours = 1 } = useQuery<number>({
+    queryKey: ['appointmentSettings', 'bookingCutoffHours'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/appointments/settings', {
+        cache: 'no-store',
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Unable to load booking settings.');
+      }
+
+      return data?.bookingCutoffHours ?? 1;
+    },
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+  });
+
+  const { data: unavailableDateList = [] } = useQuery<string[]>({
+    queryKey: [
+      'appointmentUnavailableDates',
+      appointmentData.barberId,
+      appointmentData.serviceId,
+      monthQuery.key,
+    ],
+    enabled: Boolean(appointmentData.barberId && appointmentData.serviceId),
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/admin/barbers/unavailable-dates?barberId=${appointmentData.barberId}&serviceId=${appointmentData.serviceId}&year=${monthQuery.year}&month=${monthQuery.month}`,
+        {
+          cache: 'no-store',
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to load unavailable dates.');
+      }
+
+      return data?.unavailableDates ?? [];
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+
+  const unavailableDates = useMemo(
+    () => new Set(unavailableDateList),
+    [unavailableDateList]
   );
+
+  const {
+    data: availableTimes = [],
+    isFetching: loadingTimes,
+  } = useQuery<AvailableTime[]>({
+    queryKey: [
+      'appointmentAvailability',
+      appointmentData.barberId,
+      appointmentData.serviceId,
+      selectedDateKey,
+      blockedSlots,
+    ],
+    enabled: Boolean(
+      appointmentData.barberId && appointmentData.serviceId && selectedDateKey
+    ),
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/admin/barbers/availability?barberId=${appointmentData.barberId}&serviceId=${appointmentData.serviceId}&date=${selectedDateKey}&blockedSlots=${blockedSlots}`,
+        {
+          cache: 'no-store',
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to load available times.');
+      }
+
+      return data?.availableTimes ?? [];
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
 
   useEffect(() => {
     if (!appointmentData.appointmentDate) return;
@@ -109,6 +231,38 @@ export default function ScheduleStep({
     setCurrentMonth(new Date(selected.getFullYear(), selected.getMonth(), 1));
     setSelectedDate(selected);
   }, [appointmentData.appointmentDate]);
+
+  useEffect(() => {
+    if (!selectedDateKey) {
+      setSelectedTime(null);
+      return;
+    }
+
+    const restoredTime = availableTimes.find(
+      (time) =>
+        time.startMinutes === appointmentData.startMinutes &&
+        time.endMinutes === appointmentData.endMinutes
+    );
+
+    setSelectedTime(
+      restoredTime
+        ? {
+            startMinutes: restoredTime.startMinutes,
+            endMinutes: restoredTime.endMinutes,
+            label:
+              restoredTime.label ||
+              `${formatTime(restoredTime.startMinutes)} - ${formatTime(
+                restoredTime.endMinutes
+              )}`,
+          }
+        : null
+    );
+  }, [
+    availableTimes,
+    selectedDateKey,
+    appointmentData.startMinutes,
+    appointmentData.endMinutes,
+  ]);
 
   const days = useMemo(() => {
     const year = currentMonth.getFullYear();
@@ -151,127 +305,6 @@ export default function ScheduleStep({
       selectedTime.endMinutes
     );
   };
-
-  const fetchAvailability = async (date: Date) => {
-    if (!appointmentData.barberId || !appointmentData.serviceId) {
-      setAvailableTimes([]);
-      return;
-    }
-
-    try {
-      setLoadingTimes(true);
-      setAvailableTimes([]);
-
-      const formattedDate = formatDateInput(date);
-
-      const blockedSlots = appointmentData.cartItems
-        .filter((item) => {
-          const sameBarber = item.barberId === appointmentData.barberId;
-          const sameDate = item.appointmentDate === formattedDate;
-
-          const isCurrentRestoredSelection =
-            item.barberId === appointmentData.barberId &&
-            item.serviceId === appointmentData.serviceId &&
-            item.appointmentDate === appointmentData.appointmentDate &&
-            item.startMinutes === appointmentData.startMinutes &&
-            item.endMinutes === appointmentData.endMinutes;
-
-          return sameBarber && sameDate && !isCurrentRestoredSelection;
-        })
-        .map((item) => `${item.startMinutes}-${item.endMinutes}`)
-        .join(',');
-
-      const response = await fetch(
-        `/api/admin/barbers/availability?barberId=${appointmentData.barberId}&serviceId=${appointmentData.serviceId}&date=${formattedDate}&blockedSlots=${blockedSlots}`
-      );
-
-      const data = await response.json();
-
-      const times = data?.availableTimes ?? [];
-
-    setAvailableTimes(times);
-
-    const restoredTime = times.find(
-      (time: AvailableTime) =>
-        time.startMinutes === appointmentData.startMinutes &&
-        time.endMinutes === appointmentData.endMinutes
-    );
-
-    setSelectedTime(
-      restoredTime
-        ? {
-            startMinutes: restoredTime.startMinutes,
-            endMinutes: restoredTime.endMinutes,
-            label:
-              restoredTime.label ||
-              `${formatTime(restoredTime.startMinutes)} - ${formatTime(
-                restoredTime.endMinutes
-              )}`,
-          }
-        : null
-    );
-
-    if (times.length === 0) {
-      setUnavailableDates((prev) => {
-        const updated = new Set(prev);
-        updated.add(formattedDate);
-        return updated;
-      });
-    }
-    } catch (error) {
-      console.error(error);
-      setAvailableTimes([]);
-    } finally {
-      setLoadingTimes(false);
-    }
-  };
-
-  const fetchUnavailableDates = async (month: Date) => {
-    if (!appointmentData.barberId) {
-      setUnavailableDates(new Set());
-      return;
-    }
-
-    try {
-      const year = month.getFullYear();
-      const m = String(month.getMonth() + 1).padStart(2, '0');
-
-      const response = await fetch(
-        `/api/admin/barbers/unavailable-dates?barberId=${appointmentData.barberId}&serviceId=${appointmentData.serviceId}&year=${year}&month=${m}`
-      );
-
-      const data = await response.json();
-      setUnavailableDates(new Set(data?.unavailableDates ?? []));
-    } catch (error) {
-      console.error(error);
-      setUnavailableDates(new Set());
-    }
-  };
-
-  useEffect(() => {
-    if (!selectedDate) return;
-
-    fetchAvailability(selectedDate);
-  }, [selectedDate, appointmentData.barberId, appointmentData.serviceId]);
-
-  useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const res = await fetch('/api/admin/appointments/settings');
-        const data = await res.json();
-
-        setBookingCutoffHours(data?.bookingCutoffHours ?? 1);
-      } catch {
-        setBookingCutoffHours(1);
-      }
-    };
-
-    fetchSettings();
-  }, []);
-
-  useEffect(() => {
-    fetchUnavailableDates(currentMonth);
-  }, [currentMonth, appointmentData.barberId, appointmentData.serviceId]);
 
   return (
     <Box

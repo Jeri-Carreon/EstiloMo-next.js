@@ -131,6 +131,11 @@ export async function GET() {
           null,
         afterServicePhotoUrl:
           appointment.afterServicePhotos?.[0]?.imageUrl || null,
+
+        afterServicePhotoUrls:
+          appointment.afterServicePhotos?.map(
+            (photo) => photo.imageUrl
+          ) || [],
       };
     });
 

@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 
 import { getAdminUser } from "@/lib/supabase/getUser";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const user = await getAdminUser()

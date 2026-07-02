@@ -1,33 +1,35 @@
-'use client';
+"use client";
 
-import { createClient } from '@/lib/supabase/client';
-import { useEffect, useState } from 'react';
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableContainer from '@mui/material/TableContainer';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
-import Paper from '@mui/material/Paper';
-import CircularProgress from '@mui/material/CircularProgress';
-import IconButton from '@mui/material/IconButton';
-import EditIcon from '@mui/icons-material/Edit';
-import TextField from '@mui/material/TextField';
-import InputAdornment from '@mui/material/InputAdornment';
-import Button from '@mui/material/Button';
-import Dialog from '@mui/material/Dialog';
-import DialogContent from '@mui/material/DialogContent';
-import CloseIcon from '@mui/icons-material/Close';
-import SearchIcon from '@mui/icons-material/Search';
-import AddIcon from '@mui/icons-material/Add';
-import GetAppIcon from '@mui/icons-material/GetApp';
-import ErrorIcon from '@mui/icons-material/Error';
-import MenuItem from '@mui/material/MenuItem';
-import Chip from '@mui/material/Chip';
-import Pagination from '@mui/material/Pagination';
-import { useRouter } from 'next/navigation';
+import { createClient } from "@/lib/supabase/client";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import Paper from "@mui/material/Paper";
+import CircularProgress from "@mui/material/CircularProgress";
+import IconButton from "@mui/material/IconButton";
+import EditIcon from "@mui/icons-material/Edit";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
+import Button from "@mui/material/Button";
+import Dialog from "@mui/material/Dialog";
+import DialogContent from "@mui/material/DialogContent";
+import CloseIcon from "@mui/icons-material/Close";
+import SearchIcon from "@mui/icons-material/Search";
+import AddIcon from "@mui/icons-material/Add";
+import GetAppIcon from "@mui/icons-material/GetApp";
+import ErrorIcon from "@mui/icons-material/Error";
+import MenuItem from "@mui/material/MenuItem";
+import Chip from "@mui/material/Chip";
+import Pagination from "@mui/material/Pagination";
+import { useRouter } from "next/navigation";
 
 interface Customer {
   id: string;
@@ -42,42 +44,46 @@ interface Customer {
   isActive?: boolean;
 }
 
-type CustomerStatus = 'AVAILABLE' | 'UNAVAILABLE';
+type CustomerStatus = "AVAILABLE" | "UNAVAILABLE";
 
 export default function CustomersPage() {
-  const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const queryClient = useQueryClient();
 
-  const [error, setError] = useState('');
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [authReady, setAuthReady] = useState(false);
+  const [error, setError] = useState("");
 
   const [openAdd, setOpenAdd] = useState(false);
   const [openAddConfirm, setOpenAddConfirm] = useState(false);
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [mobileNumber, setMobileNumber] = useState('');
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [mobileNumber, setMobileNumber] = useState("");
 
   const [openEdit, setOpenEdit] = useState(false);
   const [openEditConfirm, setOpenEditConfirm] = useState(false);
-  const [editFirstName, setEditFirstName] = useState('');
-  const [editLastName, setEditLastName] = useState('');
-  const [editEmail, setEditEmail] = useState('');
-  const [editMobileNumber, setEditMobileNumber] = useState('');
-  const [editStatus, setEditStatus] = useState<CustomerStatus>('AVAILABLE');
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editMobileNumber, setEditMobileNumber] = useState("");
+  const [editStatus, setEditStatus] = useState<CustomerStatus>("AVAILABLE");
 
   const [openStatusModal, setOpenStatusModal] = useState(false);
-  const [statusTitle, setStatusTitle] = useState('');
-  const [statusMessage, setStatusMessage] = useState('');
+  const [statusTitle, setStatusTitle] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
   const [openServerError, setOpenServerError] = useState(false);
-  const [serverErrorMsg, setServerErrorMsg] = useState('');
+  const [serverErrorMsg, setServerErrorMsg] = useState("");
 
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    null,
+  );
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'ALL' | 'CASUAL' | 'REGULAR'>('ALL');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | ''>('');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"ALL" | "CASUAL" | "REGULAR">(
+    "ALL",
+  );
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc" | "">("");
   const [page, setPage] = useState(1);
 
   const itemsPerPage = 5;
@@ -95,18 +101,24 @@ export default function CustomersPage() {
     const trimmedMobileNumber = mobileNumber.trim();
 
     if (!trimmedFirstName || !trimmedLastName || !trimmedMobileNumber) {
-      showStatusModal('Incomplete Fields', 'Please fill in all fields before continuing.');
+      showStatusModal(
+        "Incomplete Fields",
+        "Please fill in all fields before continuing.",
+      );
       return;
     }
 
     if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      setServerErrorMsg('Invalid email format');
+      setServerErrorMsg("Invalid email format");
       setOpenServerError(true);
       return;
     }
 
     if (!/^09\d{9}$/.test(trimmedMobileNumber)) {
-      showStatusModal('Invalid Mobile Number', 'Mobile number must be 11 digits and start with 09.');
+      showStatusModal(
+        "Invalid Mobile Number",
+        "Mobile number must be 11 digits and start with 09.",
+      );
       return;
     }
 
@@ -127,28 +139,28 @@ export default function CustomersPage() {
     email: string;
     mobileNumber: string;
   }) => {
-    const res = await fetch('/api/admin/create-customer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const res = await fetch("/api/admin/create-customer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ firstName, lastName, email, mobileNumber }),
     });
 
     const data = await res.json();
 
     if (!res.ok) {
-      showStatusModal('Error', data.error || 'Failed to create customer');
+      showStatusModal("Error", data.error || "Failed to create customer");
       return;
     }
 
-    showStatusModal('Success', 'Customer created successfully!');
-    await loadCustomers();
+    showStatusModal("Success", "Customer created successfully!");
+    queryClient.invalidateQueries({ queryKey: ["adminCustomers"] });
 
     setOpenAddConfirm(false);
     setOpenAdd(false);
-    setFirstName('');
-    setLastName('');
-    setEmail('');
-    setMobileNumber('');
+    setFirstName("");
+    setLastName("");
+    setEmail("");
+    setMobileNumber("");
   };
 
   const handleUpdateCustomer = async () => {
@@ -156,72 +168,64 @@ export default function CustomersPage() {
 
     try {
       const res = await fetch(`/api/customers/${selectedCustomer.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           firstName: editFirstName,
           lastName: editLastName,
           email: editEmail,
           mobileNumber: editMobileNumber,
-          isActive: editStatus === 'AVAILABLE',
+          isActive: editStatus === "AVAILABLE",
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        showStatusModal('Error', data.error || 'Failed to update customer');
+        showStatusModal("Error", data.error || "Failed to update customer");
         return;
       }
 
-      setCustomers((prev) =>
-        prev.map((c) =>
-          c.id === selectedCustomer.id
-            ? {
-                ...c,
-                name: `${editFirstName} ${editLastName}`,
-                email: editEmail,
-                contactNumber: editMobileNumber,
-                isActive: editStatus === 'AVAILABLE',
-              }
-            : c
-        )
-      );
+      queryClient.invalidateQueries({ queryKey: ["adminCustomers"] });
 
-      showStatusModal('Success', 'Customer updated successfully!');
+      showStatusModal("Success", "Customer updated successfully!");
       setOpenEdit(false);
       setOpenEditConfirm(false);
       setSelectedCustomer(null);
     } catch (error) {
       console.error(error);
-      showStatusModal('Error', 'Something went wrong');
+      showStatusModal("Error", "Something went wrong");
     }
   };
 
-  const loadCustomers = async () => {
-    try {
-      const res = await fetch('/api/customers');
+  const {
+    data: customers = [],
+    isLoading: loading,
+    isError,
+  } = useQuery<Customer[]>({
+    queryKey: ["adminCustomers"],
+    enabled: authReady,
+    queryFn: async () => {
+      const res = await fetch("/api/customers", {
+        cache: "no-store",
+      });
 
       if (res.status === 403) {
-        router.push('/unauthorized');
-        return;
+        router.push("/unauthorized");
+        return [];
       }
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'Unable to load customers.');
-        setCustomers([]);
-      } else {
-        setError('');
-        setCustomers(data.customers || []);
+        throw new Error(data.error || "Unable to load customers.");
       }
-    } catch {
-      setError('Unable to load customers.');
-    }
 
-    setLoading(false);
-  };
+      return data.customers || [];
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
 
   useEffect(() => {
     const init = async () => {
@@ -230,67 +234,79 @@ export default function CustomersPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.push('/login');
+        router.push("/login");
         return;
       }
 
-      const res = await fetch('/api/user/role');
+      const res = await fetch("/api/user/role", {
+        cache: "no-store",
+      });
       const data = await res.json();
 
-      if (!['OWNER', 'RECEPTIONIST'].includes(data.role)) {
-        router.push('/unauthorized');
+      if (!["OWNER", "RECEPTIONIST"].includes(data.role)) {
+        router.push("/unauthorized");
         return;
       }
 
-      loadCustomers();
+      setAuthReady(true);
     };
 
     init();
-  }, [router]);
+  }, [router, supabase]);
+
+  useEffect(() => {
+    if (isError) {
+      setError("Unable to load customers.");
+      return;
+    }
+
+    setError("");
+  }, [isError]);
 
   const filteredCustomers = customers
     .filter((customer) => {
       const searchValue = searchTerm.toLowerCase();
 
       const matchesSearch =
-        (customer.name || '').toLowerCase().includes(searchValue) ||
-        (customer.email || '').toLowerCase().includes(searchValue) ||
-        (customer.contactNumber || '').toLowerCase().includes(searchValue) ||
-        (customer.customerCode || '').toLowerCase().includes(searchValue);
+        (customer.name || "").toLowerCase().includes(searchValue) ||
+        (customer.email || "").toLowerCase().includes(searchValue) ||
+        (customer.contactNumber || "").toLowerCase().includes(searchValue) ||
+        (customer.customerCode || "").toLowerCase().includes(searchValue);
 
-      const matchesType = typeFilter === 'ALL' || customer.type.toUpperCase() === typeFilter;
+      const matchesType =
+        typeFilter === "ALL" || customer.type.toUpperCase() === typeFilter;
 
       return matchesSearch && matchesType;
     })
     .sort((a, b) => {
-      if (sortOrder === 'asc') return a.name.localeCompare(b.name);
-      if (sortOrder === 'desc') return b.name.localeCompare(a.name);
+      if (sortOrder === "asc") return a.name.localeCompare(b.name);
+      if (sortOrder === "desc") return b.name.localeCompare(a.name);
       return 0;
     });
 
   const paginatedCustomers = filteredCustomers.slice(
     (page - 1) * itemsPerPage,
-    page * itemsPerPage
+    page * itemsPerPage,
   );
 
   const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
 
   const handleExportCSV = () => {
     const headers = [
-      'ID',
-      'Type',
-      'Status',
-      'Name',
-      'Contact Number',
-      'Email',
-      'Total Appointments',
-      'Total Spent',
+      "ID",
+      "Type",
+      "Status",
+      "Name",
+      "Contact Number",
+      "Email",
+      "Total Appointments",
+      "Total Spent",
     ];
 
     const rows = customers.map((c) => [
       c.customerCode,
       c.type,
-      c.isActive === false ? 'Unavailable' : 'Available',
+      c.isActive === false ? "Unavailable" : "Available",
       c.name,
       c.contactNumber,
       c.email,
@@ -298,26 +314,33 @@ export default function CustomersPage() {
       c.totalSpent,
     ]);
 
-    const csv = [headers, ...rows].map((row) => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const csv = [headers, ...rows].map((row) => row.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
 
     link.href = url;
-    link.download = 'customers.csv';
+    link.download = "customers.csv";
     link.click();
   };
 
   return (
-    <Box sx={{ flex: 1, p: 4, backgroundColor: '#fff' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4 }}>
+    <Box sx={{ flex: 1, p: 4, backgroundColor: "#fff" }}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          mb: 4,
+        }}
+      >
         <Typography variant="h3" sx={{ mb: 0, fontWeight: 700 }}>
           Customers
         </Typography>
         <Box sx={{ width: 112 }} />
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 4, alignItems: 'center' }}>
+      <Box sx={{ display: "flex", gap: 2, mb: 4, alignItems: "center" }}>
         <TextField
           placeholder="Search Customer..."
           size="small"
@@ -330,7 +353,7 @@ export default function CustomersPage() {
             input: {
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon sx={{ color: '#999' }} />
+                  <SearchIcon sx={{ color: "#999" }} />
                 </InputAdornment>
               ),
             },
@@ -343,10 +366,10 @@ export default function CustomersPage() {
           size="small"
           value={typeFilter}
           onChange={(e) => {
-            setTypeFilter(e.target.value as 'ALL' | 'CASUAL' | 'REGULAR');
+            setTypeFilter(e.target.value as "ALL" | "CASUAL" | "REGULAR");
             setPage(1);
           }}
-          sx={{ width: 150, bgcolor: '#fff' }}
+          sx={{ width: 150, bgcolor: "#fff" }}
         >
           <MenuItem value="ALL">All</MenuItem>
           <MenuItem value="CASUAL">Casual</MenuItem>
@@ -358,17 +381,20 @@ export default function CustomersPage() {
           size="small"
           value={sortOrder}
           onChange={(e) => {
-            setSortOrder(e.target.value as 'asc' | 'desc' | '');
+            setSortOrder(e.target.value as "asc" | "desc" | "");
             setPage(1);
           }}
-          sx={{ width: 200, bgcolor: '#fff' }}
+          sx={{ width: 200, bgcolor: "#fff" }}
           slotProps={{
             select: {
               displayEmpty: true,
               renderValue: (value) => {
-                if (value === '') return <span style={{ color: '#000000' }}>Default Order</span>;
-                if (value === 'asc') return 'Name (A → Z)';
-                if (value === 'desc') return 'Name (Z → A)';
+                if (value === "")
+                  return (
+                    <span style={{ color: "#000000" }}>Default Order</span>
+                  );
+                if (value === "asc") return "Name (A → Z)";
+                if (value === "desc") return "Name (Z → A)";
               },
             },
           }}
@@ -384,7 +410,7 @@ export default function CustomersPage() {
           startIcon={<AddIcon />}
           variant="contained"
           onClick={() => setOpenAdd(true)}
-          sx={{ textTransform: 'none' }}
+          sx={{ textTransform: "none" }}
         >
           Add
         </Button>
@@ -397,18 +423,18 @@ export default function CustomersPage() {
       )}
 
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+        <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
           <CircularProgress />
         </Box>
       ) : customers.length === 0 ? (
-        <Typography sx={{ textAlign: 'center', color: 'text.secondary' }}>
+        <Typography sx={{ textAlign: "center", color: "text.secondary" }}>
           No customers found.
         </Typography>
       ) : (
         <>
           <TableContainer component={Paper}>
             <Table>
-              <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+              <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 700 }}>ID</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
@@ -416,7 +442,9 @@ export default function CustomersPage() {
                   <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Contact Number</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Email</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Total Appointments</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>
+                    Total Appointments
+                  </TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Total Spent</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Actions</TableCell>
                 </TableRow>
@@ -424,14 +452,25 @@ export default function CustomersPage() {
 
               <TableBody>
                 {paginatedCustomers.map((customer) => (
-                  <TableRow key={customer.id} sx={{ '&:hover': { backgroundColor: '#fafafa' } }}>
+                  <TableRow
+                    key={customer.id}
+                    sx={{ "&:hover": { backgroundColor: "#fafafa" } }}
+                  >
                     <TableCell>{customer.customerCode}</TableCell>
-                    <TableCell sx={{ color: '#999' }}>{customer.type}</TableCell>
+                    <TableCell sx={{ color: "#999" }}>
+                      {customer.type}
+                    </TableCell>
                     <TableCell>
                       <Chip
                         size="small"
-                        label={customer.isActive === false ? 'Unavailable' : 'Available'}
-                        color={customer.isActive === false ? 'default' : 'success'}
+                        label={
+                          customer.isActive === false
+                            ? "Unavailable"
+                            : "Available"
+                        }
+                        color={
+                          customer.isActive === false ? "default" : "success"
+                        }
                         variant="outlined"
                       />
                     </TableCell>
@@ -447,13 +486,17 @@ export default function CustomersPage() {
                         onClick={() => {
                           setSelectedCustomer(customer);
 
-                          const names = customer.name.split(' ');
+                          const names = customer.name.split(" ");
 
-                          setEditFirstName(names[0] || '');
-                          setEditLastName(names.slice(1).join(' ') || '');
-                          setEditEmail(customer.email || '');
-                          setEditMobileNumber(customer.contactNumber || '');
-                          setEditStatus(customer.isActive === false ? 'UNAVAILABLE' : 'AVAILABLE');
+                          setEditFirstName(names[0] || "");
+                          setEditLastName(names.slice(1).join(" ") || "");
+                          setEditEmail(customer.email || "");
+                          setEditMobileNumber(customer.contactNumber || "");
+                          setEditStatus(
+                            customer.isActive === false
+                              ? "UNAVAILABLE"
+                              : "AVAILABLE",
+                          );
 
                           setOpenEdit(true);
                         }}
@@ -467,12 +510,20 @@ export default function CustomersPage() {
             </Table>
           </TableContainer>
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 4 }}>
-            <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>
-              Showing 1 to {paginatedCustomers.length} of {filteredCustomers.length} Entries
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              mt: 4,
+            }}
+          >
+            <Typography sx={{ color: "text.secondary", fontSize: 14 }}>
+              Showing 1 to {paginatedCustomers.length} of{" "}
+              {filteredCustomers.length} Entries
             </Typography>
 
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+            <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
               <Pagination
                 count={totalPages}
                 page={page}
@@ -483,7 +534,7 @@ export default function CustomersPage() {
               <Button
                 startIcon={<GetAppIcon />}
                 size="small"
-                sx={{ textTransform: 'none', color: '#2196f3' }}
+                sx={{ textTransform: "none", color: "#2196f3" }}
                 onClick={handleExportCSV}
               >
                 Export CSV
@@ -500,20 +551,31 @@ export default function CustomersPage() {
         maxWidth="sm"
         fullWidth
         sx={{
-          '& .MuiPaper-root': {
+          "& .MuiPaper-root": {
             borderRadius: 4,
-            bgcolor: '#f2f2f2',
-            overflow: 'visible',
+            bgcolor: "#f2f2f2",
+            overflow: "visible",
           },
         }}
       >
-        <Box sx={{ m: 2, bgcolor: '#fff', borderRadius: 4, p: 3, pb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Box sx={{ m: 2, bgcolor: "#fff", borderRadius: 4, p: 3, pb: 2 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 2,
+            }}
+          >
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>
                 Add New Customer
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 0.5 }}
+              >
                 Account Type: Casual
               </Typography>
             </Box>
@@ -523,62 +585,64 @@ export default function CustomersPage() {
             </IconButton>
           </Box>
 
-          <DialogContent sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <DialogContent
+            sx={{ p: 1, display: "flex", flexDirection: "column", gap: 2 }}
+          >
             <TextField
               placeholder="Juan"
               label={
                 <>
-                  First name <span style={{ color: 'red' }}>*</span>
+                  First name <span style={{ color: "red" }}>*</span>
                 </>
               }
               fullWidth
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               slotProps={{ htmlInput: { maxLength: 50 } }}
-              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+              sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
             />
 
             <TextField
               placeholder="Dela Cruz"
               label={
                 <>
-                  Last name <span style={{ color: 'red' }}>*</span>
+                  Last name <span style={{ color: "red" }}>*</span>
                 </>
               }
               fullWidth
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               slotProps={{ htmlInput: { maxLength: 50 } }}
-              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+              sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
             />
 
             <TextField
               placeholder="09123456789"
               label={
                 <>
-                  Mobile Number <span style={{ color: 'red' }}>*</span>
+                  Mobile Number <span style={{ color: "red" }}>*</span>
                 </>
               }
               fullWidth
               value={mobileNumber}
               onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, '');
+                const value = e.target.value.replace(/\D/g, "");
                 if (value.length <= 11) setMobileNumber(value);
               }}
               error={mobileNumber.length > 0 && !/^09\d{9}$/.test(mobileNumber)}
               helperText={
                 mobileNumber.length > 0 && !/^09\d{9}$/.test(mobileNumber)
-                  ? 'Mobile number must be 11 digits and start with 09'
-                  : ''
+                  ? "Mobile number must be 11 digits and start with 09"
+                  : ""
               }
               slotProps={{
                 htmlInput: {
-                  inputMode: 'numeric',
-                  pattern: '[0-9]*',
+                  inputMode: "numeric",
+                  pattern: "[0-9]*",
                   maxLength: 11,
                 },
               }}
-              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+              sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
             />
 
             <TextField
@@ -587,27 +651,39 @@ export default function CustomersPage() {
               fullWidth
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              error={email.length !== 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())}
+              error={
+                email.length !== 0 &&
+                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+              }
               helperText={
-                email.length !== 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
-                  ? 'Please enter a valid email address'
-                  : ''
+                email.length !== 0 &&
+                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+                  ? "Please enter a valid email address"
+                  : ""
               }
               slotProps={{ htmlInput: { maxLength: 100 } }}
-              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+              sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
             />
           </DialogContent>
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: 3, mb: 2 }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 1,
+              mt: 3,
+              mb: 2,
+            }}
+          >
             <Button
               onClick={() => setOpenAdd(false)}
               sx={{
-                backgroundColor: '#6d6d6d',
-                color: '#f7c948',
-                textTransform: 'none',
+                backgroundColor: "#6d6d6d",
+                color: "#f7c948",
+                textTransform: "none",
                 minWidth: 120,
                 py: 1.25,
-                ':hover': { backgroundColor: '#5a5a5a' },
+                ":hover": { backgroundColor: "#5a5a5a" },
               }}
             >
               Cancel
@@ -617,12 +693,12 @@ export default function CustomersPage() {
               variant="contained"
               onClick={handleReviewCustomer}
               sx={{
-                backgroundColor: '#000',
-                color: '#fff',
-                textTransform: 'none',
+                backgroundColor: "#000",
+                color: "#fff",
+                textTransform: "none",
                 minWidth: 120,
                 py: 1.25,
-                ':hover': { backgroundColor: '#111' },
+                ":hover": { backgroundColor: "#111" },
               }}
             >
               Add
@@ -638,20 +714,31 @@ export default function CustomersPage() {
         maxWidth="sm"
         fullWidth
         sx={{
-          '& .MuiPaper-root': {
+          "& .MuiPaper-root": {
             borderRadius: 4,
-            bgcolor: '#f2f2f2',
-            overflow: 'visible',
+            bgcolor: "#f2f2f2",
+            overflow: "visible",
           },
         }}
       >
-        <Box sx={{ m: 2, bgcolor: '#fff', borderRadius: 4, p: 3, pb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Box sx={{ m: 2, bgcolor: "#fff", borderRadius: 4, p: 3, pb: 2 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 2,
+            }}
+          >
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>
                 Add New Customer
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 0.5 }}
+              >
                 Account Type: Casual
               </Typography>
             </Box>
@@ -662,7 +749,7 @@ export default function CustomersPage() {
           </Box>
 
           <DialogContent sx={{ p: 0 }}>
-            <Typography sx={{ mb: 2, color: '#333' }}>
+            <Typography sx={{ mb: 2, color: "#333" }}>
               Are you sure you want to Add New Customer?
             </Typography>
             <Typography sx={{ mb: 1 }}>
@@ -679,19 +766,27 @@ export default function CustomersPage() {
             </Typography>
           </DialogContent>
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: 4, mb: 2 }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 1,
+              mt: 4,
+              mb: 2,
+            }}
+          >
             <Button
               onClick={() => {
                 setOpenAddConfirm(false);
                 setOpenAdd(true);
               }}
               sx={{
-                backgroundColor: '#6d6d6d',
-                color: '#f7c948',
-                textTransform: 'none',
+                backgroundColor: "#6d6d6d",
+                color: "#f7c948",
+                textTransform: "none",
                 minWidth: 120,
                 py: 1.25,
-                ':hover': { backgroundColor: '#5a5a5a' },
+                ":hover": { backgroundColor: "#5a5a5a" },
               }}
             >
               Cancel
@@ -699,14 +794,21 @@ export default function CustomersPage() {
 
             <Button
               variant="contained"
-              onClick={() => handleCreateCustomer({ firstName, lastName, email, mobileNumber })}
+              onClick={() =>
+                handleCreateCustomer({
+                  firstName,
+                  lastName,
+                  email,
+                  mobileNumber,
+                })
+              }
               sx={{
-                backgroundColor: '#000',
-                color: '#fff',
-                textTransform: 'none',
+                backgroundColor: "#000",
+                color: "#fff",
+                textTransform: "none",
                 minWidth: 120,
                 py: 1.25,
-                ':hover': { backgroundColor: '#111' },
+                ":hover": { backgroundColor: "#111" },
               }}
             >
               Add
@@ -722,20 +824,31 @@ export default function CustomersPage() {
         maxWidth="sm"
         fullWidth
         sx={{
-          '& .MuiPaper-root': {
+          "& .MuiPaper-root": {
             borderRadius: 4,
-            bgcolor: '#f2f2f2',
-            overflow: 'visible',
+            bgcolor: "#f2f2f2",
+            overflow: "visible",
           },
         }}
       >
-        <Box sx={{ m: 2, bgcolor: '#fff', borderRadius: 4, p: 3, pb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Box sx={{ m: 2, bgcolor: "#fff", borderRadius: 4, p: 3, pb: 2 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 2,
+            }}
+          >
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>
                 Edit Customer
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 0.5 }}
+              >
                 Customer Details
               </Typography>
             </Box>
@@ -745,59 +858,65 @@ export default function CustomersPage() {
             </IconButton>
           </Box>
 
-          <DialogContent sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <DialogContent
+            sx={{ p: 1, display: "flex", flexDirection: "column", gap: 2 }}
+          >
             <TextField
               label={
                 <>
-                  First Name <span style={{ color: 'red' }}>*</span>
+                  First Name <span style={{ color: "red" }}>*</span>
                 </>
               }
               fullWidth
               value={editFirstName}
               onChange={(e) => setEditFirstName(e.target.value)}
               slotProps={{ htmlInput: { maxLength: 50 } }}
-              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+              sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
             />
 
             <TextField
               label={
                 <>
-                  Last Name <span style={{ color: 'red' }}>*</span>
+                  Last Name <span style={{ color: "red" }}>*</span>
                 </>
               }
               fullWidth
               value={editLastName}
               onChange={(e) => setEditLastName(e.target.value)}
               slotProps={{ htmlInput: { maxLength: 50 } }}
-              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+              sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
             />
 
             <TextField
               label={
                 <>
-                  Mobile Number <span style={{ color: 'red' }}>*</span>
+                  Mobile Number <span style={{ color: "red" }}>*</span>
                 </>
               }
               fullWidth
               value={editMobileNumber}
               onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, '');
+                const value = e.target.value.replace(/\D/g, "");
                 if (value.length <= 11) setEditMobileNumber(value);
               }}
-              error={editMobileNumber.length > 0 && !/^09\d{9}$/.test(editMobileNumber)}
+              error={
+                editMobileNumber.length > 0 &&
+                !/^09\d{9}$/.test(editMobileNumber)
+              }
               helperText={
-                editMobileNumber.length > 0 && !/^09\d{9}$/.test(editMobileNumber)
-                  ? 'Mobile number must be 11 digits and start with 09'
-                  : ''
+                editMobileNumber.length > 0 &&
+                !/^09\d{9}$/.test(editMobileNumber)
+                  ? "Mobile number must be 11 digits and start with 09"
+                  : ""
               }
               slotProps={{
                 htmlInput: {
-                  inputMode: 'numeric',
-                  pattern: '[0-9]*',
+                  inputMode: "numeric",
+                  pattern: "[0-9]*",
                   maxLength: 11,
                 },
               }}
-              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+              sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
             />
 
             <TextField
@@ -806,10 +925,10 @@ export default function CustomersPage() {
               value={editEmail}
               disabled
               sx={{
-                bgcolor: '#f6f6f6',
+                bgcolor: "#f6f6f6",
                 borderRadius: 2,
-                '& .MuiInputBase-input.Mui-disabled': {
-                  WebkitTextFillColor: '#555',
+                "& .MuiInputBase-input.Mui-disabled": {
+                  WebkitTextFillColor: "#555",
                 },
               }}
             />
@@ -820,23 +939,31 @@ export default function CustomersPage() {
               fullWidth
               value={editStatus}
               onChange={(e) => setEditStatus(e.target.value as CustomerStatus)}
-              sx={{ bgcolor: '#f6f6f6', borderRadius: 2 }}
+              sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
             >
               <MenuItem value="AVAILABLE">Available</MenuItem>
               <MenuItem value="UNAVAILABLE">Unavailable</MenuItem>
             </TextField>
           </DialogContent>
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: 3, mb: 2 }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 1,
+              mt: 3,
+              mb: 2,
+            }}
+          >
             <Button
               onClick={() => setOpenEdit(false)}
               sx={{
-                backgroundColor: '#6d6d6d',
-                color: '#f7c948',
-                textTransform: 'none',
+                backgroundColor: "#6d6d6d",
+                color: "#f7c948",
+                textTransform: "none",
                 minWidth: 120,
                 py: 1.25,
-                ':hover': { backgroundColor: '#5a5a5a' },
+                ":hover": { backgroundColor: "#5a5a5a" },
               }}
             >
               Cancel
@@ -849,12 +976,12 @@ export default function CustomersPage() {
                 setOpenEditConfirm(true);
               }}
               sx={{
-                backgroundColor: '#000',
-                color: '#fff',
-                textTransform: 'none',
+                backgroundColor: "#000",
+                color: "#fff",
+                textTransform: "none",
                 minWidth: 120,
                 py: 1.25,
-                ':hover': { backgroundColor: '#111' },
+                ":hover": { backgroundColor: "#111" },
               }}
             >
               Update
@@ -870,20 +997,31 @@ export default function CustomersPage() {
         maxWidth="sm"
         fullWidth
         sx={{
-          '& .MuiPaper-root': {
+          "& .MuiPaper-root": {
             borderRadius: 4,
-            bgcolor: '#f2f2f2',
-            overflow: 'visible',
+            bgcolor: "#f2f2f2",
+            overflow: "visible",
           },
         }}
       >
-        <Box sx={{ m: 2, bgcolor: '#fff', borderRadius: 4, p: 3, pb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Box sx={{ m: 2, bgcolor: "#fff", borderRadius: 4, p: 3, pb: 2 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 2,
+            }}
+          >
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>
                 Edit Customer Details
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 0.5 }}
+              >
                 Customer Management
               </Typography>
             </Box>
@@ -910,23 +1048,32 @@ export default function CustomersPage() {
               <strong>Email Address:</strong> {editEmail}
             </Typography>
             <Typography sx={{ mb: 1 }}>
-              <strong>Status:</strong> {editStatus === 'AVAILABLE' ? 'Available' : 'Unavailable'}
+              <strong>Status:</strong>{" "}
+              {editStatus === "AVAILABLE" ? "Available" : "Unavailable"}
             </Typography>
           </DialogContent>
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mt: 4, mb: 2 }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 1,
+              mt: 4,
+              mb: 2,
+            }}
+          >
             <Button
               onClick={() => {
                 setOpenEditConfirm(false);
                 setOpenEdit(true);
               }}
               sx={{
-                backgroundColor: '#6d6d6d',
-                color: '#f7c948',
-                textTransform: 'none',
+                backgroundColor: "#6d6d6d",
+                color: "#f7c948",
+                textTransform: "none",
                 minWidth: 120,
                 py: 1.25,
-                ':hover': { backgroundColor: '#5a5a5a' },
+                ":hover": { backgroundColor: "#5a5a5a" },
               }}
             >
               Cancel
@@ -936,12 +1083,12 @@ export default function CustomersPage() {
               variant="contained"
               onClick={handleUpdateCustomer}
               sx={{
-                backgroundColor: '#000',
-                color: '#fff',
-                textTransform: 'none',
+                backgroundColor: "#000",
+                color: "#fff",
+                textTransform: "none",
                 minWidth: 120,
                 py: 1.25,
-                ':hover': { backgroundColor: '#111' },
+                ":hover": { backgroundColor: "#111" },
               }}
             >
               Update
@@ -957,20 +1104,31 @@ export default function CustomersPage() {
         maxWidth="sm"
         fullWidth
         sx={{
-          '& .MuiPaper-root': {
+          "& .MuiPaper-root": {
             borderRadius: 4,
-            bgcolor: '#f2f2f2',
-            overflow: 'visible',
+            bgcolor: "#f2f2f2",
+            overflow: "visible",
           },
         }}
       >
-        <Box sx={{ m: 2, bgcolor: '#fff', borderRadius: 4, p: 3, pb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Box sx={{ m: 2, bgcolor: "#fff", borderRadius: 4, p: 3, pb: 2 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 2,
+            }}
+          >
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>
                 {statusTitle}
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 0.5 }}
+              >
                 Customer Management
               </Typography>
             </Box>
@@ -981,20 +1139,24 @@ export default function CustomersPage() {
           </Box>
 
           <DialogContent sx={{ p: 0 }}>
-            <Typography sx={{ mb: 1, color: '#333' }}>{statusMessage}</Typography>
+            <Typography sx={{ mb: 1, color: "#333" }}>
+              {statusMessage}
+            </Typography>
           </DialogContent>
 
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 4, mb: 2 }}>
+          <Box
+            sx={{ display: "flex", justifyContent: "flex-end", mt: 4, mb: 2 }}
+          >
             <Button
               variant="contained"
               onClick={() => setOpenStatusModal(false)}
               sx={{
-                backgroundColor: '#000',
-                color: '#fff',
-                textTransform: 'none',
+                backgroundColor: "#000",
+                color: "#fff",
+                textTransform: "none",
                 minWidth: 120,
                 py: 1.25,
-                ':hover': { backgroundColor: '#111' },
+                ":hover": { backgroundColor: "#111" },
               }}
             >
               OK
@@ -1005,21 +1167,24 @@ export default function CustomersPage() {
 
       {/* Server Error Modal */}
       <Dialog open={openServerError} onClose={() => setOpenServerError(false)}>
-        <IconButton onClick={() => setOpenServerError(false)} sx={{ position: 'absolute', right: 8, top: 8 }}>
+        <IconButton
+          onClick={() => setOpenServerError(false)}
+          sx={{ position: "absolute", right: 8, top: 8 }}
+        >
           <CloseIcon />
         </IconButton>
 
         <DialogContent
           sx={{
-            textAlign: 'center',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
             gap: 1,
             mt: 5,
           }}
         >
-          <ErrorIcon sx={{ fontSize: 80, color: 'red' }} />
+          <ErrorIcon sx={{ fontSize: 80, color: "red" }} />
           {serverErrorMsg}
         </DialogContent>
       </Dialog>

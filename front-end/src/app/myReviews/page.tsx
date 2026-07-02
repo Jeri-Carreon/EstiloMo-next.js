@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -17,6 +21,7 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Checkbox from "@mui/material/Checkbox";
+import CircularProgress from "@mui/material/CircularProgress";
 
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -86,8 +91,71 @@ const ratingLabels: Record<string, string> = {
 };
 
 export default function MyReviewsPage() {
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [reviewables, setReviewables] = useState<ReviewableItem[]>([]);
+  const router = useRouter();
+  const supabase = createClient();
+  const queryClient = useQueryClient();
+
+  const [authLoading, setAuthLoading] = useState(true);
+
+  const {
+    data: myReviewsData,
+    isLoading: reviewsLoading,
+  } = useQuery<Review[]>({
+    queryKey: ["myReviews"],
+    queryFn: async () => {
+      const res = await fetch("/api/reviews?mine=true", {
+        cache: "no-store",
+      });
+
+      if (res.status === 401) {
+        router.push("/login?redirect=/myReviews");
+        return [];
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Unable to load your reviews.");
+      }
+
+      return data.reviews || [];
+    },
+    enabled: !authLoading,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+
+  const {
+    data: reviewablesData,
+    isLoading: reviewablesLoading,
+  } = useQuery<ReviewableItem[]>({
+    queryKey: ["myReviewables"],
+    queryFn: async () => {
+      const res = await fetch("/api/reviews?completedAppointments=true", {
+        cache: "no-store",
+      });
+
+      if (res.status === 401) {
+        router.push("/login?redirect=/myReviews");
+        return [];
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        return [];
+      }
+
+      return data.appointments || [];
+    },
+    enabled: !authLoading,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+
+  const reviews = myReviewsData || [];
+  const reviewables = reviewablesData || [];
+  const loading = reviewsLoading || reviewablesLoading;
 
   const [selectedReviewableId, setSelectedReviewableId] = useState("");
   const [rating, setRating] = useState(5);
@@ -97,52 +165,35 @@ export default function MyReviewsPage() {
   const [error, setError] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const loadMyReviews = async () => {
-    try {
-      const res = await fetch("/api/reviews?mine=true", {
-        cache: "no-store",
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(
-          res.status === 401
-            ? "Please sign in to view your reviews."
-            : data.error || "Unable to load your reviews."
-        );
-        setReviews([]);
-        return;
-      }
-
-      setReviews(data.reviews || []);
-    } catch {
-      setError("Unable to load your reviews.");
-    }
-  };
-
-  const loadReviewables = async () => {
-    try {
-      const res = await fetch("/api/reviews?completedAppointments=true", {
-        cache: "no-store",
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setReviewables([]);
-        return;
-      }
-
-      setReviewables(data.appointments || []);
-    } catch {
-      setReviewables([]);
-    }
-  };
-
   useEffect(() => {
-    loadMyReviews();
-    loadReviewables();
+    const init = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push("/login?redirect=/myReviews");
+        return;
+      }
+
+      setAuthLoading(false);
+    };
+
+    init();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (event: AuthChangeEvent, _session: Session | null) => {
+        if (event === "SIGNED_OUT") {
+          router.replace("/");
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleOpenDialog = () => {
@@ -194,21 +245,24 @@ export default function MyReviewsPage() {
         }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(
-          res.status === 401
-            ? "Please sign in to submit a review."
-            : data.error || "Unable to submit review."
-        );
+      if (res.status === 401) {
+        router.push("/login?redirect=/myReviews");
         return;
       }
 
-      setReviews((current) => [data.review, ...current]);
-      setReviewables((current) =>
-        current.filter((item) => item.id !== selectedReviewableId)
-      );
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Unable to submit review.");
+        return;
+      }
+
+      queryClient.invalidateQueries({
+        queryKey: ["myReviews"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["myReviewables"],
+      });
 
       setComment("");
       setSelectedReviewableId("");
@@ -219,6 +273,25 @@ export default function MyReviewsPage() {
       setError("Unable to submit review.");
     }
   };
+
+  if (authLoading || loading) {
+    return (
+      <>
+        <Navbar />
+        <Box
+          sx={{
+            minHeight: "60vh",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <CircularProgress />
+        </Box>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <>
@@ -304,7 +377,7 @@ export default function MyReviewsPage() {
                 fontWeight: 700,
               }}
             >
-              You don't have any reviews.
+              You don&apos;t have any reviews.
             </Typography>
 
             <Typography
@@ -313,7 +386,8 @@ export default function MyReviewsPage() {
                 color: "text.secondary",
               }}
             >
-              Complete an appointment or paid transaction first before reviewing.
+              Complete an appointment or paid transaction first before
+              reviewing.
             </Typography>
           </Box>
         ) : (
@@ -381,7 +455,8 @@ export default function MyReviewsPage() {
                       mb: 0.5,
                     }}
                   >
-                    Display name: {review.isAnonymous ? "Anonymous" : "Your name"} // FIX 
+                    Display name:{" "}
+                    {review.isAnonymous ? "Anonymous" : "Your name"}
                   </Typography>
 
                   <Typography
@@ -391,7 +466,8 @@ export default function MyReviewsPage() {
                       mb: 1,
                     }}
                   >
-                    Reviewed on {new Date(review.createdAt).toLocaleDateString()}
+                    Reviewed on{" "}
+                    {new Date(review.createdAt).toLocaleDateString()}
                   </Typography>
 
                   <Box
@@ -414,7 +490,12 @@ export default function MyReviewsPage() {
                     </Typography>
                   </Box>
 
-                  <Typography sx={{ fontFamily: "var(--font-nunito-sans)", mt: 1 }}>
+                  <Typography
+                    sx={{
+                      fontFamily: "var(--font-nunito-sans)",
+                      mt: 1,
+                    }}
+                  >
                     {review.comment || "No comment provided."}
                   </Typography>
                 </Box>
@@ -470,13 +551,24 @@ export default function MyReviewsPage() {
                       {item.appointmentCode} - {item.service.name} with{" "}
                       {item.barber.firstName} {item.barber.lastName} -{" "}
                       {new Date(item.appointmentDate).toLocaleDateString()}{" "}
-                      ({item.sourceType === "WALKIN" ? "Walk-in" : "Appointment"})
+                      (
+                      {item.sourceType === "WALKIN"
+                        ? "Walk-in"
+                        : "Appointment"}
+                      )
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
 
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mb: 2 }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 1,
+                  mb: 2,
+                }}
+              >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                   <Typography
                     sx={{
