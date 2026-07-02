@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+export const dynamic = "force-dynamic";
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -14,6 +14,8 @@ function minutesToTime(minutes: number) {
 
 
 export async function GET(req: Request) {
+  const resend = new Resend(process.env.RESEND_API_KEY);
+
   // Protect this route — only your scheduler should be able to call it
   const authHeader = req.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
