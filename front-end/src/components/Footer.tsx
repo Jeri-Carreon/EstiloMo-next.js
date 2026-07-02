@@ -37,7 +37,7 @@ export default function Footer() {
 
       <Box sx={{ borderTop:'0.5px solid #fff', mt:2, py:1.5 }}>
         <Typography sx={{ color:'#fff', textAlign:'center', fontSize:'1rem', fontWeight:700 }}>
-          Copyright © 2024 The Barbs Bro. All rights reserved.
+          Copyright © 2026 The Barbs Bro. All rights reserved.
         </Typography>
       </Box>
     </Box>
