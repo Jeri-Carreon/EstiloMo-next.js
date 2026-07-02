@@ -475,7 +475,7 @@ export default function AdminDashboardPage() {
       </Box>
       <Box sx={{ display: "flex", gap: 2, mb: 4, flexWrap: "wrap" }}>
         <MetricCard label="Sales" value={`₱ ${data.todaySales.toLocaleString()}`} icon={<AttachMoneyIcon sx={{ color: "#4caf50", fontSize: 20 }} />} iconBg="#e8f5e9" />
-        <MetricCard label="Completed Transactions" value={data.completedTransactions} icon={<CheckCircleOutlineIcon sx={{ color: "#4caf50", fontSize: 20 }} />} iconBg="#e8f5e9" />
+        <MetricCard label="Completed Transactions                     (Walk-in & Appointment)" value={data.completedTransactions} icon={<CheckCircleOutlineIcon sx={{ color: "#4caf50", fontSize: 20 }} />} iconBg="#e8f5e9" />
         <MetricCard label="Cancelled Transactions" value={data.cancellationsTotal} icon={<CancelIcon sx={{ color: "#f44336", fontSize: 20 }} />} iconBg="#fdecea" />
       </Box>
 

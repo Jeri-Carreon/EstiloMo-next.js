@@ -176,7 +176,7 @@ export async function POST(req: Request) {
       ? parseInt(lastService.serviceCode.replace(/\D/g, ""), 10)
       : 0;
 
-    const serviceCode = String(lastNumber + 1).padStart(3, "0");
+    const serviceCode = String(lastNumber + 1);
     const nextSortOrder = (lastService?.sortOrder ?? 0) + 1;
 
     const service = await db.service.create({
