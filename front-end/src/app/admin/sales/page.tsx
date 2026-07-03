@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
@@ -342,6 +343,7 @@ export default function SalesPage() {
   const [page, setPage] = useState(1);
 
   const supabase = createClient();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -541,6 +543,16 @@ export default function SalesPage() {
     setImageViewerOpen(true);
   };
 
+  useQuery({
+    queryKey: ["adminSalesData"],
+    queryFn: async () => {
+      await loadData(false);
+      return true;
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+
   useEffect(() => {
     setPage(1);
   }, [salesSearch, salesStatusFilter, salesTypeFilter]);
@@ -588,9 +600,9 @@ export default function SalesPage() {
     );
   }, [selectedSale]);
 
-  async function loadData() {
+  async function loadData(showSpinner = true) {
     try {
-      setLoading(true);
+      if (showSpinner) setLoading(true);
 
       const [salesData, servicesData, customersData, loyaltyData, barbersData] =
         await Promise.all([
@@ -633,7 +645,7 @@ export default function SalesPage() {
   }
 
   useEffect(() => {
-    loadData();
+    loadData(true);
   }, []);
 
   useEffect(() => {
@@ -902,7 +914,8 @@ export default function SalesPage() {
       }
 
       closePosAndReset();
-      await loadData();
+      await queryClient.invalidateQueries({ queryKey: ["adminSalesData"] });
+      await loadData(false);
 
       setSnackbar({
         open: true,
@@ -965,7 +978,8 @@ export default function SalesPage() {
       }
 
       closePosAndReset();
-      await loadData();
+      await queryClient.invalidateQueries({ queryKey: ["adminSalesData"] });
+      await loadData(false);
 
       setSnackbar({
         open: true,
@@ -1053,7 +1067,8 @@ export default function SalesPage() {
       }
 
       closePosAndReset();
-      await loadData();
+      await queryClient.invalidateQueries({ queryKey: ["adminSalesData"] });
+      await loadData(false);
 
       setSnackbar({
         open: true,

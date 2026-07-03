@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -49,6 +50,7 @@ export default function AdminPage() {
 
   const [users, setUsers] = useState<User[]>([]);
   const supabase = createClient();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -113,8 +115,9 @@ export default function AdminPage() {
     );
   };
 
-  const loadUsers = async () => {
+  const loadUsers = async (showSpinner = true) => {
     try {
+      if (showSpinner) setLoading(true);
       const res = await fetch("/api/admin/user-management");
 
       if (res.status === 403) {
@@ -138,6 +141,16 @@ export default function AdminPage() {
     setLoading(false);
   };
 
+  useQuery({
+    queryKey: ["adminUsersData"],
+    queryFn: async () => {
+      await loadUsers(false);
+      return true;
+    },
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+  });
+
   useEffect(() => {
       const init = async () => {
         try {
@@ -155,7 +168,7 @@ export default function AdminPage() {
             return
           }
 
-          await loadUsers()
+          await loadUsers(true)
         } catch (err) {
           console.error("Initialization failed:", err)
         }
@@ -197,7 +210,8 @@ export default function AdminPage() {
         return;
       }
 
-      await loadUsers();
+      await queryClient.invalidateQueries({ queryKey: ["adminUsersData"] });
+      await loadUsers(false);
 
       setOpenAdd(false);
       setFirstName("");
@@ -284,6 +298,8 @@ export default function AdminPage() {
         return;
       }
 
+      await queryClient.invalidateQueries({ queryKey: ["adminUsersData"] });
+      await queryClient.invalidateQueries({ queryKey: ["adminUsersData"] });
       setUsers((prev) =>
         sortUsers(
           prev.map((user) =>

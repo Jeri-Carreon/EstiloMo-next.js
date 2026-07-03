@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -22,6 +24,8 @@ import Pagination from "@mui/material/Pagination";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
 
 import CloseIcon from "@mui/icons-material/Close";
 import SearchIcon from "@mui/icons-material/Search";
@@ -31,6 +35,8 @@ import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import PaymentsIcon from "@mui/icons-material/Payments";
 import BookmarkBorderIcon from "@mui/icons-material/BookmarkBorder";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -68,6 +74,7 @@ type CustomerHistory = {
   paymentMethod: string;
   paymentScreenshotUrl?: string | null;
   afterServicePhotoUrl?: string | null;
+  afterServicePhotoUrls?: string[];
 };
 
 type RecommendedService = {
@@ -99,14 +106,55 @@ function splitSchedule(schedule: string) {
 export default function MyAppointmentsPage() {
   const router = useRouter();
   const supabase = createClient();
+  const queryClient = useQueryClient();
 
   const [displayName, setDisplayName] = useState("Customer");
   const [authLoading, setAuthLoading] = useState(true);
-  const [history, setHistory] = useState<CustomerHistory[]>([]);
-  const [recommendedServices, setRecommendedServices] = useState<
-    RecommendedService[]
-  >([]);
-  const [loading, setLoading] = useState(true);
+
+  const {
+    data: historyData,
+    isLoading: loading,
+  } = useQuery<{
+    appointments: CustomerHistory[];
+    recommendedServices: RecommendedService[];
+  }>({
+    queryKey: ["customerAppointmentsHistory"],
+    queryFn: async () => {
+      const res = await fetch("/api/customers/appointments", {
+        cache: "no-store",
+      });
+
+      if (res.status === 401) {
+        router.push("/login?redirect=/myAppointments");
+        return {
+          appointments: [],
+          recommendedServices: [],
+        };
+      }
+
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+
+      if (!res.ok) {
+        console.error("LOAD CUSTOMER HISTORY ERROR:", data);
+        return {
+          appointments: [],
+          recommendedServices: [],
+        };
+      }
+
+      return {
+        appointments: data.appointments || [],
+        recommendedServices: data.recommendedServices || [],
+      };
+    },
+    enabled: !authLoading,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+
+  const history = historyData?.appointments || [];
+  const recommendedServices = historyData?.recommendedServices || [];
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -116,63 +164,58 @@ export default function MyAppointmentsPage() {
   const [selectedItem, setSelectedItem] = useState<CustomerHistory | null>(null);
   const [receiptOpen, setReceiptOpen] = useState(false);
 
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [imageIndex, setImageIndex] = useState(0);
   const [imageOpen, setImageOpen] = useState(false);
   const [imageTitle, setImageTitle] = useState("");
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [bookingSuccessOpen, setBookingSuccessOpen] = useState(false);
 
-  const loadHistory = async () => {
-    try {
-      setLoading(true);
-
-      const res = await fetch("/api/customers/appointments", {
-        cache: "no-store",
-      });
-
-      if (res.status === 401) {
-        router.push("/login");
-        return;
-      }
-
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : {};
-
-      if (!res.ok) {
-        console.error("LOAD CUSTOMER HISTORY ERROR:", data);
-        setHistory([]);
-        setRecommendedServices([]);
-        return;
-      }
-
-      setHistory(data.appointments || []);
-      setRecommendedServices(data.recommendedServices || []);
-    } catch (error) {
-      console.error("LOAD CUSTOMER HISTORY FETCH ERROR:", error);
-      setHistory([]);
-      setRecommendedServices([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    let mounted = true;
+
     const init = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
+      if (!mounted) return;
+
       if (!user) {
-        router.push("/login");
+        router.push("/login?redirect=/myAppointments");
         return;
       }
 
       setDisplayName(user.user_metadata?.full_name || user.email || "Customer");
       setAuthLoading(false);
-      await loadHistory();
     };
 
     init();
-  }, []);
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (event: AuthChangeEvent, session: Session | null) => {
+        if (event === "SIGNED_OUT") {
+          router.replace("/");
+          router.refresh();
+          return;
+        }
+
+        if (event === "SIGNED_IN" && session?.user) {
+          setDisplayName(
+            session.user.user_metadata?.full_name ||
+              session.user.email ||
+              "Customer"
+          );
+        }
+      }
+    );
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -198,7 +241,9 @@ export default function MyAppointmentsPage() {
           if (res.ok && data.isScheduled) {
             window.clearInterval(timer);
             window.localStorage.removeItem("estilomoPendingCheckout");
-            await loadHistory();
+            queryClient.invalidateQueries({
+              queryKey: ["customerAppointmentsHistory"],
+            });
             setBookingSuccessOpen(true);
           }
         } catch (error) {
@@ -212,7 +257,7 @@ export default function MyAppointmentsPage() {
     if (paymentResult === "cancel") {
       window.history.replaceState({}, "", "/myAppointments");
     }
-  }, []);
+  }, [queryClient]);
 
   const filteredHistory = useMemo(() => {
     return history.filter((item) => {
@@ -268,9 +313,22 @@ export default function MyAppointmentsPage() {
     return "#333";
   };
 
-  const openImagePreview = (title: string, url?: string | null) => {
+  const getAfterServicePhotos = (item: CustomerHistory) => {
+    if (item.afterServicePhotoUrls && item.afterServicePhotoUrls.length > 0) {
+      return item.afterServicePhotoUrls;
+    }
+
+    if (item.afterServicePhotoUrl) {
+      return [item.afterServicePhotoUrl];
+    }
+
+    return [];
+  };
+
+  const openImagePreview = (title: string, urls: string[]) => {
     setImageTitle(title);
-    setImageUrl(url || null);
+    setImageUrls(urls);
+    setImageIndex(0);
     setImageOpen(true);
   };
 
@@ -283,25 +341,29 @@ export default function MyAppointmentsPage() {
         flexWrap: "wrap",
       }}
     >
-      <IconButton
-        size="small"
-        aria-label="View after-service photo"
-        disabled={!item.afterServicePhotoUrl}
-        onClick={() =>
-          openImagePreview("After-Service Photo", item.afterServicePhotoUrl)
-        }
-        sx={{
-          bgcolor: item.afterServicePhotoUrl ? "#e5e5e5" : "#f1f1f1",
-          width: 34,
-          height: 34,
-          color: item.afterServicePhotoUrl ? "#555" : "#aaa",
-          "&:hover": {
-            bgcolor: item.afterServicePhotoUrl ? "#d4d4d4" : "#f1f1f1",
-          },
-        }}
-      >
-        <PhotoCameraIcon sx={{ fontSize: 18 }} />
-      </IconButton>
+      {(() => {
+        const photos = getAfterServicePhotos(item);
+
+        return (
+          <IconButton
+            size="small"
+            aria-label="View after-service photos"
+            disabled={photos.length === 0}
+            onClick={() => openImagePreview("After-Service Photos", photos)}
+            sx={{
+              bgcolor: photos.length > 0 ? "#e5e5e5" : "#f1f1f1",
+              width: 34,
+              height: 34,
+              color: photos.length > 0 ? "#555" : "#aaa",
+              "&:hover": {
+                bgcolor: photos.length > 0 ? "#d4d4d4" : "#f1f1f1",
+              },
+            }}
+          >
+            <PhotoCameraIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        );
+      })()}
 
       <IconButton
         size="small"
@@ -439,12 +501,9 @@ export default function MyAppointmentsPage() {
             <MenuItem value="PENDING">Pending</MenuItem>
             <MenuItem value="SCHEDULED">Scheduled</MenuItem>
             <MenuItem value="COMPLETED">Completed</MenuItem>
-            <MenuItem value="DONE">Done</MenuItem>
             <MenuItem value="CANCELLED">Cancelled</MenuItem>
             <MenuItem value="NOSHOW">No Show</MenuItem>
             <MenuItem value="REJECTED">Rejected</MenuItem>
-            <MenuItem value="PAID">Paid</MenuItem>
-            <MenuItem value="PARTIAL">Partial</MenuItem>
             <MenuItem value="REFUNDED">Refunded</MenuItem>
           </TextField>
 
@@ -1023,69 +1082,149 @@ export default function MyAppointmentsPage() {
       <Dialog
         open={imageOpen}
         onClose={() => setImageOpen(false)}
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
         slotProps={{
           paper: {
             sx: {
-              m: { xs: 1.5, sm: 3 },
-              width: { xs: "calc(100% - 24px)", sm: "100%" },
-              maxHeight: { xs: "calc(100% - 24px)", sm: "calc(100% - 64px)" },
+              overflow: "hidden",
+              maxHeight: "90vh",
             },
           },
         }}
       >
-        <Box
+        <DialogTitle
           sx={{
-            p: { xs: 2, sm: 4 },
-            bgcolor: "#f3f3f3",
+            textAlign: "center",
+            fontWeight: 900,
             position: "relative",
           }}
         >
+          {imageTitle}
+
           <IconButton
             onClick={() => setImageOpen(false)}
             sx={{
               position: "absolute",
-              top: 12,
               right: 12,
-              color: "#555",
+              top: 12,
             }}
           >
             <CloseIcon />
           </IconButton>
+        </DialogTitle>
 
-          <Typography
-            align="center"
-            sx={{
-              fontSize: { xs: 18, sm: 20 },
-              fontWeight: 900,
-              mb: 3,
-              px: 4,
-              overflowWrap: "anywhere",
-            }}
-          >
-            {imageTitle}
-          </Typography>
+        <DialogContent
+          sx={{
+            overflow: "hidden",
+            pb: 2,
+          }}
+        >
+          {imageUrls.length > 0 ? (
+            <Box>
+              <Box
+                sx={{
+                  position: "relative",
+                  bgcolor: "#fff",
+                  border: "1px solid #ddd",
+                  borderRadius: 2,
+                  overflow: "hidden",
+                 height: {
+                    xs: "55vh",
+                    sm: "65vh",
+                  },
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  p: 2,
+                }}
+              >
+                <Box
+                  component="img"
+                  src={imageUrls[imageIndex]}
+                  alt={`${imageTitle} ${imageIndex + 1}`}
+                  sx={{
+                    display: "block",
+                    maxWidth: "100%",
+                    maxHeight: "70vh",
+                    objectFit: "contain",
+                  }}
+                />
 
-          {imageUrl ? (
-            <Box
-              component="img"
-              src={imageUrl}
-              alt={imageTitle}
-              sx={{
-                display: "block",
-                maxWidth: "100%",
-                maxHeight: "70vh",
-                mx: "auto",
-                borderRadius: 2,
-                objectFit: "contain",
-                bgcolor: "#fff",
-              }}
-            />
+                {imageUrls.length > 1 && (
+                  <>
+                    <IconButton
+                      onClick={() =>
+                        setImageIndex((prev) =>
+                          prev === 0
+                            ? imageUrls.length - 1
+                            : prev - 1
+                        )
+                      }
+                      sx={{
+                        position: "absolute",
+                        left: 16,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        bgcolor: "rgba(0,0,0,0.6)",
+                        color: "#fff",
+                        width: 48,
+                        height: 48,
+                        "&:hover": {
+                          bgcolor: "rgba(0,0,0,0.8)",
+                        },
+                      }}
+                    >
+                      <ChevronLeftIcon />
+                    </IconButton>
+
+                    <IconButton
+                      onClick={() =>
+                        setImageIndex((prev) =>
+                          prev === imageUrls.length - 1
+                            ? 0
+                            : prev + 1
+                        )
+                      }
+                      sx={{
+                        position: "absolute",
+                        right: 16,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        bgcolor: "rgba(0,0,0,0.6)",
+                        color: "#fff",
+                        width: 48,
+                        height: 48,
+                        "&:hover": {
+                          bgcolor: "rgba(0,0,0,0.8)",
+                        },
+                      }}
+                    >
+                      <ChevronRightIcon />
+                    </IconButton>
+                  </>
+                )}
+              </Box>
+
+              {imageUrls.length > 1 && (
+                <Typography
+                  align="center"
+                  sx={{
+                    mt: 2,
+                    fontWeight: 700,
+                    color: "#666",
+                  }}
+                >
+                  Photo {imageIndex + 1} of {imageUrls.length}
+                </Typography>
+              )}
+            </Box>
           ) : (
-            <Typography align="center">No image available.</Typography>
+            <Typography align="center">
+              No images available.
+            </Typography>
           )}
-        </Box>
+        </DialogContent>
       </Dialog>
 
       <Dialog

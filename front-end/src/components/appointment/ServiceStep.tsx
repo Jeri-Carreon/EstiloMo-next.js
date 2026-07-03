@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
@@ -54,15 +55,18 @@ export default function ServiceStep({
   cartCount,
   onCartClick,
 }: ServiceStepProps) {
-  const [services, setServices] = useState<Service[]>([]);
   const [selectedService, setSelectedService] = useState<string>(
     appointmentData.serviceId || ''
   );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
-  const loadServices = async () => {
-    try {
+  const {
+    data: services = [],
+    isLoading: loading,
+    error,
+  } = useQuery<Service[]>({
+    queryKey: ['appointmentServices', appointmentData.barberId],
+    enabled: Boolean(appointmentData.barberId),
+    queryFn: async () => {
       const res = await fetch(
         `/api/appointment/services?barberId=${appointmentData.barberId}`,
         {
@@ -73,40 +77,23 @@ export default function ServiceStep({
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'Unable to load services.');
-        setServices([]);
-        return;
+        throw new Error(data.error || 'Unable to load services.');
       }
 
-      setError('');
-
-      setServices(
-        ((data.services || []) as ServiceResponse[]).map((service) => ({
-          id: service.id,
-          name: service.name || '',
-          price: Number(service.price || 0),
-          description: service.description || '',
-          durationMinutes: Number(service.durationMinutes || 0),
-        }))
-      );
-    } catch (error) {
-      console.error('LOAD SERVICES ERROR:', error);
-      setError('An error occurred while loading services.');
-      setServices([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return ((data.services || []) as ServiceResponse[]).map((service) => ({
+        id: service.id,
+        name: service.name || '',
+        price: Number(service.price || 0),
+        description: service.description || '',
+        durationMinutes: Number(service.durationMinutes || 0),
+      }));
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
 
   useEffect(() => {
-    if (!appointmentData.barberId) return;
-
-    setLoading(true);
-    setServices([]);
     setSelectedService(appointmentData.serviceId || '');
-    setError('');
-
-    loadServices();
   }, [appointmentData.barberId, appointmentData.serviceId]);
 
   const handleNext = () => {
@@ -280,7 +267,7 @@ export default function ServiceStep({
           {loading ? (
             <Typography>Loading services...</Typography>
           ) : error ? (
-            <Typography color="error">{error}</Typography>
+            <Typography color="error">{error instanceof Error ? error.message : 'Unable to load services.'}</Typography>
           ) : services.length === 0 ? (
             <Typography>No available services for this barber.</Typography>
           ) : (

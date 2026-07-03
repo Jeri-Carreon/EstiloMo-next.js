@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
 
+export const dynamic = "force-dynamic";
+
 import {
   logBarberAbsent,
   logBarberAvailable,

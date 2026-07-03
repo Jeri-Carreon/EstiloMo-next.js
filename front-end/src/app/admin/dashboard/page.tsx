@@ -1,8 +1,9 @@
 "use client";
 
 import { createClient } from '@/lib/supabase/client';
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 
 
 import Box from "@mui/material/Box";
@@ -148,51 +149,43 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 export default function AdminDashboardPage() {
   const router = useRouter();
-
-  // Session
-  const [loading, setLoading] = useState(true);
-  const supabase = createClient()
-
-  const [data, setData] = useState<DashboardData | null>(null);
+  const supabase = createClient();
   const [period, setPeriod] = useState<"Day" | "Week" | "Month">("Day");
 
-  useEffect(() => {
-    const init = async () => {
-      try {
-        setLoading(true)
+  const { data, isLoading: loading } = useQuery<DashboardData>({
+    queryKey: ["adminDashboard", period],
+    queryFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          router.push('/login')
-          return
-        }
+      if (!user) {
+        router.push("/login");
+        throw new Error("Not authenticated");
+      }
 
-        const res = await fetch('/api/user/role')
-        const data = await res.json()
+      const roleRes = await fetch("/api/user/role", { cache: "no-store" });
+      const roleData = await roleRes.json();
 
-        if (!['OWNER', 'RECEPTIONIST'].includes(data.role)) {
-          router.push('/unauthorized')
-          return
-        }
+      if (!["OWNER", "RECEPTIONIST"].includes(roleData.role)) {
+        router.push("/unauthorized");
+        throw new Error("Unauthorized");
+      }
 
-        const [appointmentsRes, salesRes] = await Promise.all([
-          fetch("/api/admin/appointments", { cache: "no-store" }),
-          fetch("/api/admin/sales", { cache: "no-store" }),
-        ]);
+      const [appointmentsRes, salesRes] = await Promise.all([
+        fetch("/api/admin/appointments", { cache: "no-store" }),
+        fetch("/api/admin/sales", { cache: "no-store" }),
+      ]);
 
-        if (appointmentsRes.status === 403 || salesRes.status === 403) {
-          router.push("/unauthorized");
-          return;
-        }
+      if (appointmentsRes.status === 403 || salesRes.status === 403) {
+        router.push("/unauthorized");
+        throw new Error("Unauthorized");
+      }
 
-        const [appointmentsData, salesData] = await Promise.all([
-          appointmentsRes.json(),
-          salesRes.json(),
-        ]);
-
-        const appts: any[] = appointmentsData?.appointments ?? [];
-        const sales: any[] = salesData?.sales ?? [];
-        const now = new Date();
+      const [appointmentsData, salesData] = await Promise.all([
+        appointmentsRes.json(),
+        salesRes.json(),
+      ]);
 
         // ── Appointments: filtered by appointmentDate ──
         // Used for status counts, peak hours, walk-in vs appointment counts.
@@ -203,66 +196,137 @@ export default function AdminDashboardPage() {
         // const newAppointments = appts.filter((a) => a.status === "PENDING").length;
         const scheduledAppointments = filteredAppts.filter((a) => a.status === "SCHEDULED").length;
 
-        // ── Sales: filtered by createdAt ──
-        // Used for revenue, revenue by service, revenue by barber, payment methods.
-        const filteredSales = sales.filter((sale: any) => {
-          if (sale.source === "WALKIN") {
-            return isInPeriod(new Date(sale.createdAt), now, period);
-          }
+      const appts: any[] = appointmentsData?.appointments ?? [];
+      const sales: any[] = salesData?.sales ?? [];
+      const now = new Date();
 
-          // BOOKING: use the appointment date(s), not createdAt
-          const apptDates: Date[] = (sale.appointments ?? []).map((a: any) => new Date(a.appointmentDate));
-          if (apptDates.length === 0) {
-            // safety fallback if a booking sale somehow has no linked appointments
-            return isInPeriod(new Date(sale.createdAt), now, period);
+      // ── Appointments: filtered by appointmentDate ──
+      // Used for status counts, peak hours, walk-in vs appointment counts.
+      const filteredAppts = appts.filter((appt: any) =>
+        isInPeriod(new Date(appt.appointmentDate), now, period)
+      );
+
+      // newAppointments intentionally counts ALL pending appts (not period-filtered),
+      // matching original behavior — "pending to confirm" is an all-time queue, not a period stat.
+      const newAppointments = appts.filter((a) => a.status === "PENDING").length;
+      const scheduledAppointments = filteredAppts.filter((a) => a.status === "SCHEDULED").length;
+
+      // ── Sales: filtered by createdAt ──
+      // Used for revenue, revenue by service, revenue by barber, payment methods.
+      const filteredSales = sales.filter((sale: any) => {
+        if (sale.source === "WALKIN") {
+          return isInPeriod(new Date(sale.createdAt), now, period);
+        }
+
+        // BOOKING: use the appointment date(s), not createdAt
+        const apptDates: Date[] = (sale.appointments ?? []).map((a: any) => new Date(a.appointmentDate));
+        if (apptDates.length === 0) {
+          // safety fallback if a booking sale somehow has no linked appointments
+          return isInPeriod(new Date(sale.createdAt), now, period);
+        }
+        return apptDates.some((d) => isInPeriod(d, now, period));
+      });
+
+      const paidSales = filteredSales.filter((s) => s.status === "PAID");
+
+      const todaySales = paidSales.reduce(
+        (total, sale) => total + Number(sale.totalAmount ?? 0),
+        0
+      );
+
+      const completedAppointments = filteredSales.filter((a) => a.status === "PAID" && a.source === "BOOKING").length;
+      const completedTransactions = filteredSales.filter((a) => a.status === "PAID").length;
+      const cancellationsTotal = filteredSales.filter((a) => a.status === "CANCELLED").length;
+      const cancellationsAppointments = filteredAppts.filter((a) => a.status === "CANCELLED").length;
+      const noShows = filteredAppts.filter((a) => a.status === "NOSHOW").length;
+
+      const walkInAppts = paidSales.filter((a: any) => a.source === "WALKIN");
+      const bookedAppts = paidSales.filter((a: any) => a.source !== "WALKIN");
+      const walkInVsAppointments = [
+        {
+          type: "Walk-in",
+          customers: walkInAppts.length,
+          revenue: walkInAppts.reduce((s: number, a: any) => s + Number(a.payment?.amount ?? 0), 0),
+        },
+        {
+          type: "Appointments",
+          customers: bookedAppts.length,
+          revenue: bookedAppts.reduce((s: number, a: any) => s + Number(a.payment?.amount ?? 0), 0),
+        },
+      ];
+
+      // Revenue by service: built from sale.items[], not appointments —
+      // a single sale can contain multiple service line items.
+      const serviceMap = new Map<string, { service: string; revenue: number; count: number }>();
+      paidSales.forEach((sale: any) => {
+        (sale.items ?? []).forEach((item: any) => {
+          const serviceName = item.serviceName ?? "Unknown";
+          const amount = Number(item.subtotal ?? item.price ?? 0);
+          if (!serviceMap.has(serviceName)) {
+            serviceMap.set(serviceName, { service: serviceName, revenue: 0, count: 0 });
           }
-          return apptDates.some((d) => isInPeriod(d, now, period));
+          const e = serviceMap.get(serviceName)!;
+          e.revenue += amount;
+          e.count += Number(item.quantity ?? 1);
         });
+      });
+      const revenueByService = Array.from(serviceMap.values());
 
-        const paidSales = filteredSales.filter((s) => s.status === "PAID");
-
-        const todaySales = paidSales.reduce(
-          (total, sale) => total + Number(sale.totalAmount ?? 0),
+      // Revenue by barber: from sale.barber, attributing the sale's totalAmount.
+      const barberMap = new Map<string, { name: string; revenue: number; services: number }>();
+      paidSales.forEach((sale: any) => {
+        const barberName = sale.barber?.name ?? "Unknown";
+        const amount = Number(sale.totalAmount ?? 0);
+        const itemCount = (sale.items ?? []).reduce(
+          (s: number, i: any) => s + Number(i.quantity ?? 1),
           0
         );
+        if (!barberMap.has(barberName)) {
+          barberMap.set(barberName, { name: barberName, revenue: 0, services: 0 });
+        }
+        const e = barberMap.get(barberName)!;
+        e.revenue += amount;
+        e.services += itemCount;
+      });
+      const revenueByBarber = Array.from(barberMap.values()).sort((a, b) => b.revenue - a.revenue);
 
-        const completedAppointments = filteredSales.filter((a) => a.status === "PAID" && a.source === "BOOKING").length;
-        const completedTransactions = filteredSales.filter((a) => a.status === "PAID").length;
-        const cancellationsTotal = filteredSales.filter((a) => a.status === "CANCELLED").length;
-        const cancellationsAppointments = filteredAppts.filter((a) => a.status === "CANCELLED").length;
-        const noShows = filteredAppts.filter((a) => a.status === "NOSHOW").length;
+      // Payment methods: from sale.payment.method, counted per paid sale.
+      const gcashCount = paidSales.filter((s) => s.payment?.method === "GCASH").length;
+      const cashCount = paidSales.filter((s) => s.payment?.method === "CASH").length;
+      const totalPayments = gcashCount + cashCount;
+      const paymentMethods = totalPayments
+        ? [
+            { method: "GCASH", percentage: Math.round((gcashCount / totalPayments) * 100) },
+            { method: "CASH", percentage: Math.round((cashCount / totalPayments) * 100) },
+          ]
+        : [];
 
-        const walkInAppts = paidSales.filter((a: any) => a.source === "WALKIN");
-        const bookedAppts = paidSales.filter((a: any) => a.source !== "WALKIN");
-        const walkInVsAppointments = [
-          {
-            type: "Walk-in",
-            customers: walkInAppts.length,
-            revenue: walkInAppts.reduce((s: number, a: any) => s + Number(a.payment?.amount ?? 0), 0),
-          },
-          {
-            type: "Appointments",
-            customers: bookedAppts.length,
-            revenue: bookedAppts.reduce((s: number, a: any) => s + Number(a.payment?.amount ?? 0), 0),
-          },
-        ];
+      // Peak hours: based on appointment start time, all statuses (matches original).
+      const hourMap = new Map<string, number>();
+      filteredAppts.forEach((appt: any) => {
+        if (appt.startMinutes == null) return;
+        const h = Math.floor(appt.startMinutes / 60);
+        const label = h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
+        hourMap.set(label, (hourMap.get(label) ?? 0) + 1);
+      });
 
-        // Revenue by service: built from sale.items[], not appointments —
-        // a single sale can contain multiple service line items.
-        const serviceMap = new Map<string, { service: string; revenue: number; count: number }>();
-        paidSales.forEach((sale: any) => {
-          (sale.items ?? []).forEach((item: any) => {
-            const serviceName = item.serviceName ?? "Unknown";
-            const amount = Number(item.subtotal ?? item.price ?? 0);
-            if (!serviceMap.has(serviceName)) {
-              serviceMap.set(serviceName, { service: serviceName, revenue: 0, count: 0 });
-            }
-            const e = serviceMap.get(serviceName)!;
-            e.revenue += amount;
-            e.count += Number(item.quantity ?? 1);
-          });
+      // Walk-in sales — bucket by the hour they were created, since there's no separate appointment.
+      const walkInSales = filteredSales.filter((s: any) => s.source === "WALKIN");
+      walkInSales.forEach((sale: any) => {
+        const created = new Date(sale.createdAt);
+        const h = created.getHours();
+        const label = h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
+        hourMap.set(label, (hourMap.get(label) ?? 0) + 1);
+      });
+      const peakHours = Array.from(hourMap.entries())
+        .map(([hour, customers]) => ({ hour, customers }))
+        .sort((a, b) => {
+          const toMin = (s: string) => {
+            const [n, p] = s.split(" ");
+            return (p === "AM" ? parseInt(n) % 12 : (parseInt(n) % 12) + 12) * 60;
+          };
+          return toMin(a.hour) - toMin(b.hour);
         });
-        const revenueByService = Array.from(serviceMap.values());
 
         // Revenue by barber: from sale.barber, attributing the sale's totalAmount.
         const barberMap = new Map<string, { name: string; revenue: number; services: number }>();
@@ -361,12 +425,9 @@ export default function AdminDashboardPage() {
             const days = (sorted[i].getTime() - sorted[i - 1].getTime()) / (1000 * 60 * 60 * 24);
             gaps.push(days);
           }
-          const avgGapDays = gaps.reduce((a, b) => a + b, 0) / gaps.length;
-
-          if (avgGapDays <= 10) frequencyBuckets.Weekly += 1;
-          else if (avgGapDays <= 20) frequencyBuckets["Bi-weekly"] += 1;
-          else if (avgGapDays <= 45) frequencyBuckets.Monthly += 1;
-          else frequencyBuckets.Quarterly += 1;
+          const entry = customerRevenueMap.get(customerId)!;
+          entry.visits += 1;
+          entry.revenue += amount;
         });
 
         const totalReturningCustomers = Object.values(frequencyBuckets).reduce((a, b) => a + b, 0);

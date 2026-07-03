@@ -16,7 +16,7 @@ import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 import { createClient } from "@/lib/supabase/client";
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -27,6 +27,8 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect");
 
   const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -107,11 +109,11 @@ export default function LoginPage() {
       const user = await res.json();
 
       if (["OWNER", "RECEPTIONIST"].includes(user.role)) {
-        router.push("/admin/dashboard");
+        router.replace("/admin/dashboard");
       } else if (user.role === "BARBER") {
-        router.push("/admin/barbers");
+        router.replace("/admin/barbers");
       } else {
-        router.push("/myAppointments");
+        router.replace(redirect || "/myAppointments");
       }
     } catch (error) {
       console.error("LOGIN ERROR:", error);

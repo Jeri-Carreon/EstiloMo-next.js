@@ -1,6 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Toolbar from "@mui/material/Toolbar";
@@ -13,10 +17,7 @@ import Avatar from "@mui/material/Avatar";
 import Button from "@mui/material/Button";
 import Tooltip from "@mui/material/Tooltip";
 import MenuItem from "@mui/material/MenuItem";
-import Link from "next/link";
 
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User, SupabaseClient } from "@supabase/supabase-js";
 
@@ -35,14 +36,16 @@ export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
 
-  const [anchorElNav, setAnchorElNav] =
-    React.useState<null | HTMLElement>(null);
-  const [anchorElUser, setAnchorElUser] =
-    React.useState<null | HTMLElement>(null);
+  const [anchorElNav, setAnchorElNav] = React.useState<null | HTMLElement>(
+    null
+  );
+  const [anchorElUser, setAnchorElUser] = React.useState<null | HTMLElement>(
+    null
+  );
 
   useEffect(() => {
     try {
-      setSupabase(createClient());
+      setSupabase(createClient() as SupabaseClient);
     } catch (e) {
       console.error(e);
       console.warn("Supabase not available");
@@ -58,30 +61,38 @@ export default function Navbar() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
+
+      if (event === "SIGNED_OUT") {
+        router.replace("/");
+        router.refresh();
+      }
     });
 
     return () => subscription.unsubscribe();
-  }, [supabase]);
+  }, [supabase, router]);
 
   const handleSignOut = async () => {
     if (!supabase) return;
 
-    await supabase.auth.signOut();
     handleCloseUserMenu();
-    router.push("/");
+
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error("SIGN OUT ERROR:", error.message);
+      return;
+    }
+
+    window.location.replace("/");
   };
 
-  const handleOpenNavMenu = (
-    event: React.MouseEvent<HTMLElement>
-  ) => {
+  const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorElNav(event.currentTarget);
   };
 
-  const handleOpenUserMenu = (
-    event: React.MouseEvent<HTMLElement>
-  ) => {
+  const handleOpenUserMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorElUser(event.currentTarget);
   };
 
@@ -202,9 +213,7 @@ export default function Navbar() {
                 <>
                   <Tooltip title="Open User Menu">
                     <IconButton onClick={handleOpenUserMenu}>
-                      <Avatar
-                        src={user.user_metadata?.avatar_url}
-                      />
+                      <Avatar src={user.user_metadata?.avatar_url} />
                     </IconButton>
                   </Tooltip>
 
@@ -217,10 +226,7 @@ export default function Navbar() {
                       Edit Profile
                     </MenuItem>
 
-                    <MenuItem
-                      component={Link}
-                      href="/myAppointments"
-                    >
+                    <MenuItem component={Link} href="/myAppointments">
                       My Appointments
                     </MenuItem>
 
@@ -232,10 +238,7 @@ export default function Navbar() {
                       Loyalty Card
                     </MenuItem>
 
-                    <MenuItem
-                      onClick={handleSignOut}
-                      sx={{ color: "#ff0000" }}
-                    >
+                    <MenuItem onClick={handleSignOut} sx={{ color: "#ff0000" }}>
                       Logout
                     </MenuItem>
                   </Menu>

@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import type { AuthChangeEvent,Session, } from "@supabase/supabase-js";
 
 import Box from '@mui/material/Box';
 import Modal from '@mui/material/Modal';
@@ -77,6 +80,9 @@ function formatDate(date: string) {
 }
 
 export default function AppointmentPage() {
+  const router = useRouter();
+
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
   const [successOpen, setSuccessOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -107,6 +113,42 @@ export default function AppointmentPage() {
   );
 
   const downPayment = 150;
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    const checkUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.replace('/login?redirect=/appointment');
+        return;
+      }
+
+      setCheckingAuth(false);
+    };
+
+    checkUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (
+        event: AuthChangeEvent,
+        session: Session | null
+      ) => {
+        if (event === "SIGNED_OUT" || !session) {
+          router.replace("/login?redirect=/appointment");
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
   const showWarning = (title: string, message: string) => {
     setWarningTitle(title);
@@ -418,6 +460,7 @@ export default function AppointmentPage() {
   };
 
   useEffect(() => {
+    if (checkingAuth) return;
     if (typeof window === 'undefined') return;
 
     const currentUrl = new URL(window.location.href);
@@ -503,7 +546,11 @@ export default function AppointmentPage() {
         );
       }, 0);
     }
-  }, []);
+  }, [checkingAuth]);
+
+  if (checkingAuth) {
+    return null;
+  }
 
   return (
     <Box sx={{ minHeight: '100vh', backgroundColor: '#000' }}>

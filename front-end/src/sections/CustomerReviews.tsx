@@ -1,6 +1,7 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -49,43 +50,33 @@ interface Review {
 }
 
 export default function CustomerReviews() {
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [filteredReviews, setFilteredReviews] = useState<Review[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
   const [search, setSearch] = useState("");
   const [ratingFilter, setRatingFilter] = useState("all");
 
-  useEffect(() => {
-    const loadReviews = async () => {
-      try {
-        const res = await fetch("/api/reviews", {
-          cache: "no-store",
-        });
+  const {
+    data: reviews = [],
+    isLoading: loading,
+    error,
+  } = useQuery<Review[]>({
+    queryKey: ["publicCustomerReviews"],
+    queryFn: async () => {
+      const res = await fetch("/api/reviews", {
+        cache: "no-store",
+      });
 
-        const data = await res.json();
+      const data = await res.json();
 
-        if (!res.ok) {
-          setError(data.error || "Unable to load reviews.");
-          setReviews([]);
-          setFilteredReviews([]);
-        } else {
-          setError("");
-          setReviews(data.reviews || []);
-          setFilteredReviews(data.reviews || []);
-        }
-      } catch {
-        setError("Unable to load reviews.");
-      } finally {
-        setLoading(false);
+      if (!res.ok) {
+        throw new Error(data.error || "Unable to load reviews.");
       }
-    };
 
-    loadReviews();
-  }, []);
+      return data.reviews || [];
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
 
-  useEffect(() => {
+  const filteredReviews = useMemo(() => {
     let temp = [...reviews];
 
     if (search.trim()) {
@@ -99,9 +90,18 @@ export default function CustomerReviews() {
           review.user?.email ||
           "";
 
-        const serviceName = review.appointment?.service?.name || review.service;
+        const serviceName =
+          review.appointment?.service?.name ||
+          review.sale?.items
+            ?.map((item) => item.service?.name)
+            .filter(Boolean)
+            .join(", ") ||
+          review.service;
+
         const barberName = review.appointment?.barber
           ? `${review.appointment.barber.firstName} ${review.appointment.barber.lastName}`
+          : review.sale?.barber
+          ? `${review.sale.barber.firstName} ${review.sale.barber.lastName}`
           : "";
 
         return (
@@ -118,7 +118,7 @@ export default function CustomerReviews() {
       temp = temp.filter((review) => Number(review.rating) === ratingValue);
     }
 
-    setFilteredReviews(temp);
+    return temp;
   }, [search, ratingFilter, reviews]);
 
   const getRatingLabel = (rating: number) => {
@@ -233,7 +233,7 @@ export default function CustomerReviews() {
               fontFamily: "var(--font-nunito-sans)",
             }}
           >
-            {error}
+            {error instanceof Error ? error.message : "Unable to load reviews."}
           </Typography>
         ) : filteredReviews.length === 0 ? (
           <Typography

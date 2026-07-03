@@ -1,7 +1,7 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -72,11 +72,8 @@ type Review = {
 };
 
 export default function AdminReviewsPage() {
-  const [reviews, setReviews] = useState<Review[]>([]);
+  const queryClient = useQueryClient();
 
-  // session
-  const supabase = createClient();
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [successOpen, setSuccessOpen] = useState(false);
 
@@ -88,10 +85,9 @@ export default function AdminReviewsPage() {
   const [editStatus, setEditStatus] = useState<ReviewStatus>("PENDING");
   const [saving, setSaving] = useState(false);
 
-  const loadReviews = async () => {
-    try {
-      setLoading(true);
-
+  const { data: reviews = [], isLoading: loading } = useQuery<Review[]>({
+    queryKey: ["adminReviews"],
+    queryFn: async () => {
       const res = await fetch("/api/admin/reviews", {
         cache: "no-store",
       });
@@ -99,24 +95,15 @@ export default function AdminReviewsPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Unable to load customer reviews.");
-        setReviews([]);
-        return;
+        throw new Error(data.error || "Unable to load customer reviews.");
       }
 
       setError("");
-      setReviews(data.reviews || []);
-    } catch {
-      setError("Unable to load customer reviews.");
-      setReviews([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadReviews();
-  }, []);
+      return data.reviews || [];
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
 
   const getCustomerName = (review: Review) => {
     if (review.isAnonymous) return "Anonymous";
@@ -233,17 +220,9 @@ export default function AdminReviewsPage() {
         return;
       }
 
-      setReviews((current) =>
-        current.map((review) =>
-          review.id === editReview.id
-            ? {
-                ...review,
-                status: editStatus,
-                isVisible: editStatus === "COMPLETED",
-              }
-            : review
-        )
-      );
+      await queryClient.invalidateQueries({
+        queryKey: ["adminReviews"],
+      });
 
       setEditReview(null);
       setSuccessOpen(true);
@@ -358,7 +337,12 @@ export default function AdminReviewsPage() {
                   <TableCell>{getServiceName(review)}</TableCell>
 
                   <TableCell>
-                    <Rating value={Number(review.rating)} precision={0.5} readOnly size="small"/>
+                    <Rating
+                      value={Number(review.rating)}
+                      precision={0.5}
+                      readOnly
+                      size="small"
+                    />
                   </TableCell>
 
                   <TableCell>
@@ -374,11 +358,17 @@ export default function AdminReviewsPage() {
                   </TableCell>
 
                   <TableCell align="center">
-                    <IconButton size="small" onClick={() => setViewReview(review)}>
+                    <IconButton
+                      size="small"
+                      onClick={() => setViewReview(review)}
+                    >
                       <VisibilityIcon fontSize="small" />
                     </IconButton>
 
-                    <IconButton size="small" onClick={() => handleOpenEdit(review)}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleOpenEdit(review)}
+                    >
                       <EditIcon fontSize="small" />
                     </IconButton>
                   </TableCell>
@@ -412,9 +402,8 @@ export default function AdminReviewsPage() {
             >
               Review #
               {String(
-                reviews.findIndex((r) => r.id === viewReview.id) + 1
+                reviews.findIndex((r) => r.id === viewReview.id) + 1,
               ).padStart(4, "0")}
-
               <IconButton onClick={() => setViewReview(null)}>
                 <CloseIcon />
               </IconButton>
@@ -442,7 +431,8 @@ export default function AdminReviewsPage() {
               </Typography>
 
               <Typography sx={{ mb: 1, fontWeight: 700 }}>
-                Date of Review: {new Date(viewReview.createdAt).toLocaleDateString()}
+                Date of Review:{" "}
+                {new Date(viewReview.createdAt).toLocaleDateString()}
               </Typography>
 
               <Typography sx={{ mb: 1, fontWeight: 700 }}>
@@ -498,7 +488,7 @@ export default function AdminReviewsPage() {
               <Typography sx={{ mb: 2 }}>
                 Review #{" "}
                 {String(
-                  reviews.findIndex((r) => r.id === editReview.id) + 1
+                  reviews.findIndex((r) => r.id === editReview.id) + 1,
                 ).padStart(4, "0")}
               </Typography>
 

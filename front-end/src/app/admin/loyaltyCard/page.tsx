@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
@@ -51,15 +52,10 @@ type Activity = {
 export default function AdminLoyaltyCardPage() {
   const router = useRouter();
   const supabase = createClient();
-
-  const [cards, setCards] = useState<LoyaltyCard[]>([]);
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [settings, setSettings] = useState<LoyaltySettings | null>(null);
+  const queryClient = useQueryClient();
 
   const [processedSearch, setProcessedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
-
-  const [loading, setLoading] = useState(true);
 
   const [editOpen, setEditOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -73,9 +69,29 @@ export default function AdminLoyaltyCardPage() {
   const [fiveStickerReward, setFiveStickerReward] = useState("50% Off");
   const [tenStickerReward, setTenStickerReward] = useState("100% Off");
 
-  const loadCards = async () => {
-    try {
-      setLoading(true);
+  const { data: loyaltyData, isLoading: loading } = useQuery<{
+    cards: LoyaltyCard[];
+    activities: Activity[];
+    settings: LoyaltySettings | null;
+  }>({
+    queryKey: ["adminLoyaltyCards"],
+    queryFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push("/login");
+        throw new Error("Not authenticated");
+      }
+
+      const roleRes = await fetch("/api/user/role", { cache: "no-store" });
+      const roleData = await roleRes.json();
+
+      if (!["OWNER", "RECEPTIONIST"].includes(roleData.role)) {
+        router.push("/unauthorized");
+        throw new Error("Unauthorized");
+      }
 
       const res = await fetch("/api/admin/loyaltyCard", {
         cache: "no-store",
@@ -83,7 +99,7 @@ export default function AdminLoyaltyCardPage() {
 
       if (res.status === 403) {
         router.push("/unauthorized");
-        return;
+        throw new Error("Unauthorized");
       }
 
       const data = await res.json();
@@ -92,50 +108,31 @@ export default function AdminLoyaltyCardPage() {
         throw new Error(data.error || "Failed to load loyalty cards");
       }
 
-      setCards(data.cards || []);
-      setActivities(data.activities || []);
-      setSettings(data.settings || null);
+      return {
+        cards: data.cards || [],
+        activities: data.activities || [],
+        settings: data.settings || null,
+      };
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
 
-      if (data.settings) {
-        setStickersPerTransaction(data.settings.stickersPerTransaction);
-        setFiveStickerReward(data.settings.fiveStickerReward);
-        setTenStickerReward(data.settings.tenStickerReward);
-      }
-    } catch (error) {
-      console.error("LOAD LOYALTY CARDS ERROR:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const cards = loyaltyData?.cards || [];
+  const activities = loyaltyData?.activities || [];
+  const settings = loyaltyData?.settings || null;
 
   useEffect(() => {
-    const init = async () => {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+    if (!settings) return;
 
-        if (!user) {
-          router.push("/login");
-          return;
-        }
-
-        const res = await fetch("/api/user/role");
-        const data = await res.json();
-
-        if (!["OWNER", "RECEPTIONIST"].includes(data.role)) {
-          router.push("/unauthorized");
-          return;
-        }
-
-        await loadCards();
-      } catch (err) {
-        console.error("Initialization failed:", err);
-      }
-    };
-
-    init();
-  }, [router]);
+    setStickersPerTransaction(settings.stickersPerTransaction);
+    setFiveStickerReward(settings.fiveStickerReward);
+    setTenStickerReward(settings.tenStickerReward);
+  }, [
+    settings?.stickersPerTransaction,
+    settings?.fiveStickerReward,
+    settings?.tenStickerReward,
+  ]);
 
   const filteredCards = useMemo(() => {
     return cards.filter((card) => {
@@ -182,7 +179,7 @@ export default function AdminLoyaltyCardPage() {
 
       setEditOpen(false);
       setSelectedCard(null);
-      await loadCards();
+      queryClient.invalidateQueries({ queryKey: ["adminLoyaltyCards"] });
     } catch (error) {
       console.error("UPDATE LOYALTY CARD ERROR:", error);
     }
@@ -209,7 +206,7 @@ export default function AdminLoyaltyCardPage() {
       }
 
       setSettingsOpen(false);
-      await loadCards();
+      queryClient.invalidateQueries({ queryKey: ["adminLoyaltyCards"] });
     } catch (error) {
       console.error("SAVE LOYALTY SETTINGS ERROR:", error);
     }

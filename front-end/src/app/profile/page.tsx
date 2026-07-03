@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
@@ -19,9 +20,9 @@ import Footer from '@/components/Footer';
 export default function ProfilePage() {
   const router = useRouter();
   const supabase = createClient();
+  const queryClient = useQueryClient();
 
   const [authLoading, setAuthLoading] = useState(true);
-  const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -31,6 +32,7 @@ export default function ProfilePage() {
   const [email, setEmail] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
   const [fullName, setFullName] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const [savedProfile, setSavedProfile] = useState({
     firstName: '',
@@ -38,6 +40,49 @@ export default function ProfilePage() {
     email: '',
     mobileNumber: '',
   });
+
+  const {
+    data: profileData,
+    isLoading: loading,
+  } = useQuery({
+    queryKey: ['customerProfile'],
+    queryFn: async () => {
+      const res = await fetch('/api/profile', {
+        cache: 'no-store',
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to load profile');
+      }
+
+      return data.user;
+    },
+    enabled: !authLoading,
+    refetchInterval: isEditing ? false : 10000,
+    refetchOnWindowFocus: true,
+  });
+
+  useEffect(() => {
+    if (!profileData || isEditing) return;
+
+    const first = profileData.firstName || '';
+    const last = profileData.lastName || '';
+
+    setFirstName(first);
+    setLastName(last);
+    setEmail(profileData.email || '');
+    setMobileNumber(profileData.mobileNumber || '');
+    setFullName(`${first} ${last}`.trim() || profileData.email || 'User');
+
+    setSavedProfile({
+      firstName: first,
+      lastName: last,
+      email: profileData.email || '',
+      mobileNumber: profileData.mobileNumber || '',
+    });
+  }, [profileData, isEditing]);
 
   useEffect(() => {
     const init = async () => {
@@ -51,44 +96,10 @@ export default function ProfilePage() {
       }
 
       setAuthLoading(false);
-      setLoading(true);
-
-      try {
-        const res = await fetch('/api/profile');
-
-        if (!res.ok) {
-          const data = await res.json();
-          setError(data.error || 'Failed to load profile');
-          return;
-        }
-
-        const data = await res.json();
-        const u = data.user;
-
-        const first = u.firstName || '';
-        const last = u.lastName || '';
-
-        setFirstName(first);
-        setLastName(last);
-        setEmail(u.email || '');
-        setMobileNumber(u.mobileNumber || '');
-        setFullName(`${first} ${last}`.trim() || u.email || 'User');
-
-        setSavedProfile({
-          firstName: first,
-          lastName: last,
-          email: u.email || '',
-          mobileNumber: u.mobileNumber || '',
-        });
-      } catch {
-        setError('Unable to load profile information');
-      } finally {
-        setLoading(false);
-      }
     };
 
     init();
-  }, []);
+  }, [router, supabase]);
 
   const handleSave = async () => {
     try {
@@ -102,7 +113,7 @@ export default function ProfilePage() {
         return;
       }
 
-      setLoading(true);
+      setSaving(true);
 
       const res = await fetch('/api/profile/update', {
         method: 'POST',
@@ -132,12 +143,16 @@ export default function ProfilePage() {
       setMobileNumber(u.mobileNumber || '');
       setFullName(`${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'User');
 
+      queryClient.invalidateQueries({
+        queryKey: ['customerProfile'],
+      });
+
       setSuccess('Profile updated successfully!');
       setIsEditing(false);
     } catch {
       setError('An error occurred while updating your profile');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
