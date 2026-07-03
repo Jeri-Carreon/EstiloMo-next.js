@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Sale" ADD COLUMN "downPaymentStatus" TEXT NOT NULL DEFAULT 'PENDING';
