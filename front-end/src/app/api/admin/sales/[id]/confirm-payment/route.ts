@@ -108,7 +108,7 @@ export async function PUT(
         ? body.method
         : sale.payment.method;
 
-    const loyaltyCard = sale.customer.loyaltyCards;
+    const loyaltyCard = sale.customer.loyaltyCards ?? null;
 
     let loyaltyRewardType: LoyaltyRewardType = "NONE";
 

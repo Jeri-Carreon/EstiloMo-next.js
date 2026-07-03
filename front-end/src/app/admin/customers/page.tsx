@@ -293,20 +293,18 @@ export default function CustomersPage() {
 
   const handleExportCSV = () => {
     const headers = [
-      "ID",
-      "Type",
-      "Status",
-      "Name",
-      "Contact Number",
-      "Email",
-      "Total Appointments",
-      "Total Spent",
+      'ID',
+      'Status',
+      'Name',
+      'Contact Number',
+      'Email',
+      'Total Appointments',
+      'Total Spent',
     ];
 
     const rows = customers.map((c) => [
       c.customerCode,
-      c.type,
-      c.isActive === false ? "Unavailable" : "Available",
+      c.isActive === false ? 'Unavailable' : 'Available',
       c.name,
       c.contactNumber,
       c.email,
@@ -360,21 +358,6 @@ export default function CustomersPage() {
           }}
           sx={{ flex: 1, maxWidth: 300 }}
         />
-
-        <TextField
-          select
-          size="small"
-          value={typeFilter}
-          onChange={(e) => {
-            setTypeFilter(e.target.value as "ALL" | "CASUAL" | "REGULAR");
-            setPage(1);
-          }}
-          sx={{ width: 150, bgcolor: "#fff" }}
-        >
-          <MenuItem value="ALL">All</MenuItem>
-          <MenuItem value="CASUAL">Casual</MenuItem>
-          <MenuItem value="REGULAR">Regular</MenuItem>
-        </TextField>
 
         <TextField
           select
@@ -437,7 +420,6 @@ export default function CustomersPage() {
               <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 700 }}>ID</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Contact Number</TableCell>
@@ -457,9 +439,6 @@ export default function CustomersPage() {
                     sx={{ "&:hover": { backgroundColor: "#fafafa" } }}
                   >
                     <TableCell>{customer.customerCode}</TableCell>
-                    <TableCell sx={{ color: "#999" }}>
-                      {customer.type}
-                    </TableCell>
                     <TableCell>
                       <Chip
                         size="small"
@@ -570,13 +549,6 @@ export default function CustomersPage() {
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>
                 Add New Customer
-              </Typography>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ mt: 0.5 }}
-              >
-                Account Type: Casual
               </Typography>
             </Box>
 

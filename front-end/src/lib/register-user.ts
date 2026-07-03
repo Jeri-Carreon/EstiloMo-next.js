@@ -12,6 +12,14 @@ export type RegisterUserInput = {
   mobileNumber: string;
 };
 
+function formatCustomerCode(value?: string | null) {
+  if (!value) return `CUST-${nanoid(8).toUpperCase()}`;
+  const normalizedValue = value.trim().toUpperCase();
+  return normalizedValue.startsWith("CUST-")
+    ? normalizedValue
+    : `CUST-${normalizedValue}`;
+}
+
 export async function registerUser(input: RegisterUserInput) {
   const normalizedEmail = input.email.toLowerCase().trim();
   const normalizedFirstName = input.firstName.trim();
@@ -64,7 +72,7 @@ export async function registerUser(input: RegisterUserInput) {
       where: { userId: id },
     });
 
-    const customerCode = existingCustomer?.customerCode ?? nanoid(8);
+    const customerCode = formatCustomerCode(existingCustomer?.customerCode);
 
     const customer = existingCustomer
       ? await tx.customer.update({
@@ -74,6 +82,7 @@ export async function registerUser(input: RegisterUserInput) {
             lastName: normalizedLastName,
             email: normalizedEmail,
             mobileNumber: normalizedMobile,
+            customerCode,
             isActive: true,
           },
         })

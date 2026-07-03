@@ -490,10 +490,29 @@ export default function SalesPage() {
       sale.source.toLowerCase().includes(searchValue) ||
       sale.status.toLowerCase().includes(searchValue) ||
       getSaleStatusLabel(sale.status).toLowerCase().includes(searchValue) ||
-      sale.appointments.some((appt) =>
-        appt.appointmentCode.toLowerCase().includes(searchValue)
-      ) ||
+      sale.appointments.some((appt) => {
+        const date = new Date(appt.appointmentDate);
+
+        // Multiple date formats so partial typing matches naturally
+        const dateFormats = [
+          date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }), // "July 2, 2026"
+          date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), // "Jul 2, 2026"
+          date.toLocaleDateString("en-US"), // "7/2/2026"
+          date.toLocaleDateString("en-US", { weekday: "long" }), // "Thursday"
+        ];
+
+        const startTime = minutesToTime(appt.startMinutes); // "10:00 AM"
+        const endTime = minutesToTime(appt.endMinutes);
+
+        return (
+          dateFormats.some((f) => f.toLowerCase().includes(searchValue)) ||
+          startTime.toLowerCase().includes(searchValue) ||
+          endTime.toLowerCase().includes(searchValue) ||
+          appt.schedule.toLowerCase().includes(searchValue)
+        );
+      }) ||
       (sale.payment?.status || "").toLowerCase().includes(searchValue);
+
 
     const matchesStatus =
       salesStatusFilter === "ALL" ||

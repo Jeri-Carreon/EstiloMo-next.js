@@ -18,6 +18,9 @@ import ErrorIcon from "@mui/icons-material/Error";
 import IconButton from "@mui/material/IconButton";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
+import { createClient } from "@/lib/supabase/client";
+
+
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [openSuccess, setOpenSuccess] = useState(false);
@@ -26,11 +29,24 @@ export default function ForgotPasswordPage() {
 
   const router = useRouter();
 
-  const handleForgotPassword = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const supabase = createClient();
 
-    if (!email.trim()) {
-      setOpenNoInput(true);
+  const handleForgotPassword = async (e: FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+
+  if (!email.trim()) {
+    setOpenNoInput(true);
+    return;
+  }
+
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/reset-password`,
+    });
+
+    if (error) {
+      console.error(error);
+      setOpenError(true);
       return;
     }
 
@@ -53,7 +69,12 @@ export default function ForgotPasswordPage() {
     } catch (error) {
       setOpenError(true);
     }
-  };
+  }
+  catch (error) {
+    console.error(error);
+    setOpenError(true);
+  }
+}
 
   return (
     <Box

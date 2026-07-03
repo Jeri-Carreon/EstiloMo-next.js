@@ -144,9 +144,7 @@ export default function AdminReviewsPage() {
   };
 
   const getTransactionNo = (review: Review) => {
-    return (
-      review.appointment?.appointmentCode || review.sale?.saleCode || "N/A"
-    );
+    return review.sale?.saleCode || review.appointment?.appointmentCode || "N/A";
   };
 
   const getTransactionType = (review: Review) => {
@@ -295,7 +293,7 @@ export default function AdminReviewsPage() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Review #</TableCell>
+              <TableCell></TableCell>
               <TableCell>Transaction #</TableCell>
               <TableCell>Type</TableCell>
               <TableCell>Name</TableCell>
@@ -324,7 +322,7 @@ export default function AdminReviewsPage() {
             ) : (
               filteredReviews.map((review, index) => (
                 <TableRow key={review.id} hover>
-                  <TableCell>{String(index + 1).padStart(4, "0")}</TableCell>
+                  <TableCell>{String(index + 1).padStart(1, "0")}</TableCell>
 
                   <TableCell>{getTransactionNo(review)}</TableCell>
 

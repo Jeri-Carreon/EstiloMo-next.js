@@ -283,7 +283,7 @@ export async function POST(req: Request) {
 
       await tx.payment.create({
         data: {
-          saleId: sale.id,
+          sale: { connect: { id: sale.id } },
           paymentCode,
           amount: totalAmount,
           downPayment: 0,
