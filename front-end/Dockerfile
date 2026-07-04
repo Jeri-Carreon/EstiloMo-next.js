@@ -13,8 +13,10 @@ COPY . .
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG SUPABASE_SERVICE_ROLE_KEY
+ARG NEXT_PUBLIC_APP_URL
 ARG DATABASE_URL=postgresql://postgres.fmllpnbljzsybdjmpmzf:uVHpLHosV6zeW9Et@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true
 ARG DIRECT_URL=postgresql://postgres.fmllpnbljzsybdjmpmzf:uVHpLHosV6zeW9Et@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres
+ENV NEXT_PUBLIC_APP_URL=https://estilomo.codeegoh.com
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY
