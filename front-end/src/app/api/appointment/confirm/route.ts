@@ -13,6 +13,9 @@ import {
 
 const ALLOWED_PAYMONGO_METHODS = ["card", "gcash", "qrph"];
 const CREATE_CHECKOUT_FUNCTION_NAME = "smooth-task";
+const PENDING_CHECKOUT_EXPIRATION_MINUTES = Number(
+  process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || "10"
+);
 
 interface AppointmentCartItem {
   barberId: string;
@@ -102,6 +105,9 @@ async function createPayMongoCheckout(params: {
       data: {
         checkout_url: data.data.attributes.checkout_url,
         checkout_session_id: data.data.id,
+        reference_number: data.data.attributes.reference_number,
+        metadata: data.data.attributes.metadata,
+        raw: data.data,
       },
     };
   }
@@ -117,6 +123,7 @@ async function createPayMongoCheckout(params: {
       successUrl: params.successUrl,
       cancelUrl: params.cancelUrl,
       metadata: params.metadata,
+      failedUrl: params.failedUrl,
     }),
   });
 
@@ -229,6 +236,10 @@ export async function POST(req: NextRequest) {
         return sum + Number(item.servicePrice || 0);
       }, 0);
 
+      const checkoutExpiresAt = new Date(
+        Date.now() + PENDING_CHECKOUT_EXPIRATION_MINUTES * 60 * 1000
+      );
+
       const sale = await tx.sale.create({
         data: {
           saleCode: await createUniqueCode("TRX"),
@@ -239,6 +250,7 @@ export async function POST(req: NextRequest) {
           subtotal,
           discount: 0,
           totalAmount: subtotal,
+          checkoutExpiresAt,
         },
       });
 
@@ -373,6 +385,19 @@ export async function POST(req: NextRequest) {
       result.sale.id
     )}&saleCode=${encodeURIComponent(result.sale.saleCode)}`;
 
+    const metadata = {
+      saleId: result.sale.id,
+      saleCode: result.sale.saleCode,
+      paymentId: result.payment.id,
+    };
+    const referenceNumber = result.sale.saleCode;
+
+    console.log("PAYMONGO CHECKOUT METADATA:", metadata);
+    console.log("PAYMONGO CHECKOUT URL:", checkoutEndpoint);
+    console.log("PAYMONGO SUCCESS URL:", checkoutSuccessUrl);
+    console.log("PAYMONGO CANCEL URL:", checkoutCancelUrl);
+    console.log("PAYMONGO FAILED URL:", checkoutFailedUrl);
+
     const checkoutResult = await createPayMongoCheckout({
       checkoutEndpoint,
       checkoutHeaders,
@@ -382,12 +407,7 @@ export async function POST(req: NextRequest) {
       successUrl: checkoutSuccessUrl,
       cancelUrl: checkoutCancelUrl,
       failedUrl: checkoutFailedUrl,
-      metadata: {
-        saleId: result.sale.id,
-        saleCode: result.sale.saleCode,
-        paymentId: result.payment.id,
-        customerId: result.sale.customerId,
-      },
+      metadata,
     });
 
     const checkoutData = checkoutResult.data;
@@ -405,6 +425,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    console.log("checkoutData:", checkoutData);
+
     await db.payment.update({
       where: {
         id: result.payment.id,
@@ -413,9 +435,13 @@ export async function POST(req: NextRequest) {
         paymongoCheckoutUrl: checkoutData.checkout_url,
         paymongoCheckoutSessionId:
           checkoutData.checkout_session_id || checkoutData.checkoutSessionId,
+        paymongoPaymentIntentId:
+          checkoutData.payment_intent_id ||
+          checkoutData.paymentIntentId ||
+          checkoutData.payment_intent?.id ||
+          null,
       },
     });
-
     return NextResponse.json({
       ok: true,
       checkoutUrl: checkoutData.checkout_url,

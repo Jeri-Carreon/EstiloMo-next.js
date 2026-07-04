@@ -4,7 +4,6 @@ import { DateTime } from "luxon";
 export const PH_TIME_ZONE = "Asia/Manila";
 export const DEFAULT_CANDIDATE_INTERVAL_MINUTES = 15;
 
-const BLOCKING_APPOINTMENT_STATUSES = ["PENDING", "SCHEDULED"] as const;
 
 export interface TimeRange {
   startMinutes: number;
@@ -220,15 +219,24 @@ export async function getDynamicAvailabilityForDate(
     };
   }
 
+  const now = new Date();
   const appointmentWhere: Prisma.AppointmentWhereInput = {
     barberId: params.barberId,
     appointmentDate: {
       gte: startOfDay,
       lte: endOfDay,
     },
-    status: {
-      in: [...BLOCKING_APPOINTMENT_STATUSES],
-    },
+    OR: [
+      { status: "SCHEDULED" },
+      {
+        status: "PENDING",
+        sale: {
+          checkoutExpiresAt: {
+            gt: now,
+          },
+        },
+      },
+    ],
   };
 
   if (params.excludeAppointmentId) {
@@ -426,15 +434,24 @@ export async function getCustomerAppointmentBusyRanges(
     return [];
   }
 
+  const now = new Date();
   const appointmentWhere: Prisma.AppointmentWhereInput = {
     appointmentDate: {
       gte: targetDate.startOf("day").toUTC().toJSDate(),
       lte: targetDate.endOf("day").toUTC().toJSDate(),
     },
-    status: {
-      in: [...BLOCKING_APPOINTMENT_STATUSES],
-    },
-    OR: customerIdentityFilters,
+    OR: [
+      { status: "SCHEDULED" },
+      {
+        status: "PENDING",
+        sale: {
+          checkoutExpiresAt: {
+            gt: now,
+          },
+        },
+      },
+    ],
+    AND: customerIdentityFilters,
   };
 
   if (params.excludeAppointmentId) {

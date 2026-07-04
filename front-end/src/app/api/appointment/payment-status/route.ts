@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 
+const FAILURE_PAYMENT_PARAMS = new Set(["failed", "expired", "cancel"]);
+
 export async function GET(req: NextRequest) {
   try {
     const supabase = await createClient();
@@ -15,6 +17,7 @@ export async function GET(req: NextRequest) {
 
     const saleId = req.nextUrl.searchParams.get("saleId");
     const saleCode = req.nextUrl.searchParams.get("saleCode");
+    const paymentParam = req.nextUrl.searchParams.get("payment");
     const confirmReturn =
       req.nextUrl.searchParams.get("confirmReturn") === "1";
 
@@ -59,6 +62,43 @@ export async function GET(req: NextRequest) {
 
     if (!sale) {
       return NextResponse.json({ error: "Sale not found" }, { status: 404 });
+    }
+
+    if (paymentParam && FAILURE_PAYMENT_PARAMS.has(paymentParam)) {
+      const downPaymentStatus =
+        paymentParam === "expired" ? "EXPIRED" : "FAILED";
+
+      await db.$transaction(async (tx) => {
+        await tx.payment.updateMany({
+          where: {
+            saleId: sale.id,
+            status: "PENDING",
+          },
+          data: {
+            status: "REJECTED",
+          },
+        });
+
+        await tx.sale.update({
+          where: {
+            id: sale.id,
+          },
+          data: {
+            status: "CANCELLED",
+            downPaymentStatus,
+          },
+        });
+
+        await tx.appointment.updateMany({
+          where: {
+            saleId: sale.id,
+            status: "PENDING",
+          },
+          data: {
+            status: "CANCELLED",
+          },
+        });
+      });
     }
 
     if (confirmReturn && sale.appointments.length > 0) {
@@ -123,6 +163,7 @@ export async function GET(req: NextRequest) {
       saleId: refreshedSale.id,
       saleCode: refreshedSale.saleCode,
       saleStatus: refreshedSale.status,
+      downPaymentStatus: refreshedSale.downPaymentStatus,
       paymentStatus: refreshedSale.payment?.status || "PENDING",
       downPayment: Number(refreshedSale.payment?.downPayment || 0),
       appointmentStatuses: refreshedSale.appointments.map(
