@@ -102,6 +102,7 @@ export default function AppointmentPage() {
   const [warningMessage, setWarningMessage] = useState('');
 
   const [cartOpen, setCartOpen] = useState(false);
+  const [pendingSaleId, setPendingSaleId] = useState('');
 
   const [appointmentData, setAppointmentData] = useState<AppointmentData>({
     barberId: '',
@@ -168,7 +169,9 @@ export default function AppointmentPage() {
 
   const showBookedConfirmation = () => {
     window.localStorage.removeItem('estilomoPendingCheckout');
+    setPendingSaleId('');
     setSuccessOpen(true);
+
     setAppointmentData({
       barberId: '',
       barberName: '',
@@ -456,8 +459,15 @@ export default function AppointmentPage() {
         return;
       }
 
-      persistPendingCheckout(data.saleId, data.saleCode, data.checkoutUrl);
-      window.location.href = data.checkoutUrl;
+      persistPendingCheckout(
+        data.saleId,
+        data.saleCode,
+        data.checkoutUrl
+      );
+
+    setPendingSaleId(data.saleId);
+
+    window.location.href = data.checkoutUrl;
     } catch (error) {
       console.error(error);
       showWarning('Something Went Wrong', 'Something went wrong.');
@@ -476,6 +486,11 @@ export default function AppointmentPage() {
 
     const saleId =
       currentUrl.searchParams.get('saleId') || pendingCheckout.saleId;
+
+    if (saleId && saleId !== pendingSaleId) {
+      setPendingSaleId(saleId);
+    }
+
     const saleCode =
       currentUrl.searchParams.get('saleCode') || pendingCheckout.saleCode;
 
@@ -540,6 +555,54 @@ export default function AppointmentPage() {
       );
     }
   }, [checkingAuth]);
+
+  useEffect(() => {
+    if (!pendingSaleId) return;
+
+    const interval = window.setInterval(async () => {
+      try {
+        const res = await fetch(
+          `/api/appointment/payment-status?saleId=${pendingSaleId}`
+        );
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+
+        const paymentExpired =
+          data.downPaymentStatus === 'EXPIRED' ||
+          data.downPaymentStatus === 'FAILED' ||
+          data.downPaymentStatus === 'CANCELLED' ||
+          data.paymentStatus === 'REJECTED';
+
+        const paymentSuccess =
+          data.downPaymentStatus === 'PAID' ||
+          data.paymentStatus === 'PAID' ||
+          data.isScheduled;
+
+        if (paymentSuccess) {
+          window.clearInterval(interval);
+          showBookedConfirmation();
+          return;
+        }
+
+        if (paymentExpired) {
+          window.clearInterval(interval);
+
+          router.replace(
+            `/appointment?payment=expired&saleId=${pendingSaleId}`
+          );
+        }
+      } catch (error) {
+        console.error(
+          'Payment status polling failed:',
+          error
+        );
+      }
+    }, 10000);
+
+    return () => window.clearInterval(interval);
+  }, [pendingSaleId, router]);
 
   if (checkingAuth) {
     return null;

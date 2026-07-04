@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
               status: "PENDING",
             },
             data: {
-              status: state === "PAID" ? "SCHEDULED" : "CANCELLED",
+              status: state === "PAID" ? "SCHEDULED" : "REJECTED",
             },
           });
         }
