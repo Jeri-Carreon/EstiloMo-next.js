@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { DateTime } from "luxon";
+import {
+  generateAvailableTimes,
+  PH_TIME_ZONE,
+  resolveCandidateIntervalMinutes,
+} from "@/lib/appointmentAvailability";
 
 export async function GET(req: Request) {
   try {
@@ -20,6 +25,9 @@ export async function GET(req: Request) {
 
     const settings = await db.appointmentSetting.findFirst();
     const bookingCutoffHours = settings?.bookingCutoffHours ?? 1;
+    const candidateIntervalMinutes = resolveCandidateIntervalMinutes(
+      searchParams.get("intervalMinutes")
+    );
 
     const service = serviceId
       ? await db.service.findUnique({
@@ -28,11 +36,18 @@ export async function GET(req: Request) {
         })
       : null;
 
+    if (serviceId && !service) {
+      return NextResponse.json(
+        { ok: false, message: "Service not found" },
+        { status: 404 }
+      );
+    }
+
     const serviceDuration = service?.durationMinutes ?? 0;
 
     const monthStartPH = DateTime.fromObject(
       { year, month, day: 1 },
-      { zone: "Asia/Manila" }
+      { zone: PH_TIME_ZONE }
     ).startOf("month");
 
     const monthEndPH = monthStartPH.endOf("month");
@@ -79,23 +94,42 @@ export async function GET(req: Request) {
       },
     });
 
+    const appointmentsByDate = new Map<
+      string,
+      { startMinutes: number; endMinutes: number }[]
+    >();
+
+    for (const appointment of appointments) {
+      const dateKey = DateTime.fromJSDate(appointment.appointmentDate)
+        .setZone(PH_TIME_ZONE)
+        .toFormat("yyyy-MM-dd");
+      const dateAppointments = appointmentsByDate.get(dateKey) ?? [];
+
+      dateAppointments.push({
+        startMinutes: appointment.startMinutes,
+        endMinutes: appointment.endMinutes,
+      });
+      appointmentsByDate.set(dateKey, dateAppointments);
+    }
+
     const unavailableSet = new Set<string>();
 
     for (const absence of absences) {
       unavailableSet.add(
         DateTime.fromJSDate(absence.date)
-          .setZone("Asia/Manila")
+          .setZone(PH_TIME_ZONE)
           .toFormat("yyyy-MM-dd")
       );
     }
 
-    const nowPH = DateTime.now().setZone("Asia/Manila");
-    const cutoffPH = nowPH.plus({ hours: bookingCutoffHours });
+    const cutoffPH = DateTime.now()
+      .setZone(PH_TIME_ZONE)
+      .plus({ hours: bookingCutoffHours });
 
     for (let day = 1; day <= monthEndPH.day; day++) {
       const datePH = DateTime.fromObject(
         { year, month, day },
-        { zone: "Asia/Manila" }
+        { zone: PH_TIME_ZONE }
       );
 
       const dateKey = datePH.toFormat("yyyy-MM-dd");
@@ -103,7 +137,7 @@ export async function GET(req: Request) {
 
       if (unavailableSet.has(dateKey)) continue;
 
-      const schedule = schedules.find((s) => s.dayOfWeek === dayOfWeek);
+      const schedule = schedules.find((item) => item.dayOfWeek === dayOfWeek);
 
       if (!schedule || schedule.isDayOff) {
         unavailableSet.add(dateKey);
@@ -114,43 +148,17 @@ export async function GET(req: Request) {
         continue;
       }
 
-      let hasAvailableSlot = false;
+      const availableTimes = generateAvailableTimes({
+        workingStartMinutes: schedule.startTime,
+        workingEndMinutes: schedule.endTime,
+        serviceDurationMinutes: serviceDuration,
+        candidateIntervalMinutes,
+        busyRanges: appointmentsByDate.get(dateKey) ?? [],
+        isStartAllowed: (startMinutes) =>
+          datePH.startOf("day").plus({ minutes: startMinutes }) >= cutoffPH,
+      });
 
-      for (
-        let start = schedule.startTime;
-        start + serviceDuration <= schedule.endTime;
-        start += 30
-      ) {
-        const end = start + serviceDuration;
-
-        const slotDateTimePH = datePH.startOf("day").plus({ minutes: start });
-
-        if (slotDateTimePH < cutoffPH) {
-          continue;
-        }
-
-        const hasConflict = appointments.some((appointment) => {
-          const appointmentDateKey = DateTime.fromJSDate(
-            appointment.appointmentDate
-          )
-            .setZone("Asia/Manila")
-            .toFormat("yyyy-MM-dd");
-
-          if (appointmentDateKey !== dateKey) return false;
-
-          return (
-            start < appointment.endMinutes &&
-            end > appointment.startMinutes
-          );
-        });
-
-        if (!hasConflict) {
-          hasAvailableSlot = true;
-          break;
-        }
-      }
-
-      if (!hasAvailableSlot) {
+      if (availableTimes.length === 0) {
         unavailableSet.add(dateKey);
       }
     }

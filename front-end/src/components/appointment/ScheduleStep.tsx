@@ -102,7 +102,6 @@ export default function ScheduleStep({
 
     return appointmentData.cartItems
       .filter((item) => {
-        const sameBarber = item.barberId === appointmentData.barberId;
         const sameDate = item.appointmentDate === selectedDateKey;
 
         const isCurrentRestoredSelection =
@@ -112,7 +111,7 @@ export default function ScheduleStep({
           item.startMinutes === appointmentData.startMinutes &&
           item.endMinutes === appointmentData.endMinutes;
 
-        return sameBarber && sameDate && !isCurrentRestoredSelection;
+        return sameDate && !isCurrentRestoredSelection;
       })
       .map((item) => `${item.startMinutes}-${item.endMinutes}`)
       .join(',');
@@ -204,8 +203,15 @@ export default function ScheduleStep({
       appointmentData.barberId && appointmentData.serviceId && selectedDateKey
     ),
     queryFn: async () => {
+      const params = new URLSearchParams({
+        barberId: appointmentData.barberId,
+        serviceId: appointmentData.serviceId,
+        date: selectedDateKey,
+        blockedSlots,
+        customerConflicts: '1',
+      });
       const response = await fetch(
-        `/api/admin/barbers/availability?barberId=${appointmentData.barberId}&serviceId=${appointmentData.serviceId}&date=${selectedDateKey}&blockedSlots=${blockedSlots}`,
+        `/api/admin/barbers/availability?${params.toString()}`,
         {
           cache: 'no-store',
         }
@@ -227,36 +233,43 @@ export default function ScheduleStep({
     if (!appointmentData.appointmentDate) return;
 
     const selected = new Date(`${appointmentData.appointmentDate}T00:00:00`);
+    const timeout = window.setTimeout(() => {
+      setCurrentMonth(new Date(selected.getFullYear(), selected.getMonth(), 1));
+      setSelectedDate(selected);
+    }, 0);
 
-    setCurrentMonth(new Date(selected.getFullYear(), selected.getMonth(), 1));
-    setSelectedDate(selected);
+    return () => window.clearTimeout(timeout);
   }, [appointmentData.appointmentDate]);
 
   useEffect(() => {
-    if (!selectedDateKey) {
-      setSelectedTime(null);
-      return;
-    }
+    const timeout = window.setTimeout(() => {
+      if (!selectedDateKey) {
+        setSelectedTime(null);
+        return;
+      }
 
-    const restoredTime = availableTimes.find(
-      (time) =>
-        time.startMinutes === appointmentData.startMinutes &&
-        time.endMinutes === appointmentData.endMinutes
-    );
+      const restoredTime = availableTimes.find(
+        (time) =>
+          time.startMinutes === appointmentData.startMinutes &&
+          time.endMinutes === appointmentData.endMinutes
+      );
 
-    setSelectedTime(
-      restoredTime
-        ? {
-            startMinutes: restoredTime.startMinutes,
-            endMinutes: restoredTime.endMinutes,
-            label:
-              restoredTime.label ||
-              `${formatTime(restoredTime.startMinutes)} - ${formatTime(
-                restoredTime.endMinutes
-              )}`,
-          }
-        : null
-    );
+      setSelectedTime(
+        restoredTime
+          ? {
+              startMinutes: restoredTime.startMinutes,
+              endMinutes: restoredTime.endMinutes,
+              label:
+                restoredTime.label ||
+                `${formatTime(restoredTime.startMinutes)} - ${formatTime(
+                  restoredTime.endMinutes
+                )}`,
+            }
+          : null
+      );
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
   }, [
     availableTimes,
     selectedDateKey,

@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 
 import { parsePHDateOnly } from "@/lib/dateUtils";
 import { createUniqueCode } from "@/lib/createCode";
+import {
+  AppointmentAvailabilityError,
+  assertCustomerAppointmentTimeAvailable,
+  assertAppointmentTimeAvailable,
+  type TimeRange,
+} from "@/lib/appointmentAvailability";
 
 const ALLOWED_PAYMONGO_METHODS = ["card", "gcash", "qrph"];
 const CREATE_CHECKOUT_FUNCTION_NAME = "smooth-task";
-
-type TransactionClient = Prisma.TransactionClient;
 
 interface AppointmentCartItem {
   barberId: string;
@@ -242,6 +245,8 @@ export async function POST(req: NextRequest) {
       const createdAppointments: Awaited<
         ReturnType<typeof tx.appointment.create>
       >[] = [];
+      const cartBusyRangesByKey = new Map<string, TimeRange[]>();
+      const customerCartBusyRangesByDate = new Map<string, TimeRange[]>();
 
       for (const item of cartItems) {
         const service = services.find((s) => s.id === item.serviceId);
@@ -249,6 +254,39 @@ export async function POST(req: NextRequest) {
         if (!service) {
           throw new Error("Service not found");
         }
+
+        if (!item.barberId || !item.appointmentDate) {
+          throw new AppointmentAvailabilityError(
+            "Missing appointment schedule details"
+          );
+        }
+
+        const startMinutes = Number(item.startMinutes);
+        const endMinutes = Number(item.endMinutes);
+        const cartBusyKey = `${item.barberId}:${item.appointmentDate}`;
+        const blockedRanges = cartBusyRangesByKey.get(cartBusyKey) ?? [];
+        const customerBlockedRanges =
+          customerCartBusyRangesByDate.get(item.appointmentDate) ?? [];
+
+        await assertCustomerAppointmentTimeAvailable(tx, {
+          customerId: dbUser.customer!.id,
+          customerEmail:
+            dbUser.customer!.email || dbUser.email || authUser.email,
+          customerMobileNumber: dbUser.customer!.mobileNumber,
+          date: item.appointmentDate,
+          startMinutes,
+          endMinutes,
+          blockedRanges: customerBlockedRanges,
+        });
+
+        await assertAppointmentTimeAvailable(tx, {
+          barberId: item.barberId,
+          date: item.appointmentDate,
+          serviceDurationMinutes: service.durationMinutes,
+          startMinutes,
+          endMinutes,
+          blockedRanges,
+        });
 
         const itemPrice = Number(item.servicePrice || service.price);
 
@@ -270,14 +308,21 @@ export async function POST(req: NextRequest) {
             serviceId: item.serviceId,
             saleId: sale.id,
             appointmentDate: parsePHDateOnly(item.appointmentDate),
-            startMinutes: Number(item.startMinutes),
-            endMinutes: Number(item.endMinutes),
+            startMinutes,
+            endMinutes,
             status: "PENDING",
             source: "BOOKING",
           },
         });
 
         createdAppointments.push(appointment);
+        blockedRanges.push({ startMinutes, endMinutes });
+        cartBusyRangesByKey.set(cartBusyKey, blockedRanges);
+        customerBlockedRanges.push({ startMinutes, endMinutes });
+        customerCartBusyRangesByDate.set(
+          item.appointmentDate,
+          customerBlockedRanges
+        );
       }
 
       const payment = await tx.payment.create({
@@ -384,6 +429,13 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("CONFIRM APPOINTMENT ERROR:", error);
+
+    if (error instanceof AppointmentAvailabilityError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
+    }
 
     return NextResponse.json(
       {

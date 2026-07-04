@@ -5,6 +5,11 @@ import { logAppointmentCreated } from "@/lib/securityLogEvents";
 import { parsePHDateOnly } from "@/lib/dateUtils";
 import { ensureSingleAppointmentSetting } from "@/lib/appointmentSettings";
 import { createUniqueCode } from "@/lib/createCode";
+import {
+  AppointmentAvailabilityError,
+  assertCustomerAppointmentTimeAvailable,
+  assertAppointmentTimeAvailable,
+} from "@/lib/appointmentAvailability";
 
 export const dynamic = "force-dynamic";
 
@@ -184,7 +189,42 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Service not found" }, { status: 404 });
     }
 
+    const customer = await db.customer.findUnique({
+      where: { id: customerId },
+      select: {
+        id: true,
+        email: true,
+        mobileNumber: true,
+        user: {
+          select: {
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!customer) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    }
+
     const result = await db.$transaction(async (tx) => {
+      await assertCustomerAppointmentTimeAvailable(tx, {
+        customerId: customer.id,
+        customerEmail: customer.email || customer.user?.email,
+        customerMobileNumber: customer.mobileNumber,
+        date: appointmentDate,
+        startMinutes: start,
+        endMinutes: end,
+      });
+
+      await assertAppointmentTimeAvailable(tx, {
+        barberId,
+        date: appointmentDate,
+        serviceDurationMinutes: service.durationMinutes,
+        startMinutes: start,
+        endMinutes: end,
+      });
+
       const appointment = await tx.appointment.create({
         data: {
           appointmentCode: await createUniqueCode("APT"),
@@ -264,6 +304,13 @@ export async function POST(req: Request) {
     );
   } catch (error) {
     console.error("Error creating appointment:", error);
+
+    if (error instanceof AppointmentAvailabilityError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
+    }
 
     return NextResponse.json(
       { error: "Failed to create appointment" },
