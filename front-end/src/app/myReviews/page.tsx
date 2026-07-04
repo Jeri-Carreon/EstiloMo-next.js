@@ -31,6 +31,7 @@ type ReviewableItem = {
   sourceType: "BOOKING" | "WALKIN";
   appointmentId: string | null;
   saleId: string | null;
+  saleCode: string;
   appointmentCode: string;
   appointmentDate: string;
   service: {
@@ -548,7 +549,7 @@ export default function MyReviewsPage() {
                 >
                   {reviewables.map((item) => (
                     <MenuItem key={item.id} value={item.id}>
-                      {item.appointmentCode} - {item.service.name} with{" "}
+                      {item.saleCode} - {item.service.name} with{" "}
                       {item.barber.firstName} {item.barber.lastName} -{" "}
                       {new Date(item.appointmentDate).toLocaleDateString()}{" "}
                       (
