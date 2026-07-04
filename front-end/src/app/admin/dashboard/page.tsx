@@ -228,7 +228,7 @@ export default function AdminDashboardPage() {
 
         const completedAppointments = filteredSales.filter((a) => a.status === "PAID" && a.source === "BOOKING").length;
         const completedTransactions = filteredSales.filter((a) => a.status === "PAID").length;
-        const cancellationsTotal = filteredSales.filter((a) => a.status === "CANCELLED").length;
+        const cancellationsTotal = filteredSales.filter((a) => a.status === "CANCELLED" && a.sale?.status === "PARTIAL").length;
         const cancellationsAppointments = filteredAppts.filter((a) => a.status === "CANCELLED").length;
         const noShows = filteredAppts.filter((a) => a.status === "NOSHOW").length;
 
