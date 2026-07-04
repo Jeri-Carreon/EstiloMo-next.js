@@ -187,8 +187,6 @@ export default function AppointmentPage() {
     });
   };
 
-  const PENDING_CHECKOUT_EXPIRATION_MS = 15 * 60 * 1000;
-
   const persistPendingCheckout = (
     saleId: string,
     saleCode: string,
@@ -201,7 +199,6 @@ export default function AppointmentPage() {
         saleCode,
         checkoutUrl,
         appointmentData,
-        expiresAt: Date.now() + PENDING_CHECKOUT_EXPIRATION_MS,
       })
     );
   };
@@ -216,7 +213,6 @@ export default function AppointmentPage() {
           saleCode: '',
           checkoutUrl: '',
           appointmentData: null as AppointmentData | null,
-          expiresAt: 0,
         };
       }
 
@@ -225,7 +221,6 @@ export default function AppointmentPage() {
         saleCode?: string;
         checkoutUrl?: string;
         appointmentData?: AppointmentData;
-        expiresAt?: number;
       };
 
       return {
@@ -233,7 +228,6 @@ export default function AppointmentPage() {
         saleCode: parsed.saleCode || '',
         checkoutUrl: parsed.checkoutUrl || '',
         appointmentData: parsed.appointmentData || null,
-        expiresAt: Number(parsed.expiresAt || 0),
       };
     } catch {
       return {
@@ -241,7 +235,6 @@ export default function AppointmentPage() {
         saleCode: '',
         checkoutUrl: '',
         appointmentData: null as AppointmentData | null,
-        expiresAt: 0,
       };
     }
   };
@@ -466,14 +459,6 @@ export default function AppointmentPage() {
         return;
       }
 
-<<<<<<< HEAD
-      persistPendingCheckout(data.saleId, data.saleCode, data.checkoutUrl);
-      window.open(data.checkoutUrl, '_blank', 'noopener,noreferrer');
-      showWarning(
-        'Checkout Opened',
-        'Your PayMongo checkout was opened in a new tab. Please complete payment there. This page will keep your booking pending.'
-      );
-=======
       persistPendingCheckout(
         data.saleId,
         data.saleCode,
@@ -483,7 +468,6 @@ export default function AppointmentPage() {
     setPendingSaleId(data.saleId);
 
     window.location.href = data.checkoutUrl;
->>>>>>> 178f65c38dd67706be5576474a89aff429792cc9
     } catch (error) {
       console.error(error);
       showWarning('Something Went Wrong', 'Something went wrong.');
@@ -496,17 +480,10 @@ export default function AppointmentPage() {
     if (checkingAuth) return;
     if (typeof window === 'undefined') return;
 
-    const runPageLogic = async () => {
-      const currentUrl = new URL(window.location.href);
-      const paymentResult = currentUrl.searchParams.get('payment');
-      const pendingCheckout = getPendingCheckout();
+    const currentUrl = new URL(window.location.href);
+    const paymentResult = currentUrl.searchParams.get('payment');
+    const pendingCheckout = getPendingCheckout();
 
-<<<<<<< HEAD
-      const saleId =
-        currentUrl.searchParams.get('saleId') || pendingCheckout.saleId;
-      const saleCode =
-        currentUrl.searchParams.get('saleCode') || pendingCheckout.saleCode;
-=======
     const saleId =
       currentUrl.searchParams.get('saleId') || pendingCheckout.saleId;
 
@@ -516,123 +493,67 @@ export default function AppointmentPage() {
 
     const saleCode =
       currentUrl.searchParams.get('saleCode') || pendingCheckout.saleCode;
->>>>>>> 178f65c38dd67706be5576474a89aff429792cc9
 
-      const restorePendingCheckout = (title: string, message: string) => {
-        window.history.replaceState({}, '', '/appointment');
+    const restorePendingCheckout = (title: string, message: string) => {
+      window.history.replaceState({}, '', '/appointment');
 
-        window.setTimeout(() => {
-          if (pendingCheckout.appointmentData) {
-            setAppointmentData(pendingCheckout.appointmentData);
-          }
+      window.setTimeout(() => {
+        if (pendingCheckout.appointmentData) {
+          setAppointmentData(pendingCheckout.appointmentData);
+        }
 
-          setCurrentStep(4);
-          showWarning(title, message);
-        }, 0);
-      };
+        setCurrentStep(4);
+        showWarning(title, message);
+      }, 0);
+    };
 
-      if (paymentResult === 'success' && (saleId || saleCode)) {
-        window.history.replaceState({}, '', '/appointment');
+    if (paymentResult === 'success' && (saleId || saleCode)) {
+      window.history.replaceState({}, '', '/appointment');
 
-        const timer = window.setInterval(async () => {
-          try {
-            const params = new URLSearchParams();
-
-            if (saleId) params.set('saleId', saleId);
-            if (saleCode) params.set('saleCode', saleCode);
-
-            params.set('confirmReturn', '1');
-
-            const res = await fetch(`/api/appointment/payment-status?${params}`);
-            const data = await res.json();
-
-            if (res.ok && data.isScheduled) {
-              window.clearInterval(timer);
-              showBookedConfirmation();
-            }
-          } catch (error) {
-            console.error(error);
-          }
-        }, 2000);
-
-        return () => window.clearInterval(timer);
-      }
-
-      const expiresAt = pendingCheckout.expiresAt || 0;
-      const now = Date.now();
-      const hasPendingCheckout = Boolean(
-        pendingCheckout.saleId || pendingCheckout.saleCode
-      );
-
-      if (!paymentResult && hasPendingCheckout && expiresAt && now >= expiresAt) {
-        const params = new URLSearchParams();
-        if (saleId) params.set('saleId', saleId);
-        if (saleCode) params.set('saleCode', saleCode);
-        params.set('payment', 'expired');
-
+      const timer = window.setInterval(async () => {
         try {
-          await fetch(`/api/appointment/payment-status?${params}`);
+          const params = new URLSearchParams();
+
+          if (saleId) params.set('saleId', saleId);
+          if (saleCode) params.set('saleCode', saleCode);
+
+          params.set('confirmReturn', '1');
+
+          const res = await fetch(`/api/appointment/payment-status?${params}`);
+          const data = await res.json();
+
+          if (res.ok && data.isScheduled) {
+            window.clearInterval(timer);
+            showBookedConfirmation();
+          }
         } catch (error) {
           console.error(error);
         }
+      }, 2000);
 
-        restorePendingCheckout(
-          'Payment Not Completed',
-          'Your checkout session expired. Your booking details are still saved, so you can try again.'
-        );
-        return;
-      }
+      return () => window.clearInterval(timer);
+    }
 
-      if (
-        (paymentResult === 'failed' || paymentResult === 'expired') &&
-        (saleId || saleCode)
-      ) {
-        const isExpired = now >= expiresAt;
+    if (paymentResult === 'cancel') {
+      restorePendingCheckout(
+        'Payment Cancelled',
+        'Your payment was not completed. Your booking details are still saved, so you can try again.'
+      );
+    }
 
-        if (isExpired) {
-          window.history.replaceState({}, '', '/appointment');
+    if (paymentResult === 'failed') {
+      restorePendingCheckout(
+        'Payment Failed',
+        'Your payment did not go through. Your booking details are still saved, so you can try again.'
+      );
+    }
 
-          const params = new URLSearchParams();
-          if (saleId) params.set('saleId', saleId);
-          if (saleCode) params.set('saleCode', saleCode);
-          params.set('payment', paymentResult);
-
-          try {
-            await fetch(`/api/appointment/payment-status?${params}`);
-          } catch (error) {
-            console.error(error);
-          }
-        }
-
-        restorePendingCheckout(
-          'Payment Not Completed',
-          'Your payment was cancelled, failed, or expired. Your booking details are still saved, so you can try again.'
-        );
-      }
-
-      if (paymentResult === 'cancel') {
-        restorePendingCheckout(
-          'Payment Cancelled',
-          'Your payment was not completed. Your booking details are still saved, so you can try again.'
-        );
-      }
-
-      if (paymentResult === 'failed') {
-        restorePendingCheckout(
-          'Payment Failed',
-          'Your payment did not go through. Your booking details are still saved, so you can try again.'
-        );
-      }
-
-      if (paymentResult === 'expired') {
-        restorePendingCheckout(
-          'Payment Not Completed',
-          'Your payment was cancelled, failed, or expired. Your booking details are still saved, so you can try again.'
-        );
-      }
-    };
-
-    runPageLogic();
+    if (paymentResult === 'expired') {
+      restorePendingCheckout(
+        'Payment Not Completed',
+        'Your payment was cancelled, failed, or expired. Your booking details are still saved, so you can try again.'
+      );
+    }
   }, [checkingAuth]);
 
   useEffect(() => {
