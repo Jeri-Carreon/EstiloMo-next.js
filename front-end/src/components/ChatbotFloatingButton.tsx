@@ -14,9 +14,11 @@ type Message = {
   id: string;
   role: "user" | "bot";
   text: string;
-  link?: string;
-  linkLabel?: string;
   buttons?: MessageButton[];
+  links?: {
+    label: string;
+    url: string;
+  }[];
 };
 
 type ChatbotSetting = {
@@ -45,7 +47,20 @@ const fallbackSettings: ChatbotSetting[] = [
   },
 ];
 
-const facebookLink = "https://www.facebook.com/thebarbsbro";
+const socialLinks = [
+  {
+    label: "Facebook",
+    url: "https://www.facebook.com/thebarbsbro",
+  },
+  {
+    label: "Instagram",
+    url: "https://www.instagram.com/thebarbsbro",
+  },
+  {
+    label: "TikTok",
+    url: "https://www.tiktok.com/@thebarbsbro",
+  },
+];
 
 function normalizeText(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
@@ -310,8 +325,22 @@ export default function ChatbotFloatingButton() {
         id: `${Date.now()}-bot`,
         role: "bot",
         text: directOptionMatch.response,
-        link: needsLink ? facebookLink : undefined,
-        linkLabel: needsLink ? "Open Facebook Page" : undefined,
+        links: needsLink
+          ? [
+              {
+                label: "Open Facebook Page",
+                url: "https://www.facebook.com/thebarbsbro",
+              },
+              {
+                label: "Open Instagram Page",
+                url: "https://www.instagram.com/thebarbsbro",
+              },
+              {
+                label: "Open TikTok Page",
+                url: "https://www.tiktok.com/@thebarbsbro",
+              },
+            ]
+          : undefined,
       };
     }
 
@@ -352,8 +381,12 @@ export default function ChatbotFloatingButton() {
         id: `${Date.now()}-bot`,
         role: "bot",
         text: item?.response || getResponse("fallback"),
-        link: facebookLink,
-        linkLabel: "Chat with Receptionist",
+        links: [
+          {
+            label: "Chat with Receptionist on Facebook",
+            url: "https://www.facebook.com/thebarbsbro",
+          },
+        ],
       };
     }
 
@@ -370,8 +403,7 @@ export default function ChatbotFloatingButton() {
         id: `${Date.now()}-bot`,
         role: "bot",
         text: item?.response || getResponse("fallback"),
-        link: facebookLink,
-        linkLabel: "Open Facebook Page",
+        links: socialLinks,
       };
     }
 
@@ -594,25 +626,41 @@ export default function ChatbotFloatingButton() {
                 >
                   <div>{message.text}</div>
 
-                  {message.link && (
-                    <a
-                      href={message.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                  {message.links && message.links.length > 0 && (
+                    <div
                       style={{
-                        display: "inline-block",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
                         marginTop: 10,
-                        padding: "8px 13px",
-                        backgroundColor: "#111",
-                        color: "#fff",
-                        borderRadius: 999,
-                        textDecoration: "none",
-                        fontSize: 12,
-                        fontWeight: 700,
+                        width: "100%",
                       }}
                     >
-                      {message.linkLabel}
-                    </a>
+                      {message.links.map((link) => (
+                        <a
+                          key={link.url}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: "80%",
+                            padding: "10px 14px",
+                            backgroundColor: "#111",
+                            color: "#fff",
+                            borderRadius: 999,
+                            textDecoration: "none",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            boxSizing: "border-box",
+                          }}
+                        >
+                          {link.label}
+                        </a>
+                      ))}
+                    </div>
                   )}
 
                   {message.buttons && message.buttons.length > 0 && (
