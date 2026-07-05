@@ -9,7 +9,7 @@ const nunitoSans = Nunito_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "The Barbs Bro",
+  title: "EstiloMo",
   description: "Professional barbershop services",
 };
 

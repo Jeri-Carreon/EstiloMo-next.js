@@ -3,8 +3,6 @@ substitutions:
   _ARTIFACT_REPO: estilomo
   _IMAGE_NAME: estilomo-next-js
   _SERVICE_NAME: estilomo-next-js
-  _NEXT_PUBLIC_APP_URL: "https://estilomo.codeegoh.com"
-  _APP_URL: "https://estilomo.codeegoh.com"
 
   # ── Build-time (baked into the JS bundle — only these need NEXT_PUBLIC_) ──
   _NEXT_PUBLIC_SUPABASE_URL: ""
@@ -12,12 +10,15 @@ substitutions:
   _NEXT_PUBLIC_APP_URL: "https://estilomo.codeegoh.com"
 
   # ── Runtime-only (server-side, never shipped to the browser) ──
+  _APP_URL: "https://estilomo.codeegoh.com"
   _DATABASE_URL: ""
   _DIRECT_URL: ""
   _SUPABASE_SERVICE_ROLE_KEY: ""
-  _APP_URL: "https://estilomo.codeegoh.com"
   _PAYMONGO_SECRET_KEY: ""
   _PENDING_CHECKOUT_EXPIRATION_MINUTES: "5"
+  _OPENAI_API_KEY: ""
+  _RESEND_API_KEY: ""
+  _CRON_SECRET: ""
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -44,11 +45,14 @@ steps:
 
         check_value "_NEXT_PUBLIC_SUPABASE_URL" "${_NEXT_PUBLIC_SUPABASE_URL}"
         check_value "_NEXT_PUBLIC_SUPABASE_ANON_KEY" "${_NEXT_PUBLIC_SUPABASE_ANON_KEY}"
-        check_value "_SUPABASE_SERVICE_ROLE_KEY" "${_SUPABASE_SERVICE_ROLE_KEY}"
-        check_value "_DATABASE_URL" "${_DATABASE_URL}"
-        check_value "_DIRECT_URL" "${_DIRECT_URL}"
         check_value "_NEXT_PUBLIC_APP_URL" "${_NEXT_PUBLIC_APP_URL}"
         check_value "_APP_URL" "${_APP_URL}"
+        check_value "_DATABASE_URL" "${_DATABASE_URL}"
+        check_value "_DIRECT_URL" "${_DIRECT_URL}"
+        check_value "_SUPABASE_SERVICE_ROLE_KEY" "${_SUPABASE_SERVICE_ROLE_KEY}"
+        check_value "_OPENAI_API_KEY" "${_OPENAI_API_KEY}"
+        check_value "_RESEND_API_KEY" "${_RESEND_API_KEY}"
+        check_value "_CRON_SECRET" "${_CRON_SECRET}"
 
         if [ "$$missing" -ne 0 ]; then
           echo "Cloud Build substitutions are missing. Set them on the trigger or pass --substitutions when running manually."
@@ -82,9 +86,9 @@ steps:
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_IMAGE_NAME}
 
   # ── Step 4: Deploy to Cloud Run with explicit runtime env vars ──
-  # This is the step that was missing before — env vars set here persist on
-  # every future deploy automatically, unlike ones added manually via the
-  # console (which get wiped by the next auto-deploy).
+  # Env vars set here persist on every future deploy automatically, unlike
+  # ones added manually via the console (which get wiped by the next
+  # auto-deploy).
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     id: Deploy
     entrypoint: gcloud
@@ -97,7 +101,7 @@ steps:
       - --platform=managed
       - --quiet
       - >-
-        --set-env-vars=^##^DATABASE_URL=${_DATABASE_URL}##DIRECT_URL=${_DIRECT_URL}##NEXT_PUBLIC_APP_URL=${_NEXT_PUBLIC_APP_URL}##NEXT_PUBLIC_SUPABASE_URL=${_NEXT_PUBLIC_SUPABASE_URL}##NEXT_PUBLIC_SUPABASE_ANON_KEY=${_NEXT_PUBLIC_SUPABASE_ANON_KEY}##SUPABASE_SERVICE_ROLE_KEY=${_SUPABASE_SERVICE_ROLE_KEY}##APP_URL=${_APP_URL}##PAYMONGO_SECRET_KEY=${_PAYMONGO_SECRET_KEY}##PENDING_CHECKOUT_EXPIRATION_MINUTES=${_PENDING_CHECKOUT_EXPIRATION_MINUTES}
+        --set-env-vars=^##^DATABASE_URL=${_DATABASE_URL}##DIRECT_URL=${_DIRECT_URL}##NEXT_PUBLIC_APP_URL=${_NEXT_PUBLIC_APP_URL}##NEXT_PUBLIC_SUPABASE_URL=${_NEXT_PUBLIC_SUPABASE_URL}##NEXT_PUBLIC_SUPABASE_ANON_KEY=${_NEXT_PUBLIC_SUPABASE_ANON_KEY}##SUPABASE_SERVICE_ROLE_KEY=${_SUPABASE_SERVICE_ROLE_KEY}##APP_URL=${_APP_URL}##PAYMONGO_SECRET_KEY=${_PAYMONGO_SECRET_KEY}##PENDING_CHECKOUT_EXPIRATION_MINUTES=${_PENDING_CHECKOUT_EXPIRATION_MINUTES}##OPENAI_API_KEY=${_OPENAI_API_KEY}##RESEND_API_KEY=${_RESEND_API_KEY}##CRON_SECRET=${_CRON_SECRET}
 
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_IMAGE_NAME}:$SHORT_SHA

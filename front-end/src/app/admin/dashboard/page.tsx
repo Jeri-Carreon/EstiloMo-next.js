@@ -34,9 +34,8 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type DashboardData = {
-/*pendingAppointments: number; */
+  period?: string;
   todaySales: number;
-/*newAppointments: number; */
   scheduledAppointments: number;
   cancellationsAppointments: number;
   cancellationsTotal: number;
@@ -58,33 +57,6 @@ const BARBER_COLORS = ["#00bcd4", "#4caf50", "#ffc400", "#f44336"];
 const PIE_COLORS = ["#2196f3", "#4caf50"];
 const WALKIN_COLORS = ["#ffc400", "#2196f3"];
 const FREQ_COLORS = ["#2196f3", "#ff9800", "#f44336", "#4caf50"];
-
-// ─── Date filter helper ────────────────────────────────────────────────────────
-// Generic period filter so the same logic applies to both sales (createdAt)
-// and appointments (appointmentDate) without duplicating the day/week/month math.
-
-function isInPeriod(date: Date, now: Date, period: "Day" | "Week" | "Month"): boolean {
-  if (period === "Day") {
-    return (
-      date.getDate() === now.getDate() &&
-      date.getMonth() === now.getMonth() &&
-      date.getFullYear() === now.getFullYear()
-    );
-  }
-  if (period === "Week") {
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    startOfWeek.setHours(0, 0, 0, 0);
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6);
-    endOfWeek.setHours(23, 59, 59, 999);
-    return date >= startOfWeek && date <= endOfWeek;
-  }
-  if (period === "Month") {
-    return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-  }
-  return true;
-}
 
 // ─── Metric Card ──────────────────────────────────────────────────────────────
 
@@ -168,253 +140,24 @@ export default function AdminDashboardPage() {
         }
 
         const res = await fetch('/api/user/role')
-        const data = await res.json()
+        const roleData = await res.json()
 
-        if (!['OWNER', 'RECEPTIONIST'].includes(data.role)) {
+        if (!['OWNER', 'RECEPTIONIST'].includes(roleData.role)) {
           router.push('/unauthorized')
           return
         }
 
-        const [appointmentsRes, salesRes] = await Promise.all([
-          fetch("/api/admin/appointments", { cache: "no-store" }),
-          fetch("/api/admin/sales", { cache: "no-store" }),
-        ]);
+        const metricsRes = await fetch(`/api/admin/dashboard-metrics?period=${period}`, {
+          cache: "no-store",
+        });
 
-        if (appointmentsRes.status === 403 || salesRes.status === 403) {
+        if (metricsRes.status === 401 || metricsRes.status === 403) {
           router.push("/unauthorized");
           return;
         }
 
-        const [appointmentsData, salesData] = await Promise.all([
-          appointmentsRes.json(),
-          salesRes.json(),
-        ]);
-
-        const appts: any[] = appointmentsData?.appointments ?? [];
-        const sales: any[] = salesData?.sales ?? [];
-        const now = new Date();
-
-        // ── Appointments: filtered by appointmentDate ──
-        // Used for status counts, peak hours, walk-in vs appointment counts.
-        const filteredAppts = appts.filter((appt: any) =>
-          isInPeriod(new Date(appt.appointmentDate), now, period)
-        );
-        
-        // const newAppointments = appts.filter((a) => a.status === "PENDING").length;
-        const scheduledAppointments = filteredAppts.filter((a) => a.status === "SCHEDULED").length;
-
-        // ── Sales: filtered by createdAt ──
-        // Used for revenue, revenue by service, revenue by barber, payment methods.
-        const filteredSales = sales.filter((sale: any) => {
-          if (sale.source === "WALKIN") {
-            return isInPeriod(new Date(sale.createdAt), now, period);
-          }
-
-          // BOOKING: use the appointment date(s), not createdAt
-          const apptDates: Date[] = (sale.appointments ?? []).map((a: any) => new Date(a.appointmentDate));
-          if (apptDates.length === 0) {
-            // safety fallback if a booking sale somehow has no linked appointments
-            return isInPeriod(new Date(sale.createdAt), now, period);
-          }
-          return apptDates.some((d) => isInPeriod(d, now, period));
-        });
-
-        const paidSales = filteredSales.filter((s) => s.status === "PAID");
-
-        const todaySales = paidSales.reduce(
-          (total, sale) => total + Number(sale.totalAmount ?? 0),
-          0
-        );
-
-        const completedAppointments = filteredSales.filter((a) => a.status === "PAID" && a.source === "BOOKING").length;
-        const completedTransactions = filteredSales.filter((a) => a.status === "PAID").length;
-        const cancellationsTotal = filteredSales.filter((a) => a.status === "CANCELLED" && a.sale?.status === "PARTIAL").length;
-        const cancellationsAppointments = filteredAppts.filter((a) => a.status === "CANCELLED").length;
-        const noShows = filteredAppts.filter((a) => a.status === "NOSHOW").length;
-
-        const walkInAppts = paidSales.filter((a: any) => a.source === "WALKIN");
-        const bookedAppts = paidSales.filter((a: any) => a.source !== "WALKIN");
-        const walkInVsAppointments = [
-          {
-            type: "Walk-in",
-            customers: walkInAppts.length,
-            revenue: walkInAppts.reduce((s: number, a: any) => s + Number(a.payment?.amount ?? 0), 0),
-          },
-          {
-            type: "Appointments",
-            customers: bookedAppts.length,
-            revenue: bookedAppts.reduce((s: number, a: any) => s + Number(a.payment?.amount ?? 0), 0),
-          },
-        ];
-
-        // Revenue by service: built from sale.items[], not appointments —
-        // a single sale can contain multiple service line items.
-        const serviceMap = new Map<string, { service: string; revenue: number; count: number }>();
-        paidSales.forEach((sale: any) => {
-          (sale.items ?? []).forEach((item: any) => {
-            const serviceName = item.serviceName ?? "Unknown";
-            const amount = Number(item.subtotal ?? item.price ?? 0);
-            if (!serviceMap.has(serviceName)) {
-              serviceMap.set(serviceName, { service: serviceName, revenue: 0, count: 0 });
-            }
-            const e = serviceMap.get(serviceName)!;
-            e.revenue += amount;
-            e.count += Number(item.quantity ?? 1);
-          });
-        });
-        const revenueByService = Array.from(serviceMap.values());
-
-        // Revenue by barber: from sale.barber, attributing the sale's totalAmount.
-        const barberMap = new Map<string, { name: string; revenue: number; services: number }>();
-        paidSales.forEach((sale: any) => {
-          const barberName = sale.barber?.name ?? "Unknown";
-          const amount = Number(sale.totalAmount ?? 0);
-          const itemCount = (sale.items ?? []).reduce(
-            (s: number, i: any) => s + Number(i.quantity ?? 1),
-            0
-          );
-          if (!barberMap.has(barberName)) {
-            barberMap.set(barberName, { name: barberName, revenue: 0, services: 0 });
-          }
-          const e = barberMap.get(barberName)!;
-          e.revenue += amount;
-          e.services += itemCount;
-        });
-        const revenueByBarber = Array.from(barberMap.values()).sort((a, b) => b.revenue - a.revenue);
-
-        // Payment methods: from sale.payment.method, counted per paid sale.
-        const gcashCount = paidSales.filter((s) => s.payment?.method === "GCASH").length;
-        const cashCount = paidSales.filter((s) => s.payment?.method === "CASH").length;
-        const totalPayments = gcashCount + cashCount;
-        const paymentMethods = totalPayments
-          ? [
-              { method: "GCASH", percentage: Math.round((gcashCount / totalPayments) * 100) },
-              { method: "CASH", percentage: Math.round((cashCount / totalPayments) * 100) },
-            ]
-          : [];
-
-        // Peak hours: based on appointment start time, all statuses (matches original).
-        const hourMap = new Map<string, number>();
-
-        // Completed appointments
-        filteredAppts.forEach((appt: any) => {
-          if (appt.startMinutes == null) return;
-          if (appt.status !== "COMPLETED") return;
-          const h = Math.floor(appt.startMinutes / 60);
-          const label = h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
-          hourMap.set(label, (hourMap.get(label) ?? 0) + 1);
-        });
-
-        // Paid walk-in sales
-        filteredSales
-          .filter((s: any) => s.source === "WALKIN" && s.status === "PAID")
-          .forEach((sale: any) => {
-            const date = new Date(sale.createdAt);
-            const h = date.getHours();
-            const label = h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
-            hourMap.set(label, (hourMap.get(label) ?? 0) + 1);
-          });
-
-        // Walk-in sales — bucket by the hour they were created, since there's no separate appointment.
-        const walkInSales = filteredSales.filter((s: any) => s.source === "WALKIN");
-        walkInSales.forEach((sale: any) => {
-          const created = new Date(sale.createdAt);
-          const h = created.getHours();
-          const label = h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
-          hourMap.set(label, (hourMap.get(label) ?? 0) + 1);
-        });
-        const peakHours = Array.from(hourMap.entries())
-          .map(([hour, customers]) => ({ hour, customers }))
-          .sort((a, b) => {
-            const toMin = (s: string) => {
-              const [n, p] = s.split(" ");
-              return (p === "AM" ? parseInt(n) % 12 : (parseInt(n) % 12) + 12) * 60;
-            };
-            return toMin(a.hour) - toMin(b.hour);
-          });
-
-        // Visit Frequency — computed from ALL paid sales (not period-filtered), since
-        // "frequency" describes a customer's long-term pattern, not their activity in
-        // the currently selected Day/Week/Month window.
-        const customerVisits = new Map<string, Date[]>();
-        sales
-          .filter((s: any) => s.status === "PAID")
-          .forEach((sale: any) => {
-            const customerId = sale.customer?.id ?? "unknown";
-            const date = new Date(sale.createdAt);
-            if (!customerVisits.has(customerId)) customerVisits.set(customerId, []);
-            customerVisits.get(customerId)!.push(date);
-          });
-
-        const frequencyBuckets = {
-          Weekly: 0,
-          "Bi-weekly": 0,
-          Monthly: 0,
-          Quarterly: 0,
-        };
-
-        customerVisits.forEach((dates) => {
-          if (dates.length < 2) return; // need at least 2 visits to measure a gap; one-time customers excluded from this chart
-          const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
-          const gaps: number[] = [];
-          for (let i = 1; i < sorted.length; i++) {
-            const days = (sorted[i].getTime() - sorted[i - 1].getTime()) / (1000 * 60 * 60 * 24);
-            gaps.push(days);
-          }
-          const avgGapDays = gaps.reduce((a, b) => a + b, 0) / gaps.length;
-
-          if (avgGapDays <= 10) frequencyBuckets.Weekly += 1;
-          else if (avgGapDays <= 20) frequencyBuckets["Bi-weekly"] += 1;
-          else if (avgGapDays <= 45) frequencyBuckets.Monthly += 1;
-          else frequencyBuckets.Quarterly += 1;
-        });
-
-        const totalReturningCustomers = Object.values(frequencyBuckets).reduce((a, b) => a + b, 0);
-
-        const visitFrequency = Object.entries(frequencyBuckets).map(([frequency, customers]) => ({
-          frequency,
-          customers,
-          percentage: totalReturningCustomers ? Math.round((customers / totalReturningCustomers) * 100) : 0,
-        }));
-
-        // Top Customers (By Revenue) — from ALL paid sales, not period-filtered,
-        // so rankings reflect lifetime value rather than just the selected window.
-        const customerRevenueMap = new Map<string, { name: string; visits: number; revenue: number }>();
-        sales
-          .filter((s: any) => s.status === "PAID")
-          .forEach((sale: any) => {
-            const customerId = sale.customer?.id ?? "unknown";
-            const customerName = sale.customer?.name ?? "Unknown";
-            const amount = Number(sale.totalAmount ?? 0);
-            if (!customerRevenueMap.has(customerId)) {
-              customerRevenueMap.set(customerId, { name: customerName, visits: 0, revenue: 0 });
-            }
-            const entry = customerRevenueMap.get(customerId)!;
-            entry.visits += 1;
-            entry.revenue += amount;
-          });
-
-        const topCustomers = Array.from(customerRevenueMap.values())
-          .sort((a, b) => b.revenue - a.revenue)
-          .slice(0, 5)
-          .map((c, i) => ({ rank: i + 1, ...c }));
-
-        setData({
-          todaySales,
-          cancellationsAppointments,
-          cancellationsTotal,
-          scheduledAppointments,
-          completedAppointments,
-          noShows,
-          completedTransactions,
-          revenueByBarber,
-          paymentMethods,
-          revenueByService,
-          walkInVsAppointments,
-          peakHours,
-          visitFrequency,
-          topCustomers,
-        });
+        const metricsData: DashboardData = await metricsRes.json();
+        setData(metricsData);
       } catch (error) {
         console.error(error);
       } finally {
@@ -422,7 +165,7 @@ export default function AdminDashboardPage() {
       }
     };
 
-    init()
+    init();
   }, [period]);
 
   if (loading || !data) {
