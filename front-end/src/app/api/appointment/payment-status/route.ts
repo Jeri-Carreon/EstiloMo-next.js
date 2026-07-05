@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
+import { getAppOriginFromRequest } from "@/lib/appOrigin";
 
 type ResolvedPaymentState = "PAID" | "FAILED" | "CANCELLED" | "EXPIRED";
 
@@ -29,6 +30,7 @@ function normalizeState(value: string | null): ResolvedPaymentState | null {
 export async function GET(req: NextRequest) {
   try {
     const state = normalizeState(req.nextUrl.searchParams.get("status"));
+    const appOrigin = getAppOriginFromRequest(req);
 
     const saleId = req.nextUrl.searchParams.get("saleId");
     const saleCode = req.nextUrl.searchParams.get("saleCode");
@@ -51,7 +53,7 @@ export async function GET(req: NextRequest) {
 
       if (!payment) {
         return NextResponse.redirect(
-          new URL("/appointment?paymentStatus=not_found", req.nextUrl.origin)
+          new URL("/appointment?paymentStatus=not_found", appOrigin)
         );
       }
 
@@ -96,7 +98,7 @@ export async function GET(req: NextRequest) {
               payment.saleId || saleId || ""
             )}`;
 
-      return NextResponse.redirect(new URL(redirectPath, req.nextUrl.origin));
+      return NextResponse.redirect(new URL(redirectPath, appOrigin));
     }
 
     const supabase = await createClient();
