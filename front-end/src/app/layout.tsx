@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Providers from "./providers";
-import { Nunito_Sans } from 'next/font/google';
-import ThemeRegistry from "@/components/ThemeRegistry";
+import { Nunito_Sans } from "next/font/google";
 
 const nunitoSans = Nunito_Sans({
   subsets: ["latin"],
@@ -21,8 +20,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${nunitoSans.className} ${nunitoSans.variable}`}
-        suppressHydrationWarning>
+      <body
+        className={`${nunitoSans.className} ${nunitoSans.variable}`}
+        suppressHydrationWarning
+      >
         <Providers>{children}</Providers>
       </body>
     </html>

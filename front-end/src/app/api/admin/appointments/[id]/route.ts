@@ -3,6 +3,23 @@ import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
 import { logAppointmentEdited, logAppointmentCancelled, logAfterServicePhotoUploaded, } from "@/lib/securityLogEvents";
 import { createUniqueCode } from "@/lib/createCode";
+import { parsePHDateOnly, toPHDateKey } from "@/lib/dateUtils";
+import {
+  AppointmentAvailabilityError,
+  assertCustomerAppointmentTimeAvailable,
+  assertAppointmentTimeAvailable,
+} from "@/lib/appointmentAvailability";
+
+type EditableAppointmentStatus = "PENDING" | "SCHEDULED" | "REJECTED";
+
+type AppointmentUpdateData = {
+  barber?: { connect: { id: string } };
+  service?: { connect: { id: string } };
+  appointmentDate?: Date;
+  startMinutes?: number;
+  endMinutes?: number;
+  status?: EditableAppointmentStatus;
+};
 
 export async function PUT(
   req: Request,
@@ -40,6 +57,18 @@ export async function PUT(
       where: { id },
       include: {
         service: true,
+        customer: {
+          select: {
+            id: true,
+            email: true,
+            mobileNumber: true,
+            user: {
+              select: {
+                email: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -50,11 +79,11 @@ export async function PUT(
       );
     }
 
-    const data: any = {};
+    const data: AppointmentUpdateData = {};
 
     if (barberId) data.barber = { connect: { id: barberId } };
     if (serviceId) data.service = { connect: { id: serviceId } };
-    if (appointmentDate) data.appointmentDate = new Date(appointmentDate);
+    if (appointmentDate) data.appointmentDate = parsePHDateOnly(appointmentDate);
 
     if (startMinutes !== undefined && startMinutes !== "") {
       data.startMinutes = Number(startMinutes);
@@ -101,8 +130,67 @@ export async function PUT(
           );
         }
 
-        data.status = requestedStatus;
+        data.status = requestedStatus as EditableAppointmentStatus;
       }
+    }
+
+    const schedulingChanged =
+      Boolean(barberId) ||
+      Boolean(serviceId) ||
+      Boolean(appointmentDate) ||
+      (startMinutes !== undefined && startMinutes !== "") ||
+      (endMinutes !== undefined && endMinutes !== "") ||
+      data.status === "SCHEDULED";
+    const nextStatus = String(
+      data.status ?? existingAppointment.status
+    ).toUpperCase();
+
+    if (
+      schedulingChanged &&
+      ["PENDING", "SCHEDULED"].includes(nextStatus)
+    ) {
+      const nextService =
+        serviceId && serviceId !== existingAppointment.serviceId
+          ? await db.service.findUnique({ where: { id: serviceId } })
+          : existingAppointment.service;
+
+      if (!nextService) {
+        return NextResponse.json(
+          { error: "Service not found" },
+          { status: 404 }
+        );
+      }
+
+      const nextDate = data.appointmentDate ?? existingAppointment.appointmentDate;
+      const nextDateKey = toPHDateKey(nextDate);
+
+      if (!nextDateKey) {
+        return NextResponse.json(
+          { error: "Invalid appointment date" },
+          { status: 400 }
+        );
+      }
+
+      await assertCustomerAppointmentTimeAvailable(db, {
+        customerId: existingAppointment.customer.id,
+        customerEmail:
+          existingAppointment.customer.email ||
+          existingAppointment.customer.user?.email,
+        customerMobileNumber: existingAppointment.customer.mobileNumber,
+        date: nextDateKey,
+        startMinutes: data.startMinutes ?? existingAppointment.startMinutes,
+        endMinutes: data.endMinutes ?? existingAppointment.endMinutes,
+        excludeAppointmentId: id,
+      });
+
+      await assertAppointmentTimeAvailable(db, {
+        barberId: barberId || existingAppointment.barberId,
+        date: nextDateKey,
+        serviceDurationMinutes: nextService.durationMinutes,
+        startMinutes: data.startMinutes ?? existingAppointment.startMinutes,
+        endMinutes: data.endMinutes ?? existingAppointment.endMinutes,
+        excludeAppointmentId: id,
+      });
     }
 
     const updatedBaseAppointment = await db.appointment.update({
@@ -198,6 +286,13 @@ export async function PUT(
     });
   } catch (error) {
     console.error("UPDATE APPOINTMENT ERROR:", error);
+
+    if (error instanceof AppointmentAvailabilityError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
+    }
 
     return NextResponse.json(
       {

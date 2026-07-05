@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const user = await getAdminUser()
@@ -176,7 +178,7 @@ export async function POST(req: Request) {
       ? parseInt(lastService.serviceCode.replace(/\D/g, ""), 10)
       : 0;
 
-    const serviceCode = String(lastNumber + 1).padStart(3, "0");
+    const serviceCode = String(lastNumber + 1);
     const nextSortOrder = (lastService?.sortOrder ?? 0) + 1;
 
     const service = await db.service.create({

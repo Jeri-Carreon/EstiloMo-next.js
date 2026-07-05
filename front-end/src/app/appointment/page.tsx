@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import type { AuthChangeEvent,Session, } from "@supabase/supabase-js";
 
 import Box from '@mui/material/Box';
 import Modal from '@mui/material/Modal';
@@ -76,7 +79,20 @@ function formatDate(date: string) {
   });
 }
 
+function isSameCartItem(first: CartItem, second: CartItem) {
+  return (
+    first.barberId === second.barberId &&
+    first.serviceId === second.serviceId &&
+    first.appointmentDate === second.appointmentDate &&
+    first.startMinutes === second.startMinutes &&
+    first.endMinutes === second.endMinutes
+  );
+}
+
 export default function AppointmentPage() {
+  const router = useRouter();
+
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
   const [successOpen, setSuccessOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -86,6 +102,7 @@ export default function AppointmentPage() {
   const [warningMessage, setWarningMessage] = useState('');
 
   const [cartOpen, setCartOpen] = useState(false);
+  const [pendingSaleId, setPendingSaleId] = useState('');
 
   const [appointmentData, setAppointmentData] = useState<AppointmentData>({
     barberId: '',
@@ -108,6 +125,42 @@ export default function AppointmentPage() {
 
   const downPayment = 150;
 
+  useEffect(() => {
+    const supabase = createClient();
+
+    const checkUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.replace('/login?redirect=/appointment');
+        return;
+      }
+
+      setCheckingAuth(false);
+    };
+
+    checkUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (
+        event: AuthChangeEvent,
+        session: Session | null
+      ) => {
+        if (event === "SIGNED_OUT" || !session) {
+          router.replace("/login?redirect=/appointment");
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [router]);
+
   const showWarning = (title: string, message: string) => {
     setWarningTitle(title);
     setWarningMessage(message);
@@ -116,7 +169,9 @@ export default function AppointmentPage() {
 
   const showBookedConfirmation = () => {
     window.localStorage.removeItem('estilomoPendingCheckout');
+    setPendingSaleId('');
     setSuccessOpen(true);
+
     setAppointmentData({
       barberId: '',
       barberName: '',
@@ -190,27 +245,22 @@ export default function AppointmentPage() {
     endMinutes?: number
   ) => {
     if (currentStep === 2 && appointmentDate) {
-      setAppointmentData((prev) => {
-        const nextCartItem: CartItem = {
-          barberId: prev.barberId,
-          barberName: prev.barberName,
-          serviceId: prev.serviceId,
-          serviceName: prev.serviceName,
-          servicePrice: prev.servicePrice,
-          serviceDescription: prev.serviceDescription,
-          serviceDurationMinutes: prev.serviceDurationMinutes,
-          appointmentDate,
-          startMinutes: startMinutes ?? 0,
-          endMinutes: endMinutes ?? 0,
-        };
+      const nextCartItem: CartItem = {
+        barberId: appointmentData.barberId,
+        barberName: appointmentData.barberName,
+        serviceId: appointmentData.serviceId,
+        serviceName: appointmentData.serviceName,
+        servicePrice: appointmentData.servicePrice,
+        serviceDescription: appointmentData.serviceDescription,
+        serviceDurationMinutes: appointmentData.serviceDurationMinutes,
+        appointmentDate,
+        startMinutes: startMinutes ?? 0,
+        endMinutes: endMinutes ?? 0,
+      };
 
+      setAppointmentData((prev) => {
         const existingIndex = prev.cartItems.findIndex(
-          (item) =>
-            item.barberId === prev.barberId &&
-            item.serviceId === prev.serviceId &&
-            item.appointmentDate === appointmentDate &&
-            item.startMinutes === startMinutes &&
-            item.endMinutes === endMinutes
+          (item) => isSameCartItem(item, nextCartItem)
         );
 
         const updatedCartItems = [...prev.cartItems];
@@ -304,6 +354,19 @@ export default function AppointmentPage() {
       return;
     }
 
+    const nextCartItem: CartItem = {
+      barberId: appointmentData.barberId,
+      barberName: appointmentData.barberName,
+      serviceId: appointmentData.serviceId,
+      serviceName: appointmentData.serviceName,
+      servicePrice: appointmentData.servicePrice,
+      serviceDescription: appointmentData.serviceDescription,
+      serviceDurationMinutes: appointmentData.serviceDurationMinutes,
+      appointmentDate: appointmentData.appointmentDate ?? '',
+      startMinutes: appointmentData.startMinutes ?? 0,
+      endMinutes: appointmentData.endMinutes ?? 0,
+    };
+
     setAppointmentData((prev) => ({
       barberId: '',
       barberName: '',
@@ -317,18 +380,7 @@ export default function AppointmentPage() {
       endMinutes: 0,
       cartItems: [
         ...prev.cartItems,
-        {
-          barberId: prev.barberId,
-          barberName: prev.barberName,
-          serviceId: prev.serviceId,
-          serviceName: prev.serviceName,
-          servicePrice: prev.servicePrice,
-          serviceDescription: prev.serviceDescription,
-          serviceDurationMinutes: prev.serviceDurationMinutes,
-          appointmentDate: prev.appointmentDate ?? '',
-          startMinutes: prev.startMinutes ?? 0,
-          endMinutes: prev.endMinutes ?? 0,
-        },
+        nextCartItem,
       ],
     }));
 
@@ -407,8 +459,15 @@ export default function AppointmentPage() {
         return;
       }
 
-      persistPendingCheckout(data.saleId, data.saleCode, data.checkoutUrl);
-      window.location.href = data.checkoutUrl;
+      persistPendingCheckout(
+        data.saleId,
+        data.saleCode,
+        data.checkoutUrl
+      );
+
+    setPendingSaleId(data.saleId);
+
+    window.location.href = data.checkoutUrl;
     } catch (error) {
       console.error(error);
       showWarning('Something Went Wrong', 'Something went wrong.');
@@ -418,6 +477,7 @@ export default function AppointmentPage() {
   };
 
   useEffect(() => {
+    if (checkingAuth) return;
     if (typeof window === 'undefined') return;
 
     const currentUrl = new URL(window.location.href);
@@ -426,8 +486,26 @@ export default function AppointmentPage() {
 
     const saleId =
       currentUrl.searchParams.get('saleId') || pendingCheckout.saleId;
+
+    if (saleId && saleId !== pendingSaleId) {
+      setPendingSaleId(saleId);
+    }
+
     const saleCode =
       currentUrl.searchParams.get('saleCode') || pendingCheckout.saleCode;
+
+    const restorePendingCheckout = (title: string, message: string) => {
+      window.history.replaceState({}, '', '/appointment');
+
+      window.setTimeout(() => {
+        if (pendingCheckout.appointmentData) {
+          setAppointmentData(pendingCheckout.appointmentData);
+        }
+
+        setCurrentStep(4);
+        showWarning(title, message);
+      }, 0);
+    };
 
     if (paymentResult === 'success' && (saleId || saleCode)) {
       window.history.replaceState({}, '', '/appointment');
@@ -457,53 +535,78 @@ export default function AppointmentPage() {
     }
 
     if (paymentResult === 'cancel') {
-      if (pendingCheckout.appointmentData) {
-        setAppointmentData(pendingCheckout.appointmentData);
-      }
-
-      window.history.replaceState({}, '', '/appointment');
-      setCurrentStep(4);
-
-      window.setTimeout(() => {
-        showWarning(
-          'Payment Cancelled',
-          'Your payment was not completed. Your booking details are still saved, so you can try again.'
-        );
-      }, 0);
+      restorePendingCheckout(
+        'Payment Cancelled',
+        'Your payment was not completed. Your booking details are still saved, so you can try again.'
+      );
     }
 
     if (paymentResult === 'failed') {
-      if (pendingCheckout.appointmentData) {
-        setAppointmentData(pendingCheckout.appointmentData);
-      }
-
-      window.history.replaceState({}, '', '/appointment');
-      setCurrentStep(4);
-
-      window.setTimeout(() => {
-        showWarning(
-          'Payment Failed',
-          'Your payment did not go through. Your booking details are still saved, so you can try again.'
-        );
-      }, 0);
+      restorePendingCheckout(
+        'Payment Failed',
+        'Your payment did not go through. Your booking details are still saved, so you can try again.'
+      );
     }
 
     if (paymentResult === 'expired') {
-      if (pendingCheckout.appointmentData) {
-        setAppointmentData(pendingCheckout.appointmentData);
-      }
-
-      window.history.replaceState({}, '', '/appointment');
-      setCurrentStep(4);
-
-      window.setTimeout(() => {
-        showWarning(
-          'Payment Not Completed',
-          'Your payment was cancelled, failed, or expired. Your booking details are still saved, so you can try again.'
-        );
-      }, 0);
+      restorePendingCheckout(
+        'Payment Not Completed',
+        'Your payment was cancelled, failed, or expired. Your booking details are still saved, so you can try again.'
+      );
     }
-  }, []);
+  }, [checkingAuth]);
+
+  useEffect(() => {
+    if (!pendingSaleId) return;
+
+    const interval = window.setInterval(async () => {
+      try {
+        const res = await fetch(
+          `/api/appointment/payment-status?saleId=${pendingSaleId}`
+        );
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+
+        const paymentExpired =
+          data.downPaymentStatus === 'EXPIRED' ||
+          data.downPaymentStatus === 'FAILED' ||
+          data.downPaymentStatus === 'CANCELLED' ||
+          data.paymentStatus === 'REJECTED';
+
+        const paymentSuccess =
+          data.downPaymentStatus === 'PAID' ||
+          data.paymentStatus === 'PAID' ||
+          data.isScheduled;
+
+        if (paymentSuccess) {
+          window.clearInterval(interval);
+          showBookedConfirmation();
+          return;
+        }
+
+        if (paymentExpired) {
+          window.clearInterval(interval);
+
+          router.replace(
+            `/appointment?payment=expired&saleId=${pendingSaleId}`
+          );
+        }
+      } catch (error) {
+        console.error(
+          'Payment status polling failed:',
+          error
+        );
+      }
+    }, 10000);
+
+    return () => window.clearInterval(interval);
+  }, [pendingSaleId, router]);
+
+  if (checkingAuth) {
+    return null;
+  }
 
   return (
     <Box sx={{ minHeight: '100vh', backgroundColor: '#000' }}>

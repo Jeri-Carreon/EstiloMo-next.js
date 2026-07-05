@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-
 import { db } from "@/lib/db";
+
+export const dynamic = "force-dynamic";
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);

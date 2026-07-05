@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { Resend } from "resend";
+// import { sendSMS, toE164PH } from "@/lib/sms"; // re-enable if you want to send SMS reminders
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,6 @@ function minutesToTime(minutes: number) {
   const hour = h % 12 || 12;
   return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
-
 
 export async function GET(req: Request) {
   const resend = new Resend(process.env.RESEND_API_KEY);
@@ -34,7 +34,7 @@ export async function GET(req: Request) {
       },
     },
     include: {
-      customer: { select: { email: true, firstName: true } },
+      customer: { select: { email: true, firstName: true, mobileNumber: true } },
       service: { select: { name: true } },
       barber: { select: { firstName: true, lastName: true } },
     },
@@ -48,32 +48,61 @@ export async function GET(req: Request) {
     return diffMinutes > 0 && diffMinutes <= 60;
   });
 
-  let sentCount = 0;
+  let emailSent = 0;
+  let smsSent = 0;
+  let failed = 0;
 
   for (const appt of dueNow) {
-    if (!appt.customer.email) continue;
+    const timeStr = minutesToTime(appt.startMinutes);
+    let handled = false;
 
-    const start = new Date(appt.appointmentDate);
-    start.setMinutes(start.getMinutes() + appt.startMinutes);
+    // Email (if available)
+    if (appt.customer.email) {
+      try {
+        await resend.emails.send({
+          from: "noreply@mail.codeegoh.com",
+          to: appt.customer.email,
+          subject: "Your appointment is in 1 hour",
+          html: `<p>Hi ${appt.customer.firstName}, this is a reminder that your ${appt.service.name} appointment with ${appt.barber.firstName} is at ${timeStr} today.</p>`,
+        });
+        emailSent++;
+        handled = true;
+      } catch (err) {
+        console.error(`Email failed for appointment ${appt.id}:`, err);
+      }
+    }
 
-    try {
-      await resend.emails.send({
-        from: "noreply@mail.codeegoh.com",
-        to: appt.customer.email,
-        subject: "Your appointment is in 1 hour",
-        html: `<p>Hi ${appt.customer.firstName}, this is a reminder that your ${appt.service.name} appointment with ${appt.barber.firstName} is at ${minutesToTime(appt.startMinutes)} today.</p>`,
-      });
+    /*
+    // SMS (always attempt, since mobileNumber is required on Customer)
+    if (appt.customer.mobileNumber) {
+      try {
+        const content = `Hi ${appt.customer.firstName}, reminder: your ${appt.service.name} appointment is at ${timeStr} today. - EstiloMo`;
+        await sendSMS(toE164PH(appt.customer.mobileNumber), content, {
+          template: "appointment_reminder",
+          appointment_id: appt.id,
+        });
+        smsSent++;
+        handled = true;
+      } catch (err) {
+        console.error(`SMS failed for appointment ${appt.id}:`, err);
+      }
+    }
 
+    */
+    if (handled) {
       await db.appointment.update({
         where: { id: appt.id },
         data: { reminderSent: true },
       });
-
-      sentCount++;
-    } catch (err) {
-      console.error(`Failed to send reminder for appointment ${appt.id}:`, err);
+    } else {
+      failed++;
     }
   }
 
-  return NextResponse.json({ checked: candidates.length, sent: sentCount });
+  return NextResponse.json({
+    checked: candidates.length,
+    emailSent,
+    smsSent,
+    failed,
+  });
 }

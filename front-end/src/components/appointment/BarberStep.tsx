@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
@@ -43,36 +44,32 @@ export default function BarberStep({
   cartCount,
   onCartClick,
 }: BarberStepProps) {
-  const [barbers, setBarbers] = useState<Barber[]>([]);
   const [selectedBarber, setSelectedBarber] = useState<string>(
     appointmentData.barberId || ''
   );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
-  const loadBarbers = async () => {
-    try {
-      const res = await fetch('/api/appointment/barbers');
+  const {
+    data: barbers = [],
+    isLoading: loading,
+    error,
+  } = useQuery<Barber[]>({
+    queryKey: ['appointmentBarbers'],
+    queryFn: async () => {
+      const res = await fetch('/api/appointment/barbers', {
+        cache: 'no-store',
+      });
+
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'Unable to load barbers.');
-        setBarbers([]);
-        return;
+        throw new Error(data.error || 'Unable to load barbers.');
       }
 
-      setError('');
-      setBarbers(data.barbers || []);
-    } catch {
-      setError('Unable to load barbers.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadBarbers();
-  }, []);
+      return data.barbers || [];
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
 
   const handleNext = () => {
     if (!selectedBarber) return;
@@ -240,7 +237,7 @@ export default function BarberStep({
           {loading ? (
             <Typography>Loading barbers...</Typography>
           ) : error ? (
-            <Typography color="error">{error}</Typography>
+            <Typography color="error">{error instanceof Error ? error.message : 'Unable to load barbers.'}</Typography>
           ) : (
             <Grid container spacing={{ xs: 2, sm: 3, md: 4 }}>
               {barbers.map((barber) => {

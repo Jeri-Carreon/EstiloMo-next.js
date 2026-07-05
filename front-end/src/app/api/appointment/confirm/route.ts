@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 
 import { parsePHDateOnly } from "@/lib/dateUtils";
 import { createUniqueCode } from "@/lib/createCode";
+import {
+  AppointmentAvailabilityError,
+  assertCustomerAppointmentTimeAvailable,
+  assertAppointmentTimeAvailable,
+  type TimeRange,
+} from "@/lib/appointmentAvailability";
+import { Prisma } from "@prisma/client";
 
 const ALLOWED_PAYMONGO_METHODS = ["card", "gcash", "qrph"];
 const CREATE_CHECKOUT_FUNCTION_NAME = "smooth-task";
-
-type TransactionClient = Prisma.TransactionClient;
+const DOWN_PAYMENT = 150;
 
 interface AppointmentCartItem {
   barberId: string;
@@ -30,6 +35,77 @@ function getCreateCheckoutUrl() {
   }
 
   return "";
+}
+
+async function cleanupExpiredBookings() {
+  const expireAfterMinutes = Number(
+    process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || 5
+  );
+
+  const cutoff = new Date(Date.now() - expireAfterMinutes * 60 * 1000);
+
+  const expiredPayments = await db.payment.findMany({
+    where: {
+      status: "PENDING",
+      paymongoCheckoutSessionId: {
+        not: null,
+      },
+      createdAt: {
+        lt: cutoff,
+      },
+      saleId: {
+        not: null,
+      },
+    },
+    select: {
+      id: true,
+      saleId: true,
+    },
+  });
+
+  const saleIds = expiredPayments
+    .map((payment) => payment.saleId)
+    .filter(Boolean) as string[];
+
+  if (saleIds.length === 0) return;
+
+  await db.$transaction([
+    db.payment.updateMany({
+      where: {
+        id: {
+          in: expiredPayments.map((payment) => payment.id),
+        },
+      },
+      data: {
+        status: "REJECTED",
+      },
+    }),
+
+    db.sale.updateMany({
+      where: {
+        id: {
+          in: saleIds,
+        },
+      },
+      data: {
+        status: "CANCELLED",
+        downPaymentStatus: "EXPIRED",
+        cancelReason: "PayMongo checkout expired",
+      },
+    }),
+
+    db.appointment.updateMany({
+      where: {
+        saleId: {
+          in: saleIds,
+        },
+        status: "PENDING",
+      },
+      data: {
+        status: "REJECTED",
+      },
+    }),
+  ]);
 }
 
 async function createPayMongoCheckout(params: {
@@ -62,7 +138,7 @@ async function createPayMongoCheckout(params: {
               line_items: [
                 {
                   name: params.description,
-                  amount: 15000,
+                  amount: DOWN_PAYMENT * 100,
                   currency: "PHP",
                   quantity: 1,
                 },
@@ -107,12 +183,13 @@ async function createPayMongoCheckout(params: {
     method: "POST",
     headers: params.checkoutHeaders,
     body: JSON.stringify({
-      amount: 150,
+      amount: DOWN_PAYMENT,
       description: params.description,
       referenceNumber: params.referenceNumber,
       paymentMethods: params.paymentMethods,
       successUrl: params.successUrl,
       cancelUrl: params.cancelUrl,
+      failedUrl: params.failedUrl,
       metadata: params.metadata,
     }),
   });
@@ -151,9 +228,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     const cartItems = body.cartItems as AppointmentCartItem[];
-    const downPayment = Number(body.downPayment || 150);
+    const downPayment = Number(body.downPayment || DOWN_PAYMENT);
+
     const paymentMethods = Array.isArray(body.paymentMethods)
-      ? body.paymentMethods.filter((method: unknown) => typeof method === "string")
+      ? body.paymentMethods.filter(
+          (method: unknown) => typeof method === "string"
+        )
       : typeof body.paymentMethod === "string"
       ? [body.paymentMethod]
       : [];
@@ -162,7 +242,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
     }
 
-    if (downPayment !== 150) {
+    if (downPayment !== DOWN_PAYMENT) {
       return NextResponse.json(
         { error: "Invalid downpayment amount" },
         { status: 400 }
@@ -197,6 +277,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    await cleanupExpiredBookings();
+
     const result = await db.$transaction(async (tx) => {
       const firstItem = cartItems[0];
 
@@ -212,6 +294,7 @@ export async function POST(req: NextRequest) {
           id: {
             in: uniqueServiceIds,
           },
+          isAvailable: true,
         },
       });
 
@@ -219,7 +302,9 @@ export async function POST(req: NextRequest) {
         const foundIds = new Set(services.map((service) => service.id));
         const missingIds = uniqueServiceIds.filter((id) => !foundIds.has(id));
 
-        throw new Error(`Services not found: ${missingIds.join(", ")}`);
+        throw new Error(
+          `Services not found or unavailable: ${missingIds.join(", ")}`
+        );
       }
 
       const subtotal = cartItems.reduce((sum, item) => {
@@ -233,6 +318,7 @@ export async function POST(req: NextRequest) {
           barberId: firstItem.barberId,
           source: "BOOKING",
           status: "PENDING",
+          downPaymentStatus: "PENDING",
           subtotal,
           discount: 0,
           totalAmount: subtotal,
@@ -243,12 +329,50 @@ export async function POST(req: NextRequest) {
         ReturnType<typeof tx.appointment.create>
       >[] = [];
 
+      const cartBusyRangesByKey = new Map<string, TimeRange[]>();
+      const customerCartBusyRangesByDate = new Map<string, TimeRange[]>();
+
       for (const item of cartItems) {
         const service = services.find((s) => s.id === item.serviceId);
 
         if (!service) {
           throw new Error("Service not found");
         }
+
+        if (!item.barberId || !item.appointmentDate) {
+          throw new AppointmentAvailabilityError(
+            "Missing appointment schedule details"
+          );
+        }
+
+        const startMinutes = Number(item.startMinutes);
+        const endMinutes = Number(item.endMinutes);
+
+        const cartBusyKey = `${item.barberId}:${item.appointmentDate}`;
+        const blockedRanges = cartBusyRangesByKey.get(cartBusyKey) ?? [];
+
+        const customerBlockedRanges =
+          customerCartBusyRangesByDate.get(item.appointmentDate) ?? [];
+
+        await assertCustomerAppointmentTimeAvailable(tx, {
+          customerId: dbUser.customer!.id,
+          customerEmail:
+            dbUser.customer!.email || dbUser.email || authUser.email,
+          customerMobileNumber: dbUser.customer!.mobileNumber,
+          date: item.appointmentDate,
+          startMinutes,
+          endMinutes,
+          blockedRanges: customerBlockedRanges,
+        });
+
+        await assertAppointmentTimeAvailable(tx, {
+          barberId: item.barberId,
+          date: item.appointmentDate,
+          serviceDurationMinutes: service.durationMinutes,
+          startMinutes,
+          endMinutes,
+          blockedRanges,
+        });
 
         const itemPrice = Number(item.servicePrice || service.price);
 
@@ -262,22 +386,55 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        const appointment = await tx.appointment.create({
-          data: {
-            appointmentCode: await createUniqueCode("APT"),
-            customerId: dbUser.customer!.id,
-            barberId: item.barberId,
-            serviceId: item.serviceId,
-            saleId: sale.id,
-            appointmentDate: parsePHDateOnly(item.appointmentDate),
-            startMinutes: Number(item.startMinutes),
-            endMinutes: Number(item.endMinutes),
-            status: "PENDING",
-            source: "BOOKING",
-          },
-        });
+        const MAX_RETRIES = 5;
+        let appointment:
+          | Prisma.PromiseReturnType<typeof tx.appointment.create>
+          | undefined;
+
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+          try {
+            appointment = await tx.appointment.create({
+              data: {
+                appointmentCode: await createUniqueCode("APT", tx),
+                customerId: dbUser.customer!.id,
+                barberId: item.barberId,
+                serviceId: item.serviceId,
+                saleId: sale.id,
+                appointmentDate: parsePHDateOnly(item.appointmentDate),
+                startMinutes,
+                endMinutes,
+                status: "PENDING",
+                source: "BOOKING",
+              },
+            });
+            break;
+          } catch (err) {
+            const isCodeCollision =
+              err instanceof Prisma.PrismaClientKnownRequestError &&
+              err.code === "P2002" &&
+              (err.meta?.target as string[])?.includes("appointmentCode");
+
+            if (isCodeCollision && attempt < MAX_RETRIES - 1) {
+              continue; // regenerate a fresh code and retry the create
+            }
+            throw err;
+          }
+        }
+
+        if (!appointment) {
+          throw new Error("Failed to create appointment after retries");
+        }
 
         createdAppointments.push(appointment);
+
+        blockedRanges.push({ startMinutes, endMinutes });
+        cartBusyRangesByKey.set(cartBusyKey, blockedRanges);
+
+        customerBlockedRanges.push({ startMinutes, endMinutes });
+        customerCartBusyRangesByDate.set(
+          item.appointmentDate,
+          customerBlockedRanges
+        );
       }
 
       const payment = await tx.payment.create({
@@ -285,7 +442,7 @@ export async function POST(req: NextRequest) {
           saleId: sale.id,
           paymentCode: await createUniqueCode("PAY"),
           amount: subtotal,
-          downPayment: 150,
+          downPayment: DOWN_PAYMENT,
           discount: 0,
           method: null,
           status: "PENDING",
@@ -301,9 +458,9 @@ export async function POST(req: NextRequest) {
 
     const checkoutEndpoint = getCreateCheckoutUrl();
 
-    if (!checkoutEndpoint) {
+    if (!checkoutEndpoint && !process.env.PAYMONGO_SECRET_KEY) {
       return NextResponse.json(
-        { error: "PayMongo checkout function is not configured" },
+        { error: "PayMongo checkout is not configured" },
         { status: 500 }
       );
     }
@@ -318,15 +475,36 @@ export async function POST(req: NextRequest) {
     }
 
     const appOrigin = req.headers.get("origin") || req.nextUrl.origin;
-    const checkoutSuccessUrl = `${appOrigin}/myAppointments?payment=success&saleId=${encodeURIComponent(
-      result.sale.id
-    )}&saleCode=${encodeURIComponent(result.sale.saleCode)}`;
-    const checkoutCancelUrl = `${appOrigin}/appointment?payment=cancel&saleId=${encodeURIComponent(
-      result.sale.id
-    )}&saleCode=${encodeURIComponent(result.sale.saleCode)}`;
-    const checkoutFailedUrl = `${appOrigin}/appointment?payment=failed&saleId=${encodeURIComponent(
-      result.sale.id
-    )}&saleCode=${encodeURIComponent(result.sale.saleCode)}`;
+
+    const appointmentIds = result.appointments.map(
+      (appointment) => appointment.id
+    );
+
+    const appointmentIdsParam = encodeURIComponent(appointmentIds.join(","));
+
+    const checkoutSuccessUrl =
+      `${appOrigin}/api/appointment/payment-status` +
+      `?status=paid` +
+      `&saleId=${encodeURIComponent(result.sale.id)}` +
+      `&saleCode=${encodeURIComponent(result.sale.saleCode)}` +
+      `&paymentId=${encodeURIComponent(result.payment.id)}` +
+      `&appointmentIds=${appointmentIdsParam}`;
+
+    const checkoutCancelUrl =
+      `${appOrigin}/api/appointment/payment-status` +
+      `?status=cancelled` +
+      `&saleId=${encodeURIComponent(result.sale.id)}` +
+      `&saleCode=${encodeURIComponent(result.sale.saleCode)}` +
+      `&paymentId=${encodeURIComponent(result.payment.id)}` +
+      `&appointmentIds=${appointmentIdsParam}`;
+
+    const checkoutFailedUrl =
+      `${appOrigin}/api/appointment/payment-status` +
+      `?status=failed` +
+      `&saleId=${encodeURIComponent(result.sale.id)}` +
+      `&saleCode=${encodeURIComponent(result.sale.saleCode)}` +
+      `&paymentId=${encodeURIComponent(result.payment.id)}` +
+      `&appointmentIds=${appointmentIdsParam}`;
 
     const checkoutResult = await createPayMongoCheckout({
       checkoutEndpoint,
@@ -342,6 +520,7 @@ export async function POST(req: NextRequest) {
         saleCode: result.sale.saleCode,
         paymentId: result.payment.id,
         customerId: result.sale.customerId,
+        appointmentIds: appointmentIds.join(","),
       },
     });
 
@@ -350,11 +529,41 @@ export async function POST(req: NextRequest) {
     if (!checkoutResult.ok || !checkoutData?.checkout_url) {
       console.error("PAYMONGO CHECKOUT ERROR:", checkoutData);
 
+      await db.$transaction([
+        db.payment.update({
+          where: {
+            id: result.payment.id,
+          },
+          data: {
+            status: "REJECTED",
+          },
+        }),
+
+        db.sale.update({
+          where: {
+            id: result.sale.id,
+          },
+          data: {
+            status: "CANCELLED",
+            downPaymentStatus: "FAILED",
+            cancelReason: "Failed to create PayMongo checkout session",
+          },
+        }),
+
+        db.appointment.updateMany({
+          where: {
+            saleId: result.sale.id,
+            status: "PENDING",
+          },
+          data: {
+            status: "REJECTED",
+          },
+        }),
+      ]);
+
       return NextResponse.json(
         {
-          error:
-            checkoutResult.error ||
-            "Failed to create PayMongo checkout",
+          error: checkoutResult.error || "Failed to create PayMongo checkout",
         },
         { status: 502 }
       );
@@ -378,6 +587,7 @@ export async function POST(req: NextRequest) {
         checkoutData.checkout_session_id || checkoutData.checkoutSessionId,
       saleId: result.sale.id,
       saleCode: result.sale.saleCode,
+      paymentId: result.payment.id,
       sale: result.sale,
       payment: result.payment,
       appointments: result.appointments,
@@ -385,12 +595,25 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("CONFIRM APPOINTMENT ERROR:", error);
 
+    if (error instanceof AppointmentAvailabilityError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+        },
+        {
+          status: error.status,
+        }
+      );
+    }
+
     return NextResponse.json(
       {
         error: "Failed to confirm appointment",
         details: error instanceof Error ? error.message : String(error),
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }

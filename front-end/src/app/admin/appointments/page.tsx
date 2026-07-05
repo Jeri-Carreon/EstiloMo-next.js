@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toPHDateKey } from '@/lib/dateUtils';
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -129,6 +130,7 @@ function compareNewestScheduleFirst(a: Appointment, b: Appointment) {
 
 export default function AppointmentsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const [warningOpen, setWarningOpen] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
@@ -139,13 +141,11 @@ export default function AppointmentsPage() {
   };
   
   const [originalAppointmentStatus, setOriginalAppointmentStatus] = useState('');
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [barbers, setBarbers] = useState<BarberOption[]>([]);
   const [services, setServices] = useState<ServiceOption[]>([]);
 
   const supabase = createClient()
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -211,18 +211,6 @@ export default function AppointmentsPage() {
   const [successMessage, setSuccessMessage] = useState('');
 
   const servicePrice = Number(selectedAddService?.price || 0);
-
-  const getSelectedServiceDuration = () => {
-    if (openEditScheduleModal && selectedAppointment?.serviceId) {
-      const service = services.find(
-        (service) => service.id === selectedAppointment.serviceId
-      );
-
-      return Number(service?.durationMinutes || 0);
-    }
-
-    return Number(selectedAddService?.durationMinutes || 0);
-  };
 
   const openImageViewer = (title: string, photos: string[], startIndex = 0) => {
     const validPhotos = photos.filter(Boolean);
@@ -324,85 +312,86 @@ export default function AppointmentsPage() {
     return '#333';
   };
 
-  const loadAppointments = async () => {
-    try {
-      setLoading(true);
-
+  const {
+    data: appointments = [],
+    isLoading: loading,
+    isError: appointmentsError,
+  } = useQuery<Appointment[]>({
+    queryKey: ['adminAppointments'],
+    queryFn: async () => {
       const res = await fetch('/api/admin/appointments', {
         cache: 'no-store',
       });
 
       if (res.status === 403) {
         router.push('/unauthorized');
-        return;
+        return [];
       }
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'Unable to load appointments.');
-        setAppointments([]);
-        return;
+        throw new Error(data.error || 'Unable to load appointments.');
       }
 
-      setAppointments(
-        (data.appointments || []).map((appointment: any) => ({
-          id: appointment.id,
-          appointmentCode: appointment.appointmentCode || '',
-          customerId: appointment.customerId,
-          customerCode: appointment.customer?.customerCode || '',
-          customerName:
-            appointment.customer?.name ||
-            [appointment.customer?.firstName, appointment.customer?.lastName]
-              .filter(Boolean)
-              .join(' ') ||
-            '',
-          schedule:
-            appointment.schedule?.formatted ||
-            appointment.schedule ||
-            '',
-          appointmentDate: appointment.appointmentDate || '',
-          startMinutes: appointment.startMinutes,
-          endMinutes: appointment.endMinutes,
-          barberId: appointment.barberId,
-          barberName:
-            appointment.barber?.name ||
-            [appointment.barber?.firstName, appointment.barber?.lastName]
-              .filter(Boolean)
-              .join(' ') ||
-            '',
-          serviceId: appointment.serviceId,
-          serviceName: appointment.service?.name || '',
-          totalAmount:
-            appointment.payment?.amount !== undefined &&
-            appointment.payment?.amount !== null
-              ? appointment.payment.amount
-              : null,
-          status: appointment.status || '',
-          paymentScreenshotUrl: appointment.payment?.screenshotUrl || null,
-          afterServicePhotos: appointment.afterServicePhotos || [],
-          afterServicePhotoUrl:
-            appointment.afterServicePhotoUrl ||
-            appointment.afterServicePhotos?.[0]?.imageUrl ||
-            null,
-        }))
-      );
-
-      setSettings(data.settings);
+      setSettings(data.settings || null);
 
       if (data.settings) {
         setBookingCutoffHours(data.settings.bookingCutoffHours);
       }
 
       setError('');
-    } catch (error) {
-      console.error(error);
+
+      return (data.appointments || []).map((appointment: any) => ({
+        id: appointment.id,
+        appointmentCode: appointment.appointmentCode || '',
+        customerId: appointment.customerId,
+        customerCode: appointment.customer?.customerCode || '',
+        customerName:
+          appointment.customer?.name ||
+          [appointment.customer?.firstName, appointment.customer?.lastName]
+            .filter(Boolean)
+            .join(' ') ||
+          '',
+        schedule:
+          appointment.schedule?.formatted ||
+          appointment.schedule ||
+          '',
+        appointmentDate: appointment.appointmentDate || '',
+        startMinutes: appointment.startMinutes,
+        endMinutes: appointment.endMinutes,
+        barberId: appointment.barberId,
+        barberName:
+          appointment.barber?.name ||
+          [appointment.barber?.firstName, appointment.barber?.lastName]
+            .filter(Boolean)
+            .join(' ') ||
+          '',
+        serviceId: appointment.serviceId,
+        serviceName: appointment.service?.name || '',
+        totalAmount:
+          appointment.payment?.amount !== undefined &&
+          appointment.payment?.amount !== null
+            ? appointment.payment.amount
+            : null,
+        status: appointment.status || '',
+        paymentScreenshotUrl: appointment.payment?.screenshotUrl || null,
+        afterServicePhotos: appointment.afterServicePhotos || [],
+        afterServicePhotoUrl:
+          appointment.afterServicePhotoUrl ||
+          appointment.afterServicePhotos?.[0]?.imageUrl ||
+          null,
+      }));
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+
+  useEffect(() => {
+    if (appointmentsError) {
       setError('Unable to load appointments.');
-      setAppointments([]);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [appointmentsError]);
 
   const loadOptions = async () => {
   try {
@@ -498,7 +487,8 @@ export default function AppointmentsPage() {
       const formattedDate = formatDateInput(date);
 
       const response = await fetch(
-        `/api/admin/barbers/availability?barberId=${barberId}&serviceId=${serviceId}&date=${formattedDate}&blockedSlots=`
+        `/api/admin/barbers/availability?barberId=${barberId}&serviceId=${serviceId}&date=${formattedDate}&blockedSlots=`,
+        { cache: 'no-store' }
       );
 
       const data = await response.json();
@@ -536,8 +526,11 @@ export default function AppointmentsPage() {
     const barberId = openEditScheduleModal
       ? selectedAppointment?.barberId
       : addForm.barberId;
+    const serviceId = openEditScheduleModal
+      ? selectedAppointment?.serviceId
+      : addForm.serviceId;
 
-    if (!barberId) {
+    if (!barberId || !serviceId) {
       setUnavailableDates(new Set());
       return;
     }
@@ -547,7 +540,8 @@ export default function AppointmentsPage() {
       const m = String(month.getMonth() + 1).padStart(2, '0');
 
       const response = await fetch(
-        `/api/admin/barbers/unavailable-dates?barberId=${barberId}&year=${year}&month=${m}`
+        `/api/admin/barbers/unavailable-dates?barberId=${barberId}&serviceId=${serviceId}&year=${year}&month=${m}`,
+        { cache: 'no-store' }
       );
 
       const data = await response.json();
@@ -576,7 +570,6 @@ export default function AppointmentsPage() {
             return
           }
         
-      loadAppointments();
       loadOptions();
       } catch (err) {
         console.error("Initialization failed:", err)
@@ -587,7 +580,14 @@ export default function AppointmentsPage() {
 
   useEffect(() => {
     fetchUnavailableDates(addCurrentMonth);
-  }, [addCurrentMonth, addForm.barberId, selectedAppointment?.barberId, openEditScheduleModal]);
+  }, [
+    addCurrentMonth,
+    addForm.barberId,
+    addForm.serviceId,
+    selectedAppointment?.barberId,
+    selectedAppointment?.serviceId,
+    openEditScheduleModal,
+  ]);
 
   useEffect(() => {
     if (!selectedAddDate) return;
@@ -705,7 +705,7 @@ export default function AppointmentsPage() {
           serviceId: addForm.serviceId,
           appointmentDate: addForm.appointmentDate,
           startMinutes: Number(addForm.startMinutes),
-          endMinutes: Number(addForm.startMinutes) + getSelectedServiceDuration(),
+          endMinutes: Number(addForm.endMinutes),
           paymentScreenshotUrl,
           downPayment: 150,
           status: 'SCHEDULED',
@@ -723,7 +723,7 @@ export default function AppointmentsPage() {
       resetAddModal();
       setSuccessMessage('Appointment successfully added!');
       setSuccessOpen(true);
-      await loadAppointments();
+      await queryClient.invalidateQueries({ queryKey: ['adminAppointments'] });
     } catch (error) {
       console.error('ADD APPOINTMENT ERROR:', error);
       showWarning('Failed to add appointment.');
@@ -765,7 +765,7 @@ export default function AppointmentsPage() {
       setSelectedAppointment(null);
       setSuccessMessage('Appointment successfully updated!');
       setSuccessOpen(true);
-      await loadAppointments();
+      await queryClient.invalidateQueries({ queryKey: ['adminAppointments'] });
     } catch (error) {
       console.error('UPDATE APPOINTMENT ERROR:', error);
       showWarning('Failed to update appointment.');
@@ -1092,7 +1092,7 @@ export default function AppointmentsPage() {
       }
 
       setSettingsOpen(false);
-      await loadAppointments();
+      await queryClient.invalidateQueries({ queryKey: ['adminAppointments'] });
     } catch (error) {
       console.error(error);
     }
@@ -1599,11 +1599,6 @@ export default function AppointmentsPage() {
                     px: 3,
                   }}
                 >
-                  {loadingTimes && (
-                    <Typography sx={{ width: '100%', textAlign: 'center' }}>
-                      Loading times...
-                    </Typography>
-                  )}
 
                   {!loadingTimes &&
                     selectedAddDate &&
@@ -1616,25 +1611,26 @@ export default function AppointmentsPage() {
                   {availableTimes.map((time) => {
                     const selected =
                       selectedTime?.startMinutes === time.startMinutes;
+                    const label =
+                      time.label ||
+                      `${formatMinutes(time.startMinutes)} - ${formatMinutes(
+                        time.endMinutes
+                      )}`;
 
                     return (
                       <Button
-                        key={time.label}
+                        key={`${time.startMinutes}-${time.endMinutes}`}
                         onClick={() => {
-
-                          const endMinutes =
-                            time.startMinutes + getSelectedServiceDuration();
-
                           setSelectedTime({
                             startMinutes: time.startMinutes,
-                            endMinutes,
-                            label: `${formatMinutes(time.startMinutes)} - ${formatMinutes(endMinutes)}`,
+                            endMinutes: time.endMinutes,
+                            label,
                           });
 
                           setAddForm((prev) => ({
                             ...prev,
                             startMinutes: String(time.startMinutes),
-                            endMinutes: String(endMinutes),
+                            endMinutes: String(time.endMinutes),
                           }));
                         }}
                         variant="outlined"
@@ -1655,9 +1651,7 @@ export default function AppointmentsPage() {
                           },
                         }}
                       >
-                        {`${formatMinutes(time.startMinutes)} - ${formatMinutes(
-                          time.startMinutes + getSelectedServiceDuration()
-                        )}`}
+                        {label}
                       </Button>
                     );
                   })}
@@ -2457,12 +2451,6 @@ export default function AppointmentsPage() {
                   px: 3,
                 }}
               >
-                {loadingTimes && (
-                  <Typography sx={{ width: '100%', textAlign: 'center' }}>
-                    Loading times...
-                  </Typography>
-                )}
-
                 {!loadingTimes && selectedAddDate && availableTimes.length === 0 && (
                   <Typography sx={{ width: '100%', textAlign: 'center' }}>
                     No available times.
@@ -2471,20 +2459,19 @@ export default function AppointmentsPage() {
 
                 {availableTimes.map((time) => {
                   const selected = selectedTime?.startMinutes === time.startMinutes;
+                  const label =
+                    time.label ||
+                    `${formatMinutes(time.startMinutes)} - ${formatMinutes(
+                      time.endMinutes
+                    )}`;
 
                   return (
                     <Button
-                      key={time.label}
+                      key={`${time.startMinutes}-${time.endMinutes}`}
                       onClick={() => {
-                        const duration = getSelectedServiceDuration();
-                        const endMinutes = time.startMinutes + duration;
-                        const label = `${formatMinutes(
-                          time.startMinutes
-                        )} - ${formatMinutes(endMinutes)}`;
-
                         setSelectedTime({
                           startMinutes: time.startMinutes,
-                          endMinutes,
+                          endMinutes: time.endMinutes,
                           label,
                         });
 
@@ -2504,7 +2491,7 @@ export default function AppointmentsPage() {
                                   ? formatDateInput(selectedAddDate)
                                   : prev.appointmentDate,
                                 startMinutes: time.startMinutes,
-                                endMinutes,
+                                endMinutes: time.endMinutes,
                                 schedule: `${selectedDateText} ${label}`,
                               }
                             : prev
@@ -2528,9 +2515,7 @@ export default function AppointmentsPage() {
                         },
                       }}
                     >
-                      {`${formatMinutes(time.startMinutes)} - ${formatMinutes(
-                        time.startMinutes + getSelectedServiceDuration()
-                      )}`}
+                      {label}
                     </Button>
                   );
                 })}

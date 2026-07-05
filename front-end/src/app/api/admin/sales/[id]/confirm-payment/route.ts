@@ -70,6 +70,28 @@ export async function PUT(
     }
 
     if (sale.payment.status === "PAID") {
+      // Payment is already recorded as PAID. Ensure sale and appointments
+      // are also updated so the admin UI reflects the confirmed state.
+      try {
+        await db.$transaction(async (tx) => {
+          await tx.sale.update({
+            where: { id: sale.id },
+            data: { status: "PAID" },
+          });
+
+          if (sale.appointments.length > 0) {
+            await tx.appointment.updateMany({
+              where: { saleId: sale.id },
+              data: { status: "COMPLETED" },
+            });
+          }
+        });
+      } catch (err) {
+        console.error("SYNC PAID STATE ERROR:", err);
+        // Fallthrough to return success message — we don't want to treat
+        // this as a hard failure for the admin confirm flow.
+      }
+
       return NextResponse.json({
         success: true,
         message: "Payment already confirmed",

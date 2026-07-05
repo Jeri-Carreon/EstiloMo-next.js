@@ -1,8 +1,10 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
@@ -102,59 +104,93 @@ export default function CustomerLoyaltyCardPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
-  const [loyaltyCard, setLoyaltyCard] =
-    useState<CustomerLoyaltyCard | null>(null);
-  const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [authLoading, setAuthLoading] = useState(true);
   const [selectedAppointment, setSelectedAppointment] =
     useState<Appointment | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  const loadLoyaltyCard = useCallback(async () => {
-    try {
-      setLoading(true);
-
+  const {
+    data,
+    isLoading: loading,
+  } = useQuery<{
+    loyaltyCard: CustomerLoyaltyCard | null;
+    customer: CustomerInfo | null;
+    appointments: Appointment[];
+  }>({
+    queryKey: ["customerLoyaltyCard"],
+    queryFn: async () => {
       const res = await fetch("/api/loyaltyCard", {
         cache: "no-store",
       });
 
       if (res.status === 401) {
-        router.push("/login");
+        router.push("/login?redirect=/loyaltyCard");
+        return {
+          loyaltyCard: null,
+          customer: null,
+          appointments: [],
+        };
+      }
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || "Failed to load loyalty card");
+      }
+
+      return {
+        loyaltyCard: result.loyaltyCard ?? null,
+        customer: result.customer ?? null,
+        appointments: result.appointments ?? [],
+      };
+    },
+    enabled: !authLoading,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+
+  const loyaltyCard = data?.loyaltyCard ?? null;
+  const customerInfo = data?.customer ?? null;
+  const appointments = data?.appointments ?? [];
+
+  useEffect(() => {
+    let mounted = true;
+
+    const init = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!mounted) return;
+
+      if (!user) {
+        router.push("/login?redirect=/loyaltyCard");
         return;
       }
 
-      const data = await res.json();
+      setAuthLoading(false);
+    };
 
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to load loyalty card");
+    init();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (event: AuthChangeEvent, _session: Session | null) => {
+        if (event === "SIGNED_OUT" || !_session) {
+          router.replace("/");
+          router.refresh();
+        }
       }
+    );
 
-      setLoyaltyCard(data.loyaltyCard);
-      setCustomerInfo(data.customer);
-      setAppointments(data.appointments || []);
-    } catch (error) {
-      console.error("Error loading loyalty card:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [router]);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [router, supabase]);
 
-  useEffect(() => {
-    const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
 
-            if (!user) {
-              router.push("/login");
-              return;
-            }
-
-          loadLoyaltyCard();
-      };
-        init();
-    }, [loadLoyaltyCard, router, supabase]);
-    
-
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <Box
         sx={{

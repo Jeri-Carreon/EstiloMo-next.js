@@ -34,6 +34,7 @@ export async function GET(req: Request) {
         include: {
           service: true,
           barber: true,
+          sale: true,
         },
         orderBy: { appointmentDate: "desc" },
       });
@@ -80,7 +81,8 @@ export async function GET(req: Request) {
           id: `appointment:${appointment.id}`,
           sourceType: "BOOKING",
           appointmentId: appointment.id,
-          saleId: null,
+          saleId: appointment.saleId,
+          saleCode: appointment.sale?.saleCode,
           appointmentCode: appointment.appointmentCode,
           appointmentDate: appointment.appointmentDate,
           service: appointment.service,
@@ -90,13 +92,13 @@ export async function GET(req: Request) {
         ...sales.map((sale) => {
           const firstItem = sale.items[0];
           const firstAppointment = sale.appointments[0];
-
+          
           return {
             id: `sale:${sale.id}`,
             sourceType: sale.source,
             appointmentId: null,
             saleId: sale.id,
-            appointmentCode: sale.saleCode,
+            saleCode: sale.saleCode,
             appointmentDate: firstAppointment?.appointmentDate || sale.createdAt,
             service: {
               id: firstItem?.service?.id || firstItem?.serviceId || "",

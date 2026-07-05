@@ -40,6 +40,7 @@
     "react-markdown": "^10.1.0",
     "recharts": "^3.8.1",
     "resend": "^6.12.3",
+    "twilio": "^6.0.2",
     "uuid": "^14.0.0"
   },
   "devDependencies": {
@@ -51,7 +52,18 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
+    "supabase": "^2.109.0",
     "tsx": "^4.22.4",
     "typescript": "^5"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "bcrypt@6.0.0": true,
+    "esbuild@0.28.1": true,
+    "ws@0.4.32": true,
+    "prisma@6.19.3": true,
+    "sharp@0.34.5": true,
+    "unrs-resolver@1.11.1": true
   }
 }

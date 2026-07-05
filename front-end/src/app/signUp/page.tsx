@@ -60,7 +60,7 @@ export default function SignUpPage() {
     if (!isValidEmail(email)) return setErrorMsg("Please enter a valid email address.");
     if (!password) return setErrorMsg("Password is required.");
     if (password.length < 6) return setErrorMsg("Password must be at least 6 characters.");
-    if (!confirmPassword) return setErrorMsg("Please retype your password.");
+    if (!confirmPassword) return setErrorMsg("Please confirm your password.");
     if (password !== confirmPassword) return setErrorMsg("Passwords do not match.");
     if (!mobileNumber) return setErrorMsg("Mobile number is required.");
     if (!/^09\d{9}$/.test(mobileNumber)) {
@@ -236,12 +236,12 @@ export default function SignUpPage() {
           </FormControl>
 
           <FormControl fullWidth variant="outlined" sx={fieldSx}>
-            <InputLabel shrink>Retype Password *</InputLabel>
+            <InputLabel shrink>Confirm Password *</InputLabel>
             <OutlinedInput
               type={showConfirmPassword ? "text" : "password"}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              label="Retype Password *"
+              label="Confirm Password *"
               endAdornment={
                 <InputAdornment position="end">
                   <IconButton

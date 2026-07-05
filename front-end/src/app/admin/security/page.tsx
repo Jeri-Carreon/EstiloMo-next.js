@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -39,51 +40,35 @@ function formatTime(date: string) {
 }
 
 export default function SecurityPage() {
-  const [logs, setLogs] = useState<SecurityLog[]>([]);
   const [search, setSearch] = useState("");
   const [sectionFilter, setSectionFilter] = useState("ALL");
   const [page, setPage] = useState(1);
 
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(true);
-
-  async function loadLogs() {
-    try {
-      setLoading(true);
-
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["securityLogs", search, sectionFilter, page],
+    queryFn: async () => {
       const res = await fetch(
         `/api/admin/security?search=${encodeURIComponent(
           search
-        )}&section=${encodeURIComponent(sectionFilter)}&page=${page}`
+        )}&section=${encodeURIComponent(sectionFilter)}&page=${page}`,
+        { cache: "no-store" }
       );
 
-      const data = await res.json();
+      const result = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to load security logs");
+        throw new Error(result.error || "Failed to load security logs");
       }
 
-      setLogs(data.logs || []);
-      setTotal(data.total || 0);
-      setTotalPages(data.totalPages || 1);
-    } catch (error) {
-      console.error("LOAD SECURITY LOGS ERROR:", error);
-      setLogs([]);
-      setTotal(0);
-      setTotalPages(1);
-    } finally {
-      setLoading(false);
-    }
-  }
+      return result;
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
 
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      loadLogs();
-    }, 300);
-
-    return () => clearTimeout(timeout);
-  }, [search, sectionFilter, page]);
+  const logs: SecurityLog[] = data?.logs || [];
+  const total = data?.total || 0;
+  const totalPages = data?.totalPages || 1;
 
   const start = total === 0 ? 0 : (page - 1) * 5 + 1;
   const end = Math.min(page * 5, total);

@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -74,6 +75,7 @@ export default function ServicesPage() {
   const router = useRouter();
 
   const [services, setServices] = useState<Service[]>([]);
+  const queryClient = useQueryClient();
 
   // session
   const [loading, setLoading] = useState(true);
@@ -123,6 +125,33 @@ export default function ServicesPage() {
     setStatusMessage(message);
     setOpenStatusModal(true);
   };
+
+  useQuery({
+    queryKey: ["adminServicesData"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/services", { cache: "no-store" });
+
+      if (res.status === 403) {
+        router.push("/unauthorized");
+        return [];
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Unable to load services.");
+        setServices([]);
+        return [];
+      }
+
+      setError("");
+      setServices(data.services || []);
+      setLoading(false);
+      return data.services || [];
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
 
   useEffect(() => {
     const loadServices = async () => {
@@ -317,6 +346,7 @@ export default function ServicesPage() {
         }
       }
 
+      await queryClient.invalidateQueries({ queryKey: ["adminServicesData"] });
       setServices((prev) => [...prev, createdService]);
       setOpenAdd(false);
       resetAddForm();
@@ -400,6 +430,7 @@ export default function ServicesPage() {
         return;
       }
 
+      await queryClient.invalidateQueries({ queryKey: ["adminServicesData"] });
       setServices((prev) =>
         prev.map((service) =>
           service.id === selectedService.id ? data.service : service

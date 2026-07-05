@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
 
 type MessageButton = {
@@ -13,9 +14,11 @@ type Message = {
   id: string;
   role: "user" | "bot";
   text: string;
-  link?: string;
-  linkLabel?: string;
   buttons?: MessageButton[];
+  links?: {
+    label: string;
+    url: string;
+  }[];
 };
 
 type ChatbotSetting = {
@@ -44,7 +47,20 @@ const fallbackSettings: ChatbotSetting[] = [
   },
 ];
 
-const facebookLink = "https://www.facebook.com/thebarbsbro";
+const socialLinks = [
+  {
+    label: "Facebook",
+    url: "https://www.facebook.com/thebarbsbro",
+  },
+  {
+    label: "Instagram",
+    url: "https://www.instagram.com/thebarbsbro",
+  },
+  {
+    label: "TikTok",
+    url: "https://www.tiktok.com/@thebarbsbro",
+  },
+];
 
 function normalizeText(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
@@ -53,8 +69,6 @@ function normalizeText(value: string) {
 export default function ChatbotFloatingButton() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [settings, setSettings] = useState<ChatbotSetting[]>(fallbackSettings);
-  const [barbers, setBarbers] = useState<BarberOption[]>([]);
   const [showQuickOptions, setShowQuickOptions] = useState(true);
   const [input, setInput] = useState("");
   const [loadingBarbers, setLoadingBarbers] = useState(false);
@@ -69,36 +83,46 @@ export default function ChatbotFloatingButton() {
     });
   };
 
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const res = await fetch("/api/admin/chatbot", { cache: "no-store" });
-        const data = await res.json();
+  const { data: chatbotSettings = fallbackSettings } = useQuery<ChatbotSetting[]>({
+    queryKey: ["publicChatbotSettings"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/chatbot", {
+        cache: "no-store",
+      });
 
-        if (res.ok && Array.isArray(data)) {
-          setSettings(data);
-        }
-      } catch (error) {
-        console.error("LOAD CHATBOT SETTINGS ERROR:", error);
+      const data = await res.json();
+
+      if (!res.ok || !Array.isArray(data)) {
+        throw new Error(data?.error || "Failed to load chatbot settings.");
       }
-    };
 
-    const loadBarbers = async () => {
-      try {
-        const res = await fetch("/api/chatbot/barbers", { cache: "no-store" });
-        const data = await res.json();
+      return data;
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
 
-        if (res.ok && data?.ok && Array.isArray(data.barbers)) {
-          setBarbers(data.barbers);
-        }
-      } catch (error) {
-        console.error("LOAD CHATBOT BARBERS ERROR:", error);
+  const { data: chatbotBarbers = [] } = useQuery<BarberOption[]>({
+    queryKey: ["publicChatbotBarbers"],
+    queryFn: async () => {
+      const res = await fetch("/api/chatbot/barbers", {
+        cache: "no-store",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data?.ok || !Array.isArray(data.barbers)) {
+        throw new Error(data?.error || "Failed to load chatbot barbers.");
       }
-    };
 
-    void loadSettings();
-    void loadBarbers();
-  }, []);
+      return data.barbers;
+    },
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+
+  const settings = chatbotSettings ?? fallbackSettings;
+  const barbers = chatbotBarbers ?? [];
 
   useEffect(() => {
     scrollToBottom();
@@ -301,8 +325,22 @@ export default function ChatbotFloatingButton() {
         id: `${Date.now()}-bot`,
         role: "bot",
         text: directOptionMatch.response,
-        link: needsLink ? facebookLink : undefined,
-        linkLabel: needsLink ? "Open Facebook Page" : undefined,
+        links: needsLink
+          ? [
+              {
+                label: "Open Facebook Page",
+                url: "https://www.facebook.com/thebarbsbro",
+              },
+              {
+                label: "Open Instagram Page",
+                url: "https://www.instagram.com/thebarbsbro",
+              },
+              {
+                label: "Open TikTok Page",
+                url: "https://www.tiktok.com/@thebarbsbro",
+              },
+            ]
+          : undefined,
       };
     }
 
@@ -343,8 +381,12 @@ export default function ChatbotFloatingButton() {
         id: `${Date.now()}-bot`,
         role: "bot",
         text: item?.response || getResponse("fallback"),
-        link: facebookLink,
-        linkLabel: "Chat with Receptionist",
+        links: [
+          {
+            label: "Chat with Receptionist on Facebook",
+            url: "https://www.facebook.com/thebarbsbro",
+          },
+        ],
       };
     }
 
@@ -361,8 +403,7 @@ export default function ChatbotFloatingButton() {
         id: `${Date.now()}-bot`,
         role: "bot",
         text: item?.response || getResponse("fallback"),
-        link: facebookLink,
-        linkLabel: "Open Facebook Page",
+        links: socialLinks,
       };
     }
 
@@ -585,25 +626,41 @@ export default function ChatbotFloatingButton() {
                 >
                   <div>{message.text}</div>
 
-                  {message.link && (
-                    <a
-                      href={message.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                  {message.links && message.links.length > 0 && (
+                    <div
                       style={{
-                        display: "inline-block",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
                         marginTop: 10,
-                        padding: "8px 13px",
-                        backgroundColor: "#111",
-                        color: "#fff",
-                        borderRadius: 999,
-                        textDecoration: "none",
-                        fontSize: 12,
-                        fontWeight: 700,
+                        width: "100%",
                       }}
                     >
-                      {message.linkLabel}
-                    </a>
+                      {message.links.map((link) => (
+                        <a
+                          key={link.url}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: "80%",
+                            padding: "10px 14px",
+                            backgroundColor: "#111",
+                            color: "#fff",
+                            borderRadius: 999,
+                            textDecoration: "none",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            boxSizing: "border-box",
+                          }}
+                        >
+                          {link.label}
+                        </a>
+                      ))}
+                    </div>
                   )}
 
                   {message.buttons && message.buttons.length > 0 && (
