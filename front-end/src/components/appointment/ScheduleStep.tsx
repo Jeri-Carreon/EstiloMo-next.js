@@ -702,12 +702,6 @@ export default function ScheduleStep({
                   pb: 3,
                 }}
               >
-                {loadingTimes && (
-                  <Typography sx={{ width: '100%', textAlign: 'center' }}>
-                    Loading times...
-                  </Typography>
-                )}
-
                 {!loadingTimes && selectedDate && availableTimes.length === 0 && (
                   <Typography sx={{ width: '100%', textAlign: 'center' }}>
                     No available times.
