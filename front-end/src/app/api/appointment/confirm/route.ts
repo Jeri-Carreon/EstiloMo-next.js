@@ -11,6 +11,7 @@ import {
   type TimeRange,
 } from "@/lib/appointmentAvailability";
 import { Prisma } from "@prisma/client";
+import { getAppOriginFromRequest } from "@/lib/appOrigin";
 
 const ALLOWED_PAYMONGO_METHODS = ["card", "gcash", "qrph"];
 const CREATE_CHECKOUT_FUNCTION_NAME = "smooth-task";
@@ -35,15 +36,6 @@ function getCreateCheckoutUrl() {
   }
 
   return "";
-}
-
-function getAppOrigin(req: NextRequest): string {
-  const appUrl =
-    process.env.APP_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    "https://estilomo.codeegoh.com";
-
-  return appUrl.replace(/\/$/, "");
 }
 
 async function cleanupExpiredBookings() {
@@ -483,7 +475,7 @@ export async function POST(req: NextRequest) {
       checkoutHeaders.Authorization = `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`;
     }
 
-    const appOrigin = getAppOrigin(req);
+    const appOrigin = getAppOriginFromRequest(req);
 
     const appointmentIds = result.appointments.map(
       (appointment) => appointment.id
