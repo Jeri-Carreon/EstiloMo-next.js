@@ -105,11 +105,19 @@ function fullName(first?: string | null, last?: string | null, fallback = "Unkno
 
 // ─── Auth ───────────────────────────────────────────────────────────────────
 // Mirrors the exact auth pattern used by /api/user/role.
-async function requireOwnerOrReceptionist(): Promise<{ ok: true } | { ok: false; status: number }> {
+async function requireOwnerOrReceptionist(req: NextRequest): Promise<{ ok: true } | { ok: false; status: number }> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const authHeader = req.headers.get("authorization");
+  let user = null;
+
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.replace("Bearer ", "");
+    const { data } = await supabase.auth.getUser(token);
+    user = data?.user;
+  } else {
+    const { data } = await supabase.auth.getUser();
+    user = data?.user;
+  }
 
   if (!user) return { ok: false, status: 401 };
 
@@ -127,7 +135,7 @@ async function requireOwnerOrReceptionist(): Promise<{ ok: true } | { ok: false;
 // ─── Route handler ──────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
-  const auth = await requireOwnerOrReceptionist();
+  const auth = await requireOwnerOrReceptionist(req);
   if (!auth.ok) {
     return NextResponse.json({ error: "Unauthorized" }, { status: auth.status });
   }
