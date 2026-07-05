@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 const EXPIRE_AFTER_MINUTES = Number(
-  process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || 10
+  process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || 5
 );
 
 async function cleanupExpiredBookings() {

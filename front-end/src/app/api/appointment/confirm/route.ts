@@ -38,7 +38,7 @@ function getCreateCheckoutUrl() {
 
 async function cleanupExpiredBookings() {
   const expireAfterMinutes = Number(
-    process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || 10
+    process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || 5
   );
 
   const cutoff = new Date(Date.now() - expireAfterMinutes * 60 * 1000);
