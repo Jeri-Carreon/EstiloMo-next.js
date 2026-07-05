@@ -486,7 +486,7 @@ export default function AppointmentPage() {
     const pendingCheckout = getPendingCheckout();
 
     const saleId =
-      currentUrl.searchParams.get('saleId') || pendingCheckout.saleId;
+      currentUrl.searchParams.get('saleId');
 
     const shouldResumeCheckout =
       Boolean(paymentResult) ||
@@ -574,11 +574,16 @@ export default function AppointmentPage() {
       return () => window.clearInterval(timer);
     }
 
-    if (paymentResult === 'cancel') {
-      restorePendingCheckout(
-        'Payment Cancelled',
-        'Your payment was not completed. Your booking details are still saved, so you can try again.'
-      );
+    if (paymentResult === 'cancelled') {
+      if (pendingCheckout.appointmentData) {
+        setAppointmentData(pendingCheckout.appointmentData);
+      }
+
+      setCurrentStep(4);
+      setExpiredOpen(true);
+      window.history.replaceState({}, '', '/appointment');
+
+      return;
     }
 
     if (paymentResult === 'failed') {
@@ -601,6 +606,10 @@ export default function AppointmentPage() {
 
     const interval = window.setInterval(async () => {
       try {
+        await fetch('/api/appointment/expired', {
+          method: 'POST',
+        });
+
         const res = await fetch(
           `/api/appointment/payment-status?saleId=${pendingSaleId}`
         );
@@ -942,7 +951,6 @@ export default function AppointmentPage() {
 
           <Button
             onClick={() => {
-              window.localStorage.removeItem('estilomoPendingCheckout');
               setPendingSaleId('');
               setExpiredOpen(false);
               window.history.replaceState({}, '', '/appointment');
