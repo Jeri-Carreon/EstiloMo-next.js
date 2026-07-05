@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   }
 
   const expirationMinutes = Number(
-    process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || "30"
+    process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || 5
   );
   const cutoff = new Date(Date.now() - expirationMinutes * 60 * 1000);
 

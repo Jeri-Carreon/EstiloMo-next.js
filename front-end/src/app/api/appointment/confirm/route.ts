@@ -38,15 +38,17 @@ function getCreateCheckoutUrl() {
 }
 
 function getAppOrigin(req: NextRequest): string {
-  if (process.env.APP_URL) {
-    return process.env.APP_URL;
-  }
-  return req.headers.get("origin") || req.nextUrl.origin;
+  const appUrl =
+    process.env.APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://estilomo.codeegoh.com";
+
+  return appUrl.replace(/\/$/, "");
 }
 
 async function cleanupExpiredBookings() {
   const expireAfterMinutes = Number(
-    process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || 10
+    process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || 5
   );
 
   const cutoff = new Date(Date.now() - expireAfterMinutes * 60 * 1000);
