@@ -37,6 +37,13 @@ function getCreateCheckoutUrl() {
   return "";
 }
 
+function getAppOrigin(req: NextRequest): string {
+  if (process.env.APP_URL) {
+    return process.env.APP_URL;
+  }
+  return req.headers.get("origin") || req.nextUrl.origin;
+}
+
 async function cleanupExpiredBookings() {
   const expireAfterMinutes = Number(
     process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || 5
@@ -474,7 +481,7 @@ export async function POST(req: NextRequest) {
       checkoutHeaders.Authorization = `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`;
     }
 
-    const appOrigin = req.headers.get("origin") || req.nextUrl.origin;
+    const appOrigin = getAppOrigin(req);
 
     const appointmentIds = result.appointments.map(
       (appointment) => appointment.id
