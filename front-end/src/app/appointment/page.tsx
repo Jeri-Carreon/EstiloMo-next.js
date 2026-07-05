@@ -100,6 +100,7 @@ export default function AppointmentPage() {
   const [warningOpen, setWarningOpen] = useState(false);
   const [warningTitle, setWarningTitle] = useState('');
   const [warningMessage, setWarningMessage] = useState('');
+  const [expiredOpen, setExpiredOpen] = useState(false);
 
   const [cartOpen, setCartOpen] = useState(false);
   const [pendingSaleId, setPendingSaleId] = useState('');
@@ -487,12 +488,51 @@ export default function AppointmentPage() {
     const saleId =
       currentUrl.searchParams.get('saleId') || pendingCheckout.saleId;
 
-    if (saleId && saleId !== pendingSaleId) {
+    const shouldResumeCheckout =
+      Boolean(paymentResult) ||
+      currentUrl.searchParams.has('saleId');
+
+    if (
+      shouldResumeCheckout &&
+      saleId &&
+      saleId !== pendingSaleId
+    ) {
       setPendingSaleId(saleId);
     }
 
     const saleCode =
       currentUrl.searchParams.get('saleCode') || pendingCheckout.saleCode;
+
+    if (
+      currentUrl.searchParams.has('saleId') &&
+      !paymentResult &&
+      saleId
+    ) {
+      fetch(`/api/appointment/payment-status?saleId=${saleId}`)
+        .then(async (res) => {
+          if (!res.ok) return;
+
+          const data = await res.json();
+
+          const expired =
+            data.downPaymentStatus === 'EXPIRED' ||
+            data.downPaymentStatus === 'FAILED' ||
+            data.downPaymentStatus === 'CANCELLED' ||
+            data.paymentStatus === 'REJECTED';
+
+          if (!expired) return;
+
+          if (pendingCheckout.appointmentData) {
+            setAppointmentData(
+              pendingCheckout.appointmentData
+            );
+          }
+
+          setCurrentStep(4);
+          setExpiredOpen(true);
+        })
+        .catch(console.error);
+    }
 
     const restorePendingCheckout = (title: string, message: string) => {
       window.history.replaceState({}, '', '/appointment');
@@ -557,7 +597,7 @@ export default function AppointmentPage() {
   }, [checkingAuth]);
 
   useEffect(() => {
-    if (!pendingSaleId) return;
+     if (!pendingSaleId || currentStep !== 4) return;
 
     const interval = window.setInterval(async () => {
       try {
@@ -602,7 +642,7 @@ export default function AppointmentPage() {
     }, 10000);
 
     return () => window.clearInterval(interval);
-  }, [pendingSaleId, router]);
+  }, [pendingSaleId, currentStep, router]);
 
   if (checkingAuth) {
     return null;
@@ -854,6 +894,70 @@ export default function AppointmentPage() {
             }}
           >
             OK
+          </Button>
+        </Box>
+      </Modal>
+
+      <Modal
+        open={expiredOpen}
+        onClose={() => setExpiredOpen(false)}
+      >
+        <Box
+          sx={{
+            width: { xs: 'calc(100% - 32px)', sm: 430 },
+            maxWidth: 430,
+            backgroundColor: '#fff',
+            borderRadius: 3,
+            p: { xs: 3, sm: 4 },
+            textAlign: 'center',
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            boxShadow: 24,
+            outline: 'none',
+          }}
+        >
+          <Typography
+            sx={{
+              fontSize: { xs: 22, sm: 26 },
+              fontWeight: 1000,
+              mb: 2,
+            }}
+          >
+            Payment Expired
+          </Typography>
+
+          <Typography
+            sx={{
+              color: '#666',
+              fontWeight: 700,
+              mb: 4,
+            }}
+          >
+            Your PayMongo payment session has expired.
+            Your booking details have been saved and you can
+            try paying again.
+          </Typography>
+
+          <Button
+            onClick={() => {
+              window.localStorage.removeItem('estilomoPendingCheckout');
+              setPendingSaleId('');
+              setExpiredOpen(false);
+              window.history.replaceState({}, '', '/appointment');
+            }}
+            sx={{
+              backgroundColor: '#f4b400',
+              color: '#111',
+              px: 5,
+              py: 1.2,
+              borderRadius: 10,
+              textTransform: 'none',
+              fontWeight: 900,
+            }}
+          >
+            Try Again
           </Button>
         </Box>
       </Modal>
