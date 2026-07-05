@@ -46,7 +46,7 @@ function getAppOrigin(req: NextRequest): string {
 
 async function cleanupExpiredBookings() {
   const expireAfterMinutes = Number(
-    process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || 5
+    process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || 10
   );
 
   const cutoff = new Date(Date.now() - expireAfterMinutes * 60 * 1000);
