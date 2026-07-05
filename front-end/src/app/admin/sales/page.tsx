@@ -96,6 +96,10 @@ type Sale = {
     startMinutes: number;
     endMinutes: number;
     schedule: string;
+    barber?: {
+      id: string;
+      name: string;
+    } | null;
   }[];
   payment: {
     id: string;
@@ -295,16 +299,33 @@ function getAppointmentCodeLabel(sale: Pick<Sale, "appointments">) {
   return appointmentCodes.length ? appointmentCodes.join(", ") : "—";
 }
 
-function getAppointmentScheduleLabel(sale: Pick<Sale, "appointments">) {
+function getAppointmentScheduleLabel(sale: Sale) {
+  // For walk-in sales we show the sale creation date instead of appointment schedules.
+  if (sale.source === "WALKIN") {
+    return formatDate(sale.createdAt);
+  }
+
   const schedules = sale.appointments.map((appt) => getAppointmentSchedule(appt));
 
-  return schedules.length ? schedules.join(", ") : "—";
+  return schedules.length ? schedules.join("\n") : "—";
 }
 
 function getAppointmentCodes(sale: Pick<Sale, "appointments">) {
   return sale.appointments
     .map((appt) => appt.appointmentCode)
     .filter(Boolean);
+}
+
+function getAppointmentBarberName(
+  sale: Pick<Sale, "appointments">,
+  serviceName: string
+) {
+  const barberNames = sale.appointments
+    .filter((appt) => appt.serviceName === serviceName)
+    .map((appt) => appt.barber?.name)
+    .filter(Boolean);
+
+  return barberNames.length ? [...new Set(barberNames)].join(", ") : "";
 }
 
 function fullName(person: any) {
@@ -515,9 +536,7 @@ export default function SalesPage() {
 
 
     const matchesStatus =
-      salesStatusFilter === "ALL" ||
-      sale.status === salesStatusFilter ||
-      sale.payment?.status?.toUpperCase() === salesStatusFilter;
+      salesStatusFilter === "ALL" || sale.status === salesStatusFilter;
 
     const matchesType =
       salesTypeFilter === "ALL" || sale.source === salesTypeFilter;
@@ -1299,7 +1318,9 @@ export default function SalesPage() {
                       <TableCell sx={bodyCell}>{sale.customer.name}</TableCell>
 
                       <TableCell sx={bodyCell}>
-                        {getAppointmentScheduleLabel(sale)}
+                        <Box sx={{ whiteSpace: "pre-line" }}>
+                          {getAppointmentScheduleLabel(sale)}
+                        </Box>
                       </TableCell>
                       <TableCell sx={bodyCell}>
                         {sale.barber?.name || "—"}
@@ -1326,14 +1347,14 @@ export default function SalesPage() {
                         >
                           <IconButton
                             size="small"
-                            disabled={sale.status !== "PENDING"}
+                            disabled={sale.status === "CANCELLED" || sale.status === "REFUNDED" || sale.status === "PAID"}
                             onClick={() => {
                               setSaleData(sale);
                               setOpenAdd(true);
                             }}
                             sx={{
                               ...actionIcon,
-                              opacity: sale.status !== "PENDING" ? 0.5 : 1,
+                              opacity:  1,
                             }}
                           >
                             <PaymentIcon sx={{ fontSize: 16 }} />
@@ -1693,7 +1714,7 @@ export default function SalesPage() {
                         : "Walk-in"}
                     </Typography>
                     <Typography sx={{ fontWeight: 900, color: "#777" }}>
-                      {selectedSale ? getSaleStatusLabel(selectedSale.status) : "Unpaid"}
+                      {selectedSale ? getSaleStatusLabel(selectedSale.status) : "Pending"}
                     </Typography>
                   </Box>
                 </Box>
@@ -2163,17 +2184,36 @@ export default function SalesPage() {
               <Box
                 key={`${item.id}-${item.serviceId}-${index}`}
                 sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto",
+                  alignItems: "center",
                   px: 2,
                   py: 1.5,
                   borderBottom: "1px solid #eee",
+                  gap: 1,
                 }}
               >
-                <Typography sx={{ fontWeight: 800 }}>
-                  {item.serviceName} x{item.quantity}
-                </Typography>
-                <Typography sx={{ fontWeight: 800 }}>
+                <Box>
+                  <Typography sx={{ fontWeight: 800 }}>
+                    {item.serviceName} x{item.quantity}
+                  </Typography>
+
+                  <Typography
+                    sx={{
+                      fontSize: 12,
+                      color: "#777",
+                      mt: 0.5,
+                    }}
+                  >
+                    {selectedSale
+                      ? getAppointmentBarberName(selectedSale, item.serviceName) ||
+                        selectedSale.barber?.name ||
+                        "—"
+                      : "—"}
+                  </Typography>
+                </Box>
+
+                <Typography sx={{ fontWeight: 800, textAlign: "right" }}>
                   {formatPeso(item.subtotal)}
                 </Typography>
               </Box>

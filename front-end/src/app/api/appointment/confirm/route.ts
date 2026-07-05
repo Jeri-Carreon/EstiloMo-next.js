@@ -10,6 +10,7 @@ import {
   assertAppointmentTimeAvailable,
   type TimeRange,
 } from "@/lib/appointmentAvailability";
+import { Prisma } from "@prisma/client";
 
 const ALLOWED_PAYMONGO_METHODS = ["card", "gcash", "qrph"];
 const CREATE_CHECKOUT_FUNCTION_NAME = "smooth-task";
@@ -385,20 +386,44 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        const appointment = await tx.appointment.create({
-          data: {
-            appointmentCode: await createUniqueCode("APT"),
-            customerId: dbUser.customer!.id,
-            barberId: item.barberId,
-            serviceId: item.serviceId,
-            saleId: sale.id,
-            appointmentDate: parsePHDateOnly(item.appointmentDate),
-            startMinutes,
-            endMinutes,
-            status: "PENDING",
-            source: "BOOKING",
-          },
-        });
+        const MAX_RETRIES = 5;
+        let appointment:
+          | Prisma.PromiseReturnType<typeof tx.appointment.create>
+          | undefined;
+
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+          try {
+            appointment = await tx.appointment.create({
+              data: {
+                appointmentCode: await createUniqueCode("APT", tx),
+                customerId: dbUser.customer!.id,
+                barberId: item.barberId,
+                serviceId: item.serviceId,
+                saleId: sale.id,
+                appointmentDate: parsePHDateOnly(item.appointmentDate),
+                startMinutes,
+                endMinutes,
+                status: "PENDING",
+                source: "BOOKING",
+              },
+            });
+            break;
+          } catch (err) {
+            const isCodeCollision =
+              err instanceof Prisma.PrismaClientKnownRequestError &&
+              err.code === "P2002" &&
+              (err.meta?.target as string[])?.includes("appointmentCode");
+
+            if (isCodeCollision && attempt < MAX_RETRIES - 1) {
+              continue; // regenerate a fresh code and retry the create
+            }
+            throw err;
+          }
+        }
+
+        if (!appointment) {
+          throw new Error("Failed to create appointment after retries");
+        }
 
         createdAppointments.push(appointment);
 

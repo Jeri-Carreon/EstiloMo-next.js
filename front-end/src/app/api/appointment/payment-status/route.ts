@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
         await tx.payment.update({
           where: { id: payment.id },
           data: {
-            status: state === "PAID" ? "PAID" : "REJECTED",
+            status: state === "PAID" ? "PARTIAL" : "REJECTED",
           },
         });
 

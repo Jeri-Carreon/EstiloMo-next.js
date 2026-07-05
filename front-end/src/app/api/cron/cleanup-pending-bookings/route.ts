@@ -31,7 +31,7 @@ export async function GET(req: Request) {
       where: {
         status: "PENDING",
         payment: {
-          some: {
+          is: {
             status: "REJECTED",
             createdAt: {
               lt: cutoff,
@@ -50,7 +50,7 @@ export async function GET(req: Request) {
         sale: {
           status: "PENDING",
           payment: {
-            some: {
+            is: {
               status: "REJECTED",
               createdAt: {
                 lt: cutoff,
