@@ -45,6 +45,7 @@ type Customer = {
 type Barber = {
   id: string;
   name: string;
+  isActive?: boolean;
 };
 
 type Service = {
@@ -452,6 +453,10 @@ export default function SalesPage() {
     return services.filter((service) => service.isAvailable);
   }, [services]);
 
+  const activeBarbers = useMemo(() => {
+    return barbers.filter((barber) => barber.isActive !== false);
+  }, [barbers]);
+
   function isServiceSelectable(service: Service) {
     if (selectedSale) return false;
     if (!selectedBarberId) return false;
@@ -642,13 +647,16 @@ export default function SalesPage() {
       setCustomers(Array.isArray(customerList) ? customerList : []);
 
       setBarbers(
-        (barbersData.barbers || barbersData || []).map((b: any) => ({
-          id: b.id,
-          name:
-            b.name ||
-            `${b.firstName ?? ""} ${b.lastName ?? ""}`.trim() ||
-            "Unknown Barber",
-        }))
+        (barbersData.barbers || barbersData || [])
+          .map((b: any) => ({
+            id: b.id,
+            name:
+              b.name ||
+              `${b.firstName ?? ""} ${b.lastName ?? ""}`.trim() ||
+              `${b.user?.firstName ?? ""} ${b.user?.lastName ?? ""}`.trim() ||
+              "Unknown Barber",
+            isActive: b.isActive ?? b.user?.isActive,
+          }))
       );
     } catch (error) {
       console.error("LOAD SALES DATA ERROR:", error);
@@ -668,11 +676,11 @@ export default function SalesPage() {
   }, []);
 
   useEffect(() => {
-    if (barbers.length === 1) {
-      setSelectedBarberId(barbers[0].id);
-      setSelectedBarber(barbers[0]);
+    if (activeBarbers.length === 1) {
+      setSelectedBarberId(activeBarbers[0].id);
+      setSelectedBarber(activeBarbers[0]);
     }
-  }, [barbers]);
+  }, [activeBarbers]);
 
   function resetForm() {
     setCustomerSearch("");
@@ -1502,7 +1510,7 @@ export default function SalesPage() {
                   const id = e.target.value;
                   setSelectedBarberId(id);
 
-                  const barber = barbers.find((b) => b.id === id) || null;
+                  const barber = activeBarbers.find((b) => b.id === id) || null;
                   setSelectedBarber(barber);
 
                   setCart([]);
@@ -1515,7 +1523,7 @@ export default function SalesPage() {
                   opacity: selectedSale ? 0.7 : 1,
                 }}
               >
-                {barbers.map((barber) => (
+                {activeBarbers.map((barber) => (
                   <MenuItem key={barber.id} value={barber.id}>
                     {barber.name}
                   </MenuItem>

@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const user = await getAdminUser()
+    const user = await getAdminUser();
+
     if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -18,6 +19,11 @@ export async function GET() {
             id: true,
             firstName: true,
             lastName: true,
+            user: {
+              select: {
+                isActive: true,
+              },
+            },
           },
         },
       },
@@ -41,6 +47,7 @@ export async function GET() {
         name:
           [staff.firstName, staff.lastName].filter(Boolean).join(" ") ||
           "Unknown",
+        isActive: staff.user?.isActive ?? false,
       })),
       totalBookings: service.totalBookings,
       totalRevenue: Number(service.totalRevenue),

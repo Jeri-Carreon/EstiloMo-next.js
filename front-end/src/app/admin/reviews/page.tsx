@@ -27,7 +27,6 @@ import CircularProgress from "@mui/material/CircularProgress";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import CloseIcon from "@mui/icons-material/Close";
-import SettingsIcon from "@mui/icons-material/Settings";
 
 type ReviewStatus = "PENDING" | "COMPLETED" | "REJECTED" | "HIDDEN";
 
@@ -252,10 +251,6 @@ export default function AdminReviewsPage() {
         >
           Customer Reviews
         </Typography>
-
-        <IconButton>
-          <SettingsIcon />
-        </IconButton>
       </Box>
 
       <Box sx={{ display: "flex", gap: 2, mb: 2, flexWrap: "wrap" }}>

@@ -44,8 +44,15 @@ import TextField from "@mui/material/TextField";
 
 type Barber = {
   id: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  isActive?: boolean;
+  user?: {
+    firstName?: string | null;
+    lastName?: string | null;
+    isActive?: boolean | null;
+  } | null;
   schedules: {
     id: string;
     dayOfWeek: number;
@@ -228,6 +235,21 @@ function compareNewestScheduleFirst(a: Appointment, b: Appointment) {
   return getAppointmentScheduleValue(b) - getAppointmentScheduleValue(a);
 }
 
+function isBarberActive(barber: Barber) {
+  return (barber.isActive ?? barber.user?.isActive) !== false;
+}
+
+function getBarberDisplayName(barber: Barber | undefined | null) {
+  if (!barber) return "Unknown Barber";
+
+  return (
+    barber.name ||
+    [barber.firstName, barber.lastName].filter(Boolean).join(" ") ||
+    [barber.user?.firstName, barber.user?.lastName].filter(Boolean).join(" ") ||
+    "Unknown Barber"
+  );
+}
+
 export default function BarbersPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -235,6 +257,7 @@ export default function BarbersPage() {
 
   const [openAvailability, setOpenAvailability] = useState(false);
   const [currentBarberIndex, setCurrentBarberIndex] = useState(0);
+  const [showUnavailableBarbers, setShowUnavailableBarbers] = useState(false);
 
   const [availabilityDraft, setAvailabilityDraft] = useState<
     AvailabilityRow[] | null
@@ -315,7 +338,13 @@ export default function BarbersPage() {
     refetchOnWindowFocus: true,
   });
 
-  const currentBarber = barbers[currentBarberIndex];
+  const displayedBarbers = useMemo(() => {
+    return showUnavailableBarbers
+      ? barbers
+      : barbers.filter(isBarberActive);
+  }, [barbers, showUnavailableBarbers]);
+
+  const currentBarber = displayedBarbers[currentBarberIndex];
   const defaultAvailability = useMemo(() => {
     if (!currentBarber) return [];
 
@@ -435,10 +464,12 @@ export default function BarbersPage() {
 
   const barberOption = useMemo(
     () =>
-      barbers.map((b) => ({
-        id: b.id,
-        name: `${b.firstName} ${b.lastName}`,
-      })),
+      barbers
+        .filter(isBarberActive)
+        .map((b) => ({
+          id: b.id,
+          name: getBarberDisplayName(b),
+        })),
     [barbers],
   );
 
@@ -660,10 +691,13 @@ export default function BarbersPage() {
 
 
   useEffect(() => {
-    if (barbers.length > 0 && currentBarberIndex > barbers.length - 1) {
+    if (
+      displayedBarbers.length > 0 &&
+      currentBarberIndex > displayedBarbers.length - 1
+    ) {
       setCurrentBarberIndex(0);
     }
-  }, [barbers.length, currentBarberIndex]);
+  }, [displayedBarbers.length, currentBarberIndex]);
 
   const formatAmount = (amount: number | string | null) => {
     if (amount === null || amount === undefined) {
@@ -1158,7 +1192,45 @@ export default function BarbersPage() {
   };
 
   if (!currentBarber) {
-    return <Typography>No barbers found.</Typography>;
+    return (
+      <Box sx={{ flex: 1, p: { xs: 2, sm: 3, md: 4 }, backgroundColor: "#fff" }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: { xs: "flex-start", sm: "center" },
+            justifyContent: "space-between",
+            flexDirection: { xs: "column", sm: "row" },
+            gap: 1,
+            mb: 2,
+          }}
+        >
+          <Typography variant="h3" sx={{ fontWeight: 700, fontSize: { xs: 30, sm: 38, md: 48 } }}>
+            {role === "BARBER" ? "My Appointments" : "Barber's Management"}
+          </Typography>
+
+          {role !== "BARBER" && (
+            <Button
+              variant={showUnavailableBarbers ? "contained" : "outlined"}
+              onClick={() => {
+                setShowUnavailableBarbers((prev) => !prev);
+                setCurrentBarberIndex(0);
+              }}
+              sx={{ textTransform: "none", fontWeight: 800, borderRadius: 2 }}
+            >
+              {showUnavailableBarbers
+                ? "Hide Unavailable Barbers"
+                : "Show Unavailable Barbers"}
+            </Button>
+          )}
+        </Box>
+
+        <Typography sx={{ color: "text.secondary", fontWeight: 700 }}>
+          {showUnavailableBarbers
+            ? "No barbers found."
+            : "No available barbers found. Click Show Unavailable Barbers to view inactive barbers."}
+        </Typography>
+      </Box>
+    );
   }
 
   return (
@@ -1195,6 +1267,26 @@ export default function BarbersPage() {
         >
           {role === "BARBER" ? "My Appointments" : "Barber's Management"}
         </Typography>
+
+        {role !== "BARBER" && (
+          <Button
+            variant={showUnavailableBarbers ? "contained" : "outlined"}
+            onClick={() => {
+              setShowUnavailableBarbers((prev) => !prev);
+              setCurrentBarberIndex(0);
+            }}
+            sx={{
+              textTransform: "none",
+              fontWeight: 800,
+              borderRadius: 2,
+              width: { xs: "100%", sm: "auto" },
+            }}
+          >
+            {showUnavailableBarbers
+              ? "Hide Unavailable Barbers"
+              : "Show Unavailable Barbers"}
+          </Button>
+        )}
       </Box>
 
       <Box
@@ -1214,7 +1306,7 @@ export default function BarbersPage() {
             overflowWrap: "anywhere",
           }}
         >
-          {currentBarber.firstName} {currentBarber.lastName}
+          {getBarberDisplayName(currentBarber)}
         </Typography>
       </Box>
 
@@ -1692,7 +1784,7 @@ export default function BarbersPage() {
           <Button
             variant="contained"
             endIcon={<ArrowForwardIosIcon />}
-            disabled={currentBarberIndex === barbers.length - 1}
+            disabled={currentBarberIndex === displayedBarbers.length - 1}
             onClick={() => setCurrentBarberIndex((p) => p + 1)}
           >
             Next
@@ -1743,7 +1835,7 @@ export default function BarbersPage() {
                 overflowWrap: "anywhere",
               }}
             >
-              {currentBarber.firstName} {currentBarber.lastName}
+              {getBarberDisplayName(currentBarber)}
             </Typography>
 
             <IconButton onClick={() => setOpenAvailability(false)}>

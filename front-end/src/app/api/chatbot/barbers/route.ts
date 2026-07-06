@@ -15,10 +15,22 @@ function minutesToTime(minutes: number) {
 export async function GET() {
   try {
     const barbers = await db.barber.findMany({
+      where: {
+        user: {
+          isActive: true,
+        },
+      },
       select: {
         id: true,
         firstName: true,
         lastName: true,
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+            isActive: true,
+          },
+        },
         schedules: {
           select: {
             dayOfWeek: true,
@@ -45,7 +57,12 @@ export async function GET() {
       ok: true,
       barbers: barbers.map((barber) => ({
         id: barber.id,
-        name: [barber.firstName, barber.lastName].filter(Boolean).join(" "),
+        name:
+          [barber.user?.firstName, barber.user?.lastName]
+            .filter(Boolean)
+            .join(" ") ||
+          [barber.firstName, barber.lastName].filter(Boolean).join(" "),
+        isActive: barber.user?.isActive ?? true,
         schedules: barber.schedules.map((schedule) => ({
           dayOfWeek: schedule.dayOfWeek,
           startTime: schedule.startTime,
