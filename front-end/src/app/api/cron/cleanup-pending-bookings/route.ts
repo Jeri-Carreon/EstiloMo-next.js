@@ -58,7 +58,7 @@ export async function GET(req: Request) {
           },
         },
       },
-      data: { status: "CANCELLED" },
+      data: { status: "REJECTED" },
     });
 
     return {
