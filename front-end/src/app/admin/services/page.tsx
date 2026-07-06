@@ -354,7 +354,6 @@ export default function ServicesPage() {
       }
 
       await queryClient.invalidateQueries({ queryKey: ["adminServicesData"] });
-      setServices((prev) => [...prev, createdService]);
       setOpenAdd(false);
       resetAddForm();
       showStatusModal("Success", "Service created successfully!");
@@ -438,11 +437,6 @@ export default function ServicesPage() {
       }
 
       await queryClient.invalidateQueries({ queryKey: ["adminServicesData"] });
-      setServices((prev) =>
-        prev.map((service) =>
-          service.id === selectedService.id ? data.service : service
-        )
-      );
 
       setOpenEdit(false);
       setSelectedService(null);
