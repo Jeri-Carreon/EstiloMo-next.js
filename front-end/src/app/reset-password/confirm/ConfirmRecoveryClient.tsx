@@ -1,13 +1,12 @@
-import { Suspense } from "react";
-import ConfirmRecoveryClient from "./ConfirmRecoveryClient";
+"use client";
 
-export default function ConfirmRecoveryPage() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <ConfirmRecoveryClient />
-    </Suspense>
-  );
-}
+import { useSearchParams, useRouter } from "next/navigation";
+import { useState } from "react";
+
+export default function ConfirmRecoveryClient() {
+  const params = useSearchParams();
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleConfirm = async () => {
