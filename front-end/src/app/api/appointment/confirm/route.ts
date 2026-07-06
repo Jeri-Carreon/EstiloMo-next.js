@@ -312,6 +312,11 @@ export async function POST(req: NextRequest) {
         return sum + Number(item.servicePrice || 0);
       }, 0);
 
+      const checkoutExpiresAt = new Date(
+        Date.now() +
+          Number(process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || 5) * 60 * 1000
+      );
+
       const sale = await tx.sale.create({
         data: {
           saleCode: await createUniqueCode("TRX"),
@@ -320,6 +325,7 @@ export async function POST(req: NextRequest) {
           source: "BOOKING",
           status: "PENDING",
           downPaymentStatus: "PENDING",
+          checkoutExpiresAt,
           subtotal,
           discount: 0,
           totalAmount: subtotal,
