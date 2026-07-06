@@ -75,6 +75,7 @@ interface CustomerOption {
 interface BarberOption {
   id: string;
   name: string;
+  isActive: boolean;
 }
 
 interface ServiceOption {
@@ -431,14 +432,17 @@ export default function AppointmentsPage() {
     );
 
     setBarbers(
-      barbersArray.map((b: any) => ({
-        id: b.id,
-        name:
-          b.name ||
-          [b.firstName, b.lastName].filter(Boolean).join(' ') ||
-          b.email ||
-          'Unknown Barber',
-      }))
+      barbersArray
+        .filter((b: any) => b.isActive !== false)
+        .map((b: any) => ({
+          id: b.id,
+          name:
+            b.name ||
+            [b.firstName, b.lastName].filter(Boolean).join(' ') ||
+            b.email ||
+            'Unknown Barber',
+          isActive: b.isActive ?? true,
+        }))
     );
   } catch (error) {
     console.error('LOAD OPTIONS ERROR:', error);

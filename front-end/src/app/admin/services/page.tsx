@@ -46,6 +46,7 @@ interface Service {
   assignedStaff: {
     id: string;
     name: string;
+    isActive?: boolean;
   }[];
   isAvailable: boolean;
   sortOrder: number;
@@ -87,7 +88,7 @@ export default function ServicesPage() {
   const [serviceDescription, setServiceDescription] = useState("");
   const [serviceDuration, setServiceDuration] = useState("");
   const [servicePrice, setServicePrice] = useState("");
-  const [staffList, setStaffList] = useState<{ id: string; name: string }[]>([]);
+  const [staffList, setStaffList] = useState<{ id: string; name: string; isActive?: boolean }[]>([]);
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
   const [serviceAvailability, setServiceAvailability] = useState(true);
   const [serviceImageFile, setServiceImageFile] = useState<File | null>(null);
@@ -119,6 +120,12 @@ export default function ServicesPage() {
   const [saving, setSaving] = useState(false);
 
   const itemsPerPage = 5;
+
+  const activeStaffList = staffList.filter((staff) => staff.isActive !== false);
+
+  function getActiveAssignedStaff(service: Service) {
+    return service.assignedStaff.filter((staff) => staff.isActive !== false);
+  }
 
   const showStatusModal = (title: string, message: string) => {
     setStatusTitle(title);
@@ -601,9 +608,9 @@ export default function ServicesPage() {
                     <TableCell>{service.durationMinutes} mins</TableCell>
                     <TableCell>₱ {service.price}</TableCell>
                     <TableCell>
-                      {service.assignedStaff.length > 0
-                        ? service.assignedStaff.map((staff) => staff.name).join(", ")
-                        : "No Staff"}
+                      {getActiveAssignedStaff(service).length > 0
+                        ? getActiveAssignedStaff(service).map((staff) => staff.name).join(", ")
+                        : "No Available Staff"}
                     </TableCell>
                     <TableCell>
                       <Typography sx={{ color: service.isAvailable ? "success.main" : "error.main", fontWeight: 600 }}>
@@ -719,7 +726,7 @@ export default function ServicesPage() {
               <Box>
                 <Typography sx={{ mb: 1, fontWeight: 600, fontSize: 14 }}>Assign Barbers</Typography>
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 1, maxHeight: 160, overflowY: "auto", p: 1, border: "1px solid #ddd", borderRadius: 2 }}>
-                  {staffList.map((staff) => (
+                  {activeStaffList.map((staff) => (
                     <Box key={staff.id} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <input
                         type="checkbox"
@@ -818,7 +825,7 @@ export default function ServicesPage() {
               <Box>
                 <Typography sx={{ mb: 1, fontWeight: 600, fontSize: 14 }}>Assign Barbers</Typography>
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 1, maxHeight: 160, overflowY: "auto", p: 1, border: "1px solid #ddd", borderRadius: 2 }}>
-                  {staffList.map((staff) => (
+                  {activeStaffList.map((staff) => (
                     <Box key={staff.id} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <input
                         type="checkbox"

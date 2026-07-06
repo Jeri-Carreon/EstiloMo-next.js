@@ -30,6 +30,7 @@ type ChatbotSetting = {
 type BarberOption = {
   id: string;
   name: string;
+  isActive?: boolean;
 };
 
 const fallbackSettings: ChatbotSetting[] = [
@@ -122,7 +123,9 @@ export default function ChatbotFloatingButton() {
   });
 
   const settings = chatbotSettings ?? fallbackSettings;
-  const barbers = chatbotBarbers ?? [];
+  const barbers = (chatbotBarbers ?? []).filter(
+    (barber) => barber.isActive !== false
+  );
 
   useEffect(() => {
     scrollToBottom();

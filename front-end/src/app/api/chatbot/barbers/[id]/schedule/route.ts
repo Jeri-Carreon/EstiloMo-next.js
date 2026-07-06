@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-
 import { db } from "@/lib/db";
 
 const DAYS = [
@@ -44,9 +43,7 @@ export async function GET(
           ok: false,
           error: "Missing barber id.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
@@ -64,6 +61,13 @@ export async function GET(
         id: true,
         firstName: true,
         lastName: true,
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+            isActive: true,
+          },
+        },
         schedules: {
           select: {
             dayOfWeek: true,
@@ -99,18 +103,30 @@ export async function GET(
           ok: false,
           error: "Barber not found.",
         },
-        {
-          status: 404,
-        }
+        { status: 404 }
       );
     }
 
-    const barberName = [barber.firstName, barber.lastName]
-      .filter(Boolean)
-      .join(" ");
+    if (barber.user?.isActive === false) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Barber is currently unavailable.",
+        },
+        { status: 404 }
+      );
+    }
+
+    const barberName =
+      [barber.user?.firstName, barber.user?.lastName]
+        .filter(Boolean)
+        .join(" ") ||
+      [barber.firstName, barber.lastName].filter(Boolean).join(" ");
 
     const weeklySchedule = DAYS.map((day, index) => {
-      const schedule = barber.schedules.find((item) => item.dayOfWeek === index);
+      const schedule = barber.schedules.find(
+        (item) => item.dayOfWeek === index
+      );
 
       if (!schedule || schedule.isDayOff) {
         return {
@@ -141,7 +157,9 @@ export async function GET(
     const absences = barber.absence.map((absence) => ({
       date: toDateKey(absence.date),
       reason: absence.reason || null,
-      label: `${toDateKey(absence.date)}${absence.reason ? ` - ${absence.reason}` : ""}`,
+      label: `${toDateKey(absence.date)}${
+        absence.reason ? ` - ${absence.reason}` : ""
+      }`,
     }));
 
     const scheduleText = weeklySchedule.map((item) => item.label).join("\n");
@@ -155,6 +173,7 @@ export async function GET(
       barber: {
         id: barber.id,
         name: barberName,
+        isActive: barber.user?.isActive ?? true,
       },
       weeklySchedule,
       absences,
@@ -171,9 +190,7 @@ export async function GET(
         ok: false,
         error: "Failed to fetch barber schedule.",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }
