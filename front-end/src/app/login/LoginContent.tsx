@@ -50,9 +50,7 @@ export default function LoginContent() {
 
         await fetch("/api/auth/security-login", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             email: normalizedEmail,
             success: false,
@@ -89,9 +87,7 @@ export default function LoginContent() {
 
       await fetch("/api/auth/security-login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: normalizedEmail,
           success: true,
@@ -339,7 +335,6 @@ const fieldSx = {
     color: "#fff",
   },
 
-  // Fix Chrome/Edge autofill background
   "& input:-webkit-autofill": {
     WebkitBoxShadow: "0 0 0 100px rgba(0,0,0,0.25) inset",
     WebkitTextFillColor: "#fff",

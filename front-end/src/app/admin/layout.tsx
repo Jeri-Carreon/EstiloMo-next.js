@@ -1,5 +1,6 @@
 import Sidebar from "@/components/admin/Sidebar";
 import Providers from "./providers";
+import AdminInactivityLogout from "@/components/adminInactivity";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
@@ -43,6 +44,8 @@ export default async function AdminLayout({
 
   return (
     <Providers>
+      <AdminInactivityLogout />
+
       <div
         style={{
           display: "flex",
