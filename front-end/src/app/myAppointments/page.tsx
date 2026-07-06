@@ -245,6 +245,18 @@ export default function MyAppointmentsPage() {
               queryKey: ["customerAppointmentsHistory"],
             });
             setBookingSuccessOpen(true);
+            return;
+          }
+
+          if (
+            res.ok &&
+            data.downPaymentStatus &&
+            ["FAILED", "CANCELLED", "EXPIRED"].includes(
+              String(data.downPaymentStatus).toUpperCase()
+            )
+          ) {
+            window.clearInterval(timer);
+            window.localStorage.removeItem("estilomoPendingCheckout");
           }
         } catch (error) {
           console.error(error);

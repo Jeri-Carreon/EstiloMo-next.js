@@ -10,6 +10,8 @@ import {
   assertAppointmentTimeAvailable,
   type TimeRange,
 } from "@/lib/appointmentAvailability";
+import { Prisma } from "@prisma/client";
+import { getAppOriginFromRequest } from "@/lib/appOrigin";
 
 const ALLOWED_PAYMONGO_METHODS = ["card", "gcash", "qrph"];
 const CREATE_CHECKOUT_FUNCTION_NAME = "smooth-task";
@@ -310,6 +312,11 @@ export async function POST(req: NextRequest) {
         return sum + Number(item.servicePrice || 0);
       }, 0);
 
+      const checkoutExpiresAt = new Date(
+        Date.now() +
+          Number(process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || 5) * 60 * 1000
+      );
+
       const sale = await tx.sale.create({
         data: {
           saleCode: await createUniqueCode("TRX"),
@@ -318,6 +325,7 @@ export async function POST(req: NextRequest) {
           source: "BOOKING",
           status: "PENDING",
           downPaymentStatus: "PENDING",
+          checkoutExpiresAt,
           subtotal,
           discount: 0,
           totalAmount: subtotal,
@@ -385,20 +393,44 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        const appointment = await tx.appointment.create({
-          data: {
-            appointmentCode: await createUniqueCode("APT"),
-            customerId: dbUser.customer!.id,
-            barberId: item.barberId,
-            serviceId: item.serviceId,
-            saleId: sale.id,
-            appointmentDate: parsePHDateOnly(item.appointmentDate),
-            startMinutes,
-            endMinutes,
-            status: "PENDING",
-            source: "BOOKING",
-          },
-        });
+        const MAX_RETRIES = 5;
+        let appointment:
+          | Prisma.PromiseReturnType<typeof tx.appointment.create>
+          | undefined;
+
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+          try {
+            appointment = await tx.appointment.create({
+              data: {
+                appointmentCode: await createUniqueCode("APT", tx),
+                customerId: dbUser.customer!.id,
+                barberId: item.barberId,
+                serviceId: item.serviceId,
+                saleId: sale.id,
+                appointmentDate: parsePHDateOnly(item.appointmentDate),
+                startMinutes,
+                endMinutes,
+                status: "PENDING",
+                source: "BOOKING",
+              },
+            });
+            break;
+          } catch (err) {
+            const isCodeCollision =
+              err instanceof Prisma.PrismaClientKnownRequestError &&
+              err.code === "P2002" &&
+              (err.meta?.target as string[])?.includes("appointmentCode");
+
+            if (isCodeCollision && attempt < MAX_RETRIES - 1) {
+              continue; // regenerate a fresh code and retry the create
+            }
+            throw err;
+          }
+        }
+
+        if (!appointment) {
+          throw new Error("Failed to create appointment after retries");
+        }
 
         createdAppointments.push(appointment);
 
@@ -449,7 +481,7 @@ export async function POST(req: NextRequest) {
       checkoutHeaders.Authorization = `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`;
     }
 
-    const appOrigin = req.headers.get("origin") || req.nextUrl.origin;
+    const appOrigin = getAppOriginFromRequest(req);
 
     const appointmentIds = result.appointments.map(
       (appointment) => appointment.id
@@ -578,6 +610,20 @@ export async function POST(req: NextRequest) {
         {
           status: error.status,
         }
+      );
+    }
+
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.meta?.code === "23P01"
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "This time slot was just booked by someone else. Please pick another time.",
+        },
+        { status: 409 }
       );
     }
 

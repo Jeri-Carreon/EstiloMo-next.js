@@ -89,14 +89,28 @@ export async function GET() {
           mobileNumber: sale.customer.mobileNumber,
         },
 
-        barber: sale.barber
-          ? {
+        barber: (() => {
+          // Prefer the sale-level barber (used for WALKIN). If missing,
+          // aggregate first names from appointment barbers for BOOKING.
+          if (sale.barber) {
+            const firstName = sale.barber.firstName || "";
+            const lastName = sale.barber.lastName || "";
+            const combined = [firstName, lastName].filter(Boolean).join(" ");
+
+            return {
               id: sale.barber.id,
-              name: [sale.barber.firstName, sale.barber.lastName]
-                .filter(Boolean)
-                .join(" "),
-            }
-          : null,
+              name: combined || sale.barber.firstName || "",
+            };
+          }
+
+          const barberNames = sale.appointments
+            .map((appt) => appt.barber?.firstName)
+            .filter(Boolean);
+
+          return barberNames.length
+            ? { id: "", name: [...new Set(barberNames)].join(", ") }
+            : null;
+        })(),
 
         items: sale.items.map((item) => ({
           id: item.id,
@@ -132,6 +146,14 @@ export async function GET() {
           schedule: `${appointment.appointmentDate.toLocaleDateString()} ${minutesToTime(
             appointment.startMinutes
           )} - ${minutesToTime(appointment.endMinutes)}`,
+          barber: appointment.barber
+            ? {
+                id: appointment.barber.id,
+                name: [appointment.barber.firstName, appointment.barber.lastName]
+                  .filter(Boolean)
+                  .join(" "),
+              }
+            : null,
           payment: appointment.payment
             ? {
                 id: appointment.payment.id,
@@ -146,6 +168,7 @@ export async function GET() {
               }
             : null,
         })),
+
       })),
     });
   } catch (error) {
@@ -242,6 +265,7 @@ export async function POST(req: Request) {
           barberId: barberId || null,
           source: "WALKIN",
           status: "PENDING",
+          downPaymentStatus: "WALKIN",
           subtotal: 0,
           discount: parsedDiscount,
           totalAmount: 0,

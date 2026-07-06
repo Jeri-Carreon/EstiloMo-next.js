@@ -1603,11 +1603,6 @@ export default function AppointmentsPage() {
                     px: 3,
                   }}
                 >
-                  {loadingTimes && (
-                    <Typography sx={{ width: '100%', textAlign: 'center' }}>
-                      Loading times...
-                    </Typography>
-                  )}
 
                   {!loadingTimes &&
                     selectedAddDate &&
@@ -2460,12 +2455,6 @@ export default function AppointmentsPage() {
                   px: 3,
                 }}
               >
-                {loadingTimes && (
-                  <Typography sx={{ width: '100%', textAlign: 'center' }}>
-                    Loading times...
-                  </Typography>
-                )}
-
                 {!loadingTimes && selectedAddDate && availableTimes.length === 0 && (
                   <Typography sx={{ width: '100%', textAlign: 'center' }}>
                     No available times.

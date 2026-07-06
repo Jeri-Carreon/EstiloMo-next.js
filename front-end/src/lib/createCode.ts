@@ -1,16 +1,21 @@
 import { db } from "@/lib/db";
 import { todayCodePH } from "@/lib/dateUtils";
+import { Prisma } from "@prisma/client";
 
 export type CodePrefix = "APT" | "TRX" | "PAY";
+type DbClient = typeof db | Prisma.TransactionClient;
 
-export async function createUniqueCode(prefix: CodePrefix) {
+export async function createUniqueCode(
+  prefix: CodePrefix,
+  client: DbClient = db
+) {
   const datePrefix = todayCodePH();
   const fullPrefix = `${prefix}-${datePrefix}`;
 
   let existingCodes = new Set<string>();
 
   if (prefix === "APT") {
-    const rows = await db.appointment.findMany({
+    const rows = await client.appointment.findMany({
       where: {
         appointmentCode: {
           startsWith: `${fullPrefix}-`,
@@ -25,7 +30,7 @@ export async function createUniqueCode(prefix: CodePrefix) {
   }
 
   if (prefix === "TRX") {
-    const rows = await db.sale.findMany({
+    const rows = await client.sale.findMany({
       where: {
         saleCode: {
           startsWith: `${fullPrefix}-`,
@@ -40,7 +45,7 @@ export async function createUniqueCode(prefix: CodePrefix) {
   }
 
   if (prefix === "PAY") {
-    const rows = await db.payment.findMany({
+    const rows = await client.payment.findMany({
       where: {
         paymentCode: {
           startsWith: `${fullPrefix}-`,
