@@ -24,6 +24,25 @@ export async function PUT(
 
     const body = await req.json();
 
+    const existingUser = await db.user.findUnique({
+      where: { id },
+      select: { role: true },
+    });
+
+    if (!existingUser) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    if (existingUser.role === "OWNER" && body.role !== "OWNER") {
+      return NextResponse.json(
+        { error: "Cannot change Owner role." },
+        { status: 403 }
+      );
+    }
+
     const updatedUser = await db.user.update({
       where: { 
         id 
