@@ -607,6 +607,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.meta?.code === "23P01"
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "This time slot was just booked by someone else. Please pick another time.",
+        },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json(
       {
         error: "Failed to confirm appointment",
