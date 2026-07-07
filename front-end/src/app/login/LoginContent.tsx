@@ -97,7 +97,14 @@ export default function LoginContent() {
       const res = await fetch("/api/user/role");
 
       if (!res.ok) {
-        setErrorMsg("Failed to load user info. Please try again.");
+        if (res.status === 401) {
+          await supabase.auth.signOut().catch(() => null);
+          setErrorMsg(
+            "Your account is inactive or unauthorized. Please contact support."
+          );
+        } else {
+          setErrorMsg("Failed to load user info. Please try again.");
+        }
         setLoading(false);
         return;
       }

@@ -1012,7 +1012,7 @@ export default function ReportsPage() {
               px: 2.5,
               pt: 2,
               pb: 1,
-              minHeight: 220,
+              minHeight: 400,
               maxHeight: 340,
               overflowY: "auto",
             }}

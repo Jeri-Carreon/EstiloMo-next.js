@@ -48,20 +48,17 @@ export async function GET(req: Request) {
       where: {
         status: "PENDING",
         sale: {
-          status: "PENDING",
-          payment: {
-            is: {
-              status: "REJECTED",
-              createdAt: {
-                lt: cutoff,
+          is: {
+            payment: {
+              is: {
+                status: "REJECTED",
+                createdAt: { lt: cutoff },
               },
             },
           },
         },
       },
-      data: {
-        status: "CANCELLED",
-      },
+      data: { status: "REJECTED" },
     });
 
     return {

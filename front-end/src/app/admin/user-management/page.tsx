@@ -447,7 +447,7 @@ export default function AdminPage() {
                   >
                     <TableCell>
                       {String((page - 1) * itemsPerPage + index + 1).padStart(
-                        3,
+                        1,
                         "0"
                       )}
                     </TableCell>
@@ -483,12 +483,7 @@ export default function AdminPage() {
                           setEditLastName(names.slice(1).join(" ") || "");
                           setEditEmail(user.email);
                           setEditMobileNumber(user.mobileNumber);
-                          setEditRole(
-                            user.role === "RECEPTIONIST" ||
-                              user.role === "BARBER"
-                              ? user.role
-                              : "RECEPTIONIST"
-                          );
+                          setEditRole(user.role || "RECEPTIONIST");
 
                           setOpenEdit(true);
                         }}
@@ -886,6 +881,7 @@ export default function AdminPage() {
                   },
                 }}
               >
+                <MenuItem value="OWNER">Owner</MenuItem>
                 <MenuItem value="RECEPTIONIST">Receptionist</MenuItem>
                 <MenuItem value="BARBER">Barber</MenuItem>
               </Select>

@@ -634,7 +634,6 @@ export default function AdminLoyaltyCardPage() {
             sx={{ mb: 2, bgcolor: "#fff" }}
           >
             <MenuItem value="50% Off">50% Off</MenuItem>
-            <MenuItem value="Free Add-on">Free Add-on</MenuItem>
           </TextField>
 
           <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
@@ -652,7 +651,6 @@ export default function AdminLoyaltyCardPage() {
             sx={{ mb: 5, bgcolor: "#fff" }}
           >
             <MenuItem value="100% Off">100% Off</MenuItem>
-            <MenuItem value="Free Service">Free Service</MenuItem>
           </TextField>
 
           <Box sx={{ display: "flex", justifyContent: "center" }}>

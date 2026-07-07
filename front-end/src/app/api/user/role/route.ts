@@ -13,8 +13,12 @@ export async function GET() {
 
   const dbUser = await db.user.findUnique({
     where: { email: user.email! },
-    select: { role: true }
+    select: { role: true, isActive: true }
   })
 
-  return NextResponse.json({ role: dbUser?.role })
+  if (!dbUser || dbUser.isActive === false) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  return NextResponse.json({ role: dbUser.role })
 }
