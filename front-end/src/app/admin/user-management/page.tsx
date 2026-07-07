@@ -447,7 +447,7 @@ export default function AdminPage() {
                   >
                     <TableCell>
                       {String((page - 1) * itemsPerPage + index + 1).padStart(
-                        3,
+                        1,
                         "0"
                       )}
                     </TableCell>

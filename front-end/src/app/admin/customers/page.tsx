@@ -619,7 +619,11 @@ export default function CustomersPage() {
 
             <TextField
               placeholder="juandelacruz@gmail.com"
-              label="Email Address"
+              label={
+                <>
+                  Email Address <span style={{ color: "red" }}>*</span>
+                </>
+              }
               fullWidth
               value={email}
               onChange={(e) => setEmail(e.target.value)}
