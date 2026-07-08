@@ -156,7 +156,9 @@ export default function Banner() {
               variant="contained"
               color="secondary"
               size="large"
-              href="/download"
+              component="a"
+              href="/downloads/EstiloMo.apk"
+              download
               sx={{
                 fontSize: {
                   xs: "1rem",
