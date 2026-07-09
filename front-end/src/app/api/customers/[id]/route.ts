@@ -117,7 +117,7 @@ export async function PUT(
         customerCode: updatedCustomer.customerCode,
         type: updatedCustomer.customerType,
         name: `${updatedCustomer.firstName} ${updatedCustomer.lastName}`,
-        contactNumber: updatedCustomer.mobileNumber,
+        mobileNumber: updatedCustomer.mobileNumber,
         email: updatedCustomer.email || "N/A",
         totalAppointments: 0,
         totalSpent: 0,

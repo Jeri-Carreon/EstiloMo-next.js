@@ -68,7 +68,7 @@ export default function BarberStep({
       return data.barbers || [];
     },
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const handleNext = () => {

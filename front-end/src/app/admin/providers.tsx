@@ -13,7 +13,7 @@ export default function Providers({
       new QueryClient({
         defaultOptions: {
           queries: {
-            refetchOnWindowFocus: true,
+            refetchOnWindowFocus: false,
             retry: 1,
             staleTime: 0,
           },

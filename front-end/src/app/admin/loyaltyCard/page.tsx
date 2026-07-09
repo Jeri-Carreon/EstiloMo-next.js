@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -40,6 +40,8 @@ type LoyaltySettings = {
   stickersPerTransaction: number;
   fiveStickerReward: string;
   tenStickerReward: string;
+  fiftyPercentStickerThreshold: number;
+  freeStickerThreshold: number;
 };
 
 type Activity = {
@@ -68,6 +70,9 @@ export default function AdminLoyaltyCardPage() {
   const [stickersPerTransaction, setStickersPerTransaction] = useState(1);
   const [fiveStickerReward, setFiveStickerReward] = useState("50% Off");
   const [tenStickerReward, setTenStickerReward] = useState("100% Off");
+  const [fiftyPercentStickerThreshold, setFiftyPercentStickerThreshold] =
+    useState(5);
+  const [freeStickerThreshold, setFreeStickerThreshold] = useState(10);
 
   const { data: loyaltyData, isLoading: loading } = useQuery<{
     cards: LoyaltyCard[];
@@ -83,14 +88,6 @@ export default function AdminLoyaltyCardPage() {
       if (!user) {
         router.push("/login");
         throw new Error("Not authenticated");
-      }
-
-      const roleRes = await fetch("/api/user/role", { cache: "no-store" });
-      const roleData = await roleRes.json();
-
-      if (!["OWNER", "RECEPTIONIST"].includes(roleData.role)) {
-        router.push("/unauthorized");
-        throw new Error("Unauthorized");
       }
 
       const res = await fetch("/api/admin/loyaltyCard", {
@@ -115,24 +112,12 @@ export default function AdminLoyaltyCardPage() {
       };
     },
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
-  const cards = loyaltyData?.cards || [];
+  const cards = useMemo(() => loyaltyData?.cards || [], [loyaltyData?.cards]);
   const activities = loyaltyData?.activities || [];
   const settings = loyaltyData?.settings || null;
-
-  useEffect(() => {
-    if (!settings) return;
-
-    setStickersPerTransaction(settings.stickersPerTransaction);
-    setFiveStickerReward(settings.fiveStickerReward);
-    setTenStickerReward(settings.tenStickerReward);
-  }, [
-    settings?.stickersPerTransaction,
-    settings?.fiveStickerReward,
-    settings?.tenStickerReward,
-  ]);
 
   const filteredCards = useMemo(() => {
     return cards.filter((card) => {
@@ -155,6 +140,20 @@ export default function AdminLoyaltyCardPage() {
     setSelectedCard(card);
     setEditStatus(card.status);
     setEditOpen(true);
+  };
+
+  const openSettings = () => {
+    if (settings) {
+      setStickersPerTransaction(settings.stickersPerTransaction);
+      setFiveStickerReward(settings.fiveStickerReward);
+      setTenStickerReward(settings.tenStickerReward);
+      setFiftyPercentStickerThreshold(
+        settings.fiftyPercentStickerThreshold || 5
+      );
+      setFreeStickerThreshold(settings.freeStickerThreshold || 10);
+    }
+
+    setSettingsOpen(true);
   };
 
   const saveEdit = async () => {
@@ -187,6 +186,17 @@ export default function AdminLoyaltyCardPage() {
 
   const saveSettings = async () => {
     try {
+      if (
+        !Number.isInteger(fiftyPercentStickerThreshold) ||
+        !Number.isInteger(freeStickerThreshold) ||
+        fiftyPercentStickerThreshold < 1 ||
+        freeStickerThreshold <= fiftyPercentStickerThreshold
+      ) {
+        throw new Error(
+          "Free reward sticker count must be higher than the 50% reward count."
+        );
+      }
+
       const res = await fetch("/api/admin/loyaltyCard", {
         method: "PUT",
         headers: {
@@ -196,6 +206,8 @@ export default function AdminLoyaltyCardPage() {
           stickersPerTransaction,
           fiveStickerReward,
           tenStickerReward,
+          fiftyPercentStickerThreshold,
+          freeStickerThreshold,
         }),
       });
 
@@ -241,7 +253,7 @@ export default function AdminLoyaltyCardPage() {
           Loyalty Card
         </Typography>
 
-        <IconButton onClick={() => setSettingsOpen(true)}>
+        <IconButton onClick={openSettings}>
           <SettingsIcon sx={{ fontSize: 32, color: "#111" }} />
         </IconButton>
       </Box>
@@ -619,39 +631,105 @@ export default function AdminLoyaltyCardPage() {
             <MenuItem value={3}>3 Stickers</MenuItem>
           </TextField>
 
-          <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
-            5 Stickers Reward{" "}
-            <Box component="span" sx={{ color: "red" }}>
-              *
-            </Box>
-          </Typography>
-
-          <TextField
-            select
-            fullWidth
-            value={fiveStickerReward}
-            onChange={(e) => setFiveStickerReward(e.target.value)}
-            sx={{ mb: 2, bgcolor: "#fff" }}
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "1fr 120px",
+              gap: 1.5,
+              mb: 2,
+            }}
           >
-            <MenuItem value="50% Off">50% Off</MenuItem>
-          </TextField>
+            <Box>
+              <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
+                50% Reward{" "}
+                <Box component="span" sx={{ color: "red" }}>
+                  *
+                </Box>
+              </Typography>
 
-          <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
-            10 Stickers Reward{" "}
-            <Box component="span" sx={{ color: "red" }}>
-              *
+              <TextField
+                select
+                fullWidth
+                value={fiveStickerReward}
+                onChange={(e) => setFiveStickerReward(e.target.value)}
+                sx={{ bgcolor: "#fff" }}
+              >
+                <MenuItem value="50% Off">50% Off</MenuItem>
+              </TextField>
             </Box>
-          </Typography>
 
-          <TextField
-            select
-            fullWidth
-            value={tenStickerReward}
-            onChange={(e) => setTenStickerReward(e.target.value)}
-            sx={{ mb: 5, bgcolor: "#fff" }}
+            <Box>
+              <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
+                Eligible At
+              </Typography>
+
+              <TextField
+                fullWidth
+                type="number"
+                value={fiftyPercentStickerThreshold}
+                onChange={(e) =>
+                  setFiftyPercentStickerThreshold(Number(e.target.value))
+                }
+                slotProps={{
+                  htmlInput: {
+                    min: 1,
+                    max: 99,
+                    step: 1,
+                  },
+                }}
+                sx={{ bgcolor: "#fff" }}
+              />
+            </Box>
+          </Box>
+
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "1fr 120px",
+              gap: 1.5,
+              mb: 5,
+            }}
           >
-            <MenuItem value="100% Off">100% Off</MenuItem>
-          </TextField>
+            <Box>
+              <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
+                Free Reward{" "}
+                <Box component="span" sx={{ color: "red" }}>
+                  *
+                </Box>
+              </Typography>
+
+              <TextField
+                select
+                fullWidth
+                value={tenStickerReward}
+                onChange={(e) => setTenStickerReward(e.target.value)}
+                sx={{ bgcolor: "#fff" }}
+              >
+                <MenuItem value="100% Off">100% Off</MenuItem>
+              </TextField>
+            </Box>
+
+            <Box>
+              <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
+                Eligible At
+              </Typography>
+
+              <TextField
+                fullWidth
+                type="number"
+                value={freeStickerThreshold}
+                onChange={(e) => setFreeStickerThreshold(Number(e.target.value))}
+                slotProps={{
+                  htmlInput: {
+                    min: 2,
+                    max: 100,
+                    step: 1,
+                  },
+                }}
+                sx={{ bgcolor: "#fff" }}
+              />
+            </Box>
+          </Box>
 
           <Box sx={{ display: "flex", justifyContent: "center" }}>
             <Button

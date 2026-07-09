@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Box from "@mui/material/Box";
@@ -68,6 +69,11 @@ type Sale = {
   status: "PENDING" | "PAID" | "PARTIAL" | "CANCELLED" | "REFUNDED";
   subtotal: number;
   discount: number;
+  pwdDiscount: boolean;
+  pwdId: string | null;
+  specialDiscountType?: SpecialDiscountType | null;
+  vatExempt: boolean;
+  vatAmount: number;
   totalAmount: number;
   createdAt: string;
   customer: {
@@ -107,6 +113,12 @@ type Sale = {
     paymentCode: string | null;
     amount: number;
     downPayment: number;
+    discount?: number;
+    pwdDiscount?: boolean;
+    pwdId?: string | null;
+    specialDiscountType?: SpecialDiscountType | null;
+    vatExempt?: boolean;
+    vatAmount?: number;
     method: "CASH" | "GCASH";
     status: "PENDING" | "PAID";
     screenshotUrl: string | null;
@@ -122,6 +134,7 @@ type CartItem = {
 };
 
 type LoyaltyRewardType = "NONE" | "FIFTY_PERCENT" | "FREE";
+type SpecialDiscountType = "PWD" | "SENIOR";
 
 type LoyaltyCard = {
   id: string;
@@ -132,6 +145,11 @@ type LoyaltyCard = {
   maxStickers: number;
   status: "ACTIVE" | "COMPLETED";
   fiveRewardRedeemed: boolean;
+};
+
+type LoyaltySettings = {
+  fiftyPercentStickerThreshold: number;
+  freeStickerThreshold: number;
 };
 
 const headCell = {
@@ -209,10 +227,53 @@ const detailValue = {
   fontSize: 13,
 };
 
+const VAT_RATE = 0.12;
+const PWD_DISCOUNT_RATE = 0.2;
+
 function formatPeso(value: number) {
   return `₱ ${Number(value || 0).toLocaleString("en-PH", {
     maximumFractionDigits: 0,
   })}`;
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function calculateVatAmount(subtotal: number) {
+  return roundMoney(Number(subtotal || 0) * VAT_RATE);
+}
+
+function calculatePwdPricing(subtotal: number) {
+  const safeSubtotal = Number(subtotal || 0);
+  const vatAmount = calculateVatAmount(safeSubtotal);
+  const vatExemptBase = roundMoney(safeSubtotal - vatAmount);
+  const pwdDiscountAmount = roundMoney(vatExemptBase * PWD_DISCOUNT_RATE);
+  const total = Math.max(roundMoney(vatExemptBase - pwdDiscountAmount), 0);
+
+  return {
+    vatExemptBase,
+    vatAmount,
+    pwdDiscountAmount,
+    discountAmount: roundMoney(safeSubtotal - total),
+    total,
+  };
+}
+
+function getVatIndicatorLabel(vatExempt?: boolean) {
+  return vatExempt ? "VAT Exempt" : "VAT 12%";
+}
+
+function formatVatValue(vatExempt: boolean | undefined, vatAmount: number) {
+  return vatExempt ? "VAT Exempt" : formatPeso(vatAmount);
+}
+
+function getSpecialDiscountLabel(type?: SpecialDiscountType | null) {
+  return type === "SENIOR" ? "Senior Citizen" : "PWD";
+}
+
+function getSpecialDiscountIdLabel(type?: SpecialDiscountType | null) {
+  return `${getSpecialDiscountLabel(type)} ID`;
 }
 
 function formatDate(value: string | Date) {
@@ -329,6 +390,15 @@ function getAppointmentBarberName(
   return barberNames.length ? [...new Set(barberNames)].join(", ") : "";
 }
 
+class FetchJsonError extends Error {
+  status: number;
+
+  constructor(url: string, status: number) {
+    super(`${url} failed with status ${status}`);
+    this.status = status;
+  }
+}
+
 function fullName(person: any) {
   return (
     [person?.firstName, person?.lastName].filter(Boolean).join(" ") ||
@@ -342,8 +412,11 @@ async function fetchJson(url: string) {
   const text = await res.text();
 
   if (!res.ok) {
-    console.error(`${url} ERROR RESPONSE:`, text);
-    throw new Error(`${url} failed with status ${res.status}`);
+    if (res.status !== 403) {
+      console.error(`${url} ERROR RESPONSE:`, text);
+    }
+
+    throw new FetchJsonError(url, res.status);
   }
 
   try {
@@ -355,10 +428,15 @@ async function fetchJson(url: string) {
 }
 
 export default function SalesPage() {
+  const router = useRouter();
   const [sales, setSales] = useState<Sale[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loyaltyCards, setLoyaltyCards] = useState<LoyaltyCard[]>([]);
+  const [loyaltySettings, setLoyaltySettings] = useState<LoyaltySettings>({
+    fiftyPercentStickerThreshold: 5,
+    freeStickerThreshold: 10,
+  });
   const [barbers, setBarbers] = useState<Barber[]>([]);
 
   const rowsPerPage = 8;
@@ -388,6 +466,10 @@ export default function SalesPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [method, setMethod] = useState<"CASH" | "GCASH">("CASH");
   const [discountPercent, setDiscountPercent] = useState(0);
+  const [pwdDiscountSelected, setPwdDiscountSelected] = useState(false);
+  const [specialDiscountType, setSpecialDiscountType] =
+    useState<SpecialDiscountType | null>(null);
+  const [pwdId, setPwdId] = useState("");
   const [selectedLoyaltyRewardType, setSelectedLoyaltyRewardType] =
     useState<LoyaltyRewardType>("NONE");
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -467,8 +549,13 @@ export default function SalesPage() {
   }
 
   const subtotal = cartSummary.subtotal;
-  const discountAmount = cartSummary.discountAmount;
-  const total = cartSummary.total;
+  const pwdPricing = useMemo(() => calculatePwdPricing(subtotal), [subtotal]);
+  const standardVatAmount = useMemo(() => calculateVatAmount(subtotal), [subtotal]);
+  const discountAmount = pwdDiscountSelected
+    ? pwdPricing.discountAmount
+    : cartSummary.discountAmount;
+  const total = pwdDiscountSelected ? pwdPricing.total : cartSummary.total;
+  const vatAmount = pwdDiscountSelected ? pwdPricing.vatAmount : standardVatAmount;
   const hasSignatureHaircut = cartSummary.hasSignatureHaircut;
 
   const downPayment = selectedSale?.payment?.downPayment || 0;
@@ -477,6 +564,26 @@ export default function SalesPage() {
     selectedSale?.source === "BOOKING"
       ? Math.max(total - downPayment, 0)
       : total;
+
+  const viewDiscount = Math.max(
+    Number(selectedSale?.discount || 0),
+    Number(selectedSale?.payment?.discount || 0)
+  );
+  const viewVatAmount = Math.max(
+    Number(selectedSale?.vatAmount || 0),
+    Number(selectedSale?.payment?.vatAmount || 0)
+  );
+  const viewPwdDiscount = Boolean(
+    selectedSale?.pwdDiscount || selectedSale?.payment?.pwdDiscount
+  );
+  const viewVatExempt = Boolean(
+    selectedSale?.vatExempt || selectedSale?.payment?.vatExempt || viewPwdDiscount
+  );
+  const viewSpecialDiscountType =
+    selectedSale?.specialDiscountType ||
+    selectedSale?.payment?.specialDiscountType ||
+    null;
+  const viewPwdId = selectedSale?.pwdId || selectedSale?.payment?.pwdId || "";
 
   const selectedCustomer = customers.find(
     (customer) => customer.id === selectedCustomerId
@@ -487,8 +594,14 @@ export default function SalesPage() {
   );
 
   const stickerCount = selectedLoyaltyCard?.stickers || 0;
-  const canUse50Discount = stickerCount >= 5 && stickerCount < 10 && !selectedLoyaltyCard?.fiveRewardRedeemed;
-  const canUse100Discount = stickerCount >= 10;
+  const fiftyPercentStickerThreshold =
+    loyaltySettings.fiftyPercentStickerThreshold || 5;
+  const freeStickerThreshold = loyaltySettings.freeStickerThreshold || 10;
+  const canUse50Discount =
+    stickerCount >= fiftyPercentStickerThreshold &&
+    stickerCount < freeStickerThreshold &&
+    !selectedLoyaltyCard?.fiveRewardRedeemed;
+  const canUse100Discount = stickerCount >= freeStickerThreshold;
 
   const filteredCustomers = customers.filter((customer) => {
     const keyword = customerSearch.trim().toLowerCase();
@@ -574,7 +687,7 @@ export default function SalesPage() {
       return true;
     },
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
@@ -587,6 +700,13 @@ export default function SalesPage() {
     setCustomerSearch(selectedSale.customer.name);
     setSelectedCustomerId(selectedSale.customer.id);
     setMethod((selectedSale.payment?.method as "CASH" | "GCASH") || "CASH");
+    setPwdDiscountSelected(Boolean(selectedSale.pwdDiscount));
+    setSpecialDiscountType(
+      selectedSale.pwdDiscount
+        ? selectedSale.specialDiscountType || "PWD"
+        : null
+    );
+    setPwdId(selectedSale.pwdId || "");
 
     const signatureHaircutSubtotal = selectedSale.items.reduce((sum, item) => {
       if (!isSignatureHaircut(item.serviceName)) return sum;
@@ -595,7 +715,9 @@ export default function SalesPage() {
     }, 0);
     const selectedSaleDiscount = Number(selectedSale.discount || 0);
     const inferredLoyaltyRewardType: LoyaltyRewardType =
-      signatureHaircutSubtotal > 0 &&
+      selectedSale.pwdDiscount
+        ? "NONE"
+        : signatureHaircutSubtotal > 0 &&
       selectedSaleDiscount === signatureHaircutSubtotal
         ? "FREE"
         : signatureHaircutSubtotal > 0 &&
@@ -606,7 +728,9 @@ export default function SalesPage() {
     setSelectedLoyaltyRewardType(inferredLoyaltyRewardType);
 
     setDiscountPercent(
-      inferredLoyaltyRewardType !== "NONE"
+      selectedSale.pwdDiscount
+        ? 0
+        : inferredLoyaltyRewardType !== "NONE"
         ? getLoyaltyRewardPercent(inferredLoyaltyRewardType)
         : selectedSale.subtotal > 0
         ? Math.round((selectedSale.discount / selectedSale.subtotal) * 100)
@@ -640,6 +764,11 @@ export default function SalesPage() {
       setSales(salesData.sales || []);
       setServices(servicesData.services || []);
       setLoyaltyCards(loyaltyData.cards || []);
+      setLoyaltySettings({
+        fiftyPercentStickerThreshold:
+          loyaltyData.settings?.fiftyPercentStickerThreshold || 5,
+        freeStickerThreshold: loyaltyData.settings?.freeStickerThreshold || 10,
+      });
 
       const customerList =
         customersData.customers || customersData.data || customersData || [];
@@ -659,7 +788,13 @@ export default function SalesPage() {
           }))
       );
     } catch (error) {
+      if (error instanceof FetchJsonError && error.status === 403) {
+        router.replace("/unauthorized");
+        return;
+      }
+
       console.error("LOAD SALES DATA ERROR:", error);
+
       setSnackbar({
         open: true,
         message:
@@ -687,6 +822,9 @@ export default function SalesPage() {
     setSelectedCustomerId("");
     setMethod("CASH");
     setDiscountPercent(0);
+    setPwdDiscountSelected(false);
+    setSpecialDiscountType(null);
+    setPwdId("");
     setSelectedLoyaltyRewardType("NONE");
     setCart([]);
     setGcashRefNo("");
@@ -818,6 +956,9 @@ export default function SalesPage() {
 
   function handleDiscountInput(value: string) {
     setSelectedLoyaltyRewardType("NONE");
+    setPwdDiscountSelected(false);
+    setSpecialDiscountType(null);
+    setPwdId("");
 
     if (value === "") {
       setDiscountPercent(0);
@@ -843,15 +984,52 @@ export default function SalesPage() {
     }
 
     setSelectedLoyaltyRewardType(rewardType);
+    setPwdDiscountSelected(false);
+    setSpecialDiscountType(null);
+    setPwdId("");
     setDiscountPercent(getLoyaltyRewardPercent(rewardType));
   }
 
   function clearDiscount() {
     setSelectedLoyaltyRewardType("NONE");
     setDiscountPercent(0);
+    setPwdDiscountSelected(false);
+    setSpecialDiscountType(null);
+    setPwdId("");
+  }
+
+  function toggleSpecialDiscount() {
+    if (pwdDiscountSelected) {
+      setPwdDiscountSelected(false);
+      setSpecialDiscountType(null);
+      setPwdId("");
+      return;
+    }
+
+    setPwdDiscountSelected(true);
+    setSpecialDiscountType(specialDiscountType || "PWD");
+    setSelectedLoyaltyRewardType("NONE");
+    setDiscountPercent(0);
+  }
+
+  function selectSpecialDiscountType(type: SpecialDiscountType) {
+    setSpecialDiscountType(type);
+    setPwdDiscountSelected(true);
+    setSelectedLoyaltyRewardType("NONE");
+    setDiscountPercent(0);
   }
 
   function validateSelectedLoyaltyReward() {
+    if (pwdDiscountSelected && !pwdId.trim()) {
+      setSnackbar({
+        open: true,
+        message: "Please enter the PWD/Senior Citizen ID.",
+        severity: "error",
+      });
+
+      return false;
+    }
+
     if (selectedLoyaltyRewardType === "NONE" || hasSignatureHaircut) {
       return true;
     }
@@ -920,6 +1098,11 @@ export default function SalesPage() {
           customerId: selectedCustomerId,
           method,
           discount: discountAmount,
+          pwdDiscount: pwdDiscountSelected,
+          pwdId: pwdDiscountSelected ? pwdId.trim() : null,
+          specialDiscountType: pwdDiscountSelected
+            ? specialDiscountType || "PWD"
+            : null,
           barberId: selectedBarberId,
           loyaltyRewardType: selectedLoyaltyRewardType,
           items: cart.map((item) => ({
@@ -991,6 +1174,11 @@ export default function SalesPage() {
             method,
             discount: discountAmount,
             totalAmount: amountToPay,
+            pwdDiscount: pwdDiscountSelected,
+            pwdId: pwdDiscountSelected ? pwdId.trim() : null,
+            specialDiscountType: pwdDiscountSelected
+              ? specialDiscountType || "PWD"
+              : null,
             gcashRefNo: method === "GCASH" ? gcashRefNo : null,
             loyaltyRewardType: selectedLoyaltyRewardType,
           }),
@@ -1238,6 +1426,7 @@ export default function SalesPage() {
                     <TableCell sx={headCell}>Schedule</TableCell>
                     <TableCell sx={headCell}>Barber</TableCell>
                     <TableCell sx={headCell}>Total Amount</TableCell>
+                    <TableCell sx={headCell}>VAT</TableCell>
                     <TableCell sx={headCell}>Type</TableCell>
                     <TableCell sx={headCell}>Status</TableCell>
                     <TableCell sx={headCell} align="center">
@@ -1341,6 +1530,9 @@ export default function SalesPage() {
                         )}
                       </TableCell>
                       <TableCell sx={bodyCell}>
+                        {formatVatValue(sale.vatExempt, sale.vatAmount || 0)}
+                      </TableCell>
+                      <TableCell sx={bodyCell}>
                         {sale.source === "WALKIN" ? "Walk-In" : "Appointment"}
                       </TableCell>
                       <TableCell sx={bodyCell}>{getSaleStatusLabel(sale.status)}</TableCell>
@@ -1385,7 +1577,7 @@ export default function SalesPage() {
 
                   {filteredSales.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} align="center" sx={{ py: 6 }}>
+                      <TableCell colSpan={10} align="center" sx={{ py: 6 }}>
                         No sales found.
                       </TableCell>
                     </TableRow>
@@ -1631,6 +1823,7 @@ export default function SalesPage() {
                     "000"}
                 </Typography>
 
+                <Box sx={{ position: "relative", width: 280, mb: 0.5 }}>
                 <TextField
                   fullWidth
                   variant="standard"
@@ -1641,7 +1834,6 @@ export default function SalesPage() {
                   sx={{
                     bgcolor: "#fff",
                     px: 1.5,
-                    mb: 0.5,
                     width: 180,
                     "& .MuiInputBase-input": {
                       fontSize: 22,
@@ -1657,10 +1849,10 @@ export default function SalesPage() {
                     <Paper
                       sx={{
                         position: "absolute",
-                        top: 105,
-                        left: 32,
+                        top: "calc(100% + 4px)",
+                        left: 0,
                         width: 280,
-                        zIndex: 10,
+                        zIndex: 30,
                         maxHeight: 180,
                         overflowY: "auto",
                       }}
@@ -1686,6 +1878,7 @@ export default function SalesPage() {
                       ))}
                     </Paper>
                   )}
+                </Box>
 
                 <Box
                   sx={{
@@ -1742,8 +1935,8 @@ export default function SalesPage() {
                     <Typography
                       sx={{ fontSize: 12, color: "#777", fontWeight: 700 }}
                     >
-                      50% off requires 5 stickers. 100% off requires 10
-                      stickers.
+                      50% off requires {fiftyPercentStickerThreshold} stickers.
+                      Free reward requires {freeStickerThreshold} stickers.
                     </Typography>
                   </Box>
                 )}
@@ -1885,6 +2078,25 @@ export default function SalesPage() {
                   </Box>
 
                   <Box sx={summaryRow}>
+                    <Typography>{getVatIndicatorLabel(pwdDiscountSelected)}</Typography>
+                    <Typography>{formatVatValue(pwdDiscountSelected, vatAmount)}</Typography>
+                  </Box>
+
+                  {pwdDiscountSelected && (
+                    <>
+                      <Box sx={summaryRow}>
+                        <Typography>VAT Exemption</Typography>
+                        <Typography>-{formatPeso(vatAmount)}</Typography>
+                      </Box>
+
+                      <Box sx={summaryRow}>
+                        <Typography>{getSpecialDiscountLabel(specialDiscountType)} 20% Discount</Typography>
+                        <Typography>-{formatPeso(pwdPricing.pwdDiscountAmount)}</Typography>
+                      </Box>
+                    </>
+                  )}
+
+                  <Box sx={summaryRow}>
                     <Typography
                       sx={{ textDecoration: "line-through", color: "#888" }}
                     >
@@ -1899,7 +2111,9 @@ export default function SalesPage() {
 
                   <Box sx={summaryRow}>
                     <Typography>
-                      {selectedLoyaltyRewardType === "FREE"
+                      {pwdDiscountSelected
+                        ? `Total ${getSpecialDiscountLabel(specialDiscountType)} Discount`
+                        : selectedLoyaltyRewardType === "FREE"
                         ? "Signature Haircut Reward"
                         : selectedLoyaltyRewardType === "FIFTY_PERCENT"
                         ? "Signature Haircut 50% Reward"
@@ -1968,6 +2182,7 @@ export default function SalesPage() {
                       variant="standard"
                       type="number"
                       value={discountPercent}
+                      disabled={pwdDiscountSelected}
                       onChange={(e) => handleDiscountInput(e.target.value)}
                       slotProps={{
                         htmlInput: {
@@ -1980,8 +2195,7 @@ export default function SalesPage() {
                     />
                   </Box>
 
-                  {selectedCustomerId && (
-                    <Box sx={{ mt: 1 }}>
+                  <Box sx={{ mt: 1 }}>
                       <Typography
                         sx={{
                           fontSize: 12,
@@ -1994,7 +2208,14 @@ export default function SalesPage() {
                         disabled if the customer is not eligible.
                       </Typography>
 
-                      <Box sx={{ display: "flex", gap: 1 }}>
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gridTemplateColumns: "52px 1fr 72px 78px",
+                          gap: 1,
+                          alignItems: "stretch",
+                        }}
+                      >
                         <Button
                           size="small"
                           variant="outlined"
@@ -2009,6 +2230,68 @@ export default function SalesPage() {
                         >
                           0%
                         </Button>
+
+                        <Box
+                          sx={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr",
+                            gap: 0.5,
+                            minWidth: 0,
+                          }}
+                        >
+                          <Button
+                            size="small"
+                            variant={pwdDiscountSelected ? "contained" : "outlined"}
+                            onClick={toggleSpecialDiscount}
+                            sx={{
+                              minWidth: 0,
+                              color: pwdDiscountSelected ? "#ffc107" : "#111",
+                              bgcolor: pwdDiscountSelected ? "#111" : "transparent",
+                              borderColor: "#ccc",
+                              textTransform: "none",
+                              fontWeight: 800,
+                              fontSize: 12,
+                              lineHeight: 1.1,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              "&:hover": {
+                                bgcolor: pwdDiscountSelected ? "#222" : "#f8fafc",
+                              },
+                            }}
+                          >
+                            PWD/Senior 20%
+                          </Button>
+
+                          {pwdDiscountSelected && (
+                            <TextField
+                              select
+                              size="small"
+                              value={specialDiscountType || "PWD"}
+                              onChange={(e) =>
+                                selectSpecialDiscountType(
+                                  e.target.value as SpecialDiscountType
+                                )
+                              }
+                              sx={{
+                                bgcolor: "#fff",
+                                "& .MuiOutlinedInput-root": {
+                                  height: 30,
+                                  fontSize: 12,
+                                  fontWeight: 800,
+                                },
+                                "& .MuiSelect-select": {
+                                  py: 0.4,
+                                  pr: "24px !important",
+                                  pl: 1,
+                                },
+                              }}
+                            >
+                              <MenuItem value="PWD">PWD</MenuItem>
+                              <MenuItem value="SENIOR">Senior</MenuItem>
+                            </TextField>
+                          )}
+                        </Box>
 
                         <Button
                           size="small"
@@ -2048,8 +2331,18 @@ export default function SalesPage() {
                           100%
                         </Button>
                       </Box>
-                    </Box>
-                  )}
+
+                      {pwdDiscountSelected && (
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label={getSpecialDiscountIdLabel(specialDiscountType)}
+                          value={pwdId}
+                          onChange={(e) => setPwdId(e.target.value)}
+                          sx={{ mt: 1.5, bgcolor: "#fff" }}
+                        />
+                      )}
+                  </Box>
                 </Box>
               </Box>
 
@@ -2235,6 +2528,39 @@ export default function SalesPage() {
             </Box>
 
             <Box sx={summaryRow}>
+              <Typography>{getVatIndicatorLabel(viewVatExempt)}</Typography>
+              <Typography>
+                {formatVatValue(viewVatExempt, viewVatAmount)}
+              </Typography>
+            </Box>
+
+            {viewPwdDiscount && (
+              <>
+                <Box sx={summaryRow}>
+                  <Typography>{getSpecialDiscountIdLabel(viewSpecialDiscountType)}</Typography>
+                  <Typography>{viewPwdId || "-"}</Typography>
+                </Box>
+
+                <Box sx={summaryRow}>
+                  <Typography>VAT Exemption</Typography>
+                  <Typography>-{formatPeso(viewVatAmount)}</Typography>
+                </Box>
+
+                <Box sx={summaryRow}>
+                  <Typography>
+                    {getSpecialDiscountLabel(viewSpecialDiscountType)} 20% Discount
+                  </Typography>
+                  <Typography>
+                    -{formatPeso(
+                      calculatePwdPricing(selectedSale?.subtotal || 0)
+                        .pwdDiscountAmount
+                    )}
+                  </Typography>
+                </Box>
+              </>
+            )}
+
+            <Box sx={summaryRow}>
               <Typography>Downpayment</Typography>
 
               {selectedSale?.payment?.screenshotUrl ? (
@@ -2265,7 +2591,7 @@ export default function SalesPage() {
 
             <Box sx={summaryRow}>
               <Typography>Discount</Typography>
-              <Typography>{formatPeso(selectedSale?.discount || 0)}</Typography>
+              <Typography>{formatPeso(viewDiscount)}</Typography>
             </Box>
 
             <Box sx={summaryRow}>
@@ -2421,6 +2747,37 @@ export default function SalesPage() {
           <Typography sx={{ fontWeight: 900 }}>
             Name: {selectedSale?.customer.name || "Customer"}
           </Typography>
+
+          <Box sx={{ bgcolor: "#f8f8f8", border: "1px solid #eee", p: 2, mt: 2 }}>
+            <Box sx={summaryRow}>
+              <Typography>Subtotal</Typography>
+              <Typography>{formatPeso(subtotal)}</Typography>
+            </Box>
+            <Box sx={summaryRow}>
+              <Typography>{getVatIndicatorLabel(pwdDiscountSelected)}</Typography>
+              <Typography>{formatVatValue(pwdDiscountSelected, vatAmount)}</Typography>
+            </Box>
+            {pwdDiscountSelected && (
+              <>
+                <Box sx={summaryRow}>
+                  <Typography>{getSpecialDiscountIdLabel(specialDiscountType)}</Typography>
+                  <Typography>{pwdId.trim() || "-"}</Typography>
+                </Box>
+                <Box sx={summaryRow}>
+                  <Typography>VAT Exemption</Typography>
+                  <Typography>-{formatPeso(vatAmount)}</Typography>
+                </Box>
+                <Box sx={summaryRow}>
+                  <Typography>{getSpecialDiscountLabel(specialDiscountType)} 20% Discount</Typography>
+                  <Typography>-{formatPeso(pwdPricing.pwdDiscountAmount)}</Typography>
+                </Box>
+              </>
+            )}
+            <Box sx={summaryRow}>
+              <Typography>Total Payment</Typography>
+              <Typography>{formatPeso(amountToPay)}</Typography>
+            </Box>
+          </Box>
 
           <Box sx={{ display: "flex", justifyContent: "center", gap: 3, mt: 4 }}>
             <Button

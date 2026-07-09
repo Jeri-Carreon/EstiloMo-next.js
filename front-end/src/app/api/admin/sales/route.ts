@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
@@ -7,6 +6,18 @@ import { logSaleCreated,logDiscountApplied, } from "@/lib/securityLogEvents";
 
 export const dynamic = "force-dynamic";
 
+type SaleItemInput = {
+  serviceId?: string;
+  quantity?: number;
+};
+
+type SpecialDiscountType = "PWD" | "SENIOR";
+
+function resolveSpecialDiscountType(value: unknown, legacyPwdDiscount?: boolean) {
+  if (value === "PWD" || value === "SENIOR") return value;
+  return legacyPwdDiscount ? "PWD" : null;
+}
+
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
@@ -14,6 +25,22 @@ function minutesToTime(minutes: number) {
   const hour = h % 12 || 12;
 
   return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+
+function calculatePwdPricing(subtotal: number) {
+  const vatAmount = Math.round(subtotal * 0.12 * 100) / 100;
+  const vatExemptBase = Math.round((subtotal - vatAmount) * 100) / 100;
+  const pwdDiscountAmount = Math.round(vatExemptBase * 0.2 * 100) / 100;
+  const totalAmount = Math.max(
+    Math.round((vatExemptBase - pwdDiscountAmount) * 100) / 100,
+    0
+  );
+
+  return {
+    vatAmount,
+    discount: Math.round((subtotal - totalAmount) * 100) / 100,
+    totalAmount,
+  };
 }
 
 /*function createCode(prefix: string) {
@@ -77,6 +104,11 @@ export async function GET() {
         status: sale.status,
         subtotal: Number(sale.subtotal),
         discount: Number(sale.discount),
+        pwdDiscount: sale.pwdDiscount,
+        pwdId: sale.pwdId,
+        specialDiscountType: sale.specialDiscountType,
+        vatExempt: sale.vatExempt,
+        vatAmount: Number(sale.vatAmount),
         totalAmount: Number(sale.totalAmount),
         createdAt: sale.createdAt,
 
@@ -128,6 +160,11 @@ export async function GET() {
               amount: Number(sale.payment.amount),
               downPayment: Number(sale.payment.downPayment),
               discount: Number(sale.payment.discount),
+              pwdDiscount: sale.payment.pwdDiscount,
+              pwdId: sale.payment.pwdId,
+              specialDiscountType: sale.payment.specialDiscountType,
+              vatExempt: sale.payment.vatExempt,
+              vatAmount: Number(sale.payment.vatAmount),
               method: sale.payment.method,
               status: sale.payment.status,
               gcashRefNo: sale.payment.gcashRefNo,
@@ -161,6 +198,11 @@ export async function GET() {
                 amount: Number(appointment.payment.amount),
                 downPayment: Number(appointment.payment.downPayment),
                 discount: Number(appointment.payment.discount),
+                pwdDiscount: appointment.payment.pwdDiscount,
+                pwdId: appointment.payment.pwdId,
+                specialDiscountType: appointment.payment.specialDiscountType,
+                vatExempt: appointment.payment.vatExempt,
+                vatAmount: Number(appointment.payment.vatAmount),
                 method: appointment.payment.method,
                 status: appointment.payment.status,
                 gcashRefNo: appointment.payment.gcashRefNo,
@@ -191,7 +233,16 @@ export async function POST(req: Request) {
 
     const body = await req.json();
 
-    const { customerId, items, discount = 0, method = "CASH", barberId } = body;
+    const {
+      customerId,
+      items,
+      discount = 0,
+      method = "CASH",
+      barberId,
+      pwdDiscount = false,
+      pwdId,
+      specialDiscountType,
+    } = body;
 
     if (!customerId) {
       return NextResponse.json({ error: "Missing customer" }, { status: 400 });
@@ -231,8 +282,25 @@ export async function POST(req: Request) {
       }
     }
 
-    const parsedDiscount = Number(discount || 0);
-    const serviceIds = items.map((item: any) => item.serviceId).filter(Boolean);
+    const resolvedSpecialDiscountType = resolveSpecialDiscountType(
+      specialDiscountType,
+      pwdDiscount === true
+    );
+    const usePwdDiscount = Boolean(resolvedSpecialDiscountType);
+    const normalizedPwdId = typeof pwdId === "string" ? pwdId.trim() : "";
+
+    if (usePwdDiscount && !normalizedPwdId) {
+      return NextResponse.json(
+        { error: "PWD/Senior Citizen ID is required" },
+        { status: 400 }
+      );
+    }
+
+    const parsedDiscount = usePwdDiscount ? 0 : Number(discount || 0);
+    const typedItems = items as SaleItemInput[];
+    const serviceIds = typedItems
+      .map((item) => item.serviceId)
+      .filter((serviceId): serviceId is string => Boolean(serviceId));
     const uniqueServiceIds = [...new Set(serviceIds)];
 
     const services = await db.service.findMany({
@@ -272,7 +340,7 @@ export async function POST(req: Request) {
         },
       });
 
-      for (const rawItem of items) {
+      for (const rawItem of typedItems) {
         const service = services.find((s) => s.id === rawItem.serviceId);
 
         if (!service) continue;
@@ -294,13 +362,23 @@ export async function POST(req: Request) {
         });
       }
 
-      const totalAmount = Math.max(subtotal - parsedDiscount, 0);
+      const pwdPricing = usePwdDiscount ? calculatePwdPricing(subtotal) : null;
+      const vatAmount =
+        pwdPricing?.vatAmount ??
+        Math.round(subtotal * 0.12 * 100) / 100;
+      const finalDiscount = pwdPricing?.discount ?? parsedDiscount;
+      const totalAmount = pwdPricing?.totalAmount ?? Math.max(subtotal - parsedDiscount, 0);
 
       await tx.sale.update({
         where: { id: sale.id },
         data: {
           subtotal,
-          discount: parsedDiscount,
+          discount: finalDiscount,
+          pwdDiscount: usePwdDiscount,
+          pwdId: usePwdDiscount ? normalizedPwdId : null,
+          specialDiscountType: resolvedSpecialDiscountType,
+          vatExempt: usePwdDiscount,
+          vatAmount,
           totalAmount,
         },
       });
@@ -311,7 +389,12 @@ export async function POST(req: Request) {
           paymentCode,
           amount: totalAmount,
           downPayment: 0,
-          discount: parsedDiscount,
+          discount: finalDiscount,
+          pwdDiscount: usePwdDiscount,
+          pwdId: usePwdDiscount ? normalizedPwdId : null,
+          specialDiscountType: resolvedSpecialDiscountType,
+          vatExempt: usePwdDiscount,
+          vatAmount,
           method,
           status: "PENDING",
           gcashRefNo: null,

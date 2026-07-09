@@ -89,7 +89,7 @@ export default function ServiceStep({
       }));
     },
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {

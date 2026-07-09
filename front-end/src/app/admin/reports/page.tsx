@@ -1,7 +1,8 @@
 "use client";
 
+import AIUsageDashboard from "@/components/admin/AIUsageDashboard";
 import { createClient } from "@/lib/supabase/client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
@@ -33,7 +34,7 @@ import {
 } from "recharts";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome"; // deep analysis icon
 import ReactMarkdown from "react-markdown";
-import { PieChart, Pie, Cell, Legend } from "recharts";
+import { PieChart, Pie, Cell } from "recharts";
 import { useRouter } from "next/navigation";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -74,6 +75,22 @@ interface ReportData {
   serviceRecommendation: string;
   dailyRevenue: { date: string; revenue: number; transactions: number }[];
 }
+
+type RawServiceRow = Omit<ServiceRow, "color">;
+
+type RawReportData = {
+  totalRevenue: number;
+  avgRevenuePerDay: number;
+  completedTransactions: number;
+  completionRate: number;
+  revenueTrend?: number;
+  avgTrend?: number;
+  apptTrend?: number;
+  rateTrend?: number;
+  weeklyData?: WeekPoint[];
+  services?: RawServiceRow[];
+  dailyRevenue?: { date: string; revenue: number; transactions: number }[];
+};
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -383,7 +400,13 @@ function InsightCard({ icon, title, body }: InsightCard) {
 
 // ─── Custom tooltip for line chart ───────────────────────────────────────────
 
-function CustomTooltip({ active, payload, label }: any) {
+type CustomTooltipProps = {
+  active?: boolean;
+  payload?: { value?: number }[];
+  label?: string;
+};
+
+function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
   return (
     <Box
@@ -453,13 +476,26 @@ type PendingReportRequest = ReportRequest & {
   estimate: ReportCostEstimate;
 };
 
+type ChatCostEstimate = {
+  model: string;
+  estimatedTotalCostPHP: number;
+  estimatedTotalCostUSD: number;
+  estimatedTotalTokens: number;
+  isEstimate: boolean;
+};
+
+type ChatCostEstimateResponse = {
+  regular: ChatCostEstimate;
+  deep: ChatCostEstimate;
+};
+
 function buildReportData(
-  rawData: any,
+  rawData: RawReportData,
   dateRange: string,
   aiInsights: AiInsightsPayload = {},
 ): ReportData {
   const services = (rawData.services ?? []).map(
-    (service: any, index: number) => ({
+    (service, index) => ({
       ...service,
       color: PIE_COLORS[index % PIE_COLORS.length],
     }),
@@ -522,20 +558,20 @@ export default function ReportsPage() {
     useState<PendingReportRequest | null>(null);
   const [estimateLoading, setEstimateLoading] = useState(false);
   const [estimateError, setEstimateError] = useState("");
+  const [aiUsageOpen, setAiUsageOpen] = useState(false);
   // session
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [loading, setLoading] = useState(false);
 
   // Chat state
   const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const [chatCostEstimate, setChatCostEstimate] =
+    useState<ChatCostEstimateResponse | null>(null);
+  const [chatCostLoading, setChatCostLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-
-  const [deepAnalysis, setDeepAnalysis] = useState<string | null>(null);
-  const [deepLoading, setDeepLoading] = useState(false);
-  const [dbData, setDbData] = useState<any>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -557,7 +593,7 @@ export default function ReportsPage() {
     };
 
     init();
-  }, [router]);
+  }, [router, supabase]);
 
   const { data: liveRawData } = useQuery({
     queryKey: ["adminReportsData", reportRequest?.from, reportRequest?.to],
@@ -579,13 +615,13 @@ export default function ReportsPage() {
     },
     enabled: Boolean(reportRequest && reportData),
     refetchInterval: 10000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
     if (!liveRawData || !reportRequest) return;
 
-    setDbData(liveRawData);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setReportData((current) => {
       if (!current) return current;
 
@@ -600,6 +636,52 @@ export default function ReportsPage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMsgs]);
+
+  useEffect(() => {
+    const prompt = chatInput.trim();
+
+    if (!prompt || !reportData) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setChatCostLoading(true);
+      try {
+        const messages = [
+          ...chatMsgs.map((m) => ({ role: m.role, content: m.text })),
+          { role: "user" as const, content: prompt },
+        ];
+        const res = await fetch("/api/admin/reports/chat/estimate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({ reportData, messages }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to estimate chat cost.");
+        }
+
+        setChatCostEstimate(data);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.error("CHAT COST ESTIMATE ERROR:", error);
+          setChatCostEstimate(null);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setChatCostLoading(false);
+        }
+      }
+    }, 350);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [chatInput, chatMsgs, reportData]);
 
   // Calendar handlers
   const handleYearChange = (year: number) => {
@@ -691,7 +773,6 @@ export default function ReportsPage() {
     setLoading(true);
     setReportData(null);
     setChatMsgs([]);
-    setDeepAnalysis(null);
     setReportRequest(null);
     setPendingReport(null);
 
@@ -705,8 +786,6 @@ export default function ReportsPage() {
       if (!dataRes.ok) {
         throw new Error(rawData.error || "Failed to load report data.");
       }
-
-      setDbData(rawData);
 
       const analyzeRes = await fetch("/api/admin/reports/analyze", {
         method: "POST",
@@ -738,26 +817,6 @@ export default function ReportsPage() {
       console.error(e);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Deep Analysis Handler
-  const handleDeepAnalysis = async () => {
-    if (!dbData || !reportData) return;
-    setDeepLoading(true);
-    setDeepAnalysis(null);
-    try {
-      const res = await fetch("/api/admin/reports/deep-analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dbData, dateRange: reportData.dateRange }),
-      });
-      const data = await res.json();
-      setDeepAnalysis(data.analysis ?? null);
-    } catch {
-      setDeepAnalysis("Failed to generate deep analysis. Please try again.");
-    } finally {
-      setDeepLoading(false);
     }
   };
 
@@ -831,18 +890,57 @@ export default function ReportsPage() {
         <Typography sx={{ fontSize: 13, color: "#888", mb: 0.5 }}>
           {reportData.dateRange}
         </Typography>
-        <Typography
-          onClick={handleExportCSV}
-          sx={{
-            fontSize: 13,
-            color: "#4285F4",
-            cursor: "pointer",
-            mb: 2.5,
-            display: "inline-block",
-          }}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2.5 }}>
+          <Typography
+            onClick={handleExportCSV}
+            sx={{
+              fontSize: 13,
+              color: "#4285F4",
+              cursor: "pointer",
+              display: "inline-block",
+            }}
+          >
+            Export CSV
+          </Typography>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => setAiUsageOpen(true)}
+            sx={{
+              borderRadius: 1,
+              textTransform: "none",
+              fontWeight: 800,
+              fontSize: 12,
+              borderColor: "#111",
+              color: "#111",
+              px: 1.5,
+              py: 0.35,
+              "&:hover": { borderColor: "#111", bgcolor: "#f8fafc" },
+            }}
+          >
+            AI Usage
+          </Button>
+        </Box>
+
+        <Dialog
+          open={aiUsageOpen}
+          onClose={() => setAiUsageOpen(false)}
+          fullWidth
+          maxWidth="lg"
         >
-          Export CSV
-        </Typography>
+          <DialogTitle sx={{ fontWeight: 900 }}>AI Usage</DialogTitle>
+          <DialogContent dividers>
+            <AIUsageDashboard compact />
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => setAiUsageOpen(false)}
+              sx={{ textTransform: "none", color: "#111", fontWeight: 800 }}
+            >
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* Insight cards */}
         <Box
@@ -1199,12 +1297,12 @@ export default function ReportsPage() {
               bgcolor: "#f4f4f4",
               px: 2,
               py: 1.2,
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
+              display: "grid",
+              gap: 0.8,
               borderTop: "1px solid #e0e0e0",
             }}
           >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <input
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
@@ -1212,6 +1310,7 @@ export default function ReportsPage() {
               placeholder="Ask about revenue, trends, predictions…"
               style={{
                 flex: 1,
+                minWidth: 0,
                 border: "none",
                 background: "transparent",
                 outline: "none",
@@ -1261,6 +1360,21 @@ export default function ReportsPage() {
                 sx={{ color: chatInput.trim() ? "#111" : "#bbb" }}
               />
             </IconButton>
+            </Box>
+
+            {chatInput.trim() && (
+              <Typography sx={{ fontSize: 11, color: "#666", lineHeight: 1.4 }}>
+                {chatCostLoading && !chatCostEstimate
+                  ? "Estimating prompt cost..."
+                  : chatCostEstimate
+                    ? `This prompt will cost about ${formatCostPHP(
+                        chatCostEstimate.regular.estimatedTotalCostPHP,
+                      )} with GPT-4o Mini. Deep Analysis may cost about ${formatCostPHP(
+                        chatCostEstimate.deep.estimatedTotalCostPHP,
+                      )}.`
+                    : "Cost estimate unavailable."}
+              </Typography>
+            )}
           </Box>
         </Box>
       </Box>

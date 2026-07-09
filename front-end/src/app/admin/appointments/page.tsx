@@ -55,6 +55,12 @@ interface Appointment {
   barberId?: string;
   barberName: string;
   totalAmount: number | string | null;
+  discount?: number;
+  pwdDiscount?: boolean;
+  pwdId?: string | null;
+  specialDiscountType?: 'PWD' | 'SENIOR' | null;
+  vatExempt?: boolean;
+  vatAmount?: number;
   status: string;
   paymentScreenshotUrl?: string | null;
   afterServicePhotoUrl?: string | null;
@@ -300,6 +306,18 @@ export default function AppointmentsPage() {
     return `₱ ${parsed.toFixed(2)}`;
   };
 
+  const getVatIndicatorLabel = (vatExempt?: boolean) =>
+    vatExempt ? 'VAT Exempt' : 'VAT 12%';
+
+  const formatVatValue = (vatExempt: boolean | undefined, vatAmount: number) =>
+    vatExempt ? 'VAT Exempt' : formatAmount(vatAmount);
+
+  const getSpecialDiscountLabel = (type?: 'PWD' | 'SENIOR' | null) =>
+    type === 'SENIOR' ? 'Senior Citizen' : 'PWD';
+
+  const getSpecialDiscountIdLabel = (type?: 'PWD' | 'SENIOR' | null) =>
+    `${getSpecialDiscountLabel(type)} ID`;
+
   const getStatusColor = (status: string) => {
     const normalized = status.toUpperCase();
 
@@ -375,6 +393,14 @@ export default function AppointmentsPage() {
           appointment.payment?.amount !== null
             ? appointment.payment.amount
             : null,
+        discount: Number(appointment.payment?.discount || 0),
+        pwdDiscount: Boolean(appointment.payment?.pwdDiscount),
+        pwdId: appointment.payment?.pwdId || null,
+        specialDiscountType:
+          appointment.payment?.specialDiscountType ||
+          (appointment.payment?.pwdDiscount ? 'PWD' : null),
+        vatExempt: Boolean(appointment.payment?.vatExempt),
+        vatAmount: Number(appointment.payment?.vatAmount || 0),
         status: appointment.status || '',
         paymentScreenshotUrl: appointment.payment?.screenshotUrl || null,
         afterServicePhotos: appointment.afterServicePhotos || [],
@@ -385,7 +411,7 @@ export default function AppointmentsPage() {
       }));
     },
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
@@ -790,6 +816,7 @@ export default function AppointmentsPage() {
             <TableCell sx={{ fontWeight: 700 }}>Service</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>Barber Name</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>Total Amount</TableCell>
+            <TableCell sx={{ fontWeight: 700 }}>VAT</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>Action</TableCell>
           </TableRow>
@@ -798,7 +825,7 @@ export default function AppointmentsPage() {
         <TableBody>
           {rows.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={9} align="center">
+              <TableCell colSpan={10} align="center">
                 No appointments found.
               </TableCell>
             </TableRow>
@@ -819,6 +846,9 @@ export default function AppointmentsPage() {
                 <TableCell>{appointment.serviceName}</TableCell>
                 <TableCell>{appointment.barberName}</TableCell>
                 <TableCell>{formatAmount(appointment.totalAmount)}</TableCell>
+                <TableCell>
+                  {formatVatValue(appointment.vatExempt, appointment.vatAmount || 0)}
+                </TableCell>
                 <TableCell
                   sx={{
                     fontWeight: 700,
@@ -2059,6 +2089,69 @@ export default function AppointmentsPage() {
                 </Box>
               </Box>
 
+              <Box sx={{ bgcolor: '#fff', border: '1px solid #eee', p: 1.5 }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 800, mb: 1 }}>
+                  Payment Details
+                </Typography>
+                <Box sx={{ display: 'grid', gap: 0.7 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>
+                      {getVatIndicatorLabel(selectedAppointment.vatExempt)}
+                    </Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                      {formatVatValue(
+                        selectedAppointment.vatExempt,
+                        selectedAppointment.vatAmount || 0
+                      )}
+                    </Typography>
+                  </Box>
+                  {selectedAppointment.pwdDiscount && (
+                    <>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                        <Typography sx={{ fontSize: 12, color: '#666' }}>
+                          {getSpecialDiscountIdLabel(selectedAppointment.specialDiscountType)}
+                        </Typography>
+                        <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                          {selectedAppointment.pwdId || '-'}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                        <Typography sx={{ fontSize: 12, color: '#666' }}>VAT Exemption</Typography>
+                        <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                          -{formatAmount(selectedAppointment.vatAmount || 0)}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                        <Typography sx={{ fontSize: 12, color: '#666' }}>
+                          {getSpecialDiscountLabel(selectedAppointment.specialDiscountType)} 20% Discount
+                        </Typography>
+                        <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                          -{formatAmount(
+                            Math.max(
+                              Number(selectedAppointment.discount || 0) -
+                                Number(selectedAppointment.vatAmount || 0),
+                              0
+                            )
+                          )}
+                        </Typography>
+                      </Box>
+                    </>
+                  )}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>Discount</Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                      -{formatAmount(selectedAppointment.discount || 0)}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>Total Payment</Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                      {formatAmount(selectedAppointment.totalAmount)}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+
               <TextField
                 select
                 label="Status *"
@@ -2757,6 +2850,69 @@ export default function AppointmentsPage() {
                       No proof uploaded
                     </Typography>
                   )}
+                </Box>
+              </Box>
+
+              <Box sx={{ bgcolor: '#fff', border: '1px solid #eee', p: 1.5 }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 800, mb: 1 }}>
+                  Payment Details
+                </Typography>
+                <Box sx={{ display: 'grid', gap: 0.7 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>
+                      {getVatIndicatorLabel(selectedAppointment.vatExempt)}
+                    </Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                      {formatVatValue(
+                        selectedAppointment.vatExempt,
+                        selectedAppointment.vatAmount || 0
+                      )}
+                    </Typography>
+                  </Box>
+                  {selectedAppointment.pwdDiscount && (
+                    <>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                        <Typography sx={{ fontSize: 12, color: '#666' }}>
+                          {getSpecialDiscountIdLabel(selectedAppointment.specialDiscountType)}
+                        </Typography>
+                        <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                          {selectedAppointment.pwdId || '-'}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                        <Typography sx={{ fontSize: 12, color: '#666' }}>VAT Exemption</Typography>
+                        <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                          -{formatAmount(selectedAppointment.vatAmount || 0)}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                        <Typography sx={{ fontSize: 12, color: '#666' }}>
+                          {getSpecialDiscountLabel(selectedAppointment.specialDiscountType)} 20% Discount
+                        </Typography>
+                        <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                          -{formatAmount(
+                            Math.max(
+                              Number(selectedAppointment.discount || 0) -
+                                Number(selectedAppointment.vatAmount || 0),
+                              0
+                            )
+                          )}
+                        </Typography>
+                      </Box>
+                    </>
+                  )}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>Discount</Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                      -{formatAmount(selectedAppointment.discount || 0)}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>Total Payment</Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                      {formatAmount(selectedAppointment.totalAmount)}
+                    </Typography>
+                  </Box>
                 </Box>
               </Box>
 

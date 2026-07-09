@@ -11,8 +11,15 @@ export async function getAdminUser() {
 
   if (!user) return null;
 
-  const dbUser = await db.user.findUnique({
-    where: { id: user.id },
+  const normalizedEmail = user.email?.toLowerCase().trim();
+
+  const dbUser = await db.user.findFirst({
+    where: {
+      OR: [
+        { id: user.id },
+        ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
+      ],
+    },
     select: {
       id: true,
       firstName: true,

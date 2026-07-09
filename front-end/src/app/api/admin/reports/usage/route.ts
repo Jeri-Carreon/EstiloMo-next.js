@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
+import { isChatbotOpenAIModel, type ChatbotOpenAIModel } from "@/lib/openaiPricing";
 import { getAdminUser } from "@/lib/supabase/getUser";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +30,7 @@ function startOfMonth(now: Date) {
   return new Date(now.getFullYear(), now.getMonth(), 1);
 }
 
-function getGeneratedAtRange(req: NextRequest) {
+function getCreatedAtRange(req: NextRequest) {
   const filter = (req.nextUrl.searchParams.get("filter") ?? "month") as UsageFilter;
   const now = new Date();
 
@@ -70,36 +71,6 @@ function decimalToNumber(value: unknown): number {
   return Number(value ?? 0);
 }
 
-function formatReport(log: {
-  id: string;
-  dateFrom: Date;
-  dateTo: Date;
-  reportType: string;
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  totalCostUSD: unknown;
-  totalCostPHP: unknown;
-  generatedAt: Date;
-} | null) {
-  if (!log) return null;
-
-  return {
-    id: log.id,
-    dateFrom: log.dateFrom.toISOString(),
-    dateTo: log.dateTo.toISOString(),
-    reportType: log.reportType,
-    model: log.model,
-    inputTokens: log.inputTokens,
-    outputTokens: log.outputTokens,
-    totalTokens: log.totalTokens,
-    totalCostUSD: decimalToNumber(log.totalCostUSD),
-    totalCostPHP: decimalToNumber(log.totalCostPHP),
-    generatedAt: log.generatedAt.toISOString(),
-  };
-}
-
 export async function GET(req: NextRequest) {
   try {
     const user = await getAdminUser();
@@ -107,11 +78,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const generatedAt = getGeneratedAtRange(req);
-    const where = { generatedAt };
+    const createdAt = getCreatedAtRange(req);
+    const modelParam = req.nextUrl.searchParams.get("model");
+    const model = isChatbotOpenAIModel(modelParam) ? modelParam : null;
+    const where = {
+      createdAt,
+      ...(model ? { model } : {}),
+    };
 
-    const [aggregate, mostExpensive, cheapest] = await Promise.all([
-      db.aIReportLog.aggregate({
+    const [aggregate, modelGroups] = await Promise.all([
+      db.aIChatbotLog.aggregate({
         where,
         _count: { id: true },
         _sum: {
@@ -127,36 +103,57 @@ export async function GET(req: NextRequest) {
           totalCostPHP: true,
         },
       }),
-      db.aIReportLog.findFirst({
+      db.aIChatbotLog.groupBy({
+        by: ["model"],
         where,
-        orderBy: { totalCostUSD: "desc" },
-      }),
-      db.aIReportLog.findFirst({
-        where,
-        orderBy: { totalCostUSD: "asc" },
+        _count: { id: true },
+        _sum: {
+          inputTokens: true,
+          outputTokens: true,
+          totalTokens: true,
+          totalCostUSD: true,
+          totalCostPHP: true,
+        },
+        orderBy: { model: "asc" },
       }),
     ]);
 
-    const totalReports = aggregate._count.id;
+    const totalMessages = aggregate._count.id;
     const totalCostUSD = decimalToNumber(aggregate._sum.totalCostUSD);
     const totalCostPHP = decimalToNumber(aggregate._sum.totalCostPHP);
 
     return NextResponse.json({
       filter: {
-        from: generatedAt.gte.toISOString(),
-        to: generatedAt.lte.toISOString(),
+        from: createdAt.gte.toISOString(),
+        to: createdAt.lte.toISOString(),
+        model: model ?? "all",
       },
-      totalReportsGenerated: totalReports,
+      totalChatbotMessages: totalMessages,
       totalInputTokens: aggregate._sum.inputTokens ?? 0,
       totalOutputTokens: aggregate._sum.outputTokens ?? 0,
       totalTokens: aggregate._sum.totalTokens ?? 0,
-      averageTokensPerReport: Math.round(aggregate._avg.totalTokens ?? 0),
+      averageTokensPerMessage: Math.round(aggregate._avg.totalTokens ?? 0),
       totalCostUSD,
       totalCostPHP,
-      averageCostPerReportUSD: totalReports ? totalCostUSD / totalReports : 0,
-      averageCostPerReportPHP: totalReports ? totalCostPHP / totalReports : 0,
-      mostExpensiveReport: formatReport(mostExpensive),
-      cheapestReport: formatReport(cheapest),
+      averageCostPerMessageUSD: totalMessages ? totalCostUSD / totalMessages : 0,
+      averageCostPerMessagePHP: totalMessages ? totalCostPHP / totalMessages : 0,
+      usageByModel: modelGroups.map((group) => {
+        const messageCount = group._count.id;
+        const groupCostUSD = decimalToNumber(group._sum.totalCostUSD);
+        const groupCostPHP = decimalToNumber(group._sum.totalCostPHP);
+
+        return {
+          model: group.model as ChatbotOpenAIModel,
+          totalChatbotMessages: messageCount,
+          totalInputTokens: group._sum.inputTokens ?? 0,
+          totalOutputTokens: group._sum.outputTokens ?? 0,
+          totalTokens: group._sum.totalTokens ?? 0,
+          totalCostUSD: groupCostUSD,
+          totalCostPHP: groupCostPHP,
+          averageCostPerMessageUSD: messageCount ? groupCostUSD / messageCount : 0,
+          averageCostPerMessagePHP: messageCount ? groupCostPHP / messageCount : 0,
+        };
+      }),
     });
   } catch (error) {
     console.error("AI usage route error:", error);

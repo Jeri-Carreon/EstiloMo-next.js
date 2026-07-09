@@ -63,7 +63,7 @@ export default function SecurityPage() {
       return result;
     },
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const logs: SecurityLog[] = data?.logs || [];

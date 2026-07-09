@@ -42,7 +42,7 @@ export async function GET() {
           customer.user?.email ||
           "Unknown",
 
-        contactNumber:
+        mobileNumber:
           customer.mobileNumber || customer.user?.mobileNumber || "N/A",
 
         email: customer.email || customer.user?.email || "N/A",

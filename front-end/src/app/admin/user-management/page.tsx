@@ -148,7 +148,7 @@ export default function AdminPage() {
       return true;
     },
     refetchInterval: 10000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {

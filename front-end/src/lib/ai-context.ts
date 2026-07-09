@@ -222,7 +222,16 @@ export async function buildBusinessContext() {
     }),
 
     // Loyalty settings
-    db.loyaltyCardSetting.findFirst(),
+    db.loyaltyCardSetting.findFirst({
+      select: {
+        id: true,
+        stickersPerTransaction: true,
+        fiveStickerReward: true,
+        tenStickerReward: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
 
     // Active loyalty cards
     db.loyaltyCard.count({ where: { status: "ACTIVE" } }),

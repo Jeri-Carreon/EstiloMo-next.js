@@ -101,7 +101,7 @@ export default function AdminReviewsPage() {
       return data.reviews || [];
     },
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const getCustomerName = (review: Review) => {

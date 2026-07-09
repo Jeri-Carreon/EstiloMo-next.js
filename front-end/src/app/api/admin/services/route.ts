@@ -19,11 +19,7 @@ export async function GET() {
             id: true,
             firstName: true,
             lastName: true,
-            user: {
-              select: {
-                isActive: true,
-              },
-            },
+            userId: true,
           },
         },
       },
@@ -31,6 +27,32 @@ export async function GET() {
         sortOrder: "asc",
       },
     });
+
+    const staffUserIds = Array.from(
+      new Set(
+        services.flatMap((service) =>
+          service.assignedStaff.map((staff) => staff.userId)
+        )
+      )
+    );
+
+    const staffUsers = staffUserIds.length
+      ? await db.user.findMany({
+          where: {
+            id: {
+              in: staffUserIds,
+            },
+          },
+          select: {
+            id: true,
+            isActive: true,
+          },
+        })
+      : [];
+
+    const staffActiveByUserId = new Map(
+      staffUsers.map((staffUser) => [staffUser.id, staffUser.isActive])
+    );
 
     const result = services.map((service) => ({
       id: service.id,
@@ -47,7 +69,7 @@ export async function GET() {
         name:
           [staff.firstName, staff.lastName].filter(Boolean).join(" ") ||
           "Unknown",
-        isActive: staff.user?.isActive ?? false,
+        isActive: staffActiveByUserId.get(staff.userId) ?? false,
       })),
       totalBookings: service.totalBookings,
       totalRevenue: Number(service.totalRevenue),

@@ -107,11 +107,20 @@ export async function GET() {
 
         payment: {
           id: payment?.id ?? null,
-          amount: Number(a.service?.price ?? 0),
+          amount: Number(
+            payment?.amount ?? a.sale?.totalAmount ?? a.service?.price ?? 0
+          ),
           saleAmount: Number(
             payment?.amount ?? a.sale?.totalAmount ?? a.service?.price ?? 0
           ),
           downPayment: Number(payment?.downPayment ?? 0),
+          discount: Number(payment?.discount ?? a.sale?.discount ?? 0),
+          pwdDiscount: payment?.pwdDiscount ?? a.sale?.pwdDiscount ?? false,
+          pwdId: payment?.pwdId ?? a.sale?.pwdId ?? null,
+          specialDiscountType:
+            payment?.specialDiscountType ?? a.sale?.specialDiscountType ?? null,
+          vatExempt: payment?.vatExempt ?? a.sale?.vatExempt ?? false,
+          vatAmount: Number(payment?.vatAmount ?? a.sale?.vatAmount ?? 0),
           method: payment?.method ?? "GCASH",
           status: payment?.status ?? "PENDING",
           screenshotUrl: payment?.screenshotUrl ?? null,

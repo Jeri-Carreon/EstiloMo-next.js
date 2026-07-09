@@ -304,7 +304,7 @@ export default function BarbersPage() {
       return data.barbers || [];
     },
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const { data: absentMap = {} } = useQuery<Record<string, boolean>>({
@@ -335,7 +335,7 @@ export default function BarbersPage() {
       return map;
     },
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const displayedBarbers = useMemo(() => {
@@ -428,7 +428,7 @@ export default function BarbersPage() {
       }));
     },
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const error = appointmentsQueryError instanceof Error ? appointmentsQueryError.message : "";

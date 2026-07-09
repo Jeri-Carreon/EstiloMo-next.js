@@ -4,6 +4,10 @@ export type OpenAIModelPricing = {
   outputPricePerMillion: number;
 };
 
+export const CHATBOT_OPENAI_MODELS = ["gpt-4o", "gpt-4o-mini"] as const;
+export type ChatbotOpenAIModel = (typeof CHATBOT_OPENAI_MODELS)[number];
+export const DEFAULT_CHATBOT_OPENAI_MODEL: ChatbotOpenAIModel = "gpt-4o-mini";
+
 const configuredUsdToPhp = Number(process.env.USD_TO_PHP);
 
 export const USD_TO_PHP =
@@ -11,7 +15,7 @@ export const USD_TO_PHP =
     ? configuredUsdToPhp
     : 61;
 
-export const OPENAI_PRICING: Record<string, OpenAIModelPricing> = {
+export const OPENAI_PRICING: Record<ChatbotOpenAIModel, OpenAIModelPricing> = {
   "gpt-4o": {
     model: "gpt-4o",
     inputPricePerMillion: 2.5,
@@ -23,6 +27,17 @@ export const OPENAI_PRICING: Record<string, OpenAIModelPricing> = {
     outputPricePerMillion: 0.6,
   },
 };
+
+export function isChatbotOpenAIModel(model: unknown): model is ChatbotOpenAIModel {
+  return (
+    typeof model === "string" &&
+    (CHATBOT_OPENAI_MODELS as readonly string[]).includes(model)
+  );
+}
+
+export function resolveChatbotOpenAIModel(model: unknown): ChatbotOpenAIModel {
+  return isChatbotOpenAIModel(model) ? model : DEFAULT_CHATBOT_OPENAI_MODEL;
+}
 
 type CostInput = {
   model: string;
@@ -36,7 +51,7 @@ function roundMoney(value: number): number {
 }
 
 export function getOpenAIPricing(model: string): OpenAIModelPricing {
-  const exact = OPENAI_PRICING[model];
+  const exact = isChatbotOpenAIModel(model) ? OPENAI_PRICING[model] : null;
   if (exact) return exact;
 
   const fallback = Object.values(OPENAI_PRICING).find((pricing) =>

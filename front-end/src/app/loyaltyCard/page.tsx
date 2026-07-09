@@ -28,6 +28,11 @@ type CustomerLoyaltyCard = {
   fiveRewardRedeemed: boolean;
 };
 
+type LoyaltySettings = {
+  fiftyPercentStickerThreshold: number;
+  freeStickerThreshold: number;
+};
+
 type CustomerInfo = {
   id: string;
   customerCode: string;
@@ -115,6 +120,7 @@ export default function CustomerLoyaltyCardPage() {
     loyaltyCard: CustomerLoyaltyCard | null;
     customer: CustomerInfo | null;
     appointments: Appointment[];
+    settings: LoyaltySettings;
   }>({
     queryKey: ["customerLoyaltyCard"],
     queryFn: async () => {
@@ -128,6 +134,10 @@ export default function CustomerLoyaltyCardPage() {
           loyaltyCard: null,
           customer: null,
           appointments: [],
+          settings: {
+            fiftyPercentStickerThreshold: 5,
+            freeStickerThreshold: 10,
+          },
         };
       }
 
@@ -141,16 +151,24 @@ export default function CustomerLoyaltyCardPage() {
         loyaltyCard: result.loyaltyCard ?? null,
         customer: result.customer ?? null,
         appointments: result.appointments ?? [],
+        settings: result.settings ?? {
+          fiftyPercentStickerThreshold: 5,
+          freeStickerThreshold: 10,
+        },
       };
     },
     enabled: !authLoading,
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const loyaltyCard = data?.loyaltyCard ?? null;
   const customerInfo = data?.customer ?? null;
   const appointments = data?.appointments ?? [];
+  const loyaltySettings = data?.settings ?? {
+    fiftyPercentStickerThreshold: 5,
+    freeStickerThreshold: 10,
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -209,19 +227,15 @@ export default function CustomerLoyaltyCardPage() {
     return <Typography sx={{ p: 4 }}>No loyalty card found.</Typography>;
   }
 
-  const stars = Math.min(loyaltyCard.stars, 10);
+  const fiftyPercentStickerThreshold =
+    loyaltySettings.fiftyPercentStickerThreshold || 5;
+  const freeStickerThreshold = loyaltySettings.freeStickerThreshold || 10;
+  const stars = Math.min(loyaltyCard.stars, freeStickerThreshold);
 
-  const isNormalStampFilled = (stampNumber: number) => {
-    if (stampNumber <= 4) return stars >= stampNumber;
-    return stars >= stampNumber + 1;
-  };
-
-  const getNormalStampAppointment = (stampNumber: number) => {
-    if (stampNumber <= 4) return appointments[stampNumber - 1];
-    return appointments[stampNumber];
-  };
-
-  const normalStamps = [1, 2, 3, 4, 5, 6, 7, 8];
+  const rewardPositions = Array.from(
+    { length: freeStickerThreshold },
+    (_, index) => index + 1
+  );
 
   const selectedServices =
     selectedAppointment?.services && selectedAppointment.services.length > 0
@@ -309,7 +323,8 @@ export default function CustomerLoyaltyCardPage() {
               maxWidth: { xs: 290, sm: "none" },
             }}
           >
-            Complete the stamps and get 50% off Signature Haircut and Free Signature Haircut
+            Get 50% off at sticker {fiftyPercentStickerThreshold} and a free
+            Signature Haircut at sticker {freeStickerThreshold}
           </Typography>
 
           <Box
@@ -328,13 +343,43 @@ export default function CustomerLoyaltyCardPage() {
               alignItems: "center",
             }}
           >
-            {normalStamps.slice(0, 4).map((stampNumber) => {
-              const appointment = getNormalStampAppointment(stampNumber);
-              const filled = isNormalStampFilled(stampNumber);
+            {rewardPositions.map((position) => {
+              const appointment = appointments[position - 1];
+
+              if (position === fiftyPercentStickerThreshold) {
+                return (
+                  <RewardBox
+                    key={`reward-${position}`}
+                    label="50%"
+                    unlocked={stars >= fiftyPercentStickerThreshold}
+                    redeemed={loyaltyCard.fiveRewardRedeemed}
+                    appointment={appointment}
+                    onClick={() => {
+                      if (appointment) setSelectedAppointment(appointment);
+                    }}
+                  />
+                );
+              }
+
+              if (position === freeStickerThreshold) {
+                return (
+                  <RewardBox
+                    key={`reward-${position}`}
+                    label="FREE"
+                    unlocked={stars >= freeStickerThreshold}
+                    appointment={appointment}
+                    onClick={() => {
+                      if (appointment) setSelectedAppointment(appointment);
+                    }}
+                  />
+                );
+              }
+
+              const filled = stars >= position;
 
               return (
                 <StampBox
-                  key={stampNumber}
+                  key={`stamp-${position}`}
                   filled={filled}
                   appointment={appointment}
                   onClick={() =>
@@ -343,41 +388,6 @@ export default function CustomerLoyaltyCardPage() {
                 />
               );
             })}
-
-            <RewardBox
-              label="50%"
-              unlocked={stars >= 5}
-              redeemed={loyaltyCard.fiveRewardRedeemed}
-              appointment={appointments[4]}
-              onClick={() => {
-                if (appointments[4]) setSelectedAppointment(appointments[4]);
-              }}
-            />
-
-            {normalStamps.slice(4, 8).map((stampNumber) => {
-              const appointment = getNormalStampAppointment(stampNumber);
-              const filled = isNormalStampFilled(stampNumber);
-
-              return (
-                <StampBox
-                  key={stampNumber}
-                  filled={filled}
-                  appointment={appointment}
-                  onClick={() =>
-                    filled && appointment && setSelectedAppointment(appointment)
-                  }
-                />
-              );
-            })}
-
-            <RewardBox
-              label="FREE"
-              unlocked={stars >= 10}
-              appointment={appointments[9]}
-              onClick={() => {
-                if (appointments[9]) setSelectedAppointment(appointments[9]);
-              }}
-            />
           </Box>
 
           <Typography
@@ -711,24 +721,29 @@ function RewardBox({
   appointment?: Appointment;
   onClick: () => void;
 }) {
+  const clickable = Boolean(appointment) && (unlocked || redeemed);
+  const filled = unlocked || redeemed;
+
   return (
     <Box
-      onClick={() => unlocked && appointment && onClick()}
+      onClick={() => {
+        if (clickable) onClick();
+      }}
       sx={{
         width: "100%",
         height: { xs: "auto", sm: 88, md: 110 },
         aspectRatio: "1 / 1",
         borderRadius: { xs: 1.5, sm: 2.5, md: 4 },
-        bgcolor: unlocked ? "#e8e8e8" : "#fff",
+        bgcolor: filled ? "#e8e8e8" : "#fff",
         border: { xs: "1.5px solid #111", sm: "2px solid #111", md: "3px solid #111" },
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        cursor: unlocked && appointment ? "pointer" : "default",
+        cursor: clickable ? "pointer" : "default",
         transition: "0.2s ease",
-        boxShadow: unlocked ? "0 4px 10px rgba(0,0,0,0.15)" : "none",
+        boxShadow: filled ? "0 4px 10px rgba(0,0,0,0.15)" : "none",
         "&:hover": {
-          transform: unlocked && appointment ? "scale(1.05)" : "none",
+          transform: clickable ? "scale(1.05)" : "none",
         },
       }}
     >
