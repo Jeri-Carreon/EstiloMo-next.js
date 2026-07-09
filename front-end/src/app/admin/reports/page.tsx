@@ -13,6 +13,10 @@ import {
   Box,
   Button,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   MenuItem,
   Select,
@@ -430,6 +434,25 @@ type ReportRequest = {
   dateRange: string;
 };
 
+type ReportCostEstimate = {
+  model: string;
+  dateRange: string;
+  estimatedInputTokens: number;
+  estimatedOutputTokens: number;
+  estimatedTotalTokens: number;
+  estimatedInputCostUSD: number;
+  estimatedOutputCostUSD: number;
+  estimatedTotalCostUSD: number;
+  exchangeRatePHP: number;
+  estimatedTotalCostPHP: number;
+  maxOutputTokens: number;
+  isEstimate: boolean;
+};
+
+type PendingReportRequest = ReportRequest & {
+  estimate: ReportCostEstimate;
+};
+
 function buildReportData(
   rawData: any,
   dateRange: string,
@@ -461,6 +484,18 @@ function buildReportData(
   };
 }
 
+function formatTokenCount(value: number): string {
+  return value.toLocaleString("en-US");
+}
+
+function formatCostUSD(value: number): string {
+  return `$${value.toFixed(4)}`;
+}
+
+function formatCostPHP(value: number): string {
+  return `PHP ${value.toFixed(4)}`;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
@@ -483,6 +518,10 @@ export default function ReportsPage() {
   const [reportRequest, setReportRequest] = useState<ReportRequest | null>(
     null,
   );
+  const [pendingReport, setPendingReport] =
+    useState<PendingReportRequest | null>(null);
+  const [estimateLoading, setEstimateLoading] = useState(false);
+  const [estimateError, setEstimateError] = useState("");
   // session
   const router = useRouter();
   const supabase = createClient();
@@ -594,6 +633,47 @@ export default function ReportsPage() {
     }
   };
 
+  const handleEstimateReport = async () => {
+    if (!startDate || !endDate) return;
+
+    const from = toISO(startDate);
+    const to = toISO(endDate);
+    const dateRange = `${formatDate(startDate)} â€“ ${formatDate(endDate)}`;
+    setEstimateLoading(true);
+    setEstimateError("");
+    setPendingReport(null);
+    const hasCorruptSeparator = Array.from(dateRange).some(
+      (char) => char.charCodeAt(0) > 127,
+    );
+    const estimateDateRange = hasCorruptSeparator
+      ? `${formatDate(startDate)} - ${formatDate(endDate)}`
+      : dateRange;
+
+    try {
+      const params = new URLSearchParams({ from, to, dateRange: estimateDateRange });
+      const estimateRes = await fetch(
+        `/api/admin/reports/estimate?${params.toString()}`,
+        { cache: "no-store" },
+      );
+      const estimate = (await estimateRes.json()) as ReportCostEstimate & {
+        error?: string;
+      };
+
+      if (!estimateRes.ok) {
+        throw new Error(estimate.error || "Failed to estimate report cost.");
+      }
+
+      setPendingReport({ from, to, dateRange: estimateDateRange, estimate });
+    } catch (e) {
+      console.error(e);
+      setEstimateError(
+        e instanceof Error ? e.message : "Failed to estimate report cost.",
+      );
+    } finally {
+      setEstimateLoading(false);
+    }
+  };
+
   const handleGenerateReport = async () => {
     if (!startDate || !endDate) return;
 
@@ -601,11 +681,19 @@ export default function ReportsPage() {
     const to = toISO(endDate);
     const dateRange = `${formatDate(startDate)} – ${formatDate(endDate)}`;
 
+    const hasCorruptGenerationSeparator = Array.from(dateRange).some(
+      (char) => char.charCodeAt(0) > 127,
+    );
+    const generationDateRange = hasCorruptGenerationSeparator
+      ? `${formatDate(startDate)} - ${formatDate(endDate)}`
+      : dateRange;
+
     setLoading(true);
     setReportData(null);
     setChatMsgs([]);
     setDeepAnalysis(null);
     setReportRequest(null);
+    setPendingReport(null);
 
     try {
       const dataRes = await fetch(
@@ -623,7 +711,12 @@ export default function ReportsPage() {
       const analyzeRes = await fetch("/api/admin/reports/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dbData: rawData, dateRange }),
+        body: JSON.stringify({
+          from,
+          to,
+          dateRange: generationDateRange,
+          reportType: "summary",
+        }),
       });
       const aiInsights = await analyzeRes.json();
 
@@ -631,16 +724,16 @@ export default function ReportsPage() {
         throw new Error(aiInsights.error || "Failed to generate AI insights.");
       }
 
-      const parsed = buildReportData(rawData, dateRange, aiInsights);
+      const parsed = buildReportData(rawData, generationDateRange, aiInsights);
 
       setChatMsgs([
         {
           role: "assistant",
-          text: `Hi! I've analyzed your data from ${dateRange}. What would you like to explore?`,
+          text: `Hi! I've analyzed your data from ${generationDateRange}. What would you like to explore?`,
         },
       ]);
       setReportData(parsed);
-      setReportRequest({ from, to, dateRange });
+      setReportRequest({ from, to, dateRange: generationDateRange });
     } catch (e) {
       console.error(e);
     } finally {
@@ -683,7 +776,6 @@ export default function ReportsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           reportData,
-          dbData,
           deep,
           messages: newMsgs.map((m) => ({ role: m.role, content: m.text })),
         }),
@@ -1271,10 +1363,10 @@ export default function ReportsPage() {
       <Box sx={{ display: "flex", justifyContent: "center" }}>
         <Button
           variant="contained"
-          onClick={handleGenerateReport}
-          disabled={!startDate || !endDate || loading}
+          onClick={handleEstimateReport}
+          disabled={!startDate || !endDate || loading || estimateLoading}
           startIcon={
-            loading ? (
+            loading || estimateLoading ? (
               <CircularProgress size={16} sx={{ color: "#fff" }} />
             ) : undefined
           }
@@ -1291,9 +1383,172 @@ export default function ReportsPage() {
             "&:disabled": { bgcolor: "#ccc", color: "#fff" },
           }}
         >
-          {loading ? "Generating…" : "Generate Report"}
+          {loading
+            ? "Generating..."
+            : estimateLoading
+              ? "Estimating..."
+              : "Estimate Cost"}
         </Button>
       </Box>
+
+      {estimateError && (
+        <Typography
+          sx={{
+            mt: 2,
+            textAlign: "center",
+            color: "#b91c1c",
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          {estimateError}
+        </Typography>
+      )}
+
+      <Dialog
+        open={Boolean(pendingReport)}
+        onClose={() => setPendingReport(null)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle sx={{ fontWeight: 900 }}>Confirm AI Report</DialogTitle>
+        <DialogContent>
+          {pendingReport && (
+            <Box sx={{ display: "grid", gap: 2, pt: 0.5 }}>
+              <Box>
+                <Typography sx={{ fontSize: 13, color: "#777", mb: 0.5 }}>
+                  Date Range
+                </Typography>
+                <Typography sx={{ fontSize: 16, fontWeight: 800 }}>
+                  {pendingReport.dateRange}
+                </Typography>
+              </Box>
+
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+                  gap: 1.5,
+                }}
+              >
+                {[
+                  {
+                    label: "Input Tokens",
+                    value: formatTokenCount(
+                      pendingReport.estimate.estimatedInputTokens,
+                    ),
+                  },
+                  {
+                    label: "Max Output Tokens",
+                    value: formatTokenCount(
+                      pendingReport.estimate.estimatedOutputTokens,
+                    ),
+                  },
+                  {
+                    label: "Estimated Total",
+                    value: formatTokenCount(
+                      pendingReport.estimate.estimatedTotalTokens,
+                    ),
+                  },
+                ].map((item) => (
+                  <Box
+                    key={item.label}
+                    sx={{
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 2,
+                      p: 1.5,
+                      bgcolor: "#fafafa",
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 12, color: "#777", mb: 0.5 }}>
+                      {item.label}
+                    </Typography>
+                    <Typography sx={{ fontSize: 18, fontWeight: 900 }}>
+                      {item.value}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+
+              <Box
+                sx={{
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 2,
+                  p: 2,
+                  display: "grid",
+                  gap: 1,
+                }}
+              >
+                <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                  <Typography sx={{ fontSize: 13, color: "#555" }}>Model</Typography>
+                  <Typography sx={{ fontSize: 13, fontWeight: 800 }}>
+                    {pendingReport.estimate.model}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                  <Typography sx={{ fontSize: 13, color: "#555" }}>
+                    Input Cost
+                  </Typography>
+                  <Typography sx={{ fontSize: 13, fontWeight: 800 }}>
+                    {formatCostUSD(pendingReport.estimate.estimatedInputCostUSD)}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                  <Typography sx={{ fontSize: 13, color: "#555" }}>
+                    Output Cost Cap
+                  </Typography>
+                  <Typography sx={{ fontSize: 13, fontWeight: 800 }}>
+                    {formatCostUSD(pendingReport.estimate.estimatedOutputCostUSD)}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                  <Typography sx={{ fontSize: 15, fontWeight: 900 }}>
+                    Estimated Total
+                  </Typography>
+                  <Typography sx={{ fontSize: 15, fontWeight: 900 }}>
+                    {formatCostUSD(pendingReport.estimate.estimatedTotalCostUSD)}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                  <Typography sx={{ fontSize: 15, fontWeight: 900 }}>
+                    Estimated Total PHP
+                  </Typography>
+                  <Typography sx={{ fontSize: 15, fontWeight: 900 }}>
+                    {formatCostPHP(pendingReport.estimate.estimatedTotalCostPHP)}
+                  </Typography>
+                </Box>
+                <Typography sx={{ fontSize: 12, color: "#777", mt: 0.5 }}>
+                  Uses PHP {pendingReport.estimate.exchangeRatePHP.toFixed(4)} per USD.
+                  Actual output tokens and final cost are saved after generation.
+                </Typography>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => setPendingReport(null)}
+            disabled={loading}
+            sx={{ textTransform: "none", color: "#555", fontWeight: 700 }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleGenerateReport}
+            disabled={loading}
+            sx={{
+              textTransform: "none",
+              bgcolor: "#111",
+              color: "#FBBC05",
+              fontWeight: 900,
+              "&:hover": { bgcolor: "#222" },
+            }}
+          >
+            {loading ? "Generating..." : "Confirm and Generate"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

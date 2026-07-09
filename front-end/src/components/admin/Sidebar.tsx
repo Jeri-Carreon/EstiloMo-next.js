@@ -35,6 +35,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import SecurityIcon from '@mui/icons-material/Security';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 
 const menuItems = [
   { label: 'Dashboard', icon: DashboardIcon, path: '/admin/dashboard', roles: ['OWNER', 'RECEPTIONIST'] },
@@ -46,6 +47,7 @@ const menuItems = [
   { label: 'Customer Reviews', icon: StarIcon, path: '/admin/reviews', roles: ['OWNER'] },
   { label: 'Loyalty Card', icon: CardGiftcardIcon, path: '/admin/loyaltyCard', roles: ['OWNER', 'RECEPTIONIST'] },
   { label: 'Reports', icon: DescriptionIcon, path: '/admin/reports', roles: ['OWNER'] },
+  { label: 'AI Usage', icon: AssessmentIcon, path: '/admin/ai-usage', roles: ['OWNER'] },
   { label: 'User Management', icon: AdminPanelSettingsIcon, path: '/admin/user-management', roles: ['OWNER'] },
   { label: 'Chatbot', icon: SmartToyIcon, path: '/admin/chatbot', roles: ['OWNER'] },
   { label: 'Security Logs', icon: SecurityIcon, path: '/admin/security', roles: ['OWNER'] },

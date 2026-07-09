@@ -370,6 +370,28 @@ model ChatbotSetting {
   updatedAt DateTime @updatedAt
 }
 
+model AIReportLog {
+  id              String   @id @default(cuid())
+  dateFrom        DateTime
+  dateTo          DateTime
+  reportType      String
+  model           String
+  inputTokens     Int
+  outputTokens    Int
+  totalTokens     Int
+  inputCostUSD    Decimal  @db.Decimal(12, 4)
+  outputCostUSD   Decimal  @db.Decimal(12, 4)
+  totalCostUSD    Decimal  @db.Decimal(12, 4)
+  exchangeRatePHP Decimal  @db.Decimal(10, 4)
+  totalCostPHP    Decimal  @db.Decimal(12, 4)
+  generatedBy     String?
+  generatedAt     DateTime @default(now())
+
+  @@index([generatedAt])
+  @@index([generatedBy])
+  @@index([reportType])
+}
+
 enum ReviewStatus {
   PENDING
   COMPLETED
