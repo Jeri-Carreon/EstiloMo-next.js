@@ -1,7 +1,13 @@
 "use client";
 
 import { createClient } from '@/lib/supabase/client';
-import { useEffect, useState } from "react";
+import {
+  getDefaultDashboardCustomRange,
+  validateDashboardCustomRange,
+  type DashboardGrouping,
+  type DashboardPeriod,
+} from "@/lib/dashboardDateRange";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 
@@ -11,9 +17,11 @@ import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import Paper from "@mui/material/Paper";
 import LinearProgress from "@mui/material/LinearProgress";
+import MenuItem from "@mui/material/MenuItem";
+import Select from "@mui/material/Select";
+import TextField from "@mui/material/TextField";
 
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
-import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlined";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import CancelIcon from "@mui/icons-material/Cancel";
@@ -34,21 +42,49 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type DashboardData = {
-  period?: string;
+  period?: DashboardPeriod;
+  barberId?: string | null;
+  dateRange?: {
+    from: string;
+    to: string;
+    fromTime?: string;
+    toTime?: string;
+    grouping: DashboardGrouping;
+    dayCount: number;
+  };
   todaySales: number;
   scheduledAppointments: number;
+  pendingAppointments?: number;
   cancellationsAppointments: number;
+  rejectedAppointments?: number;
   cancellationsTotal: number;
   completedAppointments: number;
   completedTransactions: number;
+  completionRate?: number;
   noShows: number;
+  newCustomers?: number;
+  reviewsTotal?: number;
+  averageReviewRating?: number;
   revenueByService: { service: string; revenue: number; count: number }[];
   revenueByBarber: { name: string; revenue: number; services: number }[];
+  revenueTrendData?: { label: string; revenue: number; transactions: number }[];
   paymentMethods: { method: string; percentage: number }[];
   walkInVsAppointments: { type: string; customers: number; revenue: number }[];
   peakHours: { hour: string; customers: number }[];
   visitFrequency: { frequency: string; customers: number; percentage: number }[];
   topCustomers: { rank: number; name: string; visits: number; revenue: number }[];
+  trends?: {
+    revenue: number;
+    appointments: number;
+    transactions: number;
+    completionRate: number;
+  };
+};
+
+type BarberOption = {
+  id: string;
+  name: string;
+  isActive?: boolean;
 };
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
@@ -57,6 +93,44 @@ const BARBER_COLORS = ["#00bcd4", "#4caf50", "#ffc400", "#f44336"];
 const PIE_COLORS = ["#2196f3", "#4caf50"];
 const WALKIN_COLORS = ["#ffc400", "#2196f3"];
 const FREQ_COLORS = ["#2196f3", "#ff9800", "#f44336", "#4caf50"];
+
+const PERIOD_OPTIONS: { label: string; value: DashboardPeriod }[] = [
+  { label: "Day", value: "Day" },
+  { label: "Week", value: "Week" },
+  { label: "Month", value: "Month" },
+  { label: "Custom Range", value: "custom" },
+];
+
+type DashboardRequest = {
+  period: DashboardPeriod;
+  from?: string;
+  to?: string;
+  fromTime?: string;
+  toTime?: string;
+  barberId?: string;
+};
+
+function buildDashboardMetricsUrl(request: DashboardRequest) {
+  const params = new URLSearchParams({ period: request.period });
+
+  if (request.period === "custom" && request.from && request.to) {
+    params.set("from", request.from);
+    params.set("to", request.to);
+    if (request.fromTime) params.set("fromTime", request.fromTime);
+    if (request.toTime) params.set("toTime", request.toTime);
+  }
+
+  if (request.barberId) {
+    params.set("barberId", request.barberId);
+  }
+
+  return `/api/admin/dashboard-metrics?${params.toString()}`;
+}
+
+function formatTrend(value: number) {
+  if (value > 0) return `+${value}%`;
+  return `${value}%`;
+}
 
 // ─── Metric Card ──────────────────────────────────────────────────────────────
 
@@ -123,15 +197,33 @@ export default function AdminDashboardPage() {
 
   // Session
   const [loading, setLoading] = useState(true);
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), []);
+  const defaultCustomRange = useMemo(() => getDefaultDashboardCustomRange(), []);
 
   const [data, setData] = useState<DashboardData | null>(null);
-  const [period, setPeriod] = useState<"Day" | "Week" | "Month">("Day");
+  const [barbers, setBarbers] = useState<BarberOption[]>([]);
+  const [period, setPeriod] = useState<DashboardPeriod>("Day");
+  const [customFrom, setCustomFrom] = useState(defaultCustomRange.from);
+  const [customTo, setCustomTo] = useState(defaultCustomRange.to);
+  const [customFromTime, setCustomFromTime] = useState(defaultCustomRange.fromTime);
+  const [customToTime, setCustomToTime] = useState(defaultCustomRange.toTime);
+  const [selectedBarberId, setSelectedBarberId] = useState("");
+  const [appliedRequest, setAppliedRequest] = useState<DashboardRequest>({
+    period: "Day",
+  });
+  const [errorMessage, setErrorMessage] = useState("");
+  const customValidationMessage =
+    period === "custom"
+      ? validateDashboardCustomRange(customFrom, customTo, customFromTime, customToTime)
+      : "";
 
   useEffect(() => {
+    let ignore = false;
+
     const init = async () => {
       try {
-        setLoading(true)
+        setLoading(true);
+        setErrorMessage("");
 
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
@@ -147,28 +239,146 @@ export default function AdminDashboardPage() {
           return
         }
 
-        const metricsRes = await fetch(`/api/admin/dashboard-metrics?period=${period}`, {
-          cache: "no-store",
-        });
+        const [metricsRes, barbersRes] = await Promise.all([
+          fetch(buildDashboardMetricsUrl(appliedRequest), {
+            cache: "no-store",
+          }),
+          fetch("/api/admin/barbers", {
+            cache: "no-store",
+          }),
+        ]);
 
         if (metricsRes.status === 401 || metricsRes.status === 403) {
           router.push("/unauthorized");
           return;
         }
 
-        const metricsData: DashboardData = await metricsRes.json();
-        setData(metricsData);
+        if (barbersRes.ok) {
+          const barbersPayload = await barbersRes.json();
+          if (!ignore) {
+            setBarbers(
+              Array.isArray(barbersPayload.barbers)
+                ? barbersPayload.barbers.map(
+                    (barber: { id: string; name: string; isActive?: boolean }) => ({
+                      id: barber.id,
+                      name: barber.name,
+                      isActive: barber.isActive,
+                    }),
+                  )
+                : [],
+            );
+          }
+        }
+
+        const metricsPayload = await metricsRes.json();
+        if (!metricsRes.ok) {
+          throw new Error(metricsPayload.error || "Failed to load dashboard metrics.");
+        }
+
+        if (!ignore) {
+          setData(metricsPayload as DashboardData);
+        }
       } catch (error) {
         console.error(error);
+        if (!ignore) {
+          setErrorMessage(
+            error instanceof Error ? error.message : "Failed to load dashboard metrics.",
+          );
+        }
       } finally {
-        setLoading(false);
+        if (!ignore) {
+          setLoading(false);
+        }
       }
     };
 
     init();
-  }, [period]);
 
-  if (loading || !data) {
+    return () => {
+      ignore = true;
+    };
+  }, [appliedRequest, router, supabase]);
+
+  const handlePeriodSelect = (nextPeriod: DashboardPeriod) => {
+    setPeriod(nextPeriod);
+    setErrorMessage("");
+
+    if (nextPeriod !== "custom") {
+      setAppliedRequest({
+        period: nextPeriod,
+        barberId: appliedRequest.barberId,
+      });
+    }
+  };
+
+  const handleApplyCustomRange = () => {
+    if (customValidationMessage || loading) return;
+    setAppliedRequest({
+      period: "custom",
+      from: customFrom,
+      to: customTo,
+      fromTime: customFromTime,
+      toTime: customToTime,
+      barberId: appliedRequest.barberId,
+    });
+  };
+
+  const handleResetCustomRange = () => {
+    const resetRange = getDefaultDashboardCustomRange();
+    setCustomFrom(resetRange.from);
+    setCustomTo(resetRange.to);
+    setCustomFromTime(resetRange.fromTime);
+    setCustomToTime(resetRange.toTime);
+    setPeriod("custom");
+    setAppliedRequest({
+      period: "custom",
+      from: resetRange.from,
+      to: resetRange.to,
+      fromTime: resetRange.fromTime,
+      toTime: resetRange.toTime,
+      barberId: appliedRequest.barberId,
+    });
+  };
+
+  const handleApplyBarberFilter = () => {
+    if (loading) return;
+
+    setAppliedRequest((current) => ({
+      ...current,
+      barberId: selectedBarberId || undefined,
+    }));
+  };
+
+  const handleViewAllBarbers = () => {
+    setSelectedBarberId("");
+    setAppliedRequest((current) => ({
+      ...current,
+      barberId: undefined,
+    }));
+  };
+
+  if (!data) {
+    if (loading) {
+      return (
+        <Box sx={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>
+          <CircularProgress />
+        </Box>
+      );
+    }
+
+    if (errorMessage) {
+      return (
+        <Box sx={{ p: { xs: 2, md: 4 }, bgcolor: "#fff", minHeight: "100vh" }}>
+          <Typography sx={{ fontSize: { xs: 26, md: 34 }, fontWeight: 900, mb: 2 }}>
+            Dashboard
+          </Typography>
+          <Typography sx={{ color: "#b91c1c", fontWeight: 700 }}>
+            {errorMessage}
+          </Typography>
+        </Box>
+      );
+    }
+
     return (
       <Box sx={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center" }}>
         <CircularProgress />
@@ -190,24 +400,191 @@ export default function AdminDashboardPage() {
       <Typography sx={{ fontSize: { xs: 26, md: 34 }, fontWeight: 900, mb: 0.5 }}>
         Dashboard
       </Typography>
+
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", sm: "minmax(220px, 320px) auto auto" },
+          gap: 1.5,
+          alignItems: "center",
+          mb: 2,
+          maxWidth: 720,
+        }}
+      >
+        <Select
+          size="small"
+          displayEmpty
+          value={selectedBarberId}
+          onChange={(event) => setSelectedBarberId(event.target.value)}
+          sx={{ bgcolor: "#fff", minHeight: 40 }}
+        >
+          <MenuItem value="">Select barber</MenuItem>
+          {barbers.map((barber) => (
+            <MenuItem key={barber.id} value={barber.id}>
+              {barber.name}
+            </MenuItem>
+          ))}
+        </Select>
+        <Button
+          variant="contained"
+          onClick={handleApplyBarberFilter}
+          disabled={loading || !selectedBarberId}
+          sx={{
+            bgcolor: "#111",
+            color: "#ffc400",
+            textTransform: "none",
+            fontWeight: 800,
+            minHeight: 40,
+            "&:hover": { bgcolor: "#222" },
+            "&:disabled": { bgcolor: "#ddd", color: "#888" },
+          }}
+        >
+          View Barber Data
+        </Button>
+        <Button
+          variant="outlined"
+          onClick={handleViewAllBarbers}
+          disabled={loading || !appliedRequest.barberId}
+          sx={{
+            color: "#111",
+            borderColor: "#d1d5db",
+            textTransform: "none",
+            fontWeight: 800,
+            minHeight: 40,
+            "&:hover": { borderColor: "#111", bgcolor: "#f8fafc" },
+          }}
+        >
+          View All Barbers
+        </Button>
+      </Box>
+
+      {appliedRequest.barberId && (
+        <Typography sx={{ fontSize: 13, color: "#666", mb: 2 }}>
+          Showing dashboard data for{" "}
+          {barbers.find((barber) => barber.id === appliedRequest.barberId)?.name ??
+            "selected barber"}
+          .
+        </Typography>
+      )}
       
-      <Box sx={{ display: "flex", mb: 3, width: "fit-content" }}>
-        {(["Day", "Week", "Month"] as const).map((p) => (
+      <Box sx={{ display: "flex", mb: period === "custom" ? 1.5 : 3, width: "fit-content", flexWrap: "wrap" }}>
+        {PERIOD_OPTIONS.map((item, index) => (
           <Button
-            key={p}
-            onClick={() => setPeriod(p)}
+            key={item.value}
+            onClick={() => handlePeriodSelect(item.value)}
             sx={{
               textTransform: "none", px: { xs: 2, md: 3 }, py: 0.8, fontWeight: 700, fontSize: 14,
-              borderRadius: p === "Day" ? "8px 0 0 8px" : p === "Month" ? "0 8px 8px 0" : 0,
-              bgcolor: period === p ? "#ffc400" : "#f3f3f3",
+              borderRadius: index === 0 ? "8px 0 0 8px" : index === PERIOD_OPTIONS.length - 1 ? "0 8px 8px 0" : 0,
+              bgcolor: period === item.value ? "#ffc400" : "#f3f3f3",
               color: "#111", border: "1px solid #e0e0e0",
-              "&:hover": { bgcolor: period === p ? "#ffc400" : "#e8e8e8" },
+              "&:hover": { bgcolor: period === item.value ? "#ffc400" : "#e8e8e8" },
             }}
           >
-            {p}
+            {item.label}
           </Button>
         ))}
       </Box>
+
+      {period === "custom" && (
+        <>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+              gap: 1.5,
+              alignItems: "start",
+              mb: 2,
+              maxWidth: 860,
+            }}
+          >
+          <TextField
+            label="Date From"
+            type="date"
+            size="small"
+            value={customFrom}
+            onChange={(event) => setCustomFrom(event.target.value)}
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
+          <TextField
+            label="Date To"
+            type="date"
+            size="small"
+            value={customTo}
+            onChange={(event) => setCustomTo(event.target.value)}
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
+          <TextField
+            label="Time From"
+            type="time"
+            size="small"
+            value={customFromTime}
+            onChange={(event) => setCustomFromTime(event.target.value)}
+            slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 60 } }}
+          />
+          <TextField
+            label="Time To"
+            type="time"
+            size="small"
+            value={customToTime}
+            onChange={(event) => setCustomToTime(event.target.value)}
+            slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 60 } }}
+          />
+          {customValidationMessage && (
+            <Typography
+              sx={{
+                gridColumn: "1 / -1",
+                color: "#b91c1c",
+                fontSize: 13,
+                fontWeight: 700,
+              }}
+            >
+              {customValidationMessage}
+            </Typography>
+          )}
+          </Box>
+          <Box sx={{ display: "flex", gap: 1.5, mb: 3, flexWrap: "wrap" }}>
+            <Button
+              variant="contained"
+              onClick={handleApplyCustomRange}
+              disabled={Boolean(customValidationMessage) || loading}
+              sx={{
+                bgcolor: "#111",
+                color: "#ffc400",
+                textTransform: "none",
+                fontWeight: 800,
+                minHeight: 40,
+                "&:hover": { bgcolor: "#222" },
+                "&:disabled": { bgcolor: "#ddd", color: "#888" },
+              }}
+            >
+              Apply
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={handleResetCustomRange}
+              disabled={loading}
+              sx={{
+                color: "#111",
+                borderColor: "#d1d5db",
+                textTransform: "none",
+                fontWeight: 800,
+                minHeight: 40,
+                "&:hover": { borderColor: "#111", bgcolor: "#f8fafc" },
+              }}
+            >
+              Reset
+            </Button>
+          </Box>
+        </>
+      )}
+
+      {errorMessage && (
+        <Typography sx={{ color: "#b91c1c", fontSize: 13, fontWeight: 700, mb: 2 }}>
+          {errorMessage}
+        </Typography>
+      )}
+
+      {loading && data && <LinearProgress sx={{ mb: 2 }} />}
 
       <Box sx={{ display: "flex", gap: 2, mb: 4, flexWrap: "wrap" }}>
         <MetricCard label="Scheduled Appointments" value={data.scheduledAppointments} icon={<CalendarTodayIcon sx={{ color: "#2196f3", fontSize: 20 }} />} iconBg="#e3f2fd" />
@@ -222,7 +599,52 @@ export default function AdminDashboardPage() {
         <MetricCard label="Cancelled Transactions" value={data.cancellationsTotal} icon={<CancelIcon sx={{ color: "#f44336", fontSize: 20 }} />} iconBg="#fdecea" />
       </Box>
 
+      {data.trends && (
+        <Paper elevation={0} sx={{ border: "1px solid #e5e7eb", borderRadius: 2, p: 2, mb: 4 }}>
+          <Typography sx={{ fontWeight: 800, mb: 1 }}>Previous Period Comparison</Typography>
+          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+            {[
+              { label: "Revenue", value: data.trends.revenue },
+              { label: "Appointments", value: data.trends.appointments },
+              { label: "Transactions", value: data.trends.transactions },
+              { label: "Completion Rate", value: data.trends.completionRate },
+            ].map((item) => (
+              <Typography
+                key={item.label}
+                sx={{
+                  fontSize: 13,
+                  color: item.value >= 0 ? "#15803d" : "#b91c1c",
+                  fontWeight: 800,
+                }}
+              >
+                {item.label}: {formatTrend(item.value)}
+              </Typography>
+            ))}
+          </Box>
+        </Paper>
+      )}
+
       <SectionTitle>Financial Analytics</SectionTitle>
+
+      {data.revenueTrendData && (
+        <Paper elevation={0} sx={{ border: "1px solid #e5e7eb", borderRadius: 2, p: { xs: 2, md: 3 }, mb: 3 }}>
+          <Typography sx={{ fontWeight: 800, mb: 2 }}>Revenue Trend</Typography>
+          <ResponsiveContainer width="99%" height={260}>
+            <BarChart data={data.revenueTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 30 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#666" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "#666" }} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(value, name) => [name === "revenue" ? `PHP ${value}` : value, name === "revenue" ? "Revenue" : "Transactions"]} contentStyle={{ borderRadius: 8, fontSize: 13 }} />
+              <Bar dataKey="revenue" fill="#2196f3" radius={[4, 4, 0, 0]} barSize={36} />
+            </BarChart>
+          </ResponsiveContainer>
+          {data.dateRange && (
+            <Typography sx={{ fontSize: 11, color: "#888", mt: 1 }}>
+              Grouped by {data.dateRange.grouping}.
+            </Typography>
+          )}
+        </Paper>
+      )}
 
       <Paper elevation={0} sx={{ border: "1px solid #e5e7eb", borderRadius: 2, p: { xs: 2, md: 3 }, mb: 3 }}>
         <Typography sx={{ fontWeight: 800, mb: 2 }}>Revenue by Service Type</Typography>

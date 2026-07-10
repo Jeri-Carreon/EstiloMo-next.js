@@ -306,6 +306,18 @@ function getSaleStatusLabel(status: Sale["status"]) {
   return "Unpaid";
 }
 
+const getStatusColor = (status: string) => {
+  const normalized = status.toUpperCase();
+
+  if (normalized === "PAID") return "green";
+  if (normalized === "PENDING") return "#EA580C";
+  if (normalized === "CANCELLED") return "#DC2626";
+  if (normalized === "REFUNDED") return "#1F2937";
+  if (normalized === "PARTIAL") return "#2563eb";
+
+  return "#333";
+};
+
 function isSignatureHaircut(serviceName: string) {
   return serviceName.trim().toLowerCase() === "signature haircut";
 }
@@ -1535,7 +1547,14 @@ export default function SalesPage() {
                       <TableCell sx={bodyCell}>
                         {sale.source === "WALKIN" ? "Walk-In" : "Appointment"}
                       </TableCell>
-                      <TableCell sx={bodyCell}>{getSaleStatusLabel(sale.status)}</TableCell>
+                      <TableCell
+                        sx={{
+                          ...bodyCell,
+                          color: getStatusColor(sale.status),
+                        }}
+                      >
+                        {getSaleStatusLabel(sale.status)}
+                      </TableCell>
 
                       <TableCell align="center">
                         <Box

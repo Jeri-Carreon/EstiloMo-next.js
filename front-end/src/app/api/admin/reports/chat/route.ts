@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { calculateOpenAICost } from "@/lib/openaiPricing";
+import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
 
 type ChatMessage = {
@@ -17,8 +19,47 @@ type ReportData = {
   dailyRevenue?: DailyRevenuePoint[];
 } & Record<string, unknown>;
 
+type ReportRequest = {
+  from?: string;
+  to?: string;
+  dateRange?: string;
+};
+
+type ChatUsage = {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+};
+
 function roundNumber(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function extractUsage(usage?: ChatUsage) {
+  const inputTokens = Number(usage?.prompt_tokens ?? usage?.input_tokens ?? 0);
+  const outputTokens = Number(usage?.completion_tokens ?? usage?.output_tokens ?? 0);
+  const totalTokens = Number(usage?.total_tokens ?? inputTokens + outputTokens);
+
+  return { inputTokens, outputTokens, totalTokens };
+}
+
+function parseReportRequest(reportRequest?: ReportRequest) {
+  const startDate = new Date(reportRequest?.from ?? Date.now());
+  const endDate = new Date(reportRequest?.to ?? reportRequest?.from ?? Date.now());
+  endDate.setHours(23, 59, 59, 999);
+
+  if (
+    Number.isNaN(startDate.getTime()) ||
+    Number.isNaN(endDate.getTime()) ||
+    startDate > endDate
+  ) {
+    const now = new Date();
+    return { startDate: now, endDate: now };
+  }
+
+  return { startDate, endDate };
 }
 
 function buildDailyRevenueSummary(rows: DailyRevenuePoint[]) {
@@ -64,12 +105,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { messages, reportData, deep } = (await req.json()) as {
+    const { messages, reportData, reportRequest, deep } = (await req.json()) as {
       messages: ChatMessage[];
       reportData?: ReportData;
+      reportRequest?: ReportRequest;
       deep?: boolean;
     };
     const compactReport = compactReportData(reportData);
+    const model = deep ? "gpt-4o" : "gpt-4o-mini";
 
     const systemPrompt = deep
       ? `You are a senior business consultant specializing in barbershop analytics.
@@ -104,7 +147,7 @@ RULES:
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: deep ? "gpt-4o" : "gpt-4o-mini",
+        model,
         max_tokens: deep ? 2000 : 500,
         messages: [{ role: "system", content: systemPrompt }, ...messages],
       }),
@@ -118,7 +161,44 @@ RULES:
 
     const data = await res.json();
     const reply = data.choices?.[0]?.message?.content ?? "Unable to generate a response.";
-    return NextResponse.json({ reply });
+    const responseModel = data.model ?? model;
+    const usage = extractUsage(data.usage);
+    const cost = calculateOpenAICost({
+      model: responseModel,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      totalTokens: usage.totalTokens,
+    });
+    const { startDate, endDate } = parseReportRequest(reportRequest);
+
+    await db.aIReportLog.create({
+      data: {
+        dateFrom: startDate,
+        dateTo: endDate,
+        reportType: deep ? "deep_chat" : "chat",
+        model: responseModel,
+        inputTokens: cost.inputTokens,
+        outputTokens: cost.outputTokens,
+        totalTokens: cost.totalTokens,
+        inputCostUSD: cost.inputCostUSD,
+        outputCostUSD: cost.outputCostUSD,
+        totalCostUSD: cost.totalCostUSD,
+        exchangeRatePHP: cost.exchangeRatePHP,
+        totalCostPHP: cost.totalCostPHP,
+        generatedBy: user.id,
+      },
+    });
+
+    return NextResponse.json({
+      reply,
+      model: responseModel,
+      usage: {
+        prompt_tokens: usage.inputTokens,
+        completion_tokens: usage.outputTokens,
+        total_tokens: usage.totalTokens,
+      },
+      cost,
+    });
   } catch (error) {
     console.error("Chat route error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

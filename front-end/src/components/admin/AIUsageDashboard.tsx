@@ -17,27 +17,43 @@ type UsageFilter = "today" | "week" | "month" | "custom";
 type ModelFilter = "all" | "gpt-4o" | "gpt-4o-mini";
 
 type ModelUsage = {
-  model: "gpt-4o" | "gpt-4o-mini";
-  totalChatbotMessages: number;
+  model: string;
+  totalRequests: number;
   totalInputTokens: number;
   totalOutputTokens: number;
   totalTokens: number;
   totalCostUSD: number;
   totalCostPHP: number;
-  averageCostPerMessageUSD: number;
-  averageCostPerMessagePHP: number;
+  averageCostPerRequestUSD: number;
+  averageCostPerRequestPHP: number;
+};
+
+type SourceUsage = {
+  source: "reports" | "chatbot";
+  label: string;
+  totalRequests: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
+  totalCostUSD: number;
+  totalCostPHP: number;
+  averageCostPerRequestUSD: number;
+  averageCostPerRequestPHP: number;
 };
 
 type UsageData = {
+  totalRequests: number;
   totalChatbotMessages: number;
+  totalReportGenerations: number;
   totalInputTokens: number;
   totalOutputTokens: number;
   totalTokens: number;
-  averageTokensPerMessage: number;
+  averageTokensPerRequest: number;
   totalCostUSD: number;
   totalCostPHP: number;
-  averageCostPerMessageUSD: number;
-  averageCostPerMessagePHP: number;
+  averageCostPerRequestUSD: number;
+  averageCostPerRequestPHP: number;
+  usageBySource: SourceUsage[];
   usageByModel: ModelUsage[];
 };
 
@@ -67,7 +83,9 @@ function formatPHP(value: number) {
 }
 
 function formatModel(model: string) {
-  return model === "gpt-4o-mini" ? "GPT-4o Mini" : "GPT-4o";
+  if (model === "gpt-4o-mini") return "GPT-4o Mini";
+  if (model === "gpt-4o") return "GPT-4o";
+  return model;
 }
 
 function MetricCard({
@@ -182,10 +200,10 @@ export default function AIUsageDashboard({ compact = false }: { compact?: boolea
       {!compact && (
         <Box sx={{ mb: 3 }}>
           <Typography variant="h5" sx={{ fontWeight: 900, mb: 0.5 }}>
-            Chatbot AI Usage
+            AI Usage
           </Typography>
           <Typography sx={{ fontSize: 13, color: "#777" }}>
-            Chatbot message cost and token usage
+            Report generation and chatbot token usage
           </Typography>
         </Box>
       )}
@@ -297,8 +315,8 @@ export default function AIUsageDashboard({ compact = false }: { compact?: boolea
             }}
           >
             <MetricCard
-              label="Total Chatbot Messages"
-              value={formatNumber(data.totalChatbotMessages)}
+              label="Total AI Requests"
+              value={formatNumber(data.totalRequests)}
               icon={<DescriptionIcon fontSize="small" />}
             />
             <MetricCard
@@ -312,11 +330,55 @@ export default function AIUsageDashboard({ compact = false }: { compact?: boolea
               icon={<AttachMoneyIcon fontSize="small" />}
             />
             <MetricCard
-              label="Average Cost Per Message"
-              value={formatPHP(data.averageCostPerMessagePHP)}
+              label="Average Cost Per Request"
+              value={formatPHP(data.averageCostPerRequestPHP)}
               icon={<AssessmentIcon fontSize="small" />}
             />
           </Box>
+
+          <Paper
+            elevation={0}
+            sx={{
+              border: "1px solid #e5e7eb",
+              borderRadius: 2,
+              p: 2.25,
+            }}
+          >
+            <Typography sx={{ fontSize: 14, fontWeight: 900, mb: 1.5 }}>
+              Usage by Source
+            </Typography>
+            <Box sx={{ display: "grid", gap: 1 }}>
+              {data.usageBySource.map((item) => (
+                <Box
+                  key={item.source}
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      md: "1.1fr repeat(3, minmax(0, 1fr))",
+                    },
+                    gap: 1.5,
+                    alignItems: "center",
+                    borderTop: "1px solid #f1f5f9",
+                    pt: 1.25,
+                  }}
+                >
+                  <Typography sx={{ fontSize: 13, fontWeight: 900 }}>
+                    {item.label}
+                  </Typography>
+                  <Typography sx={{ fontSize: 13, color: "#555" }}>
+                    Requests: {formatNumber(item.totalRequests)}
+                  </Typography>
+                  <Typography sx={{ fontSize: 13, color: "#555" }}>
+                    Tokens: {formatNumber(item.totalTokens)}
+                  </Typography>
+                  <Typography sx={{ fontSize: 13, color: "#555" }}>
+                    Cost: {formatPHP(item.totalCostPHP)}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          </Paper>
 
           <Paper
             elevation={0}
@@ -331,7 +393,7 @@ export default function AIUsageDashboard({ compact = false }: { compact?: boolea
             </Typography>
             {data.usageByModel.length === 0 ? (
               <Typography sx={{ fontSize: 13, color: "#777" }}>
-                No chatbot usage in this range.
+                No AI usage in this range.
               </Typography>
             ) : (
               <Box sx={{ display: "grid", gap: 1 }}>
@@ -354,7 +416,7 @@ export default function AIUsageDashboard({ compact = false }: { compact?: boolea
                       {formatModel(item.model)}
                     </Typography>
                     <Typography sx={{ fontSize: 13, color: "#555" }}>
-                      Messages: {formatNumber(item.totalChatbotMessages)}
+                      Requests: {formatNumber(item.totalRequests)}
                     </Typography>
                     <Typography sx={{ fontSize: 13, color: "#555" }}>
                       Tokens: {formatNumber(item.totalTokens)}

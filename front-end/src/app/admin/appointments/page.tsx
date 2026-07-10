@@ -99,6 +99,7 @@ interface AvailableTime {
 
 interface AppointmentSettings {
   bookingCutoffHours: number;
+  pendingCheckoutExpirationMinutes: number;
 }
 const readOnlyStatuses = ['COMPLETED', 'NOSHOW', 'CANCELLED', 'REJECTED'];
 
@@ -178,6 +179,8 @@ export default function AppointmentsPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [bookingCutoffHours, setBookingCutoffHours] = useState<number>(1);
+  const [pendingCheckoutExpirationMinutes, setPendingCheckoutExpirationMinutes] =
+    useState<number>(5);
 
   const [selectedAppointment, setSelectedAppointment] =
     useState<Appointment | null>(null);
@@ -323,7 +326,7 @@ export default function AppointmentsPage() {
 
     if (normalized === 'COMPLETED') return 'green';
     if (normalized === 'CANCELLED') return '#EA580C';
-    if (normalized === 'REJECTED') return '#DC2626';
+    if (normalized === 'REJECTED') return '#7e6969';
     if (normalized === 'NOSHOW') return '#1F2937';
     if (normalized === 'PENDING') return '#92400E';
     if (normalized === 'SCHEDULED') return '#2563eb';
@@ -357,6 +360,9 @@ export default function AppointmentsPage() {
 
       if (data.settings) {
         setBookingCutoffHours(data.settings.bookingCutoffHours);
+        setPendingCheckoutExpirationMinutes(
+          data.settings.pendingCheckoutExpirationMinutes
+        );
       }
 
       setError('');
@@ -1116,6 +1122,7 @@ export default function AppointmentsPage() {
         },
         body: JSON.stringify({
           bookingCutoffHours,
+          pendingCheckoutExpirationMinutes,
         }),
       });
 
@@ -3580,6 +3587,22 @@ export default function AppointmentsPage() {
           <MenuItem value={12}>12 Hours</MenuItem>
           <MenuItem value={24}>24 Hours</MenuItem>
         </TextField>
+
+        <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
+          Pending Checkout Expiration (Minutes){" "}
+          <Box component="span" sx={{ color: "red" }}>*</Box>
+        </Typography>
+
+        <TextField
+          type="number"
+          fullWidth
+          value={pendingCheckoutExpirationMinutes}
+          onChange={(e) =>
+            setPendingCheckoutExpirationMinutes(Number(e.target.value))
+          }
+          inputProps={{ min: 1, max: 60, step: 1 }}
+          sx={{ mb: 5, bgcolor: "#fff" }}
+        />
 
         <Box sx={{ display: "flex", justifyContent: "center" }}>
           <Button

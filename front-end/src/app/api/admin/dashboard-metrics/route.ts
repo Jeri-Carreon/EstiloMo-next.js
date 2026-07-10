@@ -1,88 +1,113 @@
 // app/api/admin/dashboard-metrics/route.ts
 //
-// Single source of truth for owner-dashboard analytics. Both the Next.js
-// web dashboard and the Kotlin mobile app should call this endpoint and
-// render the response directly — no client-side filtering/aggregation.
+// Single source of truth for admin-dashboard analytics.
 //
 // GET /api/admin/dashboard-metrics?period=Day|Week|Month
-//
-// ─── Why this exists ───────────────────────────────────────────────────────
-// The web and mobile apps previously duplicated period-filtering and
-// aggregation logic independently, which drifted (e.g. 11 vs 12 "completed
-// appointments") due to timezone handling differences between platforms.
-// This endpoint computes everything once, in one timezone policy, so both
-// clients always see identical numbers.
-//
-// ─── Timezone policy ───────────────────────────────────────────────────────
-// All period boundaries (Day/Week/Month) and hour-of-day bucketing are
-// computed in Asia/Manila (GMT+8), regardless of what timezone the server
-// process itself runs in. This matters because `appointmentDate`/`createdAt`
-// are Postgres timestamps — if the server happens to run in UTC (e.g. most
-// hosting platforms), using plain `.getDate()`/`.getHours()` would silently
-// shift appointments across day boundaries depending on where this is
-// deployed. We instead explicitly shift into Manila wall-clock time before
-// reading any date/hour components.
-//
-// If your `appointmentDate` values are stored as already-Manila-local wall
-// clock time written with no UTC conversion (e.g. "2026-07-30T16:00:00" with
-// no `Z`, meant literally as 4pm local, not 4pm UTC), set
-// APPOINTMENT_DATES_ARE_NAIVE_LOCAL = true below. If they're stored as true
-// UTC instants (properly converted on write), set it to false. Check one
-// known appointment's raw DB value against what a human entered to confirm
-// which case you're in — this single flag is the actual fix for the
-// "11 vs 12" bug you were chasing.
+// GET /api/admin/dashboard-metrics?period=custom&from=YYYY-MM-DD&to=YYYY-MM-DD
 
 import { NextRequest, NextResponse } from "next/server";
-import { SaleSource, SaleStatus, AppointmentStatus, PaymentMethod } from "@prisma/client";
+import {
+  AppointmentStatus,
+  PaymentMethod,
+  Prisma,
+  SaleSource,
+  SaleStatus,
+} from "@prisma/client";
+
+import {
+  DashboardDateRange,
+  DashboardDateRangeError,
+  DashboardPeriod,
+  createDashboardTrendBuckets,
+  getDashboardTrendBucketKey,
+  isInDashboardRange,
+  resolveDashboardDateRange,
+  toDashboardDateTime,
+} from "@/lib/dashboardDateRange";
 import { db as prisma } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 
-const MANILA_OFFSET_MINUTES = 8 * 60;
+const appointmentSelect = Prisma.validator<Prisma.AppointmentSelect>()({
+  id: true,
+  appointmentCode: true,
+  appointmentDate: true,
+  status: true,
+  startMinutes: true,
+  saleId: true,
+});
 
-// Set based on how appointmentDate/createdAt are actually written to the DB.
-// See note above.
-const APPOINTMENT_DATES_ARE_NAIVE_LOCAL = false;
+const dashboardSaleSelect = Prisma.validator<Prisma.SaleSelect>()({
+  id: true,
+  saleCode: true,
+  source: true,
+  status: true,
+  totalAmount: true,
+  createdAt: true,
+  appointments: {
+    select: { id: true, appointmentDate: true, status: true },
+  },
+  items: {
+    select: {
+      quantity: true,
+      subtotal: true,
+      service: { select: { name: true } },
+    },
+  },
+  payment: { select: { amount: true, method: true } },
+  barber: { select: { firstName: true, lastName: true } },
+  customer: { select: { id: true, firstName: true, lastName: true } },
+});
 
-type Period = "Day" | "Week" | "Month";
+const customerAnalyticsSaleSelect = Prisma.validator<Prisma.SaleSelect>()({
+  status: true,
+  totalAmount: true,
+  createdAt: true,
+  customer: { select: { id: true, firstName: true, lastName: true } },
+});
 
-// ─── Timezone helpers ───────────────────────────────────────────────────────
+type DashboardSale = Prisma.SaleGetPayload<{ select: typeof dashboardSaleSelect }>;
+type CustomerAnalyticsSale = Prisma.SaleGetPayload<{
+  select: typeof customerAnalyticsSaleSelect;
+}>;
 
-/**
- * Returns the Manila wall-clock representation of a Date as a plain object
- * of calendar/time fields, regardless of server host timezone.
- */
-function toManilaParts(date: Date) {
-  const utcMs = date.getTime();
-  const shiftedMs = APPOINTMENT_DATES_ARE_NAIVE_LOCAL
-    ? utcMs // already naive/local — no conversion, read UTC getters directly
-    : utcMs + MANILA_OFFSET_MINUTES * 60 * 1000; // true UTC instant — shift into Manila
-
-  const shifted = new Date(shiftedMs);
-  return {
-    year: shifted.getUTCFullYear(),
-    month: shifted.getUTCMonth(),
-    date: shifted.getUTCDate(),
-    hours: shifted.getUTCHours(),
-    // epoch days since 1970-01-01, in Manila calendar terms — used for week math
-    epochDay: Math.floor(shiftedMs / (1000 * 60 * 60 * 24)),
-    dayOfWeek: shifted.getUTCDay(), // 0 = Sunday
-  };
+function parsePeriod(value: string | null): DashboardPeriod {
+  if (value === "Week" || value === "Month" || value === "custom") {
+    return value;
+  }
+  return "Day";
 }
 
-function isInPeriod(date: Date, now: Date, period: Period): boolean {
-  const d = toManilaParts(date);
-  const n = toManilaParts(now);
+function saleRangeWhere(
+  start: Date,
+  end: Date,
+  barberId?: string | null,
+): Prisma.SaleWhereInput {
+  const range = { gte: start, lte: end };
+  const barberFilter = barberId
+    ? {
+        OR: [{ barberId }, { appointments: { some: { barberId } } }],
+      }
+    : {};
 
-  if (period === "Day") {
-    return d.year === n.year && d.month === n.month && d.date === n.date;
-  }
-  if (period === "Week") {
-    const startEpochDay = n.epochDay - n.dayOfWeek; // back up to Sunday
-    const endEpochDay = startEpochDay + 6;
-    return d.epochDay >= startEpochDay && d.epochDay <= endEpochDay;
-  }
-  // Month
-  return d.year === n.year && d.month === n.month;
+  return {
+    AND: [
+      barberFilter,
+      {
+        OR: [
+          { source: SaleSource.WALKIN, createdAt: range },
+          {
+            source: { not: SaleSource.WALKIN },
+            appointments: { some: { appointmentDate: range } },
+          },
+          {
+            source: { not: SaleSource.WALKIN },
+            appointments: { none: {} },
+            createdAt: range,
+          },
+        ],
+      },
+    ],
+  };
 }
 
 function hourLabel(hour: number): string {
@@ -103,9 +128,70 @@ function fullName(first?: string | null, last?: string | null, fallback = "Unkno
   return combined || fallback;
 }
 
-// ─── Auth ───────────────────────────────────────────────────────────────────
-// Mirrors the exact auth pattern used by /api/user/role.
-async function requireOwnerOrReceptionist(req: NextRequest): Promise<{ ok: true } | { ok: false; status: number }> {
+function calcTrend(current: number, previous: number) {
+  if (previous === 0) return 0;
+  return Math.round(((current - previous) / previous) * 100);
+}
+
+function getSaleDashboardDate(sale: DashboardSale, range: DashboardDateRange) {
+  if (sale.source === SaleSource.WALKIN) {
+    return sale.createdAt;
+  }
+
+  const inRangeAppointment = sale.appointments
+    .filter((appointment) =>
+      isInDashboardRange(
+        appointment.appointmentDate,
+        range.currentStart,
+        range.currentEnd,
+      ),
+    )
+    .sort((a, b) => a.appointmentDate.getTime() - b.appointmentDate.getTime())[0];
+
+  return inRangeAppointment?.appointmentDate ?? sale.createdAt;
+}
+
+function buildRevenueTrendData(paidSales: DashboardSale[], range: DashboardDateRange) {
+  const buckets = createDashboardTrendBuckets(range);
+  const bucketMap = new Map(
+    buckets.map((bucket) => [
+      bucket.key,
+      { label: bucket.label, revenue: 0, transactions: 0 },
+    ]),
+  );
+
+  paidSales.forEach((sale) => {
+    const bucketKey = getDashboardTrendBucketKey(getSaleDashboardDate(sale, range), range);
+    const bucket = bucketMap.get(bucketKey);
+    if (!bucket) return;
+
+    bucket.revenue += Number(sale.totalAmount ?? 0);
+    bucket.transactions += 1;
+  });
+
+  return buckets.map((bucket) => ({
+    ...bucketMap.get(bucket.key)!,
+  }));
+}
+
+function appointmentWhere(dateRange: { gte: Date; lte: Date }, barberId?: string | null) {
+  return barberId ? { appointmentDate: dateRange, barberId } : { appointmentDate: dateRange };
+}
+
+function reviewWhere(dateRange: { gte: Date; lte: Date }, barberId?: string | null) {
+  if (!barberId) {
+    return { createdAt: dateRange };
+  }
+
+  return {
+    createdAt: dateRange,
+    OR: [{ appointment: { barberId } }, { sale: { barberId } }],
+  };
+}
+
+async function requireOwnerOrReceptionist(
+  req: NextRequest,
+): Promise<{ ok: true } | { ok: false; status: number }> {
   const supabase = await createClient();
   const authHeader = req.headers.get("authorization");
   let user = null;
@@ -132,92 +218,144 @@ async function requireOwnerOrReceptionist(req: NextRequest): Promise<{ ok: true 
   return { ok: true };
 }
 
-// ─── Route handler ──────────────────────────────────────────────────────────
-
 export async function GET(req: NextRequest) {
   const auth = await requireOwnerOrReceptionist(req);
   if (!auth.ok) {
     return NextResponse.json({ error: "Unauthorized" }, { status: auth.status });
   }
 
-  const periodParam = req.nextUrl.searchParams.get("period");
-  const period: Period = periodParam === "Week" || periodParam === "Month" ? periodParam : "Day";
-  const now = new Date();
+  const period = parsePeriod(req.nextUrl.searchParams.get("period"));
+  const barberId = req.nextUrl.searchParams.get("barberId");
+  let range: DashboardDateRange;
 
   try {
-    // Fetch everything needed once. Both Day/Week/Month share the same
-    // underlying rows since Visit Frequency / Top Customers are computed
-    // over ALL-time data regardless of the selected period.
-    const [appointments, sales] = await Promise.all([
+    range = resolveDashboardDateRange({
+      period,
+      from: req.nextUrl.searchParams.get("from"),
+      to: req.nextUrl.searchParams.get("to"),
+      fromTime: req.nextUrl.searchParams.get("fromTime"),
+      toTime: req.nextUrl.searchParams.get("toTime"),
+    });
+  } catch (error) {
+    if (error instanceof DashboardDateRangeError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    throw error;
+  }
+
+  try {
+    const currentSaleWhere = saleRangeWhere(range.currentStart, range.currentEnd, barberId);
+    const previousSaleWhere = saleRangeWhere(
+      range.previousStart,
+      range.previousEnd,
+      barberId,
+    );
+    const currentAppointmentDate = {
+      gte: range.currentStart,
+      lte: range.currentEnd,
+    };
+    const previousAppointmentDate = {
+      gte: range.previousStart,
+      lte: range.previousEnd,
+    };
+    const currentCreatedAt = {
+      gte: range.currentStart,
+      lte: range.currentEnd,
+    };
+
+    const [
+      appointments,
+      previousAppointments,
+      sales,
+      previousSales,
+      allTimeCustomerSales,
+      newCustomers,
+      reviews,
+    ] = await Promise.all([
       prisma.appointment.findMany({
-        select: {
-          id: true,
-          appointmentCode: true,
-          appointmentDate: true,
-          status: true,
-          startMinutes: true,
-          saleId: true,
-        },
+        where: appointmentWhere(currentAppointmentDate, barberId),
+        select: appointmentSelect,
+      }),
+      prisma.appointment.findMany({
+        where: appointmentWhere(previousAppointmentDate, barberId),
+        select: { id: true },
       }),
       prisma.sale.findMany({
-        select: {
-          id: true,
-          saleCode: true,
-          source: true,
-          status: true,
-          totalAmount: true,
-          createdAt: true,
-          appointments: {
-            select: { id: true, appointmentDate: true, status: true },
-          },
-          items: {
-            select: {
-              quantity: true,
-              subtotal: true,
-              service: { select: { name: true } },
-            },
-          },
-          payment: { select: { amount: true, method: true } },
-          barber: { select: { firstName: true, lastName: true } },
-          customer: { select: { id: true, firstName: true, lastName: true } },
-        },
+        where: currentSaleWhere,
+        select: dashboardSaleSelect,
+      }),
+      prisma.sale.findMany({
+        where: previousSaleWhere,
+        select: { id: true, status: true, totalAmount: true },
+      }),
+      range.period === "custom"
+        ? Promise.resolve(null)
+        : prisma.sale.findMany({
+            where: barberId
+              ? {
+                  status: SaleStatus.PAID,
+                  OR: [{ barberId }, { appointments: { some: { barberId } } }],
+                }
+              : { status: SaleStatus.PAID },
+            select: customerAnalyticsSaleSelect,
+          }),
+      barberId
+        ? Promise.resolve(0)
+        : prisma.customer.count({ where: { createdAt: currentCreatedAt } }),
+      prisma.review.findMany({
+        where: reviewWhere(currentCreatedAt, barberId),
+        select: { id: true, rating: true, status: true },
       }),
     ]);
 
-    // ── Appointments filtered by appointmentDate (period-scoped) ──
-    const filteredAppts = appointments.filter((a) => isInPeriod(a.appointmentDate, now, period));
-
-    const scheduledAppointments = filteredAppts.filter((a) => a.status === AppointmentStatus.SCHEDULED).length;
-    const cancellationsAppointments = filteredAppts.filter((a) => a.status === AppointmentStatus.CANCELLED).length;
-    const noShows = filteredAppts.filter((a) => a.status === AppointmentStatus.NOSHOW).length;
-
-    // ── Sales filtered: WALKIN by createdAt, BOOKING by linked appointment dates ──
-    const filteredSales = sales.filter((sale) => {
-      if (sale.source === SaleSource.WALKIN) {
-        return isInPeriod(sale.createdAt, now, period);
-      }
-      const apptDates = sale.appointments.map((a) => a.appointmentDate);
-      if (apptDates.length === 0) {
-        return isInPeriod(sale.createdAt, now, period); // safety fallback
-      }
-      return apptDates.some((d) => isInPeriod(d, now, period));
-    });
-
-    const paidSales = filteredSales.filter((s) => s.status === SaleStatus.PAID);
-
-    const todaySales = paidSales.reduce((total, sale) => total + Number(sale.totalAmount ?? 0), 0);
-
-    const completedAppointments = filteredSales.filter(
-      (s) => s.status === SaleStatus.PAID && s.source === SaleSource.BOOKING
+    const scheduledAppointments = appointments.filter(
+      (a) => a.status === AppointmentStatus.SCHEDULED,
     ).length;
-    const completedTransactions = filteredSales.filter((s) => s.status === SaleStatus.PAID).length;
-
-    // Cancelled transactions: a PARTIAL sale whose linked appointment(s) were cancelled.
-    // (This replaces the web app's old `a.sale?.status` check, which referenced a
-    // field that doesn't exist on Sale and always evaluated to false.)
-    const cancellationsTotal = filteredSales.filter(
-      (s) => s.status === SaleStatus.PARTIAL && s.appointments.some((a) => a.status === AppointmentStatus.CANCELLED)
+    const pendingAppointments = appointments.filter(
+      (a) => a.status === AppointmentStatus.PENDING,
     ).length;
+    const cancellationsAppointments = appointments.filter(
+      (a) => a.status === AppointmentStatus.CANCELLED,
+    ).length;
+    const rejectedAppointments = appointments.filter(
+      (a) => a.status === AppointmentStatus.REJECTED,
+    ).length;
+    const noShows = appointments.filter((a) => a.status === AppointmentStatus.NOSHOW).length;
+
+    const paidSales = sales.filter((s) => s.status === SaleStatus.PAID);
+    const todaySales = paidSales.reduce(
+      (total, sale) => total + Number(sale.totalAmount ?? 0),
+      0,
+    );
+
+    const completedAppointments = sales.filter(
+      (s) => s.status === SaleStatus.PAID && s.source === SaleSource.BOOKING,
+    ).length;
+    const completedTransactions = paidSales.length;
+    const nonCancelledTransactions = sales.filter(
+      (s) => s.status !== SaleStatus.CANCELLED,
+    ).length;
+    const completionRate = nonCancelledTransactions
+      ? Math.round((completedTransactions / nonCancelledTransactions) * 100)
+      : 0;
+
+    const cancellationsTotal = sales.filter(
+      (s) =>
+        s.status === SaleStatus.PARTIAL &&
+        s.appointments.some((a) => a.status === AppointmentStatus.CANCELLED),
+    ).length;
+
+    const previousPaidSales = previousSales.filter((s) => s.status === SaleStatus.PAID);
+    const previousRevenue = previousPaidSales.reduce(
+      (total, sale) => total + Number(sale.totalAmount ?? 0),
+      0,
+    );
+    const previousNonCancelledTransactions = previousSales.filter(
+      (s) => s.status !== SaleStatus.CANCELLED,
+    ).length;
+    const previousCompletionRate = previousNonCancelledTransactions
+      ? Math.round((previousPaidSales.length / previousNonCancelledTransactions) * 100)
+      : 0;
 
     const walkInSalesPaid = paidSales.filter((s) => s.source === SaleSource.WALKIN);
     const bookedSalesPaid = paidSales.filter((s) => s.source !== SaleSource.WALKIN);
@@ -234,7 +372,6 @@ export async function GET(req: NextRequest) {
       },
     ];
 
-    // Revenue by service (from paid sales' line items)
     const serviceMap = new Map<string, { service: string; revenue: number; count: number }>();
     paidSales.forEach((sale) => {
       sale.items.forEach((item) => {
@@ -243,31 +380,35 @@ export async function GET(req: NextRequest) {
         if (!serviceMap.has(serviceName)) {
           serviceMap.set(serviceName, { service: serviceName, revenue: 0, count: 0 });
         }
-        const e = serviceMap.get(serviceName)!;
-        e.revenue += amount;
-        e.count += Number(item.quantity ?? 1);
+        const entry = serviceMap.get(serviceName)!;
+        entry.revenue += amount;
+        entry.count += Number(item.quantity ?? 1);
       });
     });
     const revenueByService = Array.from(serviceMap.values());
 
-    // Revenue by barber (attributes each paid sale's totalAmount to its barber)
     const barberMap = new Map<string, { name: string; revenue: number; services: number }>();
     paidSales.forEach((sale) => {
-      const barberName = sale.barber ? fullName(sale.barber.firstName, sale.barber.lastName) : "Unknown";
+      const barberName = sale.barber
+        ? fullName(sale.barber.firstName, sale.barber.lastName)
+        : "Unknown";
       const amount = Number(sale.totalAmount ?? 0);
       const itemCount = sale.items.reduce((s, i) => s + Number(i.quantity ?? 1), 0);
       if (!barberMap.has(barberName)) {
         barberMap.set(barberName, { name: barberName, revenue: 0, services: 0 });
       }
-      const e = barberMap.get(barberName)!;
-      e.revenue += amount;
-      e.services += itemCount;
+      const entry = barberMap.get(barberName)!;
+      entry.revenue += amount;
+      entry.services += itemCount;
     });
-    const revenueByBarber = Array.from(barberMap.values()).sort((a, b) => b.revenue - a.revenue);
+    const revenueByBarber = Array.from(barberMap.values()).sort(
+      (a, b) => b.revenue - a.revenue,
+    );
 
-    // Payment methods
-    const gcashCount = paidSales.filter((s) => s.payment?.method === PaymentMethod.GCASH).length;
-    const cashCount = paidSales.filter((s) => s.payment?.method === PaymentMethod.CASH).length;
+    const gcashCount = paidSales.filter((s) => s.payment?.method === PaymentMethod.GCASH)
+      .length;
+    const cashCount = paidSales.filter((s) => s.payment?.method === PaymentMethod.CASH)
+      .length;
     const totalPayments = gcashCount + cashCount;
     const paymentMethods = totalPayments
       ? [
@@ -276,21 +417,17 @@ export async function GET(req: NextRequest) {
         ]
       : [];
 
-    // Peak hours: completed appointments (by start time) + paid walk-in sales (by createdAt)
     const hourMap = new Map<string, number>();
-
-    filteredAppts.forEach((appt) => {
+    appointments.forEach((appt) => {
       if (appt.startMinutes == null || appt.status !== AppointmentStatus.COMPLETED) return;
-      const h = Math.floor(appt.startMinutes / 60);
-      const label = hourLabel(h);
+      const label = hourLabel(Math.floor(appt.startMinutes / 60));
       hourMap.set(label, (hourMap.get(label) ?? 0) + 1);
     });
 
-    filteredSales
+    sales
       .filter((s) => s.source === SaleSource.WALKIN && s.status === SaleStatus.PAID)
       .forEach((sale) => {
-        const h = toManilaParts(sale.createdAt).hours;
-        const label = hourLabel(h);
+        const label = hourLabel(toDashboardDateTime(sale.createdAt).hour);
         hourMap.set(label, (hourMap.get(label) ?? 0) + 1);
       });
 
@@ -298,9 +435,14 @@ export async function GET(req: NextRequest) {
       .map(([hour, customers]) => ({ hour, customers }))
       .sort((a, b) => hourLabelSortKey(a.hour) - hourLabelSortKey(b.hour));
 
-    // Visit frequency — ALL-time paid sales, not period-scoped (long-term pattern)
+    const customerAnalyticsSales: CustomerAnalyticsSale[] =
+      range.period === "custom" ? paidSales : (allTimeCustomerSales ?? []);
+    const uniqueCurrentCustomers = new Set(
+      paidSales.map((sale) => sale.customer?.id).filter(Boolean),
+    ).size;
+
     const customerVisits = new Map<string, Date[]>();
-    sales
+    customerAnalyticsSales
       .filter((s) => s.status === SaleStatus.PAID)
       .forEach((sale) => {
         const key = sale.customer?.id ?? "unknown";
@@ -314,7 +456,7 @@ export async function GET(req: NextRequest) {
       const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
       const gaps: number[] = [];
       for (let i = 1; i < sorted.length; i++) {
-        gaps.push((sorted[i].getTime() - sorted[i - 1].getTime()) / (1000 * 60 * 60 * 24));
+        gaps.push((sorted[i].getTime() - sorted[i - 1].getTime()) / 86_400_000);
       }
       const avgGapDays = gaps.reduce((a, b) => a + b, 0) / gaps.length;
       if (avgGapDays <= 10) frequencyBuckets.Weekly += 1;
@@ -323,19 +465,25 @@ export async function GET(req: NextRequest) {
       else frequencyBuckets.Quarterly += 1;
     });
     const totalReturning = Object.values(frequencyBuckets).reduce((a, b) => a + b, 0);
-    const visitFrequency = Object.entries(frequencyBuckets).map(([frequency, customers]) => ({
-      frequency,
-      customers,
-      percentage: totalReturning ? Math.round((customers / totalReturning) * 100) : 0,
-    }));
+    const visitFrequency = Object.entries(frequencyBuckets).map(
+      ([frequency, customers]) => ({
+        frequency,
+        customers,
+        percentage: totalReturning ? Math.round((customers / totalReturning) * 100) : 0,
+      }),
+    );
 
-    // Top customers by revenue — ALL-time paid sales
-    const customerRevenueMap = new Map<string, { name: string; visits: number; revenue: number }>();
-    sales
+    const customerRevenueMap = new Map<
+      string,
+      { name: string; visits: number; revenue: number }
+    >();
+    customerAnalyticsSales
       .filter((s) => s.status === SaleStatus.PAID)
       .forEach((sale) => {
         const key = sale.customer?.id ?? "unknown";
-        const name = sale.customer ? fullName(sale.customer.firstName, sale.customer.lastName) : "Unknown";
+        const name = sale.customer
+          ? fullName(sale.customer.firstName, sale.customer.lastName)
+          : "Unknown";
         if (!customerRevenueMap.has(key)) {
           customerRevenueMap.set(key, { name, visits: 0, revenue: 0 });
         }
@@ -346,27 +494,58 @@ export async function GET(req: NextRequest) {
     const topCustomers = Array.from(customerRevenueMap.values())
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 5)
-      .map((c, i) => ({ rank: i + 1, ...c }));
+      .map((customer, index) => ({ rank: index + 1, ...customer }));
+
+    const averageReviewRating = reviews.length
+      ? Math.round(
+          (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length) * 10,
+        ) / 10
+      : 0;
 
     return NextResponse.json({
-      period,
+      period: range.period,
+      dateRange: {
+        from: range.from,
+        to: range.to,
+        fromTime: range.fromTime,
+        toTime: range.toTime,
+        grouping: range.grouping,
+        dayCount: range.dayCount,
+      },
       todaySales,
       scheduledAppointments,
-      completedAppointments,
+      pendingAppointments,
       cancellationsAppointments,
+      rejectedAppointments,
       cancellationsTotal,
+      completedAppointments,
       completedTransactions,
+      completionRate,
       noShows,
+      newCustomers: barberId ? uniqueCurrentCustomers : newCustomers,
+      reviewsTotal: reviews.length,
+      averageReviewRating,
+      barberId: barberId ?? null,
       revenueByService,
       revenueByBarber,
+      revenueTrendData: buildRevenueTrendData(paidSales, range),
       paymentMethods,
       walkInVsAppointments,
       peakHours,
       visitFrequency,
       topCustomers,
+      trends: {
+        revenue: calcTrend(todaySales, previousRevenue),
+        appointments: calcTrend(appointments.length, previousAppointments.length),
+        transactions: calcTrend(completedTransactions, previousPaidSales.length),
+        completionRate: calcTrend(completionRate, previousCompletionRate),
+      },
     });
   } catch (error) {
     console.error("[dashboard-metrics] error:", error);
-    return NextResponse.json({ error: "Failed to compute dashboard metrics" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to compute dashboard metrics" },
+      { status: 500 },
+    );
   }
 }

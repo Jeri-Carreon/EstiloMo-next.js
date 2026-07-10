@@ -7,6 +7,20 @@ import { getAdminUser } from "@/lib/supabase/getUser";
 export const dynamic = "force-dynamic";
 
 type UsageFilter = "today" | "week" | "month" | "custom";
+type ModelWhere = {
+  OR?: Array<{ model: string } | { model: { startsWith: string } }>;
+};
+type UsageTotals = {
+  totalRequests: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
+  totalCostUSD: number;
+  totalCostPHP: number;
+};
+type UsageGroup = UsageTotals & {
+  model: string;
+};
 
 function parseDateOnly(value: string, endOfDay = false) {
   const date = new Date(value);
@@ -71,6 +85,37 @@ function decimalToNumber(value: unknown): number {
   return Number(value ?? 0);
 }
 
+function emptyTotals(): UsageTotals {
+  return {
+    totalRequests: 0,
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    totalTokens: 0,
+    totalCostUSD: 0,
+    totalCostPHP: 0,
+  };
+}
+
+function getModelWhere(model: ChatbotOpenAIModel | null): ModelWhere {
+  if (!model) return {};
+
+  const versionPrefix = model === "gpt-4o" ? "gpt-4o-20" : `${model}-`;
+
+  return {
+    OR: [{ model }, { model: { startsWith: versionPrefix } }],
+  };
+}
+
+function normalizeModel(model: string): string {
+  if (model.startsWith("gpt-4o-mini")) return "gpt-4o-mini";
+  if (model.startsWith("gpt-4o")) return "gpt-4o";
+  return model;
+}
+
+function averageCost(totalCost: number, totalRequests: number): number {
+  return totalRequests ? totalCost / totalRequests : 0;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getAdminUser();
@@ -81,46 +126,105 @@ export async function GET(req: NextRequest) {
     const createdAt = getCreatedAtRange(req);
     const modelParam = req.nextUrl.searchParams.get("model");
     const model = isChatbotOpenAIModel(modelParam) ? modelParam : null;
-    const where = {
+    const modelWhere = getModelWhere(model);
+    const chatbotWhere = {
       createdAt,
-      ...(model ? { model } : {}),
+      ...modelWhere,
+    };
+    const reportWhere = {
+      generatedAt: createdAt,
+      ...modelWhere,
     };
 
-    const [aggregate, modelGroups] = await Promise.all([
-      db.aIChatbotLog.aggregate({
-        where,
-        _count: { id: true },
-        _sum: {
-          inputTokens: true,
-          outputTokens: true,
-          totalTokens: true,
-          totalCostUSD: true,
-          totalCostPHP: true,
-        },
-        _avg: {
-          totalTokens: true,
-          totalCostUSD: true,
-          totalCostPHP: true,
-        },
-      }),
-      db.aIChatbotLog.groupBy({
-        by: ["model"],
-        where,
-        _count: { id: true },
-        _sum: {
-          inputTokens: true,
-          outputTokens: true,
-          totalTokens: true,
-          totalCostUSD: true,
-          totalCostPHP: true,
-        },
-        orderBy: { model: "asc" },
-      }),
-    ]);
+    const [chatbotAggregate, chatbotModelGroups, reportAggregate, reportModelGroups] =
+      await Promise.all([
+        db.aIChatbotLog.aggregate({
+          where: chatbotWhere,
+          _count: { id: true },
+          _sum: {
+            inputTokens: true,
+            outputTokens: true,
+            totalTokens: true,
+            totalCostUSD: true,
+            totalCostPHP: true,
+          },
+        }),
+        db.aIChatbotLog.groupBy({
+          by: ["model"],
+          where: chatbotWhere,
+          _count: { id: true },
+          _sum: {
+            inputTokens: true,
+            outputTokens: true,
+            totalTokens: true,
+            totalCostUSD: true,
+            totalCostPHP: true,
+          },
+          orderBy: { model: "asc" },
+        }),
+        db.aIReportLog.aggregate({
+          where: reportWhere,
+          _count: { id: true },
+          _sum: {
+            inputTokens: true,
+            outputTokens: true,
+            totalTokens: true,
+            totalCostUSD: true,
+            totalCostPHP: true,
+          },
+        }),
+        db.aIReportLog.groupBy({
+          by: ["model"],
+          where: reportWhere,
+          _count: { id: true },
+          _sum: {
+            inputTokens: true,
+            outputTokens: true,
+            totalTokens: true,
+            totalCostUSD: true,
+            totalCostPHP: true,
+          },
+          orderBy: { model: "asc" },
+        }),
+      ]);
 
-    const totalMessages = aggregate._count.id;
-    const totalCostUSD = decimalToNumber(aggregate._sum.totalCostUSD);
-    const totalCostPHP = decimalToNumber(aggregate._sum.totalCostPHP);
+    const chatbotTotals: UsageTotals = {
+      totalRequests: chatbotAggregate._count.id,
+      totalInputTokens: chatbotAggregate._sum.inputTokens ?? 0,
+      totalOutputTokens: chatbotAggregate._sum.outputTokens ?? 0,
+      totalTokens: chatbotAggregate._sum.totalTokens ?? 0,
+      totalCostUSD: decimalToNumber(chatbotAggregate._sum.totalCostUSD),
+      totalCostPHP: decimalToNumber(chatbotAggregate._sum.totalCostPHP),
+    };
+    const reportTotals: UsageTotals = {
+      totalRequests: reportAggregate._count.id,
+      totalInputTokens: reportAggregate._sum.inputTokens ?? 0,
+      totalOutputTokens: reportAggregate._sum.outputTokens ?? 0,
+      totalTokens: reportAggregate._sum.totalTokens ?? 0,
+      totalCostUSD: decimalToNumber(reportAggregate._sum.totalCostUSD),
+      totalCostPHP: decimalToNumber(reportAggregate._sum.totalCostPHP),
+    };
+    const totalRequests = chatbotTotals.totalRequests + reportTotals.totalRequests;
+    const totalCostUSD = chatbotTotals.totalCostUSD + reportTotals.totalCostUSD;
+    const totalCostPHP = chatbotTotals.totalCostPHP + reportTotals.totalCostPHP;
+    const totalTokens = chatbotTotals.totalTokens + reportTotals.totalTokens;
+    const usageByModel = new Map<string, UsageGroup>();
+
+    for (const group of [...chatbotModelGroups, ...reportModelGroups]) {
+      const modelName = normalizeModel(group.model);
+      const current = usageByModel.get(modelName) ?? {
+        model: modelName,
+        ...emptyTotals(),
+      };
+
+      current.totalRequests += group._count.id;
+      current.totalInputTokens += group._sum.inputTokens ?? 0;
+      current.totalOutputTokens += group._sum.outputTokens ?? 0;
+      current.totalTokens += group._sum.totalTokens ?? 0;
+      current.totalCostUSD += decimalToNumber(group._sum.totalCostUSD);
+      current.totalCostPHP += decimalToNumber(group._sum.totalCostPHP);
+      usageByModel.set(modelName, current);
+    }
 
     return NextResponse.json({
       filter: {
@@ -128,32 +232,69 @@ export async function GET(req: NextRequest) {
         to: createdAt.lte.toISOString(),
         model: model ?? "all",
       },
-      totalChatbotMessages: totalMessages,
-      totalInputTokens: aggregate._sum.inputTokens ?? 0,
-      totalOutputTokens: aggregate._sum.outputTokens ?? 0,
-      totalTokens: aggregate._sum.totalTokens ?? 0,
-      averageTokensPerMessage: Math.round(aggregate._avg.totalTokens ?? 0),
+      totalRequests,
+      totalChatbotMessages: chatbotTotals.totalRequests,
+      totalReportGenerations: reportTotals.totalRequests,
+      totalInputTokens: chatbotTotals.totalInputTokens + reportTotals.totalInputTokens,
+      totalOutputTokens: chatbotTotals.totalOutputTokens + reportTotals.totalOutputTokens,
+      totalTokens,
+      averageTokensPerRequest: totalRequests ? Math.round(totalTokens / totalRequests) : 0,
+      averageTokensPerMessage: chatbotTotals.totalRequests
+        ? Math.round(chatbotTotals.totalTokens / chatbotTotals.totalRequests)
+        : 0,
       totalCostUSD,
       totalCostPHP,
-      averageCostPerMessageUSD: totalMessages ? totalCostUSD / totalMessages : 0,
-      averageCostPerMessagePHP: totalMessages ? totalCostPHP / totalMessages : 0,
-      usageByModel: modelGroups.map((group) => {
-        const messageCount = group._count.id;
-        const groupCostUSD = decimalToNumber(group._sum.totalCostUSD);
-        const groupCostPHP = decimalToNumber(group._sum.totalCostPHP);
-
-        return {
-          model: group.model as ChatbotOpenAIModel,
-          totalChatbotMessages: messageCount,
-          totalInputTokens: group._sum.inputTokens ?? 0,
-          totalOutputTokens: group._sum.outputTokens ?? 0,
-          totalTokens: group._sum.totalTokens ?? 0,
-          totalCostUSD: groupCostUSD,
-          totalCostPHP: groupCostPHP,
-          averageCostPerMessageUSD: messageCount ? groupCostUSD / messageCount : 0,
-          averageCostPerMessagePHP: messageCount ? groupCostPHP / messageCount : 0,
-        };
-      }),
+      averageCostPerRequestUSD: averageCost(totalCostUSD, totalRequests),
+      averageCostPerRequestPHP: averageCost(totalCostPHP, totalRequests),
+      averageCostPerMessageUSD: averageCost(
+        chatbotTotals.totalCostUSD,
+        chatbotTotals.totalRequests,
+      ),
+      averageCostPerMessagePHP: averageCost(
+        chatbotTotals.totalCostPHP,
+        chatbotTotals.totalRequests,
+      ),
+      usageBySource: [
+        {
+          source: "reports",
+          label: "Report AI",
+          ...reportTotals,
+          averageCostPerRequestUSD: averageCost(
+            reportTotals.totalCostUSD,
+            reportTotals.totalRequests,
+          ),
+          averageCostPerRequestPHP: averageCost(
+            reportTotals.totalCostPHP,
+            reportTotals.totalRequests,
+          ),
+        },
+        {
+          source: "chatbot",
+          label: "Chatbot Messages",
+          ...chatbotTotals,
+          averageCostPerRequestUSD: averageCost(
+            chatbotTotals.totalCostUSD,
+            chatbotTotals.totalRequests,
+          ),
+          averageCostPerRequestPHP: averageCost(
+            chatbotTotals.totalCostPHP,
+            chatbotTotals.totalRequests,
+          ),
+        },
+      ],
+      usageByModel: Array.from(usageByModel.values())
+        .sort((a, b) => a.model.localeCompare(b.model))
+        .map((group) => ({
+          ...group,
+          averageCostPerRequestUSD: averageCost(
+            group.totalCostUSD,
+            group.totalRequests,
+          ),
+          averageCostPerRequestPHP: averageCost(
+            group.totalCostPHP,
+            group.totalRequests,
+          ),
+        })),
     });
   } catch (error) {
     console.error("AI usage route error:", error);

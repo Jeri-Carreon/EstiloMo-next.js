@@ -202,6 +202,7 @@ model Appointment {
 model AppointmentSetting {
   id                 String   @id @default(cuid())
   bookingCutoffHours Int      @default(1)
+  pendingCheckoutExpirationMinutes Int @default(15)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }
