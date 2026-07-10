@@ -17,6 +17,10 @@ import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 import { signupAction } from "./actions";
+import {
+  getPasswordRequirementChecks,
+  isStrongPassword,
+} from "@/lib/passwordValidation";
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -38,6 +42,7 @@ export default function SignUpPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
+  const passwordChecks = getPasswordRequirementChecks(formData.password);
 
   const cleanMobileNumber = (value: string) => {
     return value.replace(/\D/g, "").slice(0, 11);
@@ -59,7 +64,11 @@ export default function SignUpPage() {
     if (!email) return setErrorMsg("Email is required.");
     if (!isValidEmail(email)) return setErrorMsg("Please enter a valid email address.");
     if (!password) return setErrorMsg("Password is required.");
-    if (password.length < 6) return setErrorMsg("Password must be at least 6 characters.");
+    if (!isStrongPassword(password)) {
+      return setErrorMsg(
+        "Password must be at least 8 characters and include uppercase, lowercase, number, and symbol."
+      );
+    }
     if (!confirmPassword) return setErrorMsg("Please confirm your password.");
     if (password !== confirmPassword) return setErrorMsg("Passwords do not match.");
     if (!mobileNumber) return setErrorMsg("Mobile number is required.");
@@ -234,6 +243,30 @@ export default function SignUpPage() {
               }
             />
           </FormControl>
+
+          {formData.password.length > 0 && (
+            <Box
+              sx={{
+                mt: -0.6,
+                mb: 0.4,
+                px: 0.4,
+                textAlign: "left",
+              }}
+            >
+              {passwordChecks.map((requirement) => (
+                <Box
+                  key={requirement.label}
+                  sx={{
+                    color: requirement.met ? "#b9f6ca" : "rgba(255,255,255,0.72)",
+                    fontSize: "0.84rem",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {requirement.met ? "✓" : "•"} {requirement.label}
+                </Box>
+              ))}
+            </Box>
+          )}
 
           <FormControl fullWidth variant="outlined" sx={fieldSx}>
             <InputLabel shrink>Confirm Password *</InputLabel>
