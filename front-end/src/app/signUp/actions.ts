@@ -4,16 +4,7 @@ import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js
 import { createClient } from "@/lib/supabase/server";
 import { POST } from "@/app/api/register/route";
 import { db } from "@/lib/db";
-
-function isStrongPassword(password: string) {
-  return (
-    password.length >= 8 &&
-    /[a-z]/.test(password) &&
-    /[A-Z]/.test(password) &&
-    /\d/.test(password) &&
-    /[!@#$%^&*(),.?":{}|<>]/.test(password)
-  );
-}
+import { isStrongPassword } from "@/lib/passwordValidation";
 
 function getSupabaseAdminClient() {
   return createSupabaseAdminClient(
@@ -144,7 +135,7 @@ export async function signupAction(formData: {
     }
 
     return { ok: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("signupAction error:", err);
 
     if (createdAuthUserId) {
@@ -158,7 +149,7 @@ export async function signupAction(formData: {
 
     return {
       ok: false,
-      error: err.message ?? "Registration failed.",
+      error: err instanceof Error ? err.message : "Registration failed.",
     };
   }
 }

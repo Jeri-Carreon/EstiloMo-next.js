@@ -326,7 +326,7 @@ export default function AppointmentsPage() {
 
     if (normalized === 'COMPLETED') return 'green';
     if (normalized === 'CANCELLED') return '#EA580C';
-    if (normalized === 'REJECTED') return '#7e6969';
+    if (normalized === 'REJECTED') return '#DC2626';
     if (normalized === 'NOSHOW') return '#1F2937';
     if (normalized === 'PENDING') return '#92400E';
     if (normalized === 'SCHEDULED') return '#2563eb';
@@ -360,9 +360,6 @@ export default function AppointmentsPage() {
 
       if (data.settings) {
         setBookingCutoffHours(data.settings.bookingCutoffHours);
-        setPendingCheckoutExpirationMinutes(
-          data.settings.pendingCheckoutExpirationMinutes
-        );
       }
 
       setError('');
@@ -3600,10 +3597,18 @@ export default function AppointmentsPage() {
           onChange={(e) =>
             setPendingCheckoutExpirationMinutes(Number(e.target.value))
           }
-          inputProps={{ min: 1, max: 60, step: 1 }}
-          sx={{ mb: 5, bgcolor: "#fff" }}
+          slotProps={{
+            htmlInput: {
+              min: 1,
+              max: 60,
+              step: 1,
+            },
+          }}
+          sx={{
+            mb: 5,
+            bgcolor: "#fff",
+          }}
         />
-
         <Box sx={{ display: "flex", justifyContent: "center" }}>
           <Button
             onClick={saveSettings}
