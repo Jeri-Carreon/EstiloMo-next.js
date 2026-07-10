@@ -677,7 +677,7 @@ export default function BarbersPage() {
         const data = await res.json();
         setRole(data.role);
 
-        if (!["OWNER", "RECEPTIONIST", "BARBER"].includes(data.role)) {
+        if (!data.accessibleTabs?.includes("barbers")) {
           router.push("/unauthorized");
           return;
         }

@@ -312,6 +312,24 @@ model LoyaltyCardSetting {
   updatedAt                     DateTime @updatedAt
 }
 
+model DiscountButtonSetting {
+  id        String   @id @default(cuid())
+  percent   Int      @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AdminRoleTabAccess {
+  id        String   @id @default(cuid())
+  role      String
+  tabKey    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([role, tabKey])
+  @@index([role])
+}
+
 model LoyaltyCardActivity {
   id            String       @id @default(cuid())
   customerName  String

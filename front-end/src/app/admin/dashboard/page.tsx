@@ -234,7 +234,7 @@ export default function AdminDashboardPage() {
         const res = await fetch('/api/user/role')
         const roleData = await res.json()
 
-        if (!['OWNER', 'RECEPTIONIST'].includes(roleData.role)) {
+        if (!roleData.accessibleTabs?.includes("dashboard")) {
           router.push('/unauthorized')
           return
         }
