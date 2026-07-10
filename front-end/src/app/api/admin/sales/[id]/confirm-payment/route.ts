@@ -10,8 +10,29 @@ import {
 
 type LoyaltyRewardType = "NONE" | "FIFTY_PERCENT" | "FREE";
 
+function resolveSpecialDiscountType(value: unknown, legacyPwdDiscount?: boolean) {
+  if (value === "PWD" || value === "SENIOR") return value;
+  return legacyPwdDiscount ? "PWD" : null;
+}
+
 function isSignatureHaircut(serviceName: string) {
   return serviceName.trim().toLowerCase() === "signature haircut";
+}
+
+function calculatePwdPricing(subtotal: number) {
+  const vatAmount = Math.round(subtotal * 0.12 * 100) / 100;
+  const vatExemptBase = Math.round((subtotal - vatAmount) * 100) / 100;
+  const pwdDiscountAmount = Math.round(vatExemptBase * 0.2 * 100) / 100;
+  const fullTotalAmount = Math.max(
+    Math.round((vatExemptBase - pwdDiscountAmount) * 100) / 100,
+    0
+  );
+
+  return {
+    vatAmount,
+    discount: Math.round((subtotal - fullTotalAmount) * 100) / 100,
+    fullTotalAmount,
+  };
 }
 
 function getLoyaltyRewardErrorMessage(rewardType: LoyaltyRewardType) {
@@ -104,6 +125,20 @@ export async function PUT(
       body.loyaltyRewardType === "FREE"
         ? body.loyaltyRewardType
         : "NONE";
+    const resolvedSpecialDiscountType = resolveSpecialDiscountType(
+      body.specialDiscountType,
+      body.pwdDiscount === true
+    );
+    const usePwdDiscount = Boolean(resolvedSpecialDiscountType);
+    const normalizedPwdId = typeof body.pwdId === "string" ? body.pwdId.trim() : "";
+
+    if (usePwdDiscount && !normalizedPwdId) {
+      return NextResponse.json(
+        { error: "PWD/Senior Citizen ID is required" },
+        { status: 400 }
+      );
+    }
+
     const signatureHaircutSubtotal = sale.items.reduce((sum, item) => {
       if (!isSignatureHaircut(item.service.name)) return sum;
 
@@ -111,6 +146,7 @@ export async function PUT(
     }, 0);
 
     if (
+      !usePwdDiscount &&
       requestedLoyaltyRewardType !== "NONE" &&
       signatureHaircutSubtotal <= 0
     ) {
@@ -131,26 +167,39 @@ export async function PUT(
         : sale.payment.method;
 
     const loyaltyCard = sale.customer.loyaltyCards ?? null;
+    const loyaltySettings = await db.loyaltyCardSetting.findFirst({
+      select: {
+        stickersPerTransaction: true,
+      },
+    });
+    const fiftyPercentStickerThreshold = 5;
+    const freeStickerThreshold = 10;
+    const stickersPerTransaction = loyaltySettings?.stickersPerTransaction ?? 1;
 
     let loyaltyRewardType: LoyaltyRewardType = "NONE";
 
     if (
+      !usePwdDiscount &&
       requestedLoyaltyRewardType === "FIFTY_PERCENT" &&
       loyaltyCard &&
-      loyaltyCard.stars >= 5
+      loyaltyCard.stars >= fiftyPercentStickerThreshold &&
+      loyaltyCard.stars < freeStickerThreshold &&
+      !loyaltyCard.fiveRewardRedeemed
     ) {
       loyaltyRewardType = "FIFTY_PERCENT";
     }
 
     if (
+      !usePwdDiscount &&
       requestedLoyaltyRewardType === "FREE" &&
       loyaltyCard &&
-      loyaltyCard.stars >= 10
+      loyaltyCard.stars >= freeStickerThreshold
     ) {
       loyaltyRewardType = "FREE";
     }
 
     if (
+      !usePwdDiscount &&
       requestedLoyaltyRewardType === "FIFTY_PERCENT" &&
       loyaltyRewardType !== "FIFTY_PERCENT"
     ) {
@@ -161,6 +210,7 @@ export async function PUT(
     }
 
     if (
+      !usePwdDiscount &&
       requestedLoyaltyRewardType === "FREE" &&
       loyaltyRewardType !== "FREE"
     ) {
@@ -178,7 +228,16 @@ export async function PUT(
       discount = signatureHaircutSubtotal;
     }
 
-    const fullTotalAmount = Math.max(subtotal - discount, 0);
+    const pwdPricing = usePwdDiscount ? calculatePwdPricing(subtotal) : null;
+    if (pwdPricing) {
+      discount = pwdPricing.discount;
+      loyaltyRewardType = "NONE";
+    }
+
+    const vatAmount =
+      pwdPricing?.vatAmount ??
+      Math.round(subtotal * 0.12 * 100) / 100;
+    const fullTotalAmount = pwdPricing?.fullTotalAmount ?? Math.max(subtotal - discount, 0);
     const downPayment = Number(sale.payment.downPayment || 0);
     const totalAmount =
       sale.source === "BOOKING"
@@ -194,6 +253,11 @@ export async function PUT(
           status: "PAID",
           amount: totalAmount,
           discount,
+          pwdDiscount: usePwdDiscount,
+          pwdId: usePwdDiscount ? normalizedPwdId : null,
+          specialDiscountType: resolvedSpecialDiscountType,
+          vatExempt: usePwdDiscount,
+          vatAmount,
           method,
           gcashRefNo: method === "GCASH" ? body.gcashRefNo : null,
         },
@@ -204,6 +268,11 @@ export async function PUT(
         data: {
           status: "PAID",
           discount,
+          pwdDiscount: usePwdDiscount,
+          pwdId: usePwdDiscount ? normalizedPwdId : null,
+          specialDiscountType: resolvedSpecialDiscountType,
+          vatExempt: usePwdDiscount,
+          vatAmount,
           totalAmount: fullTotalAmount,
         },
       });
@@ -221,7 +290,10 @@ export async function PUT(
         if (loyaltyRewardType === "FREE") {
           updatedStars = 1;
         } else {
-          updatedStars = Math.min(loyaltyCard.stars + 1, 10);
+          updatedStars = Math.min(
+            loyaltyCard.stars + stickersPerTransaction,
+            freeStickerThreshold
+          );
         }
 
         await tx.loyaltyCard.update({

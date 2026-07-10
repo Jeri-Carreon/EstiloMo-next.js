@@ -152,7 +152,7 @@ export default function ScheduleStep({
       return data?.bookingCutoffHours ?? 1;
     },
     refetchInterval: 10000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const { data: unavailableDateList = [] } = useQuery<string[]>({
@@ -180,7 +180,7 @@ export default function ScheduleStep({
       return data?.unavailableDates ?? [];
     },
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const unavailableDates = useMemo(
@@ -226,7 +226,7 @@ export default function ScheduleStep({
       return data?.availableTimes ?? [];
     },
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {

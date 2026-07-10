@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -49,6 +49,15 @@ interface Review {
   };
 }
 
+type ReviewAverage = {
+  averageRating: number;
+  reviewCount: number;
+};
+
+function wholeStarRating(value: number) {
+  return Math.min(Math.max(Math.round(Number(value) || 0), 1), 5);
+}
+
 export default function CustomerReviews() {
   const [search, setSearch] = useState("");
   const [ratingFilter, setRatingFilter] = useState("all");
@@ -73,8 +82,31 @@ export default function CustomerReviews() {
       return data.reviews || [];
     },
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
+
+  const { data: reviewAverage = { averageRating: 0, reviewCount: 0 } } =
+    useQuery<ReviewAverage>({
+      queryKey: ["publicCustomerReviewAverage"],
+      queryFn: async () => {
+        const res = await fetch("/api/reviews?average=true", {
+          cache: "no-store",
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to load review average.");
+        }
+
+        return {
+          averageRating: Number(data.averageRating || 0),
+          reviewCount: Number(data.reviewCount || 0),
+        };
+      },
+      refetchInterval: 5000,
+      refetchOnWindowFocus: false,
+    });
 
   const filteredReviews = useMemo(() => {
     let temp = [...reviews];
@@ -115,34 +147,26 @@ export default function CustomerReviews() {
 
     if (ratingFilter !== "all") {
       const ratingValue = Number(ratingFilter);
-      temp = temp.filter((review) => Number(review.rating) === ratingValue);
+      temp = temp.filter(
+        (review) => wholeStarRating(Number(review.rating)) === ratingValue
+      );
     }
 
     return temp;
   }, [search, ratingFilter, reviews]);
 
   const getRatingLabel = (rating: number) => {
-    switch (rating) {
+    switch (wholeStarRating(rating)) {
       case 5:
-        return "Excellent";
-      case 4.5:
         return "Excellent";
       case 4:
         return "Very Good";
-      case 3.5:
-        return "Good";
       case 3:
         return "Good";
-      case 2.5:
-        return "Average";
       case 2:
         return "Average";
-      case 1.5:
-        return "Poor";
       case 1:
         return "Poor";
-      case 0.5:
-        return "Very Poor";
       default:
         return "";
     }
@@ -161,6 +185,77 @@ export default function CustomerReviews() {
       >
         Customer Reviews
       </Typography>
+
+      <Box
+        sx={{
+          maxWidth: 750,
+          mx: "auto",
+          mb: 3,
+          px: 2,
+        }}
+      >
+        <Box
+          sx={{
+            bgcolor: "#fff",
+            border: "1px solid #d8d8d8",
+            borderRadius: 2,
+            px: { xs: 2, sm: 3 },
+            py: 2,
+            display: "flex",
+            alignItems: { xs: "flex-start", sm: "center" },
+            justifyContent: "space-between",
+            gap: 2,
+            flexDirection: { xs: "column", sm: "row" },
+          }}
+        >
+          <Box>
+            <Typography
+              sx={{
+                fontWeight: 800,
+                fontSize: 18,
+                fontFamily: "var(--font-nunito-sans)",
+              }}
+            >
+              Average Reviews of The Barbs Bro
+            </Typography>
+
+            <Typography
+              sx={{
+                color: "text.secondary",
+                fontSize: 14,
+                fontFamily: "var(--font-nunito-sans)",
+              }}
+            >
+              Based on customer review
+              {reviewAverage.reviewCount === 1 ? "" : "s"}
+            </Typography>
+          </Box>
+
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+            <Rating
+              value={
+                reviewAverage.reviewCount > 0
+                  ? wholeStarRating(reviewAverage.averageRating)
+                  : 0
+              }
+              readOnly
+              size="medium"
+            />
+
+            <Typography
+              sx={{
+                fontWeight: 900,
+                fontSize: 18,
+                fontFamily: "var(--font-nunito-sans)",
+              }}
+            >
+              {reviewAverage.reviewCount > 0
+                ? reviewAverage.averageRating.toFixed(1)
+                : "0.0"}
+            </Typography>
+          </Stack>
+        </Box>
+      </Box>
 
       <Box
         sx={{
@@ -191,16 +286,11 @@ export default function CustomerReviews() {
           }}
         >
           <MenuItem value="all">All Ratings</MenuItem>
-          <MenuItem value="5">5 ★</MenuItem>
-          <MenuItem value="4.5">4.5 ★</MenuItem>
-          <MenuItem value="4">4 ★</MenuItem>
-          <MenuItem value="3.5">3.5 ★</MenuItem>
-          <MenuItem value="3">3 ★</MenuItem>
-          <MenuItem value="2.5">2.5 ★</MenuItem>
-          <MenuItem value="2">2 ★</MenuItem>
-          <MenuItem value="1.5">1.5 ★</MenuItem>
-          <MenuItem value="1">1 ★</MenuItem>
-          <MenuItem value="0.5">0.5 ★</MenuItem>
+          <MenuItem value="5">5 ?</MenuItem>
+          <MenuItem value="4">4 ?</MenuItem>
+          <MenuItem value="3">3 ?</MenuItem>
+          <MenuItem value="2">2 ?</MenuItem>
+          <MenuItem value="1">1 ?</MenuItem>
         </TextField>
       </Box>
 
@@ -315,7 +405,11 @@ export default function CustomerReviews() {
                     Rating:
                   </Typography>
 
-                  <Rating value={Number(review.rating)} precision={0.5} readOnly size="medium"/>
+                  <Rating
+                    value={wholeStarRating(Number(review.rating))}
+                    readOnly
+                    size="medium"
+                  />
 
                   <Typography
                     sx={{
@@ -323,9 +417,9 @@ export default function CustomerReviews() {
                       fontSize: 15,
                       fontFamily: "var(--font-nunito-sans)",
                       color:
-                        Number(review.rating) <= 2
+                        wholeStarRating(Number(review.rating)) <= 2
                           ? "error.main"
-                          : Number(review.rating) <= 3
+                          : wholeStarRating(Number(review.rating)) <= 3
                             ? "warning.main"
                             : "success.main",
                       ml: 1,

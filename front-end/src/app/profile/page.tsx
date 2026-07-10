@@ -61,7 +61,7 @@ export default function ProfilePage() {
     },
     enabled: !authLoading,
     refetchInterval: isEditing ? false : 10000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {

@@ -5,12 +5,34 @@ import { logLoyaltySettingsUpdated } from "@/lib/securityLogEvents";
 
 export const dynamic = "force-dynamic";
 
+const FIFTY_PERCENT_THRESHOLD = 5;
+const FREE_STICKER_THRESHOLD = 10;
+const LOYALTY_SETTINGS_SELECT = {
+  id: true,
+  stickersPerTransaction: true,
+  fiveStickerReward: true,
+  tenStickerReward: true,
+  createdAt: true,
+  updatedAt: true,
+};
+
 export async function GET() {
   try {
     const user = await getAdminUser();
 
     if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    let settings = await db.loyaltyCardSetting.findFirst({
+      select: LOYALTY_SETTINGS_SELECT,
+    });
+
+    if (!settings) {
+      settings = await db.loyaltyCardSetting.create({
+        data: {},
+        select: LOYALTY_SETTINGS_SELECT,
+      });
     }
 
     const customers = await db.customer.findMany({
@@ -20,14 +42,18 @@ export async function GET() {
       orderBy: {
         createdAt: "asc",
       },
-      include: {
-        loyaltyCards: true,
-      },
     });
 
     const cards = await Promise.all(
       customers.map(async (customer) => {
-        let card = customer.loyaltyCards;
+        let card = await db.loyaltyCard.findFirst({
+          where: {
+            customerId: customer.id,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        });
 
         if (!card) {
           card = await db.loyaltyCard.create({
@@ -44,22 +70,16 @@ export async function GET() {
           cardNumber: customer.customerCode,
           customerId: customer.id,
           customerCode: customer.customerCode,
-          name: `${customer.firstName} ${customer.lastName}`,
-          stickers: Math.min(card.stars, 10),
-          maxStickers: 10,
+          name:
+            `${customer.firstName ?? ""} ${customer.lastName ?? ""}`.trim() ||
+            "Unknown",
+          stickers: Math.min(card.stars, FREE_STICKER_THRESHOLD),
+          maxStickers: FREE_STICKER_THRESHOLD,
           status: card.status,
           fiveRewardRedeemed: card.fiveRewardRedeemed,
         };
       })
     );
-
-    let settings = await db.loyaltyCardSetting.findFirst();
-
-    if (!settings) {
-      settings = await db.loyaltyCardSetting.create({
-        data: {},
-      });
-    }
 
     const activities = await db.loyaltyCardActivity.findMany({
       orderBy: {
@@ -70,7 +90,11 @@ export async function GET() {
 
     return NextResponse.json({
       cards,
-      settings,
+      settings: {
+        ...settings,
+        fiftyPercentStickerThreshold: FIFTY_PERCENT_THRESHOLD,
+        freeStickerThreshold: FREE_STICKER_THRESHOLD,
+      },
       activities,
     });
   } catch (error) {
@@ -111,7 +135,9 @@ export async function PUT(req: Request) {
       );
     }
 
-    let settings = await db.loyaltyCardSetting.findFirst();
+    let settings = await db.loyaltyCardSetting.findFirst({
+      select: LOYALTY_SETTINGS_SELECT,
+    });
 
     if (!settings) {
       settings = await db.loyaltyCardSetting.create({
@@ -120,6 +146,7 @@ export async function PUT(req: Request) {
           fiveStickerReward,
           tenStickerReward,
         },
+        select: LOYALTY_SETTINGS_SELECT,
       });
     } else {
       settings = await db.loyaltyCardSetting.update({
@@ -131,12 +158,19 @@ export async function PUT(req: Request) {
           fiveStickerReward,
           tenStickerReward,
         },
+        select: LOYALTY_SETTINGS_SELECT,
       });
     }
 
     await logLoyaltySettingsUpdated(req, user);
 
-    return NextResponse.json({ settings });
+    return NextResponse.json({
+      settings: {
+        ...settings,
+        fiftyPercentStickerThreshold: FIFTY_PERCENT_THRESHOLD,
+        freeStickerThreshold: FREE_STICKER_THRESHOLD,
+      },
+    });
   } catch (error) {
     console.error("Admin loyalty settings PUT error:", error);
 

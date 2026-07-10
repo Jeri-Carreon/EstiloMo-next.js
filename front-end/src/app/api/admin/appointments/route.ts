@@ -3,7 +3,10 @@ import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
 import { logAppointmentCreated } from "@/lib/securityLogEvents";
 import { parsePHDateOnly } from "@/lib/dateUtils";
-import { ensureSingleAppointmentSetting } from "@/lib/appointmentSettings";
+import {
+  ensureSingleAppointmentSetting,
+  MAX_PENDING_CHECKOUT_EXPIRATION_MINUTES,
+} from "@/lib/appointmentSettings";
 import { createUniqueCode } from "@/lib/createCode";
 import {
   AppointmentAvailabilityError,
@@ -107,11 +110,20 @@ export async function GET() {
 
         payment: {
           id: payment?.id ?? null,
-          amount: Number(a.service?.price ?? 0),
+          amount: Number(
+            payment?.amount ?? a.sale?.totalAmount ?? a.service?.price ?? 0
+          ),
           saleAmount: Number(
             payment?.amount ?? a.sale?.totalAmount ?? a.service?.price ?? 0
           ),
           downPayment: Number(payment?.downPayment ?? 0),
+          discount: Number(payment?.discount ?? a.sale?.discount ?? 0),
+          pwdDiscount: payment?.pwdDiscount ?? a.sale?.pwdDiscount ?? false,
+          pwdId: payment?.pwdId ?? a.sale?.pwdId ?? null,
+          specialDiscountType:
+            payment?.specialDiscountType ?? a.sale?.specialDiscountType ?? null,
+          vatExempt: payment?.vatExempt ?? a.sale?.vatExempt ?? false,
+          vatAmount: Number(payment?.vatAmount ?? a.sale?.vatAmount ?? 0),
           method: payment?.method ?? "GCASH",
           status: payment?.status ?? "PENDING",
           screenshotUrl: payment?.screenshotUrl ?? null,
@@ -329,6 +341,9 @@ export async function PUT(req: Request) {
 
     const body = await req.json();
     const bookingCutoffHours = Number(body.bookingCutoffHours);
+    const pendingCheckoutExpirationMinutes = Number(
+      body.pendingCheckoutExpirationMinutes
+    );
 
     if (Number.isNaN(bookingCutoffHours) || bookingCutoffHours < 0) {
       return NextResponse.json(
@@ -337,7 +352,22 @@ export async function PUT(req: Request) {
       );
     }
 
-    const settings = await ensureSingleAppointmentSetting({ bookingCutoffHours });
+    if (
+      Number.isNaN(pendingCheckoutExpirationMinutes) ||
+      pendingCheckoutExpirationMinutes < 1 ||
+      pendingCheckoutExpirationMinutes >
+        MAX_PENDING_CHECKOUT_EXPIRATION_MINUTES
+    ) {
+      return NextResponse.json(
+        { error: "Invalid pendingCheckoutExpirationMinutes value" },
+        { status: 400 }
+      );
+    }
+
+    const settings = await ensureSingleAppointmentSetting({
+      bookingCutoffHours,
+      pendingCheckoutExpirationMinutes,
+    });
 
     return NextResponse.json({ settings });
   } catch (error) {

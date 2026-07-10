@@ -63,7 +63,7 @@ export default function ServicesSection() {
       return data.services || [];
     },
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {

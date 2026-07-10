@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-
-const EXPIRE_AFTER_MINUTES = Number(
-  process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || 5
-);
+import { getPendingCheckoutExpirationMinutes } from "@/lib/appointmentSettings";
 
 export async function POST() {
   try {
-    const cutoff = new Date(Date.now() - EXPIRE_AFTER_MINUTES * 60 * 1000);
+    const expireAfterMinutes = await getPendingCheckoutExpirationMinutes();
+    const cutoff = new Date(Date.now() - expireAfterMinutes * 60 * 1000);
 
     const expiredPayments = await db.payment.findMany({
       where: {

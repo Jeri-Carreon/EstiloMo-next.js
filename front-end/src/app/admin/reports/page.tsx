@@ -1,7 +1,8 @@
 "use client";
 
+import AIUsageDashboard from "@/components/admin/AIUsageDashboard";
 import { createClient } from "@/lib/supabase/client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
@@ -13,6 +14,10 @@ import {
   Box,
   Button,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   MenuItem,
   Select,
@@ -29,7 +34,7 @@ import {
 } from "recharts";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome"; // deep analysis icon
 import ReactMarkdown from "react-markdown";
-import { PieChart, Pie, Cell, Legend } from "recharts";
+import { PieChart, Pie, Cell } from "recharts";
 import { useRouter } from "next/navigation";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -70,6 +75,22 @@ interface ReportData {
   serviceRecommendation: string;
   dailyRevenue: { date: string; revenue: number; transactions: number }[];
 }
+
+type RawServiceRow = Omit<ServiceRow, "color">;
+
+type RawReportData = {
+  totalRevenue: number;
+  avgRevenuePerDay: number;
+  completedTransactions: number;
+  completionRate: number;
+  revenueTrend?: number;
+  avgTrend?: number;
+  apptTrend?: number;
+  rateTrend?: number;
+  weeklyData?: WeekPoint[];
+  services?: RawServiceRow[];
+  dailyRevenue?: { date: string; revenue: number; transactions: number }[];
+};
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -379,7 +400,13 @@ function InsightCard({ icon, title, body }: InsightCard) {
 
 // ─── Custom tooltip for line chart ───────────────────────────────────────────
 
-function CustomTooltip({ active, payload, label }: any) {
+type CustomTooltipProps = {
+  active?: boolean;
+  payload?: { value?: number }[];
+  label?: string;
+};
+
+function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
   return (
     <Box
@@ -430,13 +457,45 @@ type ReportRequest = {
   dateRange: string;
 };
 
+type ReportCostEstimate = {
+  model: string;
+  dateRange: string;
+  estimatedInputTokens: number;
+  estimatedOutputTokens: number;
+  estimatedTotalTokens: number;
+  estimatedInputCostUSD: number;
+  estimatedOutputCostUSD: number;
+  estimatedTotalCostUSD: number;
+  exchangeRatePHP: number;
+  estimatedTotalCostPHP: number;
+  maxOutputTokens: number;
+  isEstimate: boolean;
+};
+
+type PendingReportRequest = ReportRequest & {
+  estimate: ReportCostEstimate;
+};
+
+type ChatCostEstimate = {
+  model: string;
+  estimatedTotalCostPHP: number;
+  estimatedTotalCostUSD: number;
+  estimatedTotalTokens: number;
+  isEstimate: boolean;
+};
+
+type ChatCostEstimateResponse = {
+  regular: ChatCostEstimate;
+  deep: ChatCostEstimate;
+};
+
 function buildReportData(
-  rawData: any,
+  rawData: RawReportData,
   dateRange: string,
   aiInsights: AiInsightsPayload = {},
 ): ReportData {
   const services = (rawData.services ?? []).map(
-    (service: any, index: number) => ({
+    (service, index) => ({
       ...service,
       color: PIE_COLORS[index % PIE_COLORS.length],
     }),
@@ -461,6 +520,18 @@ function buildReportData(
   };
 }
 
+function formatTokenCount(value: number): string {
+  return value.toLocaleString("en-US");
+}
+
+function formatCostUSD(value: number): string {
+  return `$${value.toFixed(4)}`;
+}
+
+function formatCostPHP(value: number): string {
+  return `PHP ${value.toFixed(4)}`;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
@@ -483,20 +554,24 @@ export default function ReportsPage() {
   const [reportRequest, setReportRequest] = useState<ReportRequest | null>(
     null,
   );
+  const [pendingReport, setPendingReport] =
+    useState<PendingReportRequest | null>(null);
+  const [estimateLoading, setEstimateLoading] = useState(false);
+  const [estimateError, setEstimateError] = useState("");
+  const [aiUsageOpen, setAiUsageOpen] = useState(false);
   // session
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [loading, setLoading] = useState(false);
 
   // Chat state
   const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const [chatCostEstimate, setChatCostEstimate] =
+    useState<ChatCostEstimateResponse | null>(null);
+  const [chatCostLoading, setChatCostLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-
-  const [deepAnalysis, setDeepAnalysis] = useState<string | null>(null);
-  const [deepLoading, setDeepLoading] = useState(false);
-  const [dbData, setDbData] = useState<any>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -518,7 +593,7 @@ export default function ReportsPage() {
     };
 
     init();
-  }, [router]);
+  }, [router, supabase]);
 
   const { data: liveRawData } = useQuery({
     queryKey: ["adminReportsData", reportRequest?.from, reportRequest?.to],
@@ -540,13 +615,13 @@ export default function ReportsPage() {
     },
     enabled: Boolean(reportRequest && reportData),
     refetchInterval: 10000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
     if (!liveRawData || !reportRequest) return;
 
-    setDbData(liveRawData);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setReportData((current) => {
       if (!current) return current;
 
@@ -561,6 +636,52 @@ export default function ReportsPage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMsgs]);
+
+  useEffect(() => {
+    const prompt = chatInput.trim();
+
+    if (!prompt || !reportData) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setChatCostLoading(true);
+      try {
+        const messages = [
+          ...chatMsgs.map((m) => ({ role: m.role, content: m.text })),
+          { role: "user" as const, content: prompt },
+        ];
+        const res = await fetch("/api/admin/reports/chat/estimate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({ reportData, messages }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to estimate chat cost.");
+        }
+
+        setChatCostEstimate(data);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.error("CHAT COST ESTIMATE ERROR:", error);
+          setChatCostEstimate(null);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setChatCostLoading(false);
+        }
+      }
+    }, 350);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [chatInput, chatMsgs, reportData]);
 
   // Calendar handlers
   const handleYearChange = (year: number) => {
@@ -594,6 +715,47 @@ export default function ReportsPage() {
     }
   };
 
+  const handleEstimateReport = async () => {
+    if (!startDate || !endDate) return;
+
+    const from = toISO(startDate);
+    const to = toISO(endDate);
+    const dateRange = `${formatDate(startDate)} â€“ ${formatDate(endDate)}`;
+    setEstimateLoading(true);
+    setEstimateError("");
+    setPendingReport(null);
+    const hasCorruptSeparator = Array.from(dateRange).some(
+      (char) => char.charCodeAt(0) > 127,
+    );
+    const estimateDateRange = hasCorruptSeparator
+      ? `${formatDate(startDate)} - ${formatDate(endDate)}`
+      : dateRange;
+
+    try {
+      const params = new URLSearchParams({ from, to, dateRange: estimateDateRange });
+      const estimateRes = await fetch(
+        `/api/admin/reports/estimate?${params.toString()}`,
+        { cache: "no-store" },
+      );
+      const estimate = (await estimateRes.json()) as ReportCostEstimate & {
+        error?: string;
+      };
+
+      if (!estimateRes.ok) {
+        throw new Error(estimate.error || "Failed to estimate report cost.");
+      }
+
+      setPendingReport({ from, to, dateRange: estimateDateRange, estimate });
+    } catch (e) {
+      console.error(e);
+      setEstimateError(
+        e instanceof Error ? e.message : "Failed to estimate report cost.",
+      );
+    } finally {
+      setEstimateLoading(false);
+    }
+  };
+
   const handleGenerateReport = async () => {
     if (!startDate || !endDate) return;
 
@@ -601,11 +763,18 @@ export default function ReportsPage() {
     const to = toISO(endDate);
     const dateRange = `${formatDate(startDate)} – ${formatDate(endDate)}`;
 
+    const hasCorruptGenerationSeparator = Array.from(dateRange).some(
+      (char) => char.charCodeAt(0) > 127,
+    );
+    const generationDateRange = hasCorruptGenerationSeparator
+      ? `${formatDate(startDate)} - ${formatDate(endDate)}`
+      : dateRange;
+
     setLoading(true);
     setReportData(null);
     setChatMsgs([]);
-    setDeepAnalysis(null);
     setReportRequest(null);
+    setPendingReport(null);
 
     try {
       const dataRes = await fetch(
@@ -618,12 +787,15 @@ export default function ReportsPage() {
         throw new Error(rawData.error || "Failed to load report data.");
       }
 
-      setDbData(rawData);
-
       const analyzeRes = await fetch("/api/admin/reports/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dbData: rawData, dateRange }),
+        body: JSON.stringify({
+          from,
+          to,
+          dateRange: generationDateRange,
+          reportType: "summary",
+        }),
       });
       const aiInsights = await analyzeRes.json();
 
@@ -631,40 +803,20 @@ export default function ReportsPage() {
         throw new Error(aiInsights.error || "Failed to generate AI insights.");
       }
 
-      const parsed = buildReportData(rawData, dateRange, aiInsights);
+      const parsed = buildReportData(rawData, generationDateRange, aiInsights);
 
       setChatMsgs([
         {
           role: "assistant",
-          text: `Hi! I've analyzed your data from ${dateRange}. What would you like to explore?`,
+          text: `Hi! I've analyzed your data from ${generationDateRange}. What would you like to explore?`,
         },
       ]);
       setReportData(parsed);
-      setReportRequest({ from, to, dateRange });
+      setReportRequest({ from, to, dateRange: generationDateRange });
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Deep Analysis Handler
-  const handleDeepAnalysis = async () => {
-    if (!dbData || !reportData) return;
-    setDeepLoading(true);
-    setDeepAnalysis(null);
-    try {
-      const res = await fetch("/api/admin/reports/deep-analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dbData, dateRange: reportData.dateRange }),
-      });
-      const data = await res.json();
-      setDeepAnalysis(data.analysis ?? null);
-    } catch {
-      setDeepAnalysis("Failed to generate deep analysis. Please try again.");
-    } finally {
-      setDeepLoading(false);
     }
   };
 
@@ -683,7 +835,7 @@ export default function ReportsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           reportData,
-          dbData,
+          reportRequest,
           deep,
           messages: newMsgs.map((m) => ({ role: m.role, content: m.text })),
         }),
@@ -739,18 +891,57 @@ export default function ReportsPage() {
         <Typography sx={{ fontSize: 13, color: "#888", mb: 0.5 }}>
           {reportData.dateRange}
         </Typography>
-        <Typography
-          onClick={handleExportCSV}
-          sx={{
-            fontSize: 13,
-            color: "#4285F4",
-            cursor: "pointer",
-            mb: 2.5,
-            display: "inline-block",
-          }}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2.5 }}>
+          <Typography
+            onClick={handleExportCSV}
+            sx={{
+              fontSize: 13,
+              color: "#4285F4",
+              cursor: "pointer",
+              display: "inline-block",
+            }}
+          >
+            Export CSV
+          </Typography>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => setAiUsageOpen(true)}
+            sx={{
+              borderRadius: 1,
+              textTransform: "none",
+              fontWeight: 800,
+              fontSize: 12,
+              borderColor: "#111",
+              color: "#111",
+              px: 1.5,
+              py: 0.35,
+              "&:hover": { borderColor: "#111", bgcolor: "#f8fafc" },
+            }}
+          >
+            AI Usage
+          </Button>
+        </Box>
+
+        <Dialog
+          open={aiUsageOpen}
+          onClose={() => setAiUsageOpen(false)}
+          fullWidth
+          maxWidth="lg"
         >
-          Export CSV
-        </Typography>
+          <DialogTitle sx={{ fontWeight: 900 }}>AI Usage</DialogTitle>
+          <DialogContent dividers>
+            <AIUsageDashboard compact />
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => setAiUsageOpen(false)}
+              sx={{ textTransform: "none", color: "#111", fontWeight: 800 }}
+            >
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* Insight cards */}
         <Box
@@ -1107,12 +1298,12 @@ export default function ReportsPage() {
               bgcolor: "#f4f4f4",
               px: 2,
               py: 1.2,
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
+              display: "grid",
+              gap: 0.8,
               borderTop: "1px solid #e0e0e0",
             }}
           >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <input
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
@@ -1120,6 +1311,7 @@ export default function ReportsPage() {
               placeholder="Ask about revenue, trends, predictions…"
               style={{
                 flex: 1,
+                minWidth: 0,
                 border: "none",
                 background: "transparent",
                 outline: "none",
@@ -1169,6 +1361,21 @@ export default function ReportsPage() {
                 sx={{ color: chatInput.trim() ? "#111" : "#bbb" }}
               />
             </IconButton>
+            </Box>
+
+            {chatInput.trim() && (
+              <Typography sx={{ fontSize: 11, color: "#666", lineHeight: 1.4 }}>
+                {chatCostLoading && !chatCostEstimate
+                  ? "Estimating prompt cost..."
+                  : chatCostEstimate
+                    ? `This prompt will cost about ${formatCostPHP(
+                        chatCostEstimate.regular.estimatedTotalCostPHP,
+                      )} with GPT-4o Mini. Deep Analysis may cost about ${formatCostPHP(
+                        chatCostEstimate.deep.estimatedTotalCostPHP,
+                      )}.`
+                    : "Cost estimate unavailable."}
+              </Typography>
+            )}
           </Box>
         </Box>
       </Box>
@@ -1271,10 +1478,10 @@ export default function ReportsPage() {
       <Box sx={{ display: "flex", justifyContent: "center" }}>
         <Button
           variant="contained"
-          onClick={handleGenerateReport}
-          disabled={!startDate || !endDate || loading}
+          onClick={handleEstimateReport}
+          disabled={!startDate || !endDate || loading || estimateLoading}
           startIcon={
-            loading ? (
+            loading || estimateLoading ? (
               <CircularProgress size={16} sx={{ color: "#fff" }} />
             ) : undefined
           }
@@ -1291,9 +1498,172 @@ export default function ReportsPage() {
             "&:disabled": { bgcolor: "#ccc", color: "#fff" },
           }}
         >
-          {loading ? "Generating…" : "Generate Report"}
+          {loading
+            ? "Generating..."
+            : estimateLoading
+              ? "Estimating..."
+              : "Estimate Cost"}
         </Button>
       </Box>
+
+      {estimateError && (
+        <Typography
+          sx={{
+            mt: 2,
+            textAlign: "center",
+            color: "#b91c1c",
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          {estimateError}
+        </Typography>
+      )}
+
+      <Dialog
+        open={Boolean(pendingReport)}
+        onClose={() => setPendingReport(null)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle sx={{ fontWeight: 900 }}>Confirm AI Report</DialogTitle>
+        <DialogContent>
+          {pendingReport && (
+            <Box sx={{ display: "grid", gap: 2, pt: 0.5 }}>
+              <Box>
+                <Typography sx={{ fontSize: 13, color: "#777", mb: 0.5 }}>
+                  Date Range
+                </Typography>
+                <Typography sx={{ fontSize: 16, fontWeight: 800 }}>
+                  {pendingReport.dateRange}
+                </Typography>
+              </Box>
+
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+                  gap: 1.5,
+                }}
+              >
+                {[
+                  {
+                    label: "Input Tokens",
+                    value: formatTokenCount(
+                      pendingReport.estimate.estimatedInputTokens,
+                    ),
+                  },
+                  {
+                    label: "Max Output Tokens",
+                    value: formatTokenCount(
+                      pendingReport.estimate.estimatedOutputTokens,
+                    ),
+                  },
+                  {
+                    label: "Estimated Total",
+                    value: formatTokenCount(
+                      pendingReport.estimate.estimatedTotalTokens,
+                    ),
+                  },
+                ].map((item) => (
+                  <Box
+                    key={item.label}
+                    sx={{
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 2,
+                      p: 1.5,
+                      bgcolor: "#fafafa",
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 12, color: "#777", mb: 0.5 }}>
+                      {item.label}
+                    </Typography>
+                    <Typography sx={{ fontSize: 18, fontWeight: 900 }}>
+                      {item.value}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+
+              <Box
+                sx={{
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 2,
+                  p: 2,
+                  display: "grid",
+                  gap: 1,
+                }}
+              >
+                <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                  <Typography sx={{ fontSize: 13, color: "#555" }}>Model</Typography>
+                  <Typography sx={{ fontSize: 13, fontWeight: 800 }}>
+                    {pendingReport.estimate.model}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                  <Typography sx={{ fontSize: 13, color: "#555" }}>
+                    Input Cost
+                  </Typography>
+                  <Typography sx={{ fontSize: 13, fontWeight: 800 }}>
+                    {formatCostUSD(pendingReport.estimate.estimatedInputCostUSD)}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                  <Typography sx={{ fontSize: 13, color: "#555" }}>
+                    Output Cost Cap
+                  </Typography>
+                  <Typography sx={{ fontSize: 13, fontWeight: 800 }}>
+                    {formatCostUSD(pendingReport.estimate.estimatedOutputCostUSD)}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                  <Typography sx={{ fontSize: 15, fontWeight: 900 }}>
+                    Estimated Total
+                  </Typography>
+                  <Typography sx={{ fontSize: 15, fontWeight: 900 }}>
+                    {formatCostUSD(pendingReport.estimate.estimatedTotalCostUSD)}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                  <Typography sx={{ fontSize: 15, fontWeight: 900 }}>
+                    Estimated Total PHP
+                  </Typography>
+                  <Typography sx={{ fontSize: 15, fontWeight: 900 }}>
+                    {formatCostPHP(pendingReport.estimate.estimatedTotalCostPHP)}
+                  </Typography>
+                </Box>
+                <Typography sx={{ fontSize: 12, color: "#777", mt: 0.5 }}>
+                  Uses PHP {pendingReport.estimate.exchangeRatePHP.toFixed(4)} per USD.
+                  Actual output tokens and final cost are saved after generation.
+                </Typography>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => setPendingReport(null)}
+            disabled={loading}
+            sx={{ textTransform: "none", color: "#555", fontWeight: 700 }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleGenerateReport}
+            disabled={loading}
+            sx={{
+              textTransform: "none",
+              bgcolor: "#111",
+              color: "#FBBC05",
+              fontWeight: 900,
+              "&:hover": { bgcolor: "#222" },
+            }}
+          >
+            {loading ? "Generating..." : "Confirm and Generate"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

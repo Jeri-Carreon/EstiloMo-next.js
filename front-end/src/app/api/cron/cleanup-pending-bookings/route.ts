@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getPendingCheckoutExpirationMinutes } from "@/lib/appointmentSettings";
 
 export const dynamic = "force-dynamic";
 
@@ -9,9 +10,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const expirationMinutes = Number(
-    process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || 5
-  );
+  const expirationMinutes = await getPendingCheckoutExpirationMinutes();
   const cutoff = new Date(Date.now() - expirationMinutes * 60 * 1000);
 
   const result = await db.$transaction(async (tx) => {

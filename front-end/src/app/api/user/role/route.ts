@@ -11,8 +11,15 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const dbUser = await db.user.findUnique({
-    where: { email: user.email! },
+  const normalizedEmail = user.email?.toLowerCase().trim()
+
+  const dbUser = await db.user.findFirst({
+    where: {
+      OR: [
+        { id: user.id },
+        ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
+      ],
+    },
     select: { role: true, isActive: true }
   })
 

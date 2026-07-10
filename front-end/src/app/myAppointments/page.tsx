@@ -150,7 +150,7 @@ export default function MyAppointmentsPage() {
     },
     enabled: !authLoading,
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const history = historyData?.appointments || [];

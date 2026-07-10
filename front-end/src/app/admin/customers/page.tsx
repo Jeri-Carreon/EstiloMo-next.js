@@ -36,7 +36,7 @@ interface Customer {
   customerCode: string;
   type: string;
   name: string;
-  contactNumber: string;
+  mobileNumber: string;
   email: string;
   totalAppointments: number;
   totalSpent: number;
@@ -270,7 +270,7 @@ export default function CustomersPage() {
       const matchesSearch =
         (customer.name || "").toLowerCase().includes(searchValue) ||
         (customer.email || "").toLowerCase().includes(searchValue) ||
-        (customer.contactNumber || "").toLowerCase().includes(searchValue) ||
+        (customer.mobileNumber || "").toLowerCase().includes(searchValue) ||
         (customer.customerCode || "").toLowerCase().includes(searchValue);
 
       const matchesType =
@@ -306,7 +306,7 @@ export default function CustomersPage() {
       c.customerCode,
       c.isActive === false ? 'Unavailable' : 'Available',
       c.name,
-      c.contactNumber,
+      c.mobileNumber,
       c.email,
       c.totalAppointments,
       c.totalSpent,
@@ -454,7 +454,7 @@ export default function CustomersPage() {
                       />
                     </TableCell>
                     <TableCell>{customer.name}</TableCell>
-                    <TableCell>{customer.contactNumber}</TableCell>
+                    <TableCell>{customer.mobileNumber}</TableCell>
                     <TableCell>{customer.email}</TableCell>
                     <TableCell>{customer.totalAppointments}</TableCell>
                     <TableCell>₱ {customer.totalSpent}</TableCell>
@@ -470,7 +470,7 @@ export default function CustomersPage() {
                           setEditFirstName(names[0] || "");
                           setEditLastName(names.slice(1).join(" ") || "");
                           setEditEmail(customer.email || "");
-                          setEditMobileNumber(customer.contactNumber || "");
+                          setEditMobileNumber(customer.mobileNumber || "");
                           setEditStatus(
                             customer.isActive === false
                               ? "UNAVAILABLE"

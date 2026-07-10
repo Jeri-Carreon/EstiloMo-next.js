@@ -157,7 +157,7 @@ export default function ServicesPage() {
       return data.services || [];
     },
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {

@@ -12,6 +12,7 @@ import {
 } from "@/lib/appointmentAvailability";
 import { Prisma } from "@prisma/client";
 import { getAppOriginFromRequest } from "@/lib/appOrigin";
+import { getPendingCheckoutExpirationMinutes } from "@/lib/appointmentSettings";
 
 const ALLOWED_PAYMONGO_METHODS = ["card", "gcash", "qrph"];
 const CREATE_CHECKOUT_FUNCTION_NAME = "smooth-task";
@@ -39,10 +40,7 @@ function getCreateCheckoutUrl() {
 }
 
 async function cleanupExpiredBookings() {
-  const expireAfterMinutes = Number(
-    process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || 5
-  );
-
+  const expireAfterMinutes = await getPendingCheckoutExpirationMinutes();
   const cutoff = new Date(Date.now() - expireAfterMinutes * 60 * 1000);
 
   const expiredPayments = await db.payment.findMany({
@@ -312,9 +310,9 @@ export async function POST(req: NextRequest) {
         return sum + Number(item.servicePrice || 0);
       }, 0);
 
+      const expirationMinutes = await getPendingCheckoutExpirationMinutes();
       const checkoutExpiresAt = new Date(
-        Date.now() +
-          Number(process.env.PENDING_CHECKOUT_EXPIRATION_MINUTES || 5) * 60 * 1000
+        Date.now() + expirationMinutes * 60 * 1000
       );
 
       const sale = await tx.sale.create({

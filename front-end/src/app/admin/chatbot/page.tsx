@@ -138,7 +138,7 @@ export default function AdminChatbotPage() {
       };
     },
     refetchInterval: 10000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const barbers: BarberOption[] = chatbotData?.barbers || [];

@@ -19,10 +19,6 @@ export default function AdminInactivityLogout() {
       router.replace("/login");
     };
 
-    const logoutOnClose = () => {
-      navigator.sendBeacon("/api/auth/signout");
-    };
-
     const resetTimer = () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(logout, TIMEOUT_MS);
@@ -31,14 +27,12 @@ export default function AdminInactivityLogout() {
     const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
 
     events.forEach((event) => window.addEventListener(event, resetTimer));
-    window.addEventListener("pagehide", logoutOnClose);
 
     resetTimer();
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       events.forEach((event) => window.removeEventListener(event, resetTimer));
-      window.removeEventListener("pagehide", logoutOnClose);
     };
   }, [router]);
 

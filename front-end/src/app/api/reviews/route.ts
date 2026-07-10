@@ -7,6 +7,23 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const mine = searchParams.get("mine");
     const completedAppointments = searchParams.get("completedAppointments");
+    const average = searchParams.get("average");
+
+    if (average === "true") {
+      const reviewStats = await db.review.aggregate({
+        _avg: {
+          rating: true,
+        },
+        _count: {
+          id: true,
+        },
+      });
+
+      return NextResponse.json({
+        averageRating: reviewStats._avg.rating ?? 0,
+        reviewCount: reviewStats._count.id,
+      });
+    }
 
     if (completedAppointments === "true") {
       const supabase = await createClient();

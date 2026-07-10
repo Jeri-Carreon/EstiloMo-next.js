@@ -79,17 +79,16 @@ type Review = {
 };
 
 const ratingLabels: Record<string, string> = {
-  "0.5": "Poor",
-  "1.0": "Poor",
-  "1.5": "Below average",
-  "2.0": "Average",
-  "2.5": "Average",
-  "3.0": "Good",
-  "3.5": "Good",
-  "4.0": "Excellent",
-  "4.5": "Excellent",
-  "5.0": "Excellent",
+  "1": "Poor",
+  "2": "Average",
+  "3": "Good",
+  "4": "Very Good",
+  "5": "Excellent",
 };
+
+function wholeStarRating(value: number) {
+  return Math.min(Math.max(Math.round(Number(value) || 0), 1), 5);
+}
 
 export default function MyReviewsPage() {
   const router = useRouter();
@@ -123,7 +122,7 @@ export default function MyReviewsPage() {
     },
     enabled: !authLoading,
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const {
@@ -151,7 +150,7 @@ export default function MyReviewsPage() {
     },
     enabled: !authLoading,
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const reviews = myReviewsData || [];
@@ -480,14 +479,13 @@ export default function MyReviewsPage() {
                     }}
                   >
                     <Rating
-                      precision={0.5}
-                      value={review.rating}
+                      value={wholeStarRating(review.rating)}
                       readOnly
                       size="small"
                     />
 
                     <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                      {ratingLabels[Number(review.rating).toFixed(1)]}
+                      {ratingLabels[String(wholeStarRating(review.rating))]}
                     </Typography>
                   </Box>
 
@@ -582,7 +580,6 @@ export default function MyReviewsPage() {
 
                   <Rating
                     name="review-rating"
-                    precision={0.5}
                     value={rating}
                     onChange={(_, value) => setRating(value ?? rating)}
                   />
@@ -595,7 +592,7 @@ export default function MyReviewsPage() {
                     ml: 12,
                   }}
                 >
-                  {ratingLabels[Number(rating).toFixed(1)]}
+                  {ratingLabels[String(wholeStarRating(rating))]}
                 </Typography>
               </Box>
 

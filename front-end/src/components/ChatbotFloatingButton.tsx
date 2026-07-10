@@ -33,6 +33,13 @@ type BarberOption = {
   isActive?: boolean;
 };
 
+type ChatbotModel = "gpt-4o" | "gpt-4o-mini";
+
+const chatbotModels: { label: string; value: ChatbotModel }[] = [
+  { label: "GPT-4o", value: "gpt-4o" },
+  { label: "GPT-4o Mini", value: "gpt-4o-mini" },
+];
+
 const fallbackSettings: ChatbotSetting[] = [
   {
     key: "greeting",
@@ -74,8 +81,15 @@ export default function ChatbotFloatingButton() {
   const [input, setInput] = useState("");
   const [loadingBarbers, setLoadingBarbers] = useState(false);
   const [loadingBot, setLoadingBot] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<ChatbotModel>("gpt-4o-mini");
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messageIdRef = useRef(0);
+
+  const nextMessageId = (suffix: string) => {
+    messageIdRef.current += 1;
+    return `${messageIdRef.current}-${suffix}`;
+  };
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({
@@ -100,7 +114,7 @@ export default function ChatbotFloatingButton() {
       return data;
     },
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const { data: chatbotBarbers = [] } = useQuery<BarberOption[]>({
@@ -119,7 +133,7 @@ export default function ChatbotFloatingButton() {
       return data.barbers;
     },
     refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const settings = chatbotSettings ?? fallbackSettings;
@@ -205,12 +219,12 @@ export default function ChatbotFloatingButton() {
   const handleBarberClick = async (barberId: string, barberName: string) => {
     if (loadingBarbers) return;
 
-    const loadingId = `${Date.now()}-loading-barber`;
+    const loadingId = nextMessageId("loading-barber");
 
     setMessages((prev) => [
       ...prev,
       {
-        id: `${Date.now()}-user`,
+        id: nextMessageId("user"),
         role: "user",
         text: barberName,
       },
@@ -236,7 +250,7 @@ export default function ChatbotFloatingButton() {
         setMessages((prev) => [
           ...prev,
           {
-            id: `${Date.now()}-bot`,
+            id: nextMessageId("bot"),
             role: "bot",
             text: data?.error || "Failed to fetch barber schedule.",
           },
@@ -247,7 +261,7 @@ export default function ChatbotFloatingButton() {
       setMessages((prev) => [
         ...prev,
         {
-          id: `${Date.now()}-bot`,
+          id: nextMessageId("bot"),
           role: "bot",
           text: data.responseText,
         },
@@ -260,7 +274,7 @@ export default function ChatbotFloatingButton() {
       setMessages((prev) => [
         ...prev,
         {
-          id: `${Date.now()}-bot`,
+          id: nextMessageId("bot"),
           role: "bot",
           text: "Failed to fetch barber schedule.",
         },
@@ -276,7 +290,7 @@ export default function ChatbotFloatingButton() {
 
     if (msg.includes("hi") || msg.includes("hello") || msg.includes("hey")) {
       return {
-        id: `${Date.now()}-bot`,
+        id: nextMessageId("bot"),
         role: "bot",
         text: "Hello! How can I help you today?",
       };
@@ -295,7 +309,7 @@ export default function ChatbotFloatingButton() {
         const servicesText = await fetchServicesText();
 
         return {
-          id: `${Date.now()}-bot`,
+          id: nextMessageId("bot"),
           role: "bot",
           text: servicesText,
         };
@@ -306,7 +320,7 @@ export default function ChatbotFloatingButton() {
         isBarberAvailabilityOption(directOptionMatch.label)
       ) {
         return {
-          id: `${Date.now()}-bot`,
+          id: nextMessageId("bot"),
           role: "bot",
           text:
             directOptionMatch.response || "Pick a barber to show availability:",
@@ -325,7 +339,7 @@ export default function ChatbotFloatingButton() {
         normalizeText(directOptionMatch.label).includes("receptionist");
 
       return {
-        id: `${Date.now()}-bot`,
+        id: nextMessageId("bot"),
         role: "bot",
         text: directOptionMatch.response,
         links: needsLink
@@ -351,7 +365,7 @@ export default function ChatbotFloatingButton() {
       const servicesText = await fetchServicesText();
 
       return {
-        id: `${Date.now()}-bot`,
+        id: nextMessageId("bot"),
         role: "bot",
         text: servicesText,
       };
@@ -359,7 +373,7 @@ export default function ChatbotFloatingButton() {
 
     if (isBarberAvailabilityOption(text)) {
       return {
-        id: `${Date.now()}-bot`,
+        id: nextMessageId("bot"),
         role: "bot",
         text: "Pick a barber to show availability:",
         buttons: barbers.map((barber) => ({
@@ -381,7 +395,7 @@ export default function ChatbotFloatingButton() {
       );
 
       return {
-        id: `${Date.now()}-bot`,
+        id: nextMessageId("bot"),
         role: "bot",
         text: item?.response || getResponse("fallback"),
         links: [
@@ -403,7 +417,7 @@ export default function ChatbotFloatingButton() {
       );
 
       return {
-        id: `${Date.now()}-bot`,
+        id: nextMessageId("bot"),
         role: "bot",
         text: item?.response || getResponse("fallback"),
         links: socialLinks,
@@ -421,7 +435,7 @@ export default function ChatbotFloatingButton() {
       );
 
       return {
-        id: `${Date.now()}-bot`,
+        id: nextMessageId("bot"),
         role: "bot",
         text: item?.response || getResponse("fallback"),
       };
@@ -442,7 +456,7 @@ export default function ChatbotFloatingButton() {
       });
 
       return {
-        id: `${Date.now()}-bot`,
+        id: nextMessageId("bot"),
         role: "bot",
         text: item?.response || getResponse("fallback"),
       };
@@ -450,14 +464,39 @@ export default function ChatbotFloatingButton() {
 
     if (msg.includes("thank")) {
       return {
-        id: `${Date.now()}-bot`,
+        id: nextMessageId("bot"),
         role: "bot",
         text: "You're welcome!",
       };
     }
 
+    try {
+      const res = await fetch("/api/chatbot", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: text,
+          model: selectedModel,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data?.reply) {
+        return {
+          id: nextMessageId("bot"),
+          role: "bot",
+          text: data.reply,
+        };
+      }
+    } catch (error) {
+      console.error("CHATBOT AI ERROR:", error);
+    }
+
     return {
-      id: `${Date.now()}-bot`,
+      id: nextMessageId("bot"),
       role: "bot",
       text: getResponse("fallback"),
     };
@@ -470,12 +509,12 @@ export default function ChatbotFloatingButton() {
 
     if (!messageText) return;
 
-    const loadingId = `${Date.now()}-loading-bot`;
+    const loadingId = nextMessageId("loading-bot");
 
     setMessages((prev) => [
       ...prev,
       {
-        id: `${Date.now()}-user`,
+        id: nextMessageId("user"),
         role: "user",
         text: messageText,
       },
@@ -562,6 +601,39 @@ export default function ChatbotFloatingButton() {
             <div style={{ fontSize: 17, fontWeight: 800 }}>Chatbot</div>
             <div style={{ fontSize: 12, color: "#bbb", marginTop: 3 }}>
               Virtual assistant for The Barbs Bro
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+                marginTop: 12,
+              }}
+            >
+              {chatbotModels.map((model) => {
+                const active = selectedModel === model.value;
+
+                return (
+                  <button
+                    key={model.value}
+                    type="button"
+                    disabled={loadingBot}
+                    onClick={() => setSelectedModel(model.value)}
+                    style={{
+                      border: active ? "1px solid #FBBC05" : "1px solid #444",
+                      borderRadius: 999,
+                      backgroundColor: active ? "#FBBC05" : "#1f1f1f",
+                      color: active ? "#111" : "#fff",
+                      padding: "6px 10px",
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: loadingBot ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {model.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
