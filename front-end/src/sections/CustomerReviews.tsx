@@ -54,13 +54,15 @@ type ReviewAverage = {
   reviewCount: number;
 };
 
+type RatingFilter = "all" | 1 | 2 | 3 | 4 | 5;
+
 function wholeStarRating(value: number) {
   return Math.min(Math.max(Math.round(Number(value) || 0), 1), 5);
 }
 
 export default function CustomerReviews() {
   const [search, setSearch] = useState("");
-  const [ratingFilter, setRatingFilter] = useState("all");
+  const [ratingFilter, setRatingFilter] = useState<RatingFilter>("all");
 
   const {
     data: reviews = [],
@@ -146,9 +148,8 @@ export default function CustomerReviews() {
     }
 
     if (ratingFilter !== "all") {
-      const ratingValue = Number(ratingFilter);
       temp = temp.filter(
-        (review) => wholeStarRating(Number(review.rating)) === ratingValue
+        (review) => Number(review.rating) === ratingFilter
       );
     }
 
@@ -235,9 +236,10 @@ export default function CustomerReviews() {
             <Rating
               value={
                 reviewAverage.reviewCount > 0
-                  ? wholeStarRating(reviewAverage.averageRating)
+                  ? Math.min(Math.max(reviewAverage.averageRating, 0), 5)
                   : 0
               }
+              precision={0.1}
               readOnly
               size="medium"
             />
@@ -279,18 +281,18 @@ export default function CustomerReviews() {
           select
           label="Filter by rating"
           value={ratingFilter}
-          onChange={(e) => setRatingFilter(e.target.value)}
+          onChange={(e) => setRatingFilter(e.target.value as RatingFilter)}
           sx={{
             minWidth: 180,
             fontFamily: "var(--font-nunito-sans)",
           }}
         >
           <MenuItem value="all">All Ratings</MenuItem>
-          <MenuItem value="5">5 ?</MenuItem>
-          <MenuItem value="4">4 ?</MenuItem>
-          <MenuItem value="3">3 ?</MenuItem>
-          <MenuItem value="2">2 ?</MenuItem>
-          <MenuItem value="1">1 ?</MenuItem>
+          <MenuItem value={5}>5 Stars</MenuItem>
+          <MenuItem value={4}>4 Stars</MenuItem>
+          <MenuItem value={3}>3 Stars</MenuItem>
+          <MenuItem value={2}>2 Stars</MenuItem>
+          <MenuItem value={1}>1 Star</MenuItem>
         </TextField>
       </Box>
 

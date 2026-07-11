@@ -586,7 +586,7 @@ export default function ReportsPage() {
       const res = await fetch("/api/user/role");
       const data = await res.json();
 
-      if (!["OWNER"].includes(data.role)) {
+      if (!data.accessibleTabs?.includes("reports")) {
         router.push("/unauthorized");
         return;
       }

@@ -32,6 +32,8 @@ import PaymentIcon from "@mui/icons-material/Payment";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import CloseIcon from "@mui/icons-material/Close";
 import SearchIcon from "@mui/icons-material/Search";
+import SettingsIcon from "@mui/icons-material/Settings";
+import EditIcon from "@mui/icons-material/Edit";
 
 type Customer = {
   id: string;
@@ -150,6 +152,13 @@ type LoyaltyCard = {
 type LoyaltySettings = {
   fiftyPercentStickerThreshold: number;
   freeStickerThreshold: number;
+};
+
+type DiscountButtonSetting = {
+  id: string;
+  percent: number;
+  label: string;
+  fixed: boolean;
 };
 
 const headCell = {
@@ -460,6 +469,7 @@ export default function SalesPage() {
   const [saving, setSaving] = useState(false);
 
   const [openAdd, setOpenAdd] = useState(false);
+  const [openDiscountSettings, setOpenDiscountSettings] = useState(false);
   const [openPayment, setOpenPayment] = useState(false);
   const [openCancelConfirm, setOpenCancelConfirm] = useState(false);
   const [openViewTransaction, setOpenViewTransaction] = useState(false);
@@ -478,6 +488,14 @@ export default function SalesPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [method, setMethod] = useState<"CASH" | "GCASH">("CASH");
   const [discountPercent, setDiscountPercent] = useState(0);
+  const [discountButtons, setDiscountButtons] = useState<DiscountButtonSetting[]>([
+    { id: "fixed-0", percent: 0, label: "0%", fixed: true },
+    { id: "fixed-50", percent: 50, label: "50%", fixed: true },
+    { id: "fixed-100", percent: 100, label: "100%", fixed: true },
+  ]);
+  const [newDiscountPercent, setNewDiscountPercent] = useState("");
+  const [editingDiscountId, setEditingDiscountId] = useState<string | null>(null);
+  const [editingDiscountPercent, setEditingDiscountPercent] = useState("");
   const [pwdDiscountSelected, setPwdDiscountSelected] = useState(false);
   const [specialDiscountType, setSpecialDiscountType] =
     useState<SpecialDiscountType | null>(null);
@@ -764,13 +782,21 @@ export default function SalesPage() {
     try {
       if (showSpinner) setLoading(true);
 
-      const [salesData, servicesData, customersData, loyaltyData, barbersData] =
+      const [
+        salesData,
+        servicesData,
+        customersData,
+        loyaltyData,
+        barbersData,
+        discountButtonsData,
+      ] =
         await Promise.all([
           fetchJson("/api/admin/sales"),
           fetchJson("/api/admin/services"),
           fetchJson("/api/customers"),
           fetchJson("/api/admin/loyaltyCard"),
           fetchJson("/api/admin/barbers"),
+          fetchJson("/api/admin/sales/discount-buttons"),
         ]);
 
       setSales(salesData.sales || []);
@@ -781,6 +807,7 @@ export default function SalesPage() {
           loyaltyData.settings?.fiftyPercentStickerThreshold || 5,
         freeStickerThreshold: loyaltyData.settings?.freeStickerThreshold || 10,
       });
+      setDiscountButtons(discountButtonsData.buttons || discountButtons);
 
       const customerList =
         customersData.customers || customersData.data || customersData || [];
@@ -983,6 +1010,93 @@ export default function SalesPage() {
 
     const safeValue = Math.min(Math.max(parsedValue, 0), 100);
     setDiscountPercent(safeValue);
+  }
+
+  function applyManualDiscount(percent: number) {
+    handleDiscountInput(String(percent));
+  }
+
+  function normalizeDiscountPercent(value: string) {
+    const percent = Number(value);
+
+    if (!Number.isInteger(percent) || percent <= 0 || percent >= 100 || percent === 50) {
+      return null;
+    }
+
+    return percent;
+  }
+
+  async function saveDiscountButton(id?: string) {
+    const rawValue = id ? editingDiscountPercent : newDiscountPercent;
+    const percent = normalizeDiscountPercent(rawValue);
+
+    if (percent === null) {
+      setSnackbar({
+        open: true,
+        message: "Enter a custom discount from 1% to 99%, excluding 50%.",
+        severity: "error",
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/sales/discount-buttons", {
+        method: id ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(id ? { id, percent } : { percent }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to save discount button");
+      }
+
+      await loadData(false);
+      setNewDiscountPercent("");
+      setEditingDiscountId(null);
+      setEditingDiscountPercent("");
+      setSnackbar({
+        open: true,
+        message: "Discount button saved.",
+        severity: "success",
+      });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message:
+          error instanceof Error ? error.message : "Failed to save discount button",
+        severity: "error",
+      });
+    }
+  }
+
+  async function deleteDiscountButton(id: string) {
+    try {
+      const res = await fetch("/api/admin/sales/discount-buttons", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to delete discount button");
+      }
+
+      await loadData(false);
+      setSnackbar({
+        open: true,
+        message: "Discount button deleted.",
+        severity: "success",
+      });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message:
+          error instanceof Error ? error.message : "Failed to delete discount button",
+        severity: "error",
+      });
+    }
   }
 
   function applyLoyaltyReward(rewardType: Exclude<LoyaltyRewardType, "NONE">) {
@@ -1328,31 +1442,48 @@ export default function SalesPage() {
           Sales
         </Typography>
 
-        <Button
-          variant="outlined"
-          startIcon={<AddIcon />}
-          onClick={() => {
-            setSelectedSale(null);
-            resetForm();
-            setOpenAdd(true);
-          }}
-          sx={{
-            borderColor: "#e0e0e0",
-            color: "#8a8a8a",
-            bgcolor: "#fff",
-            borderRadius: 1.5,
-            textTransform: "none",
-            px: 2.5,
-            height: 36,
-            fontWeight: 600,
-            "&:hover": {
-              borderColor: "#cfcfcf",
-              bgcolor: "#fafafa",
-            },
-          }}
-        >
-          Add New Transaction
-        </Button>
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
+          <IconButton
+            onClick={() => setOpenDiscountSettings(true)}
+            sx={{
+              width: 36,
+              height: 36,
+              border: "1px solid #e0e0e0",
+              bgcolor: "#fff",
+              color: "#555",
+              "&:hover": { bgcolor: "#fafafa" },
+            }}
+            aria-label="Discount settings"
+          >
+            <SettingsIcon fontSize="small" />
+          </IconButton>
+
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={() => {
+              setSelectedSale(null);
+              resetForm();
+              setOpenAdd(true);
+            }}
+            sx={{
+              borderColor: "#e0e0e0",
+              color: "#8a8a8a",
+              bgcolor: "#fff",
+              borderRadius: 1.5,
+              textTransform: "none",
+              px: 2.5,
+              height: 36,
+              fontWeight: 600,
+              "&:hover": {
+                borderColor: "#cfcfcf",
+                bgcolor: "#fafafa",
+              },
+            }}
+          >
+            Add New Transaction
+          </Button>
+        </Box>
       </Box>
 
       <Box sx={{ display: "flex", gap: 2, mb: 4, flexWrap: "wrap" }}>
@@ -1693,6 +1824,149 @@ export default function SalesPage() {
           </>
         )}
       </Paper>
+
+      <Dialog
+        open={openDiscountSettings}
+        onClose={() => {
+          setOpenDiscountSettings(false);
+          setEditingDiscountId(null);
+          setEditingDiscountPercent("");
+          setNewDiscountPercent("");
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <Box sx={{ p: 3, bgcolor: "#fff" }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 2,
+            }}
+          >
+            <Typography sx={{ fontSize: 22, fontWeight: 900 }}>
+              Discount Buttons
+            </Typography>
+
+            <IconButton onClick={() => setOpenDiscountSettings(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          <Typography sx={{ fontSize: 13, color: "#777", fontWeight: 700, mb: 2 }}>
+            0%, 50%, 100%, and PWD/Senior are fixed. Custom buttons can be edited or deleted.
+          </Typography>
+
+          <Box sx={{ display: "flex", gap: 1, mb: 3 }}>
+            <TextField
+              size="small"
+              type="number"
+              label="Discount %"
+              value={newDiscountPercent}
+              onChange={(e) => setNewDiscountPercent(e.target.value)}
+              slotProps={{
+                htmlInput: {
+                  min: 1,
+                  max: 99,
+                  step: 1,
+                },
+              }}
+              sx={{ flex: 1 }}
+            />
+
+            <Button
+              variant="contained"
+              onClick={() => saveDiscountButton()}
+              sx={{
+                bgcolor: "#000",
+                color: "#ffc107",
+                textTransform: "none",
+                fontWeight: 900,
+                "&:hover": { bgcolor: "#111" },
+              }}
+            >
+              Add
+            </Button>
+          </Box>
+
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            {discountButtons.map((button) => (
+              <Box
+                key={button.id}
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto auto",
+                  gap: 1,
+                  alignItems: "center",
+                  border: "1px solid #eee",
+                  p: 1,
+                  borderRadius: 1,
+                }}
+              >
+                {editingDiscountId === button.id ? (
+                  <TextField
+                    size="small"
+                    type="number"
+                    value={editingDiscountPercent}
+                    onChange={(e) => setEditingDiscountPercent(e.target.value)}
+                    slotProps={{
+                      htmlInput: {
+                        min: 1,
+                        max: 99,
+                        step: 1,
+                      },
+                    }}
+                  />
+                ) : (
+                  <Typography sx={{ fontWeight: 900 }}>
+                    {button.label}
+                    {button.fixed ? " fixed" : ""}
+                  </Typography>
+                )}
+
+                {button.fixed ? (
+                  <Typography sx={{ fontSize: 12, color: "#777", fontWeight: 800 }}>
+                    Locked
+                  </Typography>
+                ) : editingDiscountId === button.id ? (
+                  <Button
+                    size="small"
+                    variant="contained"
+                    onClick={() => saveDiscountButton(button.id)}
+                    sx={{ textTransform: "none", bgcolor: "#000" }}
+                  >
+                    Save
+                  </Button>
+                ) : (
+                  <IconButton
+                    size="small"
+                    onClick={() => {
+                      setEditingDiscountId(button.id);
+                      setEditingDiscountPercent(String(button.percent));
+                    }}
+                    sx={actionIcon}
+                  >
+                    <EditIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                )}
+
+                <IconButton
+                  size="small"
+                  disabled={button.fixed}
+                  onClick={() => deleteDiscountButton(button.id)}
+                  sx={{
+                    ...actionIcon,
+                    opacity: button.fixed ? 0.35 : 1,
+                  }}
+                >
+                  <DeleteIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      </Dialog>
 
       <Dialog open={openAdd} onClose={closePosAndReset} fullScreen>
         <DialogContent sx={{ p: 0, overflow: "hidden" }}>
@@ -2238,7 +2512,7 @@ export default function SalesPage() {
                         <Button
                           size="small"
                           variant="outlined"
-                          onClick={clearDiscount}
+                          onClick={() => applyManualDiscount(0)}
                           sx={{
                             minWidth: 52,
                             color: "#111",
@@ -2350,6 +2624,37 @@ export default function SalesPage() {
                           100%
                         </Button>
                       </Box>
+
+                      {discountButtons.some((button) => !button.fixed) && (
+                        <Box
+                          sx={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                            gap: 1,
+                            mt: 1,
+                          }}
+                        >
+                          {discountButtons
+                            .filter((button) => !button.fixed)
+                            .map((button) => (
+                              <Button
+                                key={button.id}
+                                size="small"
+                                variant="outlined"
+                                onClick={() => applyManualDiscount(button.percent)}
+                                sx={{
+                                  minWidth: 0,
+                                  color: "#111",
+                                  borderColor: "#ccc",
+                                  textTransform: "none",
+                                  fontWeight: 800,
+                                }}
+                              >
+                                {button.label}
+                              </Button>
+                            ))}
+                        </Box>
+                      )}
 
                       {pwdDiscountSelected && (
                         <TextField

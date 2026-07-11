@@ -23,6 +23,8 @@ import EditIcon from "@mui/icons-material/Edit";
 import ErrorIcon from "@mui/icons-material/Error";
 import Button from "@mui/material/Button";
 import AddIcon from "@mui/icons-material/Add";
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
 
 import Dialog from "@mui/material/Dialog";
 import DialogContent from "@mui/material/DialogContent";
@@ -34,6 +36,7 @@ import InputLabel from "@mui/material/InputLabel";
 import FormControl from "@mui/material/FormControl";
 
 import Pagination from "@mui/material/Pagination";
+import { ADMIN_TABS, DEFAULT_ROLE_TAB_ACCESS, type AdminRole } from "@/lib/adminTabs";
 
 interface User {
   id: string;
@@ -44,6 +47,8 @@ interface User {
   isActive: boolean;
   createdAt: string;
 }
+
+type RoleAccess = Record<AdminRole, string[]>;
 
 export default function AdminPage() {
   const router = useRouter();
@@ -58,6 +63,13 @@ export default function AdminPage() {
   const itemsPerPage = 5;
 
   const [openAdd, setOpenAdd] = useState(false);
+  const [openRoleAccess, setOpenRoleAccess] = useState(false);
+  const [roleAccessRole, setRoleAccessRole] = useState<AdminRole>("RECEPTIONIST");
+  const [roleAccess, setRoleAccess] = useState<RoleAccess>({
+    OWNER: DEFAULT_ROLE_TAB_ACCESS.OWNER,
+    RECEPTIONIST: DEFAULT_ROLE_TAB_ACCESS.RECEPTIONIST,
+    BARBER: DEFAULT_ROLE_TAB_ACCESS.BARBER,
+  });
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -141,6 +153,29 @@ export default function AdminPage() {
     setLoading(false);
   };
 
+  const loadRoleAccess = async () => {
+    try {
+      const res = await fetch("/api/admin/role-access", { cache: "no-store" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showStatusModal("Error", data.error || "Unable to load role access.");
+        return;
+      }
+
+      if (data.access) {
+        setRoleAccess({
+          OWNER: data.access.OWNER || DEFAULT_ROLE_TAB_ACCESS.OWNER,
+          RECEPTIONIST:
+            data.access.RECEPTIONIST || DEFAULT_ROLE_TAB_ACCESS.RECEPTIONIST,
+          BARBER: data.access.BARBER || DEFAULT_ROLE_TAB_ACCESS.BARBER,
+        });
+      }
+    } catch {
+      showStatusModal("Error", "Unable to load role access.");
+    }
+  };
+
   useQuery({
     queryKey: ["adminUsersData"],
     queryFn: async () => {
@@ -163,7 +198,7 @@ export default function AdminPage() {
           const res = await fetch('/api/user/role')
           const data = await res.json()
 
-          if (!['OWNER'].includes(data.role)) {
+          if (!data.accessibleTabs?.includes("user-management")) {
             router.push('/unauthorized')
             return
           }
@@ -363,6 +398,45 @@ export default function AdminPage() {
     }
   };
 
+  const toggleRoleAccessTab = (tabKey: string) => {
+    setRoleAccess((prev) => {
+      const currentTabs = prev[roleAccessRole] || [];
+      const nextTabs = currentTabs.includes(tabKey)
+        ? currentTabs.filter((key) => key !== tabKey)
+        : [...currentTabs, tabKey];
+
+      return {
+        ...prev,
+        [roleAccessRole]: nextTabs,
+      };
+    });
+  };
+
+  const handleSaveRoleAccess = async () => {
+    try {
+      const res = await fetch("/api/admin/role-access", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: roleAccessRole,
+          tabs: roleAccess[roleAccessRole] || [],
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showStatusModal("Error", data.error || "Failed to update role access.");
+        return;
+      }
+
+      setOpenRoleAccess(false);
+      showStatusModal("Success", "Role accessibility updated successfully.");
+    } catch {
+      showStatusModal("Error", "Something went wrong updating role access.");
+    }
+  };
+
   const sortedUsers = sortUsers(users);
 
   const paginatedUsers = sortedUsers.slice(
@@ -387,7 +461,16 @@ export default function AdminPage() {
         </Typography>
       </Box>
 
-      <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 4 }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "flex-end",
+          flexDirection: "column",
+          gap: 1.25,
+          mb: 4,
+        }}
+      >
         <Button
           startIcon={<AddIcon />}
           variant="contained"
@@ -395,6 +478,17 @@ export default function AdminPage() {
           sx={{ textTransform: "none" }}
         >
           Add User
+        </Button>
+
+        <Button
+          variant="outlined"
+          onClick={async () => {
+            await loadRoleAccess();
+            setOpenRoleAccess(true);
+          }}
+          sx={{ textTransform: "none" }}
+        >
+          Edit Role Accessibility
         </Button>
       </Box>
 
@@ -742,6 +836,124 @@ export default function AdminPage() {
               }}
             >
               Add
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
+
+      <Dialog
+        open={openRoleAccess}
+        onClose={() => setOpenRoleAccess(false)}
+        maxWidth="sm"
+        fullWidth
+        sx={{
+          "& .MuiPaper-root": {
+            borderRadius: 4,
+            bgcolor: "#f2f2f2",
+            overflow: "visible",
+          },
+        }}
+      >
+        <Box
+          sx={{
+            m: 2,
+            bgcolor: "#fff",
+            borderRadius: 4,
+            p: 3,
+            pb: 2,
+            boxShadow: "0 10px 40px rgba(0,0,0,0.08)",
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 2,
+            }}
+          >
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Edit Role Accessibility
+            </Typography>
+
+            <IconButton onClick={() => setOpenRoleAccess(false)} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          <DialogContent
+            sx={{ p: 1, display: "flex", flexDirection: "column", gap: 2 }}
+          >
+            <FormControl fullWidth sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}>
+              <InputLabel>Role</InputLabel>
+              <Select
+                value={roleAccessRole}
+                label="Role"
+                onChange={(e) => setRoleAccessRole(e.target.value as AdminRole)}
+              >
+                <MenuItem value="RECEPTIONIST">Receptionist</MenuItem>
+                <MenuItem value="BARBER">Barber</MenuItem>
+              </Select>
+            </FormControl>
+
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                gap: 0.5,
+              }}
+            >
+              {ADMIN_TABS.map((tab) => (
+                <FormControlLabel
+                  key={tab.key}
+                  control={
+                    <Checkbox
+                      checked={(roleAccess[roleAccessRole] || []).includes(tab.key)}
+                      onChange={() => toggleRoleAccessTab(tab.key)}
+                    />
+                  }
+                  label={tab.label}
+                />
+              ))}
+            </Box>
+          </DialogContent>
+
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 1,
+              mt: 3,
+              mb: 2,
+            }}
+          >
+            <Button
+              onClick={() => setOpenRoleAccess(false)}
+              sx={{
+                backgroundColor: "#6d6d6d",
+                color: "#f7c948",
+                textTransform: "none",
+                minWidth: 120,
+                py: 1.25,
+                ":hover": { backgroundColor: "#5a5a5a" },
+              }}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={handleSaveRoleAccess}
+              sx={{
+                backgroundColor: "#000",
+                color: "#fff",
+                textTransform: "none",
+                minWidth: 120,
+                py: 1.25,
+                ":hover": { backgroundColor: "#111" },
+              }}
+            >
+              Save
             </Button>
           </Box>
         </Box>

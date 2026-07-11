@@ -598,7 +598,7 @@ export default function AppointmentsPage() {
           const res = await fetch('/api/user/role')
           const data = await res.json()
 
-          if (!['OWNER', 'RECEPTIONIST'].includes(data.role)) {
+          if (!data.accessibleTabs?.includes("appointments")) {
             router.push('/unauthorized')
             return
           }
