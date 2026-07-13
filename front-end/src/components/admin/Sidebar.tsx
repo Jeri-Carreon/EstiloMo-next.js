@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
@@ -35,20 +35,21 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import SecurityIcon from '@mui/icons-material/Security';
+import { DEFAULT_ROLE_TAB_ACCESS, type AdminTabKey } from '@/lib/adminTabs';
 
 const menuItems = [
-  { label: 'Dashboard', icon: DashboardIcon, path: '/admin/dashboard', roles: ['OWNER', 'RECEPTIONIST'] },
-  { label: 'Customers', icon: GroupIcon, path: '/admin/customers', roles: ['OWNER', 'RECEPTIONIST'] },
-  { label: 'Services', icon: BuildIcon, path: '/admin/services', roles: ['OWNER'] },
-  { label: 'Barbers', icon: PersonIcon, path: '/admin/barbers', roles: ['OWNER', 'RECEPTIONIST', 'BARBER'] },
-  { label: 'Appointments', icon: EventIcon, path: '/admin/appointments', roles: ['OWNER', 'RECEPTIONIST'] },
-  { label: 'Sales', icon: MonetizationOnIcon, path: '/admin/sales', roles: ['OWNER', 'RECEPTIONIST'] },
-  { label: 'Customer Reviews', icon: StarIcon, path: '/admin/reviews', roles: ['OWNER'] },
-  { label: 'Loyalty Card', icon: CardGiftcardIcon, path: '/admin/loyaltyCard', roles: ['OWNER', 'RECEPTIONIST'] },
-  { label: 'Reports', icon: DescriptionIcon, path: '/admin/reports', roles: ['OWNER'] },
-  { label: 'User Management', icon: AdminPanelSettingsIcon, path: '/admin/user-management', roles: ['OWNER'] },
-  { label: 'Chatbot', icon: SmartToyIcon, path: '/admin/chatbot', roles: ['OWNER'] },
-  { label: 'Security Logs', icon: SecurityIcon, path: '/admin/security', roles: ['OWNER'] },
+  { key: 'dashboard' as AdminTabKey, label: 'Dashboard', icon: DashboardIcon, path: '/admin/dashboard' },
+  { key: 'customers' as AdminTabKey, label: 'Customers', icon: GroupIcon, path: '/admin/customers' },
+  { key: 'services' as AdminTabKey, label: 'Services', icon: BuildIcon, path: '/admin/services' },
+  { key: 'barbers' as AdminTabKey, label: 'Barbers', icon: PersonIcon, path: '/admin/barbers' },
+  { key: 'appointments' as AdminTabKey, label: 'Appointments', icon: EventIcon, path: '/admin/appointments' },
+  { key: 'sales' as AdminTabKey, label: 'Sales', icon: MonetizationOnIcon, path: '/admin/sales' },
+  { key: 'reviews' as AdminTabKey, label: 'Customer Reviews', icon: StarIcon, path: '/admin/reviews' },
+  { key: 'loyaltyCard' as AdminTabKey, label: 'Loyalty Card', icon: CardGiftcardIcon, path: '/admin/loyaltyCard' },
+  { key: 'reports' as AdminTabKey, label: 'Reports', icon: DescriptionIcon, path: '/admin/reports' },
+  { key: 'user-management' as AdminTabKey, label: 'User Management', icon: AdminPanelSettingsIcon, path: '/admin/user-management' },
+  { key: 'chatbot' as AdminTabKey, label: 'Chatbot', icon: SmartToyIcon, path: '/admin/chatbot' },
+  { key: 'security' as AdminTabKey, label: 'Security Logs', icon: SecurityIcon, path: '/admin/security' },
 ];
 
 type SidebarProps = {
@@ -172,14 +173,43 @@ export default function Sidebar({ currentName, currentRole }: SidebarProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [accessibleTabs, setAccessibleTabs] = useState<string[]>(
+    currentRole === 'OWNER'
+      ? DEFAULT_ROLE_TAB_ACCESS.OWNER
+      : DEFAULT_ROLE_TAB_ACCESS[currentRole as keyof typeof DEFAULT_ROLE_TAB_ACCESS] || []
+  );
   const router = useRouter();
   const supabase = createClient();
 
   const currentInitial = currentName?.charAt(0)?.toUpperCase() || 'U';
 
-  const filteredMenu = menuItems.filter((item) =>
-    item.roles ? item.roles.includes(currentRole) : false
-  );
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadAccess() {
+      try {
+        const res = await fetch('/api/user/role', { cache: 'no-store' });
+        const data = await res.json();
+
+        if (!ignore && Array.isArray(data.accessibleTabs)) {
+          setAccessibleTabs(data.accessibleTabs);
+        }
+      } catch {
+        // Keep the default role access if settings cannot be loaded.
+      }
+    }
+
+    loadAccess();
+
+    return () => {
+      ignore = true;
+    };
+  }, [currentRole]);
+
+  const filteredMenu =
+    currentRole === 'OWNER'
+      ? menuItems
+      : menuItems.filter((item) => accessibleTabs.includes(item.key));
 
   // sign-out
     const handleSignOut = async () => {

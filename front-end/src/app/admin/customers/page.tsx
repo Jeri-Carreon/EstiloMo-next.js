@@ -243,7 +243,7 @@ export default function CustomersPage() {
       });
       const data = await res.json();
 
-      if (!["OWNER", "RECEPTIONIST"].includes(data.role)) {
+      if (!data.accessibleTabs?.includes("customers")) {
         router.push("/unauthorized");
         return;
       }
