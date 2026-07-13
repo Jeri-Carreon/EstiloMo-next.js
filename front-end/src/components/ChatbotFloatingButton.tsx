@@ -33,19 +33,12 @@ type BarberOption = {
   isActive?: boolean;
 };
 
-type ChatbotModel = "gpt-4o" | "gpt-4o-mini";
-
-const chatbotModels: { label: string; value: ChatbotModel }[] = [
-  { label: "GPT-4o", value: "gpt-4o" },
-  { label: "GPT-4o Mini", value: "gpt-4o-mini" },
-];
-
 const fallbackSettings: ChatbotSetting[] = [
   {
     key: "greeting",
     label: "Greeting / Main Menu",
     response:
-      "Welcome to The Barbs Bro!\n\nI am your AI chatbot assistant. I can help you with inquiries regarding our barbershop!\n\nHow may I help you today?",
+      "Welcome to The Barbs Bro!\n\nI am your virtual assistant. I can help you with inquiries regarding our barbershop!\n\nHow may I help you today?",
   },
   {
     key: "fallback",
@@ -71,7 +64,62 @@ const socialLinks = [
 ];
 
 function normalizeText(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function editDistance(left: string, right: string) {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    const current = [leftIndex];
+
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const substitutionCost =
+        left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
+
+      current[rightIndex] = Math.min(
+        current[rightIndex - 1] + 1,
+        previous[rightIndex] + 1,
+        previous[rightIndex - 1] + substitutionCost
+      );
+    }
+
+    previous.splice(0, previous.length, ...current);
+  }
+
+  return previous[right.length];
+}
+
+function wordsMatch(left: string, right: string) {
+  if (left === right) return true;
+
+  const longestLength = Math.max(left.length, right.length);
+  const allowedDistance = longestLength >= 8 ? 2 : longestLength >= 4 ? 1 : 0;
+
+  return allowedDistance > 0 && editDistance(left, right) <= allowedDistance;
+}
+
+function matchesAny(text: string, phrases: string[]) {
+  const normalizedText = normalizeText(text);
+  const textWords = normalizedText.split(" ").filter(Boolean);
+
+  return phrases.some((phrase) => {
+    const normalizedPhrase = normalizeText(phrase);
+    if (!normalizedPhrase) return false;
+
+    if (` ${normalizedText} `.includes(` ${normalizedPhrase} `)) return true;
+
+    const phraseWords = normalizedPhrase.split(" ");
+    return phraseWords.every((phraseWord) =>
+      textWords.some((textWord) => wordsMatch(textWord, phraseWord))
+    );
+  });
 }
 
 export default function ChatbotFloatingButton() {
@@ -81,7 +129,6 @@ export default function ChatbotFloatingButton() {
   const [input, setInput] = useState("");
   const [loadingBarbers, setLoadingBarbers] = useState(false);
   const [loadingBot, setLoadingBot] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<ChatbotModel>("gpt-4o-mini");
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const messageIdRef = useRef(0);
@@ -167,34 +214,67 @@ export default function ChatbotFloatingButton() {
     );
   };
 
+  const findOption = (terms: string[]) =>
+    optionItems.find((option) =>
+      matchesAny(
+        `${option.key.replaceAll("_", " ")} ${option.label}`,
+        terms
+      )
+    );
+
   const isBarberAvailabilityOption = (text: string) => {
     const value = normalizeText(text);
 
-    return (
-      value.includes("barber availability") ||
-      value.includes("barber schedule") ||
-      value.includes("availability") ||
-      value.includes("available barber")
-    );
+    return matchesAny(value, [
+      "barber availability",
+      "barber schedule",
+      "available barber",
+      "available stylist",
+      "who is available",
+      "sino available",
+      "available ba",
+      "availability",
+      "barber shift",
+      "barber duty",
+      "free barber",
+      "barber list",
+      "list of barbers",
+      "choose barber",
+      "select barber",
+      "preferred barber",
+      "barber roster",
+      "barber today",
+      "barber tomorrow",
+      "barber ngayon",
+      "barber bukas",
+      "staff available",
+      "stylist available",
+      "may available",
+      "vacant barber",
+      "free slot",
+      "available slot",
+      "open slot",
+      "time slot",
+    ]);
   };
 
   const isServicesOption = (text: string) => {
     const value = normalizeText(text);
 
-    return (
-      value.includes("service") ||
-      value.includes("services") ||
-      value.includes("price") ||
-      value.includes("prices") ||
-      value.includes("haircut") ||
-      value.includes("beard") ||
-      value.includes("hot oil") ||
-      value.includes("bleach") ||
-      value.includes("color") ||
-      value.includes("treatment") ||
-      value.includes("mask") ||
-      value.includes("scalp")
-    );
+    return matchesAny(value, [
+      "service", "services", "service list", "service menu", "menu",
+      "offer", "offers", "price", "prices", "pricing", "price list",
+      "rate", "rates", "fee", "fees", "charge", "charges", "cost",
+      "how much", "how much is", "magkano", "presyo", "bayad", "serbisyo",
+      "haircut", "hair cut", "hair style", "hairstyle", "style", "cut",
+      "trim", "gupit", "fade", "taper", "undercut", "buzz cut",
+      "crew cut", "kids cut", "child haircut", "beard", "balbas",
+      "mustache", "moustache", "shave", "ahit", "razor", "grooming",
+      "hot oil", "hair wash", "shampoo", "bleach", "color", "colour",
+      "kulay", "dye", "perm", "rebond", "treatment", "mask", "scalp",
+      "facial", "massage", "promo", "promotion", "discount", "deal",
+      "package", "bundle",
+    ]);
   };
 
   const fetchServicesText = async () => {
@@ -288,17 +368,10 @@ export default function ChatbotFloatingButton() {
   const getBotReply = async (text: string): Promise<Message> => {
     const msg = normalizeText(text);
 
-    if (msg.includes("hi") || msg.includes("hello") || msg.includes("hey")) {
-      return {
-        id: nextMessageId("bot"),
-        role: "bot",
-        text: "Hello! How can I help you today?",
-      };
-    }
-
     const directOptionMatch = optionItems.find((item) => {
       const label = normalizeText(item.label);
-      return msg === label || msg.includes(label);
+      const key = normalizeText(item.key.replaceAll("_", " "));
+      return matchesAny(msg, [label, key]);
     });
 
     if (directOptionMatch) {
@@ -335,8 +408,10 @@ export default function ChatbotFloatingButton() {
       const needsLink =
         directOptionMatch.key.includes("social") ||
         directOptionMatch.key.includes("receptionist") ||
+        directOptionMatch.key.includes("contact") ||
         normalizeText(directOptionMatch.label).includes("social") ||
-        normalizeText(directOptionMatch.label).includes("receptionist");
+        normalizeText(directOptionMatch.label).includes("receptionist") ||
+        normalizeText(directOptionMatch.label).includes("contact");
 
       return {
         id: nextMessageId("bot"),
@@ -385,14 +460,46 @@ export default function ChatbotFloatingButton() {
     }
 
     if (
-      msg.includes("receptionist") ||
-      msg.includes("contact") ||
-      msg.includes("call") ||
-      msg.includes("message")
+      matchesAny(msg, [
+        "receptionist",
+        "contact",
+        "contact number",
+        "phone",
+        "phone number",
+        "telephone",
+        "hotline",
+        "cellphone",
+        "mobile",
+        "mobile number",
+        "numero",
+        "number",
+        "email",
+        "email address",
+        "reach you",
+        "reach the shop",
+        "call",
+        "tawag",
+        "tawagan",
+        "text",
+        "message",
+        "messenger",
+        "chat with staff",
+        "talk to staff",
+        "talk to a person",
+        "speak to someone",
+        "speak with staff",
+        "kausapin",
+        "admin",
+        "support",
+        "customer support",
+      ])
     ) {
-      const item = optionItems.find((option) =>
-        normalizeText(option.label).includes("receptionist")
-      );
+      const item = findOption([
+        "talk to receptionist",
+        "receptionist",
+        "contact",
+        "support",
+      ]);
 
       return {
         id: nextMessageId("bot"),
@@ -408,13 +515,26 @@ export default function ChatbotFloatingButton() {
     }
 
     if (
-      msg.includes("facebook") ||
-      msg.includes("instagram") ||
-      msg.includes("social")
+      matchesAny(msg, [
+        "facebook",
+        "fb",
+        "instagram",
+        "ig",
+        "tiktok",
+        "social",
+        "social media",
+        "social page",
+        "official page",
+        "social account",
+        "social profile",
+        "social link",
+        "dm",
+        "direct message",
+        "online page",
+        "follow",
+      ])
     ) {
-      const item = optionItems.find((option) =>
-        normalizeText(option.label).includes("social")
-      );
+      const item = findOption(["social media", "social", "facebook"]);
 
       return {
         id: nextMessageId("bot"),
@@ -425,14 +545,45 @@ export default function ChatbotFloatingButton() {
     }
 
     if (
-      msg.includes("book") ||
-      msg.includes("appointment") ||
-      msg.includes("schedule") ||
-      msg.includes("reserve")
+      matchesAny(msg, [
+        "book",
+        "booking",
+        "book online",
+        "booking link",
+        "how to book",
+        "can i book",
+        "make a booking",
+        "mag book",
+        "magpa book",
+        "pa appointment",
+        "appointment",
+        "make appointment",
+        "set appointment",
+        "get appointment",
+        "appointment online",
+        "appointment date",
+        "schedule a visit",
+        "schedule haircut",
+        "reservation",
+        "reserve",
+        "reschedule",
+        "change appointment",
+        "move appointment",
+        "cancel booking",
+        "cancel appointment",
+        "walk in",
+        "walkin",
+        "walk in allowed",
+        "accept walk ins",
+        "queue",
+      ])
     ) {
-      const item = optionItems.find((option) =>
-        normalizeText(option.label).includes("appointment")
-      );
+      const item = findOption([
+        "book appointment",
+        "appointment",
+        "booking",
+        "reservation",
+      ]);
 
       return {
         id: nextMessageId("bot"),
@@ -442,18 +593,67 @@ export default function ChatbotFloatingButton() {
     }
 
     if (
-      msg.includes("location") ||
-      msg.includes("where") ||
-      msg.includes("address") ||
-      msg.includes("open") ||
-      msg.includes("hours") ||
-      msg.includes("time") ||
-      msg.includes("operating")
+      matchesAny(msg, [
+        "location",
+        "exact location",
+        "located",
+        "branch",
+        "shop address",
+        "barbershop address",
+        "where is the shop",
+        "where are you",
+        "saan kayo",
+        "saan ang shop",
+        "saan located",
+        "saan banda",
+        "address",
+        "map",
+        "map pin",
+        "google maps",
+        "directions",
+        "direction",
+        "landmark",
+        "near",
+        "nearby",
+        "paano pumunta",
+        "how to get there",
+        "open",
+        "open now",
+        "are you open",
+        "business hours",
+        "opening hours",
+        "closed",
+        "sarado",
+        "bukas ba",
+        "bukas ngayon",
+        "bukas bukas",
+        "closing",
+        "closing time",
+        "until what time",
+        "opening",
+        "hours",
+        "shop hours",
+        "what time",
+        "anong oras",
+        "what days",
+        "anong araw",
+        "weekday",
+        "weekend",
+        "sunday",
+        "monday",
+        "holiday",
+        "operating hours",
+        "open today",
+        "open tomorrow",
+      ])
     ) {
-      const item = optionItems.find((option) => {
-        const label = normalizeText(option.label);
-        return label.includes("location") || label.includes("hours");
-      });
+      const item = findOption([
+        "shop location hours",
+        "location",
+        "address",
+        "operating hours",
+        "hours",
+      ]);
 
       return {
         id: nextMessageId("bot"),
@@ -462,7 +662,44 @@ export default function ChatbotFloatingButton() {
       };
     }
 
-    if (msg.includes("thank")) {
+    if (
+      matchesAny(msg, [
+        "hi",
+        "hello",
+        "hey",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "good day",
+        "greetings",
+        "howdy",
+        "yo",
+        "kumusta",
+        "kamusta",
+        "magandang umaga",
+        "magandang hapon",
+        "magandang gabi",
+      ])
+    ) {
+      return {
+        id: nextMessageId("bot"),
+        role: "bot",
+        text: "Hello! How can I help you today?",
+      };
+    }
+
+    if (
+      matchesAny(msg, [
+        "thank",
+        "thanks",
+        "thank you",
+        "many thanks",
+        "appreciate it",
+        "ty",
+        "salamat",
+        "maraming salamat",
+      ])
+    ) {
       return {
         id: nextMessageId("bot"),
         role: "bot",
@@ -470,29 +707,41 @@ export default function ChatbotFloatingButton() {
       };
     }
 
-    try {
-      const res = await fetch("/api/chatbot", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: text,
-          model: selectedModel,
-        }),
-      });
+    if (
+      matchesAny(msg, [
+        "help",
+        "help me",
+        "assist me",
+        "assistance",
+        "what can you do",
+        "what can i ask",
+        "show options",
+        "show choices",
+        "questions",
+      ])
+    ) {
+      return {
+        id: nextMessageId("bot"),
+        role: "bot",
+        text:
+          "I can help with services and prices, appointments, barber availability, shop location and hours, social media, or contacting the receptionist.",
+      };
+    }
 
-      const data = await res.json();
-
-      if (res.ok && data?.reply) {
-        return {
-          id: nextMessageId("bot"),
-          role: "bot",
-          text: data.reply,
-        };
-      }
-    } catch (error) {
-      console.error("CHATBOT AI ERROR:", error);
+    if (
+      matchesAny(msg, [
+        "bye",
+        "goodbye",
+        "see you",
+        "later",
+        "paalam",
+      ])
+    ) {
+      return {
+        id: nextMessageId("bot"),
+        role: "bot",
+        text: "Goodbye! We hope to see you at The Barbs Bro soon.",
+      };
     }
 
     return {
@@ -601,39 +850,6 @@ export default function ChatbotFloatingButton() {
             <div style={{ fontSize: 17, fontWeight: 800 }}>Chatbot</div>
             <div style={{ fontSize: 12, color: "#bbb", marginTop: 3 }}>
               Virtual assistant for The Barbs Bro
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 8,
-                marginTop: 12,
-              }}
-            >
-              {chatbotModels.map((model) => {
-                const active = selectedModel === model.value;
-
-                return (
-                  <button
-                    key={model.value}
-                    type="button"
-                    disabled={loadingBot}
-                    onClick={() => setSelectedModel(model.value)}
-                    style={{
-                      border: active ? "1px solid #FBBC05" : "1px solid #444",
-                      borderRadius: 999,
-                      backgroundColor: active ? "#FBBC05" : "#1f1f1f",
-                      color: active ? "#111" : "#fff",
-                      padding: "6px 10px",
-                      fontSize: 11,
-                      fontWeight: 800,
-                      cursor: loadingBot ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {model.label}
-                  </button>
-                );
-              })}
             </div>
           </div>
 

@@ -222,9 +222,18 @@ export default function LoginContent() {
               label="Enter Your Password *"
               endAdornment={
                 <IconButton
-                  onClick={() => setShowPassword((prev) => !prev)}
+                  type="button"
+                  onClick={() => setShowPassword((previous) => !previous)}
                   edge="end"
-                  sx={{ color: "#fff" }}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  sx={{
+                    color: "#fff",
+                    "& svg": {
+                      color: "#fff",
+                      fill: "currentColor",
+                    },
+                  }}
                 >
                   {showPassword ? <VisibilityOff /> : <Visibility />}
                 </IconButton>

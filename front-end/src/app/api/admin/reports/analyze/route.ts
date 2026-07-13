@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { calculateOpenAICost } from "@/lib/openaiPricing";
+import { ANALYSIS_MODEL } from "@/lib/openai";
 import {
   buildReportAnalysisPrompt,
   REPORT_ANALYSIS_MAX_OUTPUT_TOKENS,
@@ -14,8 +15,6 @@ import { getAdminUser } from "@/lib/supabase/getUser";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const DEFAULT_ANALYSIS_MODEL = "gpt-4.1-mini";
 
 type AnalyzeBody = {
   from?: string;
@@ -102,13 +101,6 @@ function extractUsage(usage?: ChatUsage) {
   };
 }
 
-function getAnalysisModel() {
-  return (
-    process.env.OPENAI_ANALYSIS_MODEL?.trim() ||
-    DEFAULT_ANALYSIS_MODEL
-  );
-}
-
 export async function POST(req: NextRequest) {
   const user = await getAdminUser();
 
@@ -153,7 +145,7 @@ export async function POST(req: NextRequest) {
       dateRangeLabel: dateRange,
     });
 
-    const model = getAnalysisModel();
+    const model = ANALYSIS_MODEL;
 
     const res = await fetch(
       "https://api.openai.com/v1/chat/completions",
@@ -204,30 +196,34 @@ export async function POST(req: NextRequest) {
     const responseModel = data.model ?? model;
     const usage = extractUsage(data.usage);
 
-    const cost = calculateOpenAICost({
-      model: responseModel,
-      inputTokens: usage.inputTokens,
-      outputTokens: usage.outputTokens,
-      totalTokens: usage.totalTokens,
-    });
-
-    await db.aIReportLog.create({
-      data: {
-        dateFrom: startDate,
-        dateTo: endDate,
-        reportType,
+    try {
+      const cost = calculateOpenAICost({
         model: responseModel,
-        inputTokens: cost.inputTokens,
-        outputTokens: cost.outputTokens,
-        totalTokens: cost.totalTokens,
-        inputCostUSD: cost.inputCostUSD,
-        outputCostUSD: cost.outputCostUSD,
-        totalCostUSD: cost.totalCostUSD,
-        exchangeRatePHP: cost.exchangeRatePHP,
-        totalCostPHP: cost.totalCostPHP,
-        generatedBy: user.id,
-      },
-    });
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        totalTokens: usage.totalTokens,
+      });
+
+      await db.aIReportLog.create({
+        data: {
+          dateFrom: startDate,
+          dateTo: endDate,
+          reportType,
+          model: responseModel,
+          inputTokens: cost.inputTokens,
+          outputTokens: cost.outputTokens,
+          totalTokens: cost.totalTokens,
+          inputCostUSD: cost.inputCostUSD,
+          outputCostUSD: cost.outputCostUSD,
+          totalCostUSD: cost.totalCostUSD,
+          exchangeRatePHP: cost.exchangeRatePHP,
+          totalCostPHP: cost.totalCostPHP,
+          generatedBy: user.id,
+        },
+      });
+    } catch (usageLogError) {
+      console.error("Failed to record AI report usage:", usageLogError);
+    }
 
     const text =
       data.choices?.[0]?.message?.content ?? "{}";
@@ -273,7 +269,10 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      fallbackResponse(analytics),
+      {
+        ...fallbackResponse(analytics),
+        error: message,
+      },
       { status }
     );
   }
