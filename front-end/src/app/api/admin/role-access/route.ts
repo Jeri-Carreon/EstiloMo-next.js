@@ -67,6 +67,8 @@ function groupAccess(rows: AccessRow[]) {
 }
 
 export async function GET() {
+  let userRole: AdminRole | null = null;
+
   try {
     const user = await getAdminUser();
 
@@ -83,11 +85,11 @@ export async function GET() {
     `;
 
     const access = groupAccess(rows);
-    const role = normalizeAdminRole(user.role);
+    userRole = normalizeAdminRole(user.role);
 
     return NextResponse.json({
       access,
-      accessibleTabs: role ? access[role] : [],
+      accessibleTabs: userRole ? access[userRole] : [],
     });
   } catch (error) {
     console.error("GET ROLE ACCESS ERROR:", error);
@@ -96,7 +98,7 @@ export async function GET() {
 
     return NextResponse.json({
       access,
-      accessibleTabs: user?.role ? access[user.role as AdminRole] || [] : [],
+      accessibleTabs: userRole ? access[userRole] : [],
     });
   }
 }
