@@ -8,7 +8,7 @@ const defaultSettings = [
     key: "greeting",
     label: "Greeting / Main Menu",
     response:
-      "Welcome to The Barbs Bro!\n\nI am your AI chatbot assistant. I can help you with inquiries regarding our barbershop!\n\nHow may I help you today?",
+      "Welcome to The Barbs Bro!\n\nI am your virtual assistant. I can help you with inquiries regarding our barbershop!\n\nHow may I help you today?",
   },
   {
     key: "fallback",
@@ -19,6 +19,10 @@ const defaultSettings = [
 ];
 
 const protectedKeys = ["greeting", "fallback"];
+const legacyAiGreeting =
+  "Welcome to The Barbs Bro!\n\nI am your AI chatbot assistant. I can help you with inquiries regarding our barbershop!\n\nHow may I help you today?";
+const virtualAssistantGreeting =
+  "Welcome to The Barbs Bro!\n\nI am your virtual assistant. I can help you with inquiries regarding our barbershop!\n\nHow may I help you today?";
 
 async function ensureDefaults() {
   for (const item of defaultSettings) {
@@ -28,6 +32,16 @@ async function ensureDefaults() {
       create: item,
     });
   }
+
+  await db.chatbotSetting.updateMany({
+    where: {
+      key: "greeting",
+      response: legacyAiGreeting,
+    },
+    data: {
+      response: virtualAssistantGreeting,
+    },
+  });
 }
 
 export async function GET() {
