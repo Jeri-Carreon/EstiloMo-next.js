@@ -6,7 +6,13 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 
-export default function Providers({ children }: { children: ReactNode }) {
+export default function Providers({
+  children,
+  nonce,
+}: {
+  children: ReactNode;
+  nonce?: string;
+}) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -22,7 +28,7 @@ export default function Providers({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeRegistry>{children}</ThemeRegistry>
+      <ThemeRegistry nonce={nonce}>{children}</ThemeRegistry>
     </QueryClientProvider>
   );
 }

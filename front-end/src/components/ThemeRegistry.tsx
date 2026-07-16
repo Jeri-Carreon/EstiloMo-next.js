@@ -21,12 +21,15 @@ const theme = createTheme({
 
 export default function ThemeRegistry({
   children,
+  nonce,
 }: {
   children: React.ReactNode;
+  nonce?: string;
 }) {
   const [{ cache, flush }] = React.useState(() => {
     const cache = createCache({
       key: 'mui',
+      nonce,
     });
 
     cache.compat = true;
@@ -69,6 +72,7 @@ export default function ThemeRegistry({
     return (
       <style
         key={cache.key}
+        nonce={nonce}
         data-emotion={`${cache.key} ${names.join(' ')}`}
         dangerouslySetInnerHTML={{
           __html: styles,
