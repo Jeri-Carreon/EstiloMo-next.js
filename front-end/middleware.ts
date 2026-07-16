@@ -29,6 +29,7 @@ export async function middleware(req: NextRequest) {
     },
   });
   response.headers.set("Content-Security-Policy", contentSecurityPolicy);
+  response.headers.set("X-Content-Type-Options", "nosniff");
 
   const isProtectedRoute =
     req.nextUrl.pathname.startsWith("/appointment") ||
@@ -61,6 +62,7 @@ export async function middleware(req: NextRequest) {
             },
           });
           response.headers.set("Content-Security-Policy", contentSecurityPolicy);
+          response.headers.set("X-Content-Type-Options", "nosniff");
 
           cookiesToSet.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, options);
@@ -82,6 +84,7 @@ export async function middleware(req: NextRequest) {
 
     const redirectResponse = NextResponse.redirect(loginUrl);
     redirectResponse.headers.set("Content-Security-Policy", contentSecurityPolicy);
+    redirectResponse.headers.set("X-Content-Type-Options", "nosniff");
     return redirectResponse;
   }
 
