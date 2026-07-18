@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+const strictTransportSecurity = "max-age=63072000; includeSubDomains; preload";
+
 export async function middleware(req: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDevelopment = process.env.NODE_ENV === "development";
@@ -29,6 +31,7 @@ export async function middleware(req: NextRequest) {
     },
   });
   response.headers.set("Content-Security-Policy", contentSecurityPolicy);
+  response.headers.set("Strict-Transport-Security", strictTransportSecurity);
   response.headers.set("X-Content-Type-Options", "nosniff");
 
   const isProtectedRoute =
@@ -62,6 +65,7 @@ export async function middleware(req: NextRequest) {
             },
           });
           response.headers.set("Content-Security-Policy", contentSecurityPolicy);
+          response.headers.set("Strict-Transport-Security", strictTransportSecurity);
           response.headers.set("X-Content-Type-Options", "nosniff");
 
           cookiesToSet.forEach(({ name, value, options }) => {
@@ -84,6 +88,7 @@ export async function middleware(req: NextRequest) {
 
     const redirectResponse = NextResponse.redirect(loginUrl);
     redirectResponse.headers.set("Content-Security-Policy", contentSecurityPolicy);
+    redirectResponse.headers.set("Strict-Transport-Security", strictTransportSecurity);
     redirectResponse.headers.set("X-Content-Type-Options", "nosniff");
     return redirectResponse;
   }
