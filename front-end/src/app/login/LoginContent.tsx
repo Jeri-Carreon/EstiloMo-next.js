@@ -14,7 +14,6 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
-import { createClient } from "@/lib/supabase/client";
 import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -37,16 +36,20 @@ export default function LoginContent() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
       const normalizedEmail = email.toLowerCase().trim();
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
+      const loginResponse = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: normalizedEmail,
+          password,
+        }),
       });
 
-      if (error) {
-        console.error("LOGIN ERROR:", error);
+      if (!loginResponse.ok) {
+        const loginResult = await loginResponse.json().catch(() => ({}));
+        const message = String(loginResult.error || "").toLowerCase();
 
         await fetch("/api/auth/security-login", {
           method: "POST",
@@ -56,8 +59,6 @@ export default function LoginContent() {
             success: false,
           }),
         }).catch(() => null);
-
-        const message = error.message.toLowerCase();
 
         if (message.includes("supabase browser client is not configured")) {
           setErrorMsg(
@@ -75,16 +76,6 @@ export default function LoginContent() {
         return;
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) {
-        setErrorMsg("Login failed. Please try again.");
-        setLoading(false);
-        return;
-      }
-
       await fetch("/api/auth/security-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -98,7 +89,7 @@ export default function LoginContent() {
 
       if (!res.ok) {
         if (res.status === 401) {
-          await supabase.auth.signOut().catch(() => null);
+          await fetch("/api/auth/signout", { method: "POST" }).catch(() => null);
           setErrorMsg(
             "Your account is inactive or unauthorized. Please contact support."
           );

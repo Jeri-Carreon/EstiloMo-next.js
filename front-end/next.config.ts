@@ -5,8 +5,6 @@ process.env.TZ = "Asia/Manila";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseHost = supabaseUrl ? new URL(supabaseUrl).host : "";
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-
 const supabaseImageSource = supabaseHost ? `https://${supabaseHost}` : "";
 const supabaseConnectSources = supabaseHost
   ? `https://${supabaseHost} wss://${supabaseHost}`
@@ -49,23 +47,12 @@ const securityHeaders = [
   },
 ];
 
-const corsHeaders = [
-  { key: "Access-Control-Allow-Origin", value: appUrl },
-  { key: "Access-Control-Allow-Methods", value: "GET, POST, PUT, PATCH, DELETE, OPTIONS" },
-  { key: "Access-Control-Allow-Headers", value: "Content-Type, Authorization" },
-  { key: "Access-Control-Allow-Credentials", value: "true" },
-];
-
 const nextConfig: NextConfig = {
   reactCompiler: true,
   poweredByHeader: false,
 
   async headers() {
     return [
-      {
-        source: "/api/:path*",
-        headers: corsHeaders,
-      },
       {
         source: "/((?!api/).*)",
         headers: securityHeaders,
