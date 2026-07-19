@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { logServiceCreated } from "@/lib/securityLogEvents";
 
 export const dynamic = "force-dynamic";
 
@@ -235,6 +236,8 @@ export async function POST(req: Request) {
         },
       },
     });
+
+    await logServiceCreated(req, user, service.name);
 
     return NextResponse.json({
       service: {

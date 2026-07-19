@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
 import { NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { logUserCreated } from "@/lib/securityLogEvents";
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -228,6 +229,8 @@ export async function POST(req: Request) {
 
         throw err;
       });
+
+    await logUserCreated(req, user, `${result.firstName} ${result.lastName}`.trim());
 
     return NextResponse.json({
       ok: true,

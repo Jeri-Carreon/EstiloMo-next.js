@@ -1,7 +1,9 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useReactToPrint } from "react-to-print";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -34,6 +36,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import SearchIcon from "@mui/icons-material/Search";
 import SettingsIcon from "@mui/icons-material/Settings";
 import EditIcon from "@mui/icons-material/Edit";
+import Receipt, { receiptPrintPageStyle } from "./Receipt";
 
 type Customer = {
   id: string;
@@ -64,7 +67,7 @@ type Service = {
   }[];
 };
 
-type Sale = {
+export type Sale = {
   id: string;
   saleCode: string;
   source: "WALKIN" | "BOOKING";
@@ -481,6 +484,9 @@ export default function SalesPage() {
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
   const [imageViewerUrl, setImageViewerUrl] = useState("");
   const [imageViewerTitle, setImageViewerTitle] = useState("");
+  const [receiptPrintContainer, setReceiptPrintContainer] =
+    useState<HTMLElement | null>(null);
+  const receiptPrintRef = useRef<HTMLDivElement>(null);
 
   const [gcashRefNo, setGcashRefNo] = useState("");
 
@@ -514,6 +520,12 @@ export default function SalesPage() {
     open: false,
     message: "",
     severity: "success" as "success" | "error",
+  });
+
+  const handlePrintReceipt = useReactToPrint({
+    contentRef: receiptPrintRef,
+    documentTitle: "The Barbs Bro Receipt",
+    pageStyle: receiptPrintPageStyle,
   });
 
   const cartSummary = useMemo(() => {
@@ -856,6 +868,17 @@ export default function SalesPage() {
     }
   }, [activeBarbers]);
 
+  useEffect(() => {
+    const container = document.createElement("div");
+    container.className = "receipt-print-container";
+    document.body.appendChild(container);
+    setReceiptPrintContainer(container);
+
+    return () => {
+      container.remove();
+    };
+  }, []);
+
   function resetForm() {
     setCustomerSearch("");
     setSelectedCustomerId("");
@@ -886,6 +909,10 @@ export default function SalesPage() {
     setOpenViewTransaction(false);
     setSelectedSale(null);
     resetForm();
+  }
+
+  function printReceipt() {
+    handlePrintReceipt();
   }
 
   function addServiceToCart(service: Service) {
@@ -2968,8 +2995,38 @@ export default function SalesPage() {
               </Typography>
             </Box>
           </Box>
+
+          <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+            <Button
+              variant="contained"
+              onClick={printReceipt}
+              sx={{
+                bgcolor: "#000",
+                color: "#ffc107",
+                textTransform: "none",
+                fontWeight: 900,
+                "&:hover": { bgcolor: "#111" },
+              }}
+            >
+              Print Receipt
+            </Button>
+          </Box>
         </Box>
       </Dialog>
+
+      {receiptPrintContainer &&
+        createPortal(
+          <div ref={receiptPrintRef}>
+            <Receipt
+              sale={selectedSale}
+              formatPeso={formatPeso}
+              formatDate={formatDate}
+              getSaleStatusLabel={getSaleStatusLabel}
+              getAppointmentBarberName={getAppointmentBarberName}
+            />
+          </div>,
+          receiptPrintContainer
+        )}
 
       <Dialog
         open={imageViewerOpen}

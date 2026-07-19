@@ -366,7 +366,7 @@ export async function logPaymentReceived(
     userId: user.id,
     userName: getUserName(user),
     section: "Sales",
-    action: `Received Payment for ${saleCode}`,
+    action: `Confirmed Payment for ${saleCode}`,
     ...meta,
   });
 }
@@ -539,4 +539,51 @@ export async function logLoyaltySettingsUpdated(
     action: "Updated Loyalty Settings",
     ...meta,
   });
+}
+
+/* =========================
+   USERS AND SERVICES
+========================= */
+
+async function logManagedRecord(
+  req: Request,
+  user: UserLike,
+  section: "Users" | "Services",
+  action: string
+) {
+  await createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section,
+    action,
+    ...getRequestMeta(req),
+  });
+}
+
+export function logUserCreated(req: Request, user: UserLike, name: string) {
+  return logManagedRecord(req, user, "Users", `Added User ${name}`);
+}
+
+export function logUserUpdated(req: Request, user: UserLike, name: string) {
+  return logManagedRecord(req, user, "Users", `Edited User ${name}`);
+}
+
+export function logUserAvailabilityChanged(req: Request, user: UserLike, name: string, available: boolean) {
+  return logManagedRecord(req, user, "Users", `Made User ${name} ${available ? "Available" : "Unavailable"}`);
+}
+
+export function logServiceCreated(req: Request, user: UserLike, name: string) {
+  return logManagedRecord(req, user, "Services", `Added Service ${name}`);
+}
+
+export function logServiceUpdated(req: Request, user: UserLike, name: string) {
+  return logManagedRecord(req, user, "Services", `Edited Service ${name}`);
+}
+
+export function logServiceAvailabilityChanged(req: Request, user: UserLike, name: string, available: boolean) {
+  return logManagedRecord(req, user, "Services", `Made Service ${name} ${available ? "Available" : "Unavailable"}`);
+}
+
+export function logServiceDeleted(req: Request, user: UserLike, name: string) {
+  return logManagedRecord(req, user, "Services", `Deleted Service ${name}`);
 }

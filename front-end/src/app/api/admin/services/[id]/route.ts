@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { logServiceAvailabilityChanged, logServiceDeleted, logServiceUpdated } from "@/lib/securityLogEvents";
 
 export async function DELETE(
   req: Request,
@@ -22,11 +23,13 @@ export async function DELETE(
       );
     }
 
-    await db.service.delete({
+    const service = await db.service.delete({
       where: {
         id,
       },
     });
+
+    await logServiceDeleted(req, user, service.name);
 
     return NextResponse.json({
       ok: true,
@@ -176,6 +179,11 @@ export async function PUT(
       }
     }
 
+    const existingService = await db.service.findUnique({ where: { id }, select: { isAvailable: true } });
+    if (!existingService) {
+      return NextResponse.json({ error: "Service not found" }, { status: 404 });
+    }
+
     const updatedService = await db.service.update({
       where: {
         id,
@@ -205,6 +213,11 @@ export async function PUT(
         },
       },
     });
+
+    await logServiceUpdated(req, user, updatedService.name);
+    if (existingService.isAvailable !== updatedService.isAvailable) {
+      await logServiceAvailabilityChanged(req, user, updatedService.name, updatedService.isAvailable);
+    }
 
     return NextResponse.json({
       ok: true,
