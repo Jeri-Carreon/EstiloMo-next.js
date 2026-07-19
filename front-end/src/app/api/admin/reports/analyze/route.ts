@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { calculateOpenAICost } from "@/lib/openaiPricing";
-import { ANALYSIS_MODEL } from "@/lib/openai";
-import {
-  buildReportAnalysisPrompt,
-  REPORT_ANALYSIS_MAX_OUTPUT_TOKENS,
-} from "@/lib/reportPrompt";
 import {
   buildAIReportAnalytics,
   type AIReportAnalytics,
 } from "@/lib/reportAnalytics";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { getReportServiceClientConfig } from "@/server/reports-api/config";
+import type { ReportAnalyzeSuccessResponse } from "@/server/reports-api/types/reports";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,24 +20,6 @@ type AnalyzeBody = {
   reportType?: string;
 };
 
-type ChatUsage = {
-  prompt_tokens?: number;
-  completion_tokens?: number;
-  total_tokens?: number;
-  input_tokens?: number;
-  output_tokens?: number;
-};
-
-type ChatCompletionResponse = {
-  model?: string;
-  usage?: ChatUsage;
-  choices?: Array<{
-    message?: {
-      content?: string | null;
-    };
-  }>;
-};
-
 function parseDateRange(from?: string, to?: string) {
   if (!from || !to) {
     throw new Error("Missing date range");
@@ -49,10 +28,7 @@ function parseDateRange(from?: string, to?: string) {
   const startDate = new Date(from);
   const endDate = new Date(to);
 
-  if (
-    Number.isNaN(startDate.getTime()) ||
-    Number.isNaN(endDate.getTime())
-  ) {
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
     throw new Error("Invalid date range");
   }
 
@@ -68,75 +44,73 @@ function parseDateRange(from?: string, to?: string) {
 function fallbackResponse(analytics?: AIReportAnalytics) {
   return {
     insights: [],
-    revenueTrend:
-      analytics?.comparisons.revenue.percentChange ?? 0,
-    avgTrend:
-      analytics?.comparisons.averageRevenuePerDay.percentChange ?? 0,
-    apptTrend:
-      analytics?.comparisons.appointments.percentChange ?? 0,
-    rateTrend:
-      analytics?.comparisons.completionRate.percentChange ?? 0,
+    revenueTrend: analytics?.comparisons.revenue.percentChange ?? 0,
+    avgTrend: analytics?.comparisons.averageRevenuePerDay.percentChange ?? 0,
+    apptTrend: analytics?.comparisons.appointments.percentChange ?? 0,
+    rateTrend: analytics?.comparisons.completionRate.percentChange ?? 0,
     weeklyInsight: "",
     serviceRecommendation: "",
   };
 }
 
-function extractUsage(usage?: ChatUsage) {
-  const inputTokens = Number(
-    usage?.prompt_tokens ?? usage?.input_tokens ?? 0
-  );
+async function requestExternalReportAnalysis({
+  analytics,
+  reportType,
+}: {
+  analytics: AIReportAnalytics;
+  reportType: string;
+}) {
+  const { analyzeUrl, apiKey } = getReportServiceClientConfig();
 
-  const outputTokens = Number(
-    usage?.completion_tokens ?? usage?.output_tokens ?? 0
-  );
+  const response = await fetch(analyzeUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      reportType,
+      dateRange: {
+        from: analytics.reportPeriod.dateFrom,
+        to: analytics.reportPeriod.dateTo,
+      },
+      analytics,
+    }),
+    cache: "no-store",
+  });
 
-  const totalTokens = Number(
-    usage?.total_tokens ?? inputTokens + outputTokens
-  );
+  const data = await response.json();
 
-  return {
-    inputTokens,
-    outputTokens,
-    totalTokens,
-  };
+  if (!response.ok) {
+    console.error("AI report service request failed:", {
+      status: response.status,
+      statusText: response.statusText,
+      error: data?.error,
+    });
+
+    throw new Error(
+      data?.error?.message ||
+        data?.error ||
+        "AI report service request failed.",
+    );
+  }
+
+  return data as ReportAnalyzeSuccessResponse;
 }
 
 export async function POST(req: NextRequest) {
   const user = await getAdminUser();
 
   if (!user || user.role !== "OWNER") {
-    return NextResponse.json(
-      { error: "Forbidden" },
-      { status: 403 }
-    );
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   let analytics: AIReportAnalytics | undefined;
 
   try {
-    const apiKey = process.env.OPENAI_API_KEY?.trim();
-
-    if (!apiKey) {
-      console.error(
-        "OPENAI_API_KEY is missing from the Cloud Run runtime environment."
-      );
-
-      return NextResponse.json(
-        { error: "OpenAI API key is not configured" },
-        { status: 500 }
-      );
-    }
-
     const body = (await req.json()) as AnalyzeBody;
-
-    const { startDate, endDate } = parseDateRange(
-      body.from,
-      body.to
-    );
-
-    const dateRange =
-      body.dateRange ?? `${body.from} - ${body.to}`;
-
+    const { startDate, endDate } = parseDateRange(body.from, body.to);
+    const dateRange = body.dateRange ?? `${body.from} - ${body.to}`;
     const reportType = body.reportType ?? "summary";
 
     analytics = await buildAIReportAnalytics({
@@ -145,63 +119,17 @@ export async function POST(req: NextRequest) {
       dateRangeLabel: dateRange,
     });
 
-    const model = ANALYSIS_MODEL;
-
-    const res = await fetch(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: REPORT_ANALYSIS_MAX_OUTPUT_TOKENS,
-          temperature: 0.2,
-          response_format: {
-            type: "json_object",
-          },
-          messages: [
-            {
-              role: "user",
-              content: buildReportAnalysisPrompt(analytics),
-            },
-          ],
-        }),
-        cache: "no-store",
-      }
-    );
-
-    if (!res.ok) {
-      const errorText = await res.text();
-
-      console.error("OpenAI request failed:", {
-        status: res.status,
-        statusText: res.statusText,
-        response: errorText,
-      });
-
-      return NextResponse.json(
-        {
-          error: "OpenAI request failed",
-        },
-        { status: 500 }
-      );
-    }
-
-    const data =
-      (await res.json()) as ChatCompletionResponse;
-
-    const responseModel = data.model ?? model;
-    const usage = extractUsage(data.usage);
+    const serviceResponse = await requestExternalReportAnalysis({
+      analytics,
+      reportType,
+    });
 
     try {
       const cost = calculateOpenAICost({
-        model: responseModel,
-        inputTokens: usage.inputTokens,
-        outputTokens: usage.outputTokens,
-        totalTokens: usage.totalTokens,
+        model: serviceResponse.model,
+        inputTokens: serviceResponse.usage.promptTokens,
+        outputTokens: serviceResponse.usage.completionTokens,
+        totalTokens: serviceResponse.usage.totalTokens,
       });
 
       await db.aIReportLog.create({
@@ -209,7 +137,7 @@ export async function POST(req: NextRequest) {
           dateFrom: startDate,
           dateTo: endDate,
           reportType,
-          model: responseModel,
+          model: serviceResponse.model,
           inputTokens: cost.inputTokens,
           outputTokens: cost.outputTokens,
           totalTokens: cost.totalTokens,
@@ -225,47 +153,16 @@ export async function POST(req: NextRequest) {
       console.error("Failed to record AI report usage:", usageLogError);
     }
 
-    const text =
-      data.choices?.[0]?.message?.content ?? "{}";
-
-    try {
-      const clean = text
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .trim();
-
-      const parsed = JSON.parse(clean);
-
-      return NextResponse.json(parsed);
-    } catch (parseError) {
-      console.error(
-        "Failed to parse OpenAI JSON response:",
-        parseError
-      );
-
-      return NextResponse.json(
-        fallbackResponse(analytics)
-      );
-    }
+    return NextResponse.json(serviceResponse.analysis);
   } catch (error) {
     console.error("AI report analyze error:", error);
 
     const message =
-      error instanceof Error
-        ? error.message
-        : "Internal server error";
-
-    const status = message
-      .toLowerCase()
-      .includes("date range")
-      ? 400
-      : 500;
+      error instanceof Error ? error.message : "Internal server error";
+    const status = message.toLowerCase().includes("date range") ? 400 : 500;
 
     if (status === 400) {
-      return NextResponse.json(
-        { error: message },
-        { status }
-      );
+      return NextResponse.json({ error: message }, { status });
     }
 
     return NextResponse.json(
@@ -273,7 +170,7 @@ export async function POST(req: NextRequest) {
         ...fallbackResponse(analytics),
         error: message,
       },
-      { status }
+      { status },
     );
   }
 }

@@ -7,23 +7,20 @@ export function getAppOriginFromRequest(req: Pick<NextRequest, "headers" | "next
 
   const protocol = `${(forwardedProto || req.nextUrl?.protocol || "https").replace(/:$/, "")}:`;
   const originHost = forwardedHost || host || "localhost";
+  const configuredAppUrl = (
+    process.env.APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
 
   if (!originHost) {
-    return (
-      process.env.APP_URL ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      "https://estilomo.codeegoh.com"
-    ).replace(/\/$/, "");
+    return configuredAppUrl;
   }
 
   if (originHost.includes(":") && !originHost.startsWith("[")) {
-    const [hostname, port] = originHost.split(":");
+    const [hostname] = originHost.split(":");
     if (hostname === "0.0.0.0" || hostname === "127.0.0.1" || hostname === "::1") {
-      return (
-        process.env.APP_URL ||
-        process.env.NEXT_PUBLIC_APP_URL ||
-        "https://estilomo.codeegoh.com"
-      ).replace(/\/$/, "");
+      return configuredAppUrl;
     }
 
     return `${protocol}//${originHost}`.replace(/\/$/, "");

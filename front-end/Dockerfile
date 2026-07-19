@@ -29,4 +29,4 @@ ENV NODE_ENV=production
 
 EXPOSE 3000
 
-CMD ["npm", "start", "--", "-H", "0.0.0.0"]
+CMD ["sh", "-c", "test -n \"$REPORTS_API_KEY\" || (echo 'Missing runtime env: REPORTS_API_KEY' && exit 1); test -n \"$AI_REPORT_SERVICE_URL\" || (echo 'Missing runtime env: AI_REPORT_SERVICE_URL' && exit 1); test -n \"$OPENAI_API_KEY\" || (echo 'Missing runtime env: OPENAI_API_KEY' && exit 1); npm start -- -H 0.0.0.0"]
