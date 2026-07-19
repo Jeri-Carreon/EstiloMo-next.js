@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { logUserAvailabilityChanged, logUserUpdated } from "@/lib/securityLogEvents";
 
 export async function PUT(
   req: Request,
@@ -56,6 +57,8 @@ export async function PUT(
       },
     });
 
+    await logUserUpdated(req, adminUser, `${updatedUser.firstName} ${updatedUser.lastName}`.trim());
+
     return NextResponse.json({ user: updatedUser });
   } catch (error) {
     console.error(error);
@@ -80,7 +83,7 @@ export async function PATCH(
 
     const user = await db.user.findUnique({
       where: { id },
-      select: { isActive: true },
+      select: { isActive: true, firstName: true, lastName: true },
     });
 
     if (!user) {
@@ -93,6 +96,8 @@ export async function PATCH(
         isActive: !user.isActive,
       },
     });
+
+    await logUserAvailabilityChanged(req, adminUser, `${user.firstName} ${user.lastName}`.trim(), updated.isActive);
 
     return NextResponse.json({
       user: updated,

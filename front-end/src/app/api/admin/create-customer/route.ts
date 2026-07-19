@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { registerUser } from "@/lib/register-user";
+import { getAdminUser } from "@/lib/supabase/getUser";
+import { logCustomerCreated } from "@/lib/securityLogEvents";
 
 export async function POST(req: NextRequest) {
   try {
+    const adminUser = await getAdminUser();
+    if (!adminUser || !["OWNER", "RECEPTIONIST"].includes(adminUser.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     let { firstName, lastName, email, mobileNumber } = await req.json();
 
     firstName = (firstName ?? "").trim();
@@ -43,6 +50,8 @@ export async function POST(req: NextRequest) {
     });
 
     const { password: _, ...safeUser } = user;
+
+    await logCustomerCreated(req, adminUser, `${customer.firstName} ${customer.lastName}`.trim());
 
     return NextResponse.json({
       ok: true,
