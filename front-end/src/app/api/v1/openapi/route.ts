@@ -137,6 +137,15 @@ export async function GET() {
     },
     paths: {
       "/api/v1/reports/analyze": {
+        get: {
+          summary: "Describe the report analysis endpoint",
+          responses: {
+            "200": {
+              description:
+                "Endpoint information. Use POST on this path to generate analysis.",
+            },
+          },
+        },
         post: {
           summary: "Generate AI report analysis from analytics JSON",
           security: [{ bearerApiKey: [] }, { xApiKey: [] }],
