@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { ANALYSIS_MODEL } from "@/lib/openai";
-import { calculateOpenAICost } from "@/lib/openaiPricing";
-import {
-  buildReportAnalysisPrompt,
-  estimatePromptTokens,
-  REPORT_ANALYSIS_MAX_OUTPUT_TOKENS,
-} from "@/lib/reportPrompt";
 import { buildAIReportAnalytics } from "@/lib/reportAnalytics";
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { getReportServiceClientConfig } from "@/server/reports-api/config";
+import type { ReportEstimateSuccessResponse } from "@/server/reports-api/types/reports";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +27,51 @@ function parseDateRange(from?: string | null, to?: string | null) {
   return { startDate, endDate };
 }
 
+async function requestExternalReportEstimate({
+  analytics,
+  reportType,
+}: {
+  analytics: Awaited<ReturnType<typeof buildAIReportAnalytics>>;
+  reportType: string;
+}) {
+  const { estimateUrl, apiKey } = getReportServiceClientConfig();
+
+  const response = await fetch(estimateUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      reportType,
+      dateRange: {
+        from: analytics.reportPeriod.dateFrom,
+        to: analytics.reportPeriod.dateTo,
+      },
+      analytics,
+    }),
+    cache: "no-store",
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    console.error("AI report estimate service request failed:", {
+      status: response.status,
+      statusText: response.statusText,
+      error: data?.error,
+    });
+
+    throw new Error(
+      data?.error?.message ||
+        data?.error ||
+        "AI report estimate service request failed.",
+    );
+  }
+
+  return data as ReportEstimateSuccessResponse;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getAdminUser();
@@ -42,6 +82,7 @@ export async function GET(req: NextRequest) {
     const from = req.nextUrl.searchParams.get("from");
     const to = req.nextUrl.searchParams.get("to");
     const dateRange = req.nextUrl.searchParams.get("dateRange") ?? `${from} - ${to}`;
+    const reportType = req.nextUrl.searchParams.get("reportType") ?? "summary";
     const { startDate, endDate } = parseDateRange(from, to);
 
     const analytics = await buildAIReportAnalytics({
@@ -49,27 +90,23 @@ export async function GET(req: NextRequest) {
       endDate,
       dateRangeLabel: dateRange,
     });
-    const prompt = buildReportAnalysisPrompt(analytics);
-    const estimatedInputTokens = estimatePromptTokens(prompt);
-    const estimatedOutputTokens = REPORT_ANALYSIS_MAX_OUTPUT_TOKENS;
-    const estimate = calculateOpenAICost({
-      model: ANALYSIS_MODEL,
-      inputTokens: estimatedInputTokens,
-      outputTokens: estimatedOutputTokens,
+    const estimate = await requestExternalReportEstimate({
+      analytics,
+      reportType,
     });
 
     return NextResponse.json({
-      model: ANALYSIS_MODEL,
+      model: estimate.model,
       dateRange,
-      estimatedInputTokens: estimate.inputTokens,
-      estimatedOutputTokens: estimate.outputTokens,
-      estimatedTotalTokens: estimate.totalTokens,
-      estimatedInputCostUSD: estimate.inputCostUSD,
-      estimatedOutputCostUSD: estimate.outputCostUSD,
-      estimatedTotalCostUSD: estimate.totalCostUSD,
+      estimatedInputTokens: estimate.estimatedInputTokens,
+      estimatedOutputTokens: estimate.estimatedOutputTokens,
+      estimatedTotalTokens: estimate.estimatedTotalTokens,
+      estimatedInputCostUSD: estimate.estimatedInputCostUSD,
+      estimatedOutputCostUSD: estimate.estimatedOutputCostUSD,
+      estimatedTotalCostUSD: estimate.estimatedTotalCostUSD,
       exchangeRatePHP: estimate.exchangeRatePHP,
-      estimatedTotalCostPHP: estimate.totalCostPHP,
-      maxOutputTokens: REPORT_ANALYSIS_MAX_OUTPUT_TOKENS,
+      estimatedTotalCostPHP: estimate.estimatedTotalCostPHP,
+      maxOutputTokens: estimate.maxOutputTokens,
       isEstimate: true,
     });
   } catch (error) {
