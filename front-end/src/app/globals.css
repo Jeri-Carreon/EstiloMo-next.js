@@ -4,3 +4,166 @@ input[type="password"]::-ms-clear {
   width: 0;
   height: 0;
 }
+
+[data-report-export-root="true"],
+[data-report-export-root="true"] * {
+  box-sizing: border-box;
+}
+
+.print-report-layout {
+  background: #ffffff !important;
+  color: #111111 !important;
+}
+
+.print-report-layout * {
+  box-sizing: border-box;
+}
+
+.print-report-section {
+  margin-bottom: 20px;
+}
+
+.print-report-card {
+  min-width: 0;
+  overflow: visible;
+}
+
+.print-report-analysis,
+.print-report-recommendation {
+  overflow: visible;
+  white-space: normal;
+}
+
+.pdf-export-root {
+  position: absolute;
+  top: 0;
+  left: -10000px;
+  width: 186mm;
+  min-width: 186mm;
+  max-width: 186mm;
+  background: #ffffff;
+  overflow: visible;
+  pointer-events: none;
+}
+
+body.exporting-report .print-report {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: #ffffff !important;
+  color: #111111 !important;
+  overflow: visible !important;
+}
+
+body.exporting-report .print-report-section {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+body.exporting-report .print-report-card {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+body.exporting-report .print-report-chart,
+body.exporting-report .print-report-analysis,
+body.exporting-report .print-report-recommendation,
+body.exporting-report .print-report-table {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+body.exporting-report .print-report svg,
+body.exporting-report .print-report canvas {
+  max-width: 100% !important;
+}
+
+body.exporting-report .print-report * {
+  box-shadow: none !important;
+  text-shadow: none !important;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  -webkit-line-clamp: unset;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  body.admin-reports-page {
+    background: #ffffff !important;
+    color: #111111 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.admin-reports-page * {
+    visibility: hidden !important;
+  }
+
+  body.admin-reports-page .no-print {
+    display: none !important;
+  }
+
+  body.admin-reports-page [data-report-export-root="true"],
+  body.admin-reports-page [data-report-export-root="true"] * {
+    visibility: visible !important;
+  }
+
+  body.admin-reports-page [data-report-export-root="true"] {
+    display: block !important;
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #111111 !important;
+  }
+
+  body.admin-reports-page .print-report-section {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  body.admin-reports-page .print-report-card {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  body.admin-reports-page [data-report-export-root="true"] > *,
+  body.admin-reports-page [data-report-export-root="true"] [class*="MuiBox-root"] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.admin-reports-page .print-avoid-break,
+  body.admin-reports-page .print-report-card,
+  body.admin-reports-page .print-report-chart,
+  body.admin-reports-page .print-report-analysis,
+  body.admin-reports-page .print-report-recommendation {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.admin-reports-page [data-report-export-root="true"] svg,
+  body.admin-reports-page [data-report-export-root="true"] canvas {
+    max-width: 100% !important;
+  }
+
+  body.admin-reports-page [data-report-export-root="true"] * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    -webkit-line-clamp: unset;
+  }
+}

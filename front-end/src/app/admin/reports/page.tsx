@@ -10,7 +10,12 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import SendIcon from "@mui/icons-material/Send";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
+import PrintIcon from "@mui/icons-material/Print";
+import TableViewIcon from "@mui/icons-material/TableView";
+import { exportReportToPdf } from "@/lib/exportReportToPdf";
 import {
+  Alert,
   Box,
   Button,
   CircularProgress,
@@ -21,6 +26,8 @@ import {
   IconButton,
   MenuItem,
   Select,
+  Snackbar,
+  Stack,
   Typography,
 } from "@mui/material";
 import {
@@ -111,6 +118,15 @@ const MONTHS = [
 ];
 const YEAR_OPTIONS = Array.from({ length: 11 }, (_, i) => 2020 + i);
 const PIE_COLORS = ["#4285F4", "#FBBC05", "#EA4335", "#34A853", "#AB47BC"];
+const reportActionButtonSx = {
+  minHeight: 40,
+  px: 2,
+  borderRadius: 2,
+  textTransform: "none",
+  fontWeight: 700,
+  whiteSpace: "nowrap",
+  width: { xs: "100%", sm: "auto" },
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -337,6 +353,7 @@ function StatCard({
   const positive = trend >= 0;
   return (
     <Box
+      className="print-report-card print-avoid-break"
       sx={{
         border: "1px solid #e0e0e0",
         borderRadius: 2,
@@ -380,6 +397,7 @@ function StatCard({
 function InsightCard({ icon, title, body }: InsightCard) {
   return (
     <Box
+      className="print-report-card print-avoid-break"
       sx={{
         border: "1px solid #e0e0e0",
         borderRadius: 2,
@@ -532,6 +550,34 @@ function formatCostPHP(value: number): string {
   return `PHP ${value.toFixed(4)}`;
 }
 
+function formatManilaDateTime(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function sanitizeFilename(value: string): string {
+  return value
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function buildReportPdfFilename(reportRequest: ReportRequest | null): string {
+  const period =
+    reportRequest?.from && reportRequest?.to
+      ? `${reportRequest.from}_to_${reportRequest.to}`
+      : toISO(new Date());
+
+  return `${sanitizeFilename(`EstiloMo_Report_${period}`)}.pdf`;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
@@ -559,6 +605,13 @@ export default function ReportsPage() {
   const [estimateLoading, setEstimateLoading] = useState(false);
   const [estimateError, setEstimateError] = useState("");
   const [aiUsageOpen, setAiUsageOpen] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
+  const [reportGeneratedAt, setReportGeneratedAt] = useState<Date | null>(null);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [notice, setNotice] = useState<{
+    message: string;
+    severity: "success" | "error" | "info";
+  } | null>(null);
   // session
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -636,6 +689,14 @@ export default function ReportsPage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMsgs]);
+
+  useEffect(() => {
+    document.body.classList.add("admin-reports-page");
+
+    return () => {
+      document.body.classList.remove("admin-reports-page");
+    };
+  }, []);
 
   useEffect(() => {
     const prompt = chatInput.trim();
@@ -813,6 +874,7 @@ export default function ReportsPage() {
       ]);
       setReportData(parsed);
       setReportRequest({ from, to, dateRange: generationDateRange });
+      setReportGeneratedAt(new Date());
     } catch (e) {
       console.error(e);
     } finally {
@@ -865,6 +927,94 @@ export default function ReportsPage() {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportPDF = async () => {
+    if (!reportData) {
+      setNotice({
+        severity: "error",
+        message: "Please generate a report before exporting.",
+      });
+      return;
+    }
+
+    if (loading) {
+      setNotice({
+        severity: "info",
+        message: "The report is still loading. Please try again once it has finished.",
+      });
+      return;
+    }
+
+    if (!reportRef.current) {
+      setNotice({
+        severity: "error",
+        message: "The report content is not ready for export.",
+      });
+      return;
+    }
+
+    if (isExportingPdf) return;
+
+    setIsExportingPdf(true);
+    setReportGeneratedAt(new Date());
+
+    try {
+      await exportReportToPdf(reportRef.current, {
+        filename: buildReportPdfFilename(reportRequest),
+      });
+      setNotice({
+        severity: "success",
+        message: "Report exported as PDF.",
+      });
+    } catch (error) {
+      console.error("PDF EXPORT ERROR:", error);
+      setNotice({
+        severity: "error",
+        message: "Failed to export the report as PDF.",
+      });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  const handlePrintReport = () => {
+    if (!reportData) {
+      setNotice({
+        severity: "error",
+        message: "Please generate a report before printing.",
+      });
+      return;
+    }
+
+    if (loading) {
+      setNotice({
+        severity: "info",
+        message: "The report is still loading. Please try again once it has finished.",
+      });
+      return;
+    }
+
+    if (!reportRef.current || typeof window === "undefined") {
+      setNotice({
+        severity: "error",
+        message: "The report content is not ready for printing.",
+      });
+      return;
+    }
+
+    setReportGeneratedAt(new Date());
+    window.setTimeout(() => {
+      try {
+        window.print();
+      } catch (error) {
+        console.error("PRINT REPORT ERROR:", error);
+        setNotice({
+          severity: "error",
+          message: "Failed to open the browser print dialog.",
+        });
+      }
+    }, 100);
+  };
+
   // ── Report view ──────────────────────────────────────────────────────────────
 
   if (reportData) {
@@ -872,11 +1022,17 @@ export default function ReportsPage() {
       name: s.name,
       value: s.revenue,
     }));
+    const generatedAtLabel = formatManilaDateTime(
+      reportGeneratedAt ?? new Date(),
+    );
 
     return (
       <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 960, mx: "auto" }}>
         {/* Header */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+        <Box
+          className="no-print"
+          sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}
+        >
           <IconButton size="small" onClick={() => setReportData(null)}>
             <ArrowBackIcon fontSize="small" />
           </IconButton>
@@ -885,43 +1041,83 @@ export default function ReportsPage() {
           </Typography>
         </Box>
 
-        <Typography sx={{ fontWeight: 700, fontSize: 16, mt: 2, mb: 0.3 }}>
-          AI Business Data Report
-        </Typography>
-        <Typography sx={{ fontSize: 13, color: "#888", mb: 0.5 }}>
-          {reportData.dateRange}
-        </Typography>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2.5 }}>
-          <Typography
+        <Stack
+          className="no-print"
+          direction="row"
+          spacing={1.5}
+          useFlexGap
+          sx={{
+            flexWrap: "wrap",
+            justifyContent: { xs: "stretch", sm: "flex-start" },
+            mt: 2,
+            mb: 2.5,
+          }}
+        >
+          <Button
+            size="small"
+            variant="outlined"
             onClick={handleExportCSV}
+            disabled={!reportData || loading || isExportingPdf}
+            startIcon={<TableViewIcon fontSize="small" />}
             sx={{
-              fontSize: 13,
-              color: "#4285F4",
-              cursor: "pointer",
-              display: "inline-block",
+              ...reportActionButtonSx,
+              borderColor: "text.primary",
+              color: "text.primary",
+              "&:hover": { borderColor: "text.primary", bgcolor: "action.hover" },
             }}
           >
             Export CSV
-          </Typography>
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={handleExportPDF}
+            disabled={isExportingPdf || loading}
+            startIcon={
+              isExportingPdf ? (
+                <CircularProgress size={14} sx={{ color: "#111" }} />
+              ) : (
+                <PictureAsPdfIcon fontSize="small" />
+              )
+            }
+            sx={{
+              ...reportActionButtonSx,
+              borderColor: "text.primary",
+              color: "text.primary",
+              "&:hover": { borderColor: "text.primary", bgcolor: "action.hover" },
+            }}
+          >
+            {isExportingPdf ? "Exporting PDF..." : "Export PDF"}
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={handlePrintReport}
+            disabled={loading || isExportingPdf}
+            startIcon={<PrintIcon fontSize="small" />}
+            sx={{
+              ...reportActionButtonSx,
+              borderColor: "text.primary",
+              color: "text.primary",
+              "&:hover": { borderColor: "text.primary", bgcolor: "action.hover" },
+            }}
+          >
+            Print Report
+          </Button>
           <Button
             size="small"
             variant="outlined"
             onClick={() => setAiUsageOpen(true)}
             sx={{
-              borderRadius: 1,
-              textTransform: "none",
-              fontWeight: 800,
-              fontSize: 12,
-              borderColor: "#111",
-              color: "#111",
-              px: 1.5,
-              py: 0.35,
-              "&:hover": { borderColor: "#111", bgcolor: "#f8fafc" },
+              ...reportActionButtonSx,
+              borderColor: "text.primary",
+              color: "text.primary",
+              "&:hover": { borderColor: "text.primary", bgcolor: "action.hover" },
             }}
           >
             AI Usage
           </Button>
-        </Box>
+        </Stack>
 
         <Dialog
           open={aiUsageOpen}
@@ -943,8 +1139,43 @@ export default function ReportsPage() {
           </DialogActions>
         </Dialog>
 
+        <Box
+          ref={reportRef}
+          className="print-only-report print-report print-report-layout"
+          data-report-export-root="true"
+          sx={{
+            bgcolor: "#fff",
+            color: "#111",
+            width: "100%",
+            maxWidth: "100%",
+          }}
+        >
+          <Box
+            data-pdf-section
+            className="print-report-section print-report-header print-avoid-break"
+            sx={{ mb: 2.5 }}
+          >
+            <Typography sx={{ fontSize: 18, fontWeight: 900, lineHeight: 1.2 }}>
+              EstiloMo
+            </Typography>
+            <Typography sx={{ fontWeight: 800, fontSize: 16, mt: 0.5 }}>
+              Reports and Analytics
+            </Typography>
+            <Typography sx={{ fontSize: 13, color: "#555", mt: 1 }}>
+              Report Type: Summary Report
+            </Typography>
+            <Typography sx={{ fontSize: 13, color: "#555" }}>
+              Period: {reportData.dateRange}
+            </Typography>
+            <Typography sx={{ fontSize: 13, color: "#555" }}>
+              Generated: {generatedAtLabel}
+            </Typography>
+          </Box>
+
         {/* Insight cards */}
         <Box
+          data-pdf-section
+          className="print-report-section print-report-grid"
           sx={{
             display: "grid",
             gridTemplateColumns: {
@@ -963,6 +1194,8 @@ export default function ReportsPage() {
 
         {/* Stat cards */}
         <Box
+          data-pdf-section
+          className="print-report-section print-report-grid"
           sx={{
             display: "grid",
             gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(4, 1fr)" },
@@ -998,6 +1231,8 @@ export default function ReportsPage() {
 
         {/* Charts row */}
         <Box
+          data-pdf-section
+          className="print-report-section print-report-grid"
           sx={{
             display: "grid",
             gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
@@ -1007,6 +1242,7 @@ export default function ReportsPage() {
         >
           {/* Line chart */}
           <Box
+            className="print-report-card print-report-chart print-avoid-break"
             sx={{
               border: "1px solid #e0e0e0",
               borderRadius: 2,
@@ -1040,6 +1276,7 @@ export default function ReportsPage() {
               </LineChart>
             </ResponsiveContainer>
             <Box
+              className="print-report-analysis print-avoid-break"
               sx={{
                 bgcolor: "#f9f9f9",
                 border: "1px solid #e8e8e8",
@@ -1056,6 +1293,7 @@ export default function ReportsPage() {
 
           {/* Pie chart + table */}
           <Box
+            className="print-report-card print-report-chart print-avoid-break"
             sx={{
               border: "1px solid #e0e0e0",
               borderRadius: 2,
@@ -1085,7 +1323,7 @@ export default function ReportsPage() {
             </Box>
 
             {/* Service table */}
-            <Box sx={{ mt: 1 }}>
+            <Box className="print-report-table" sx={{ mt: 1 }}>
               <Box
                 sx={{
                   display: "grid",
@@ -1138,6 +1376,7 @@ export default function ReportsPage() {
             </Box>
 
             <Box
+              className="print-report-recommendation print-avoid-break"
               sx={{
                 bgcolor: "#f9f9f9",
                 border: "1px solid #e8e8e8",
@@ -1153,9 +1392,11 @@ export default function ReportsPage() {
             </Box>
           </Box>
         </Box>
+        </Box>
 
         {/* Ask AI chat */}
         <Box
+          className="no-print"
           sx={{
             border: "1px solid #e0e0e0",
             borderRadius: 2,
@@ -1378,6 +1619,21 @@ export default function ReportsPage() {
             )}
           </Box>
         </Box>
+        <Snackbar
+          open={Boolean(notice)}
+          autoHideDuration={3500}
+          onClose={() => setNotice(null)}
+          anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+        >
+          <Alert
+            onClose={() => setNotice(null)}
+            severity={notice?.severity ?? "info"}
+            variant="filled"
+            sx={{ width: "100%" }}
+          >
+            {notice?.message}
+          </Alert>
+        </Snackbar>
       </Box>
     );
   }
