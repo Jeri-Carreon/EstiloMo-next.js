@@ -1090,7 +1090,11 @@ export default function AdminPage() {
           "& .MuiPaper-root": {
             borderRadius: 4,
             bgcolor: "#f2f2f2",
-            overflow: "visible",
+            width: { xs: "calc(100vw - 32px)", sm: "100%" },
+            maxHeight: "90vh",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
           },
         }}
       >
@@ -1102,6 +1106,12 @@ export default function AdminPage() {
             p: 3,
             pb: 2,
             boxShadow: "0 10px 40px rgba(0,0,0,0.08)",
+            display: "flex",
+            flexDirection: "column",
+            height: "calc(90vh - 32px)",
+            maxHeight: "calc(90vh - 32px)",
+            minHeight: 0,
+            overflow: "hidden",
           }}
         >
           <Box
@@ -1122,7 +1132,16 @@ export default function AdminPage() {
           </Box>
 
           <DialogContent
-            sx={{ p: 1, display: "flex", flexDirection: "column", gap: 2 }}
+            sx={{
+              p: 1,
+              display: "flex",
+              flexDirection: "column",
+              gap: 1.5,
+              flex: 1,
+              minHeight: 0,
+              overflowY: "auto",
+              overflowX: "hidden",
+            }}
           >
             <TextField
               placeholder="Juan"
@@ -1260,8 +1279,10 @@ export default function AdminPage() {
               display: "flex",
               justifyContent: "space-between",
               gap: 1,
-              mt: 3,
-              mb: 2,
+              mt: 2,
+              pt: 2,
+              pb: 1,
+              flexShrink: 0,
             }}
           >
             <Button
