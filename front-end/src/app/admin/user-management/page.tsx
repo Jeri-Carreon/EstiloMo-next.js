@@ -36,7 +36,14 @@ import InputLabel from "@mui/material/InputLabel";
 import FormControl from "@mui/material/FormControl";
 
 import Pagination from "@mui/material/Pagination";
-import { ADMIN_TABS, DEFAULT_ROLE_TAB_ACCESS, type AdminRole } from "@/lib/adminTabs";
+import {
+  ADMIN_TABS,
+  ASSIGNABLE_ADMIN_ROLES,
+  DEFAULT_ROLE_TAB_ACCESS,
+  getPrimaryRole,
+  normalizeAdminRoles,
+  type AdminRole,
+} from "@/lib/adminTabs";
 
 interface User {
   id: string;
@@ -44,6 +51,7 @@ interface User {
   mobileNumber: string;
   email: string;
   role: string;
+  roles: AdminRole[];
   isActive: boolean;
   createdAt: string;
 }
@@ -82,7 +90,7 @@ export default function AdminPage() {
   const [openDiffPass, setOpenDiffPass] = useState(false);
   const [openServerError, setOpenServerError] = useState(false);
   const [serverErrorMsg, setServerErrorMsg] = useState("");
-  const [role, setRole] = useState("RECEPTIONIST");
+  const [roles, setRoles] = useState<AdminRole[]>(["RECEPTIONIST"]);
 
   const [openEdit, setOpenEdit] = useState(false);
   const [openEditConfirm, setOpenEditConfirm] = useState(false);
@@ -91,7 +99,7 @@ export default function AdminPage() {
   const [editLastName, setEditLastName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editMobileNumber, setEditMobileNumber] = useState("");
-  const [editRole, setEditRole] = useState("");
+  const [editRoles, setEditRoles] = useState<AdminRole[]>([]);
 
   const [openDel, setOpenDel] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -125,6 +133,33 @@ export default function AdminPage() {
       hasSpecial.test(password) &&
       hasLetter.test(password)
     );
+  };
+
+  const toggleRole = (
+    currentRoles: AdminRole[],
+    roleToToggle: AdminRole,
+    setter: (roles: AdminRole[]) => void
+  ) => {
+    const nextRoles = currentRoles.includes(roleToToggle)
+      ? currentRoles.filter((currentRole) => currentRole !== roleToToggle)
+      : [...currentRoles, roleToToggle];
+
+    setter(nextRoles);
+  };
+
+  const formatRoles = (value: string[] | undefined, fallback?: string) => {
+    const roleList = value?.length ? value : fallback ? [fallback] : [];
+    return roleList
+      .map((currentRole) =>
+        currentRole === "RECEPTIONIST"
+          ? "Receptionist"
+          : currentRole === "BARBER"
+          ? "Barber"
+          : currentRole === "OWNER"
+          ? "Owner"
+          : currentRole
+      )
+      .join(", ");
   };
 
   const loadUsers = async (showSpinner = true) => {
@@ -234,7 +269,7 @@ export default function AdminPage() {
           mobileNumber,
           email,
           password,
-          role,
+          roles,
         }),
       });
 
@@ -255,7 +290,7 @@ export default function AdminPage() {
       setEmail("");
       setPassword("");
       setConfirmPassword("");
-      setRole("RECEPTIONIST");
+      setRoles(["RECEPTIONIST"]);
 
       showStatusModal("Success", "User created successfully!");
     } catch {
@@ -275,7 +310,8 @@ export default function AdminPage() {
       !trimmedEmail ||
       !trimmedMobileNumber ||
       !password ||
-      !confirmPassword
+      !confirmPassword ||
+      roles.length === 0
     ) {
       showStatusModal(
         "Incomplete Fields",
@@ -312,6 +348,10 @@ export default function AdminPage() {
 
   const handleUpdateUser = async () => {
     if (!selectedUser) return;
+    if (editRoles.length === 0) {
+      showStatusModal("Incomplete Fields", "Please select at least one role.");
+      return;
+    }
 
     try {
       const res = await fetch(`/api/admin/user-management/${selectedUser.id}`, {
@@ -322,7 +362,7 @@ export default function AdminPage() {
           lastName: editLastName,
           email: editEmail,
           mobileNumber: editMobileNumber,
-          role: editRole,
+          roles: editRoles,
         }),
       });
 
@@ -344,7 +384,8 @@ export default function AdminPage() {
                   name: `${editFirstName} ${editLastName}`,
                   email: editEmail,
                   mobileNumber: editMobileNumber,
-                  role: editRole,
+                  role: getPrimaryRole(editRoles, user.role),
+                  roles: editRoles,
                 }
               : user
           )
@@ -558,7 +599,9 @@ export default function AdminPage() {
                     <TableCell>{user.name}</TableCell>
                     <TableCell>{user.mobileNumber}</TableCell>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell sx={{ color: "#666" }}>{user.role}</TableCell>
+                    <TableCell sx={{ color: "#666" }}>
+                      {formatRoles(user.roles, user.role)}
+                    </TableCell>
                     <TableCell>
                       {new Date(user.createdAt).toLocaleDateString()}
                     </TableCell>
@@ -577,7 +620,11 @@ export default function AdminPage() {
                           setEditLastName(names.slice(1).join(" ") || "");
                           setEditEmail(user.email);
                           setEditMobileNumber(user.mobileNumber);
-                          setEditRole(user.role || "RECEPTIONIST");
+                          setEditRoles(
+                            user.roles?.length
+                              ? user.roles
+                              : normalizeAdminRoles(user.role || "RECEPTIONIST")
+                          );
 
                           setOpenEdit(true);
                         }}
@@ -785,19 +832,23 @@ export default function AdminPage() {
               sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
             />
 
-            <FormControl fullWidth sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}>
-              <InputLabel>
-                Role <span style={{ color: "red" }}>*</span>
-              </InputLabel>
-              <Select
-                value={role}
-                label="Role *"
-                onChange={(e) => setRole(e.target.value)}
-              >
-                <MenuItem value="RECEPTIONIST">Receptionist</MenuItem>
-                <MenuItem value="BARBER">Barber</MenuItem>
-              </Select>
-            </FormControl>
+            <Box sx={{ bgcolor: "#f6f6f6", borderRadius: 2, p: 1.5 }}>
+              <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.5 }}>
+                Roles <span style={{ color: "red" }}>*</span>
+              </Typography>
+              {ASSIGNABLE_ADMIN_ROLES.map((currentRole) => (
+                <FormControlLabel
+                  key={currentRole}
+                  control={
+                    <Checkbox
+                      checked={roles.includes(currentRole)}
+                      onChange={() => toggleRole(roles, currentRole, setRoles)}
+                    />
+                  }
+                  label={formatRoles([currentRole])}
+                />
+              ))}
+            </Box>
           </DialogContent>
 
           <Box
@@ -1078,26 +1129,29 @@ export default function AdminPage() {
               sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
             />
 
-            <FormControl fullWidth sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}>
-              <InputLabel>
-                Role <span style={{ color: "red" }}>*</span>
-              </InputLabel>
-
-              <Select
-                value={editRole}
-                label="Role *"
-                disabled
-                sx={{
-                  "& .Mui-disabled": {
-                    WebkitTextFillColor: "#555",
-                  },
-                }}
-              >
-                <MenuItem value="OWNER">Owner</MenuItem>
-                <MenuItem value="RECEPTIONIST">Receptionist</MenuItem>
-                <MenuItem value="BARBER">Barber</MenuItem>
-              </Select>
-            </FormControl>
+            <Box sx={{ bgcolor: "#f6f6f6", borderRadius: 2, p: 1.5 }}>
+              <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.5 }}>
+                Roles <span style={{ color: "red" }}>*</span>
+              </Typography>
+              {editRoles.includes("OWNER") && (
+                <FormControlLabel
+                  control={<Checkbox checked disabled />}
+                  label="Owner"
+                />
+              )}
+              {ASSIGNABLE_ADMIN_ROLES.map((currentRole) => (
+                <FormControlLabel
+                  key={currentRole}
+                  control={
+                    <Checkbox
+                      checked={editRoles.includes(currentRole)}
+                      onChange={() => toggleRole(editRoles, currentRole, setEditRoles)}
+                    />
+                  }
+                  label={formatRoles([currentRole])}
+                />
+              ))}
+            </Box>
           </DialogContent>
 
           <Box

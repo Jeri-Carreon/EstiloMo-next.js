@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
+import { getPrimaryRole } from "@/lib/adminTabs";
 
 export async function getAdminUser() {
   const supabase = await createClient();
@@ -26,8 +27,25 @@ export async function getAdminUser() {
       lastName: true,
       email: true,
       role: true,
+      roleAssignments: {
+        select: {
+          role: true,
+        },
+      },
     },
   });
 
-  return dbUser;
+  if (!dbUser) return null;
+
+  const assignedRoles = dbUser.roleAssignments.map((assignment) => assignment.role);
+  const roles = assignedRoles.length > 0 ? assignedRoles : [dbUser.role];
+
+  return {
+    id: dbUser.id,
+    firstName: dbUser.firstName,
+    lastName: dbUser.lastName,
+    email: dbUser.email,
+    role: getPrimaryRole(roles, dbUser.role),
+    roles,
+  };
 }

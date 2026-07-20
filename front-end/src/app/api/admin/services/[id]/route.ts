@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 
 import { getAdminUser } from "@/lib/supabase/getUser";
 import { logServiceAvailabilityChanged, logServiceDeleted, logServiceUpdated } from "@/lib/securityLogEvents";
+import { hasAnyRole } from "@/lib/adminTabs";
 
 export async function DELETE(
   req: Request,
@@ -10,7 +11,7 @@ export async function DELETE(
 ) {
   try {
     const user = await getAdminUser()
-    if (!user || !["OWNER"].includes(user.role)) {
+    if (!hasAnyRole(user, ["OWNER"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -58,7 +59,7 @@ export async function PUT(
 ) {
   try {
     const user = await getAdminUser()
-    if (!user || !["OWNER"].includes(user.role)) {
+    if (!hasAnyRole(user, ["OWNER"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

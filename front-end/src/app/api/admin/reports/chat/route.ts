@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { hasAnyRole } from "@/lib/adminTabs";
 import { getReportServiceClientConfig } from "@/server/reports-api/config";
 import type {
   ReportChatMessage,
@@ -91,7 +92,7 @@ async function requestExternalReportChat({
 export async function POST(req: NextRequest) {
   try {
     const user = await getAdminUser();
-    if (!user || !["OWNER"].includes(user.role)) {
+    if (!hasAnyRole(user, ["OWNER"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

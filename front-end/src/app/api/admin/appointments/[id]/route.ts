@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { hasAnyRole } from "@/lib/adminTabs";
 import { logAppointmentEdited, logAppointmentCancelled, logAfterServicePhotoUploaded, } from "@/lib/securityLogEvents";
 import { createUniqueCode } from "@/lib/createCode";
 import { parsePHDateOnly, toPHDateKey } from "@/lib/dateUtils";
@@ -28,7 +29,7 @@ export async function PUT(
   try {
     const user = await getAdminUser();
 
-    if (!user || !["OWNER", "RECEPTIONIST", "BARBER"].includes(user.role)) {
+    if (!hasAnyRole(user, ["OWNER", "RECEPTIONIST", "BARBER"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -311,7 +312,7 @@ export async function DELETE(
   try {
     const user = await getAdminUser();
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+    if (!hasAnyRole(user, ["OWNER", "RECEPTIONIST"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

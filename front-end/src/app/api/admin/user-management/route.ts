@@ -2,20 +2,29 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { getPrimaryRole, hasAnyRole, normalizeAdminRoles } from "@/lib/adminTabs";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
     const user = await getAdminUser()
-    if (!user || !["OWNER"].includes(user.role)){
+    if (!hasAnyRole(user, ["OWNER"])){
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const users = await db.user.findMany({
       where: {
-        role: {
-          in: ["OWNER", "RECEPTIONIST", "BARBER"],
+        OR: [
+          { role: { in: ["OWNER", "RECEPTIONIST", "BARBER"] } },
+          { roleAssignments: { some: { role: { in: ["OWNER", "RECEPTIONIST", "BARBER"] } } } },
+        ],
+      },
+      include: {
+        roleAssignments: {
+          select: {
+            role: true,
+          },
         },
       },
       orderBy: [
@@ -28,25 +37,31 @@ export async function GET(req: Request) {
       ],
     });
 
-    const result = users.map((user) => ({
-      id: user.id,
-      name:
-        [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-        user.email ||
-        "Unknown",
+    const result = users.map((user) => {
+      const assignedRoles = user.roleAssignments.map((assignment) => assignment.role);
+      const roles = normalizeAdminRoles(assignedRoles.length > 0 ? assignedRoles : user.role);
 
-      mobileNumber:
-        user.mobileNumber || "N/A",
+      return {
+        id: user.id,
+        name:
+          [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+          user.email ||
+          "Unknown",
 
-      email:
-        user.email,
-        
-      role: user.role,
+        mobileNumber:
+          user.mobileNumber || "N/A",
 
-      isActive: user.isActive,
+        email:
+          user.email,
+          
+        role: getPrimaryRole(roles, user.role),
+        roles,
 
-      createdAt: user.createdAt,
-    }));
+        isActive: user.isActive,
+
+        createdAt: user.createdAt,
+      };
+    });
 
     return NextResponse.json({ users: result });
     } catch (error) {

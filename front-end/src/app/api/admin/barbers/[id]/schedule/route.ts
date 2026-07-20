@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { hasAnyRole } from "@/lib/adminTabs";
 import { logScheduleUpdated } from "@/lib/securityLogEvents";
 
 export async function POST(
@@ -14,7 +15,7 @@ export async function POST(
   try {
     const user = await getAdminUser();
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+    if (!hasAnyRole(user, ["OWNER", "RECEPTIONIST"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

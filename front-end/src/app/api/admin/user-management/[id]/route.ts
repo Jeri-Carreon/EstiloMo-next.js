@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { Role } from "@prisma/client";
 
 import { getAdminUser } from "@/lib/supabase/getUser";
 import { logUserAvailabilityChanged, logUserUpdated } from "@/lib/securityLogEvents";
+import {
+  ASSIGNABLE_ADMIN_ROLES,
+  getPrimaryRole,
+  hasAnyRole,
+  normalizeAdminRoles,
+} from "@/lib/adminTabs";
 
 export async function PUT(
   req: Request,
@@ -10,7 +17,7 @@ export async function PUT(
 ) {
   try {
     const adminUser = await getAdminUser()
-    if (!adminUser || !["OWNER"].includes(adminUser.role)){
+    if (!hasAnyRole(adminUser, ["OWNER"])){
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -27,7 +34,19 @@ export async function PUT(
 
     const existingUser = await db.user.findUnique({
       where: { id },
-      select: { role: true },
+      select: {
+        role: true,
+        roleAssignments: {
+          select: {
+            role: true,
+          },
+        },
+        barber: {
+          select: {
+            id: true,
+          },
+        },
+      },
     });
 
     if (!existingUser) {
@@ -37,24 +56,87 @@ export async function PUT(
       );
     }
 
-    if (existingUser.role === "OWNER" && body.role !== "OWNER") {
+    const existingRoles = normalizeAdminRoles(
+      existingUser.roleAssignments.length > 0
+        ? existingUser.roleAssignments.map((assignment) => assignment.role)
+        : existingUser.role
+    );
+    const requestedRoles = normalizeAdminRoles(
+      Array.isArray(body.roles) ? body.roles : body.role
+    );
+    const isExistingOwner = existingRoles.includes("OWNER");
+    const invalidRoles = requestedRoles.filter(
+      (role) =>
+        !ASSIGNABLE_ADMIN_ROLES.includes(role) &&
+        !(isExistingOwner && role === "OWNER")
+    );
+
+    if (requestedRoles.length === 0 || invalidRoles.length > 0) {
+      return NextResponse.json(
+        { error: "Invalid role" },
+        { status: 400 }
+      );
+    }
+
+    if (isExistingOwner && !requestedRoles.includes("OWNER")) {
       return NextResponse.json(
         { error: "Cannot change Owner role." },
         { status: 403 }
       );
     }
 
-    const updatedUser = await db.user.update({
-      where: { 
-        id 
-      },
-      data: {
-        firstName: body.firstName,
-        lastName: body.lastName,
-        email: body.email,
-        mobileNumber: body.mobileNumber,
-        role: body.role,
-      },
+    const primaryRole = getPrimaryRole(requestedRoles, existingUser.role);
+
+    const updatedUser = await db.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: { 
+          id 
+        },
+        data: {
+          firstName: body.firstName,
+          lastName: body.lastName,
+          email: body.email,
+          mobileNumber: body.mobileNumber,
+          role: primaryRole as Role,
+        },
+      });
+
+      await tx.userRoleAssignment.deleteMany({
+        where: { userId: id },
+      });
+
+      await tx.userRoleAssignment.createMany({
+        data: requestedRoles.map((role) => ({
+          userId: id,
+          role,
+        })),
+        skipDuplicates: true,
+      });
+
+      if (requestedRoles.includes("BARBER") && !existingUser.barber) {
+        const barberCounter = await tx.counter.update({
+          where: { id: "barberCode" },
+          data: { value: { increment: 1 } },
+        });
+
+        const barberCode = `BRB-${String(barberCounter.value).padStart(3, "0")}`;
+
+        await tx.barber.create({
+          data: {
+            barberCode,
+            userId: id,
+            firstName: body.firstName,
+            lastName: body.lastName,
+            mobileNumber: body.mobileNumber,
+            email: body.email,
+          },
+        });
+      }
+
+      return {
+        ...user,
+        roles: requestedRoles,
+      };
     });
 
     await logUserUpdated(req, adminUser, `${updatedUser.firstName} ${updatedUser.lastName}`.trim());
@@ -75,7 +157,7 @@ export async function PATCH(
 ) {
   try {
     const adminUser = await getAdminUser()
-    if (!adminUser || !["OWNER"].includes(adminUser.role)){
+    if (!hasAnyRole(adminUser, ["OWNER"])){
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

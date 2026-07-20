@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import Box from "@mui/material/Box";
+import { getPrimaryRole, normalizeAdminRoles } from "@/lib/adminTabs";
 
 export default async function AdminLayout({
   children,
@@ -28,10 +29,23 @@ export default async function AdminLayout({
       firstName: true,
       lastName: true,
       email: true,
+      roleAssignments: {
+        select: {
+          role: true,
+        },
+      },
     },
   });
 
-  if (!dbUser || dbUser.role === "CUSTOMER") {
+  const roles = dbUser
+    ? normalizeAdminRoles(
+        dbUser.roleAssignments.length > 0
+          ? dbUser.roleAssignments.map((assignment) => assignment.role)
+          : dbUser.role
+      )
+    : [];
+
+  if (!dbUser || roles.length === 0) {
     redirect("/login");
   }
 
@@ -40,7 +54,7 @@ export default async function AdminLayout({
     dbUser.email ||
     "Admin";
 
-  const currentRole = dbUser.role;
+  const currentRole = getPrimaryRole(roles, dbUser.role);
 
   return (
     <Providers>

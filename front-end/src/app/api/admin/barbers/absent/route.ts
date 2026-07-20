@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { hasAnyRole } from "@/lib/adminTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
   try {
     const user = await getAdminUser();
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+    if (!hasAnyRole(user, ["OWNER", "RECEPTIONIST"])) {
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
 
@@ -102,7 +103,7 @@ export async function DELETE(req: Request) {
   try {
     const user = await getAdminUser();
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+    if (!hasAnyRole(user, ["OWNER", "RECEPTIONIST"])) {
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
 

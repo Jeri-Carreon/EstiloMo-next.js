@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { hasAnyRole } from "@/lib/adminTabs";
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -18,10 +19,7 @@ export async function GET(
   try {
     const dbUser = await getAdminUser();
 
-    if (
-      !dbUser ||
-      !["OWNER", "RECEPTIONIST", "BARBER"].includes(dbUser.role)
-    ) {
+    if (!hasAnyRole(dbUser, ["OWNER", "RECEPTIONIST", "BARBER"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
