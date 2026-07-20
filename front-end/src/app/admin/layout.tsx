@@ -29,20 +29,11 @@ export default async function AdminLayout({
       firstName: true,
       lastName: true,
       email: true,
-      roleAssignments: {
-        select: {
-          role: true,
-        },
-      },
     },
   });
 
   const roles = dbUser
-    ? normalizeAdminRoles(
-        dbUser.roleAssignments.length > 0
-          ? dbUser.roleAssignments.map((assignment) => assignment.role)
-          : dbUser.role
-      )
+    ? normalizeAdminRoles(dbUser.role)
     : [];
 
   if (!dbUser || roles.length === 0) {

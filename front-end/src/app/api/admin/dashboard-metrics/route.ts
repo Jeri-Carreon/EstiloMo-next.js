@@ -210,22 +210,11 @@ async function requireOwnerOrReceptionist(
 
   const dbUser = await prisma.user.findUnique({
     where: { email: user.email! },
-    select: {
-      role: true,
-      roleAssignments: {
-        select: {
-          role: true,
-        },
-      },
-    },
+    select: { role: true },
   });
 
   const roles = dbUser
-    ? normalizeAdminRoles(
-        dbUser.roleAssignments.length > 0
-          ? dbUser.roleAssignments.map((assignment) => assignment.role)
-          : dbUser.role
-      )
+    ? normalizeAdminRoles(dbUser.role)
     : [];
 
   if (!dbUser || !hasAnyRole({ roles }, ["OWNER", "RECEPTIONIST"])) {

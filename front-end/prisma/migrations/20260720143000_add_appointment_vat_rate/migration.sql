@@ -1,0 +1,2 @@
+ALTER TABLE "AppointmentSetting"
+ADD COLUMN "vatRate" DECIMAL(5,4) NOT NULL DEFAULT 0.12;

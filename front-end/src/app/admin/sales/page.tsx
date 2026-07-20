@@ -37,6 +37,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import SettingsIcon from "@mui/icons-material/Settings";
 import EditIcon from "@mui/icons-material/Edit";
 import Receipt, { receiptPrintPageStyle } from "./Receipt";
+import { getSpecialDiscountPricing, getVatInclusivePricing } from "@/lib/salesPricing";
 
 type Customer = {
   id: string;
@@ -80,6 +81,7 @@ export type Sale = {
   vatExempt: boolean;
   vatAmount: number;
   totalAmount: number;
+  grossTotal?: number;
   createdAt: string;
   customer: {
     id: string;
@@ -177,6 +179,14 @@ const bodyCell = {
   fontSize: 14,
 };
 
+const moneyCell = {
+  ...bodyCell,
+  minWidth: 110,
+  whiteSpace: "nowrap",
+  fontVariantNumeric: "tabular-nums",
+  textAlign: "right",
+};
+
 const actionIcon = {
   width: 26,
   height: 26,
@@ -239,41 +249,24 @@ const detailValue = {
   fontSize: 13,
 };
 
-const VAT_RATE = 0.12;
-const PWD_DISCOUNT_RATE = 0.2;
-
 function formatPeso(value: number) {
   return `₱ ${Number(value || 0).toLocaleString("en-PH", {
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   })}`;
 }
 
-function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+function calculateVatAmount(totalPayment: number, vatRate: number) {
+  return getVatInclusivePricing(totalPayment, vatRate).vatAmount;
 }
 
-function calculateVatAmount(subtotal: number) {
-  return roundMoney(Number(subtotal || 0) * VAT_RATE);
+function calculatePwdPricing(subtotal: number, vatRate: number) {
+  const pricing = getSpecialDiscountPricing(subtotal, vatRate);
+  return { ...pricing, total: pricing.totalAmount };
 }
 
-function calculatePwdPricing(subtotal: number) {
-  const safeSubtotal = Number(subtotal || 0);
-  const vatAmount = calculateVatAmount(safeSubtotal);
-  const vatExemptBase = roundMoney(safeSubtotal - vatAmount);
-  const pwdDiscountAmount = roundMoney(vatExemptBase * PWD_DISCOUNT_RATE);
-  const total = Math.max(roundMoney(vatExemptBase - pwdDiscountAmount), 0);
-
-  return {
-    vatExemptBase,
-    vatAmount,
-    pwdDiscountAmount,
-    discountAmount: roundMoney(safeSubtotal - total),
-    total,
-  };
-}
-
-function getVatIndicatorLabel(vatExempt?: boolean) {
-  return vatExempt ? "VAT Exempt" : "VAT 12%";
+function getVatIndicatorLabel(vatExempt: boolean | undefined, vatRate: number) {
+  return vatExempt ? "VAT Exempt" : `VAT ${vatRate * 100}%`;
 }
 
 function formatVatValue(vatExempt: boolean | undefined, vatAmount: number) {
@@ -494,6 +487,7 @@ export default function SalesPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [method, setMethod] = useState<"CASH" | "GCASH">("CASH");
   const [discountPercent, setDiscountPercent] = useState(0);
+  const [vatRate, setVatRate] = useState(0.12);
   const [discountButtons, setDiscountButtons] = useState<DiscountButtonSetting[]>([
     { id: "fixed-0", percent: 0, label: "0%", fixed: true },
     { id: "fixed-50", percent: 50, label: "50%", fixed: true },
@@ -591,8 +585,15 @@ export default function SalesPage() {
   }
 
   const subtotal = cartSummary.subtotal;
-  const pwdPricing = useMemo(() => calculatePwdPricing(subtotal), [subtotal]);
-  const standardVatAmount = useMemo(() => calculateVatAmount(subtotal), [subtotal]);
+  const pwdPricing = useMemo(() => calculatePwdPricing(subtotal, vatRate), [subtotal, vatRate]);
+  const standardPricing = useMemo(
+    () => getVatInclusivePricing(cartSummary.total, vatRate),
+    [cartSummary.total, vatRate]
+  );
+  const standardVatAmount = useMemo(
+    () => calculateVatAmount(cartSummary.total, vatRate),
+    [cartSummary.total, vatRate]
+  );
   const discountAmount = pwdDiscountSelected
     ? pwdPricing.discountAmount
     : cartSummary.discountAmount;
@@ -611,16 +612,23 @@ export default function SalesPage() {
     Number(selectedSale?.discount || 0),
     Number(selectedSale?.payment?.discount || 0)
   );
-  const viewVatAmount = Math.max(
-    Number(selectedSale?.vatAmount || 0),
-    Number(selectedSale?.payment?.vatAmount || 0)
-  );
   const viewPwdDiscount = Boolean(
     selectedSale?.pwdDiscount || selectedSale?.payment?.pwdDiscount
+  );
+  const viewPwdPricing = useMemo(
+    () => calculatePwdPricing(selectedSale?.subtotal || 0, vatRate),
+    [selectedSale?.subtotal, vatRate]
+  );
+  const viewStandardPricing = useMemo(
+    () => getVatInclusivePricing(selectedSale?.grossTotal ?? selectedSale?.totalAmount ?? 0, vatRate),
+    [selectedSale?.grossTotal, selectedSale?.totalAmount, vatRate]
   );
   const viewVatExempt = Boolean(
     selectedSale?.vatExempt || selectedSale?.payment?.vatExempt || viewPwdDiscount
   );
+  const viewVatAmount = viewVatExempt
+    ? Math.max(Number(selectedSale?.vatAmount || 0), Number(selectedSale?.payment?.vatAmount || 0))
+    : viewStandardPricing.vatAmount;
   const viewSpecialDiscountType =
     selectedSale?.specialDiscountType ||
     selectedSale?.payment?.specialDiscountType ||
@@ -801,6 +809,7 @@ export default function SalesPage() {
         loyaltyData,
         barbersData,
         discountButtonsData,
+        appointmentSettingsData,
       ] =
         await Promise.all([
           fetchJson("/api/admin/sales"),
@@ -809,6 +818,7 @@ export default function SalesPage() {
           fetchJson("/api/admin/loyaltyCard"),
           fetchJson("/api/admin/barbers"),
           fetchJson("/api/admin/sales/discount-buttons"),
+          fetchJson("/api/admin/appointments/settings"),
         ]);
 
       setSales(salesData.sales || []);
@@ -820,6 +830,7 @@ export default function SalesPage() {
         freeStickerThreshold: loyaltyData.settings?.freeStickerThreshold || 10,
       });
       setDiscountButtons(discountButtonsData.buttons || discountButtons);
+      setVatRate(Number(appointmentSettingsData.vatRate ?? 0.12));
 
       const customerList =
         customersData.customers || customersData.data || customersData || [];
@@ -1121,6 +1132,27 @@ export default function SalesPage() {
         open: true,
         message:
           error instanceof Error ? error.message : "Failed to delete discount button",
+        severity: "error",
+      });
+    }
+  }
+
+  async function saveVatRate() {
+    try {
+      const res = await fetch("/api/admin/appointments/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vatRate }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save VAT rate");
+
+      setVatRate(Number(data.vatRate ?? vatRate));
+      setSnackbar({ open: true, message: "VAT rate updated.", severity: "success" });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : "Failed to save VAT rate",
         severity: "error",
       });
     }
@@ -1576,10 +1608,10 @@ export default function SalesPage() {
         ) : (
           <>
             <TableContainer sx={{ overflowX: "auto" }}>
-              <Table>
+              <Table sx={{ minWidth: 1280 }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ ...headCell, minWidth: 260 }}>
+                    <TableCell sx={{ ...headCell, minWidth: 165 }}>
                       <Box
                         sx={{
                           display: "flex",
@@ -1591,14 +1623,14 @@ export default function SalesPage() {
                         <Box component="span">Appointment #</Box>
                       </Box>
                     </TableCell>
-                    <TableCell sx={headCell}>ID</TableCell>
-                    <TableCell sx={headCell}>Name</TableCell>
-                    <TableCell sx={headCell}>Schedule</TableCell>
-                    <TableCell sx={headCell}>Barber</TableCell>
-                    <TableCell sx={headCell}>Total Amount</TableCell>
-                    <TableCell sx={headCell}>VAT</TableCell>
-                    <TableCell sx={headCell}>Type</TableCell>
-                    <TableCell sx={headCell}>Status</TableCell>
+                    <TableCell sx={{ ...headCell, minWidth: 125, whiteSpace: "nowrap" }}>ID</TableCell>
+                    <TableCell sx={{ ...headCell, minWidth: 140 }}>Name</TableCell>
+                    <TableCell sx={{ ...headCell, minWidth: 180 }}>Schedule</TableCell>
+                    <TableCell sx={{ ...headCell, minWidth: 110 }}>Barber</TableCell>
+                    <TableCell sx={{ ...headCell, minWidth: 110, textAlign: "right", whiteSpace: "nowrap" }}>Total Amount</TableCell>
+                    <TableCell sx={{ ...headCell, minWidth: 90, textAlign: "right", whiteSpace: "nowrap" }}>VAT</TableCell>
+                    <TableCell sx={{ ...headCell, minWidth: 105, whiteSpace: "nowrap" }}>Type</TableCell>
+                    <TableCell sx={{ ...headCell, minWidth: 95, whiteSpace: "nowrap" }}>Status</TableCell>
                     <TableCell sx={headCell} align="center">
                       Actions
                     </TableCell>
@@ -1616,7 +1648,7 @@ export default function SalesPage() {
                         },
                       }}
                     >
-                      <TableCell sx={{ ...bodyCell, minWidth: 260 }}>
+                      <TableCell sx={{ ...bodyCell, minWidth: 165, whiteSpace: "nowrap" }}>
                         <Box
                           sx={{
                             display: "flex",
@@ -1679,35 +1711,37 @@ export default function SalesPage() {
                           </Box>
                         </Box>
                       </TableCell>
-                      <TableCell sx={bodyCell}>
+                      <TableCell sx={{ ...bodyCell, minWidth: 125, whiteSpace: "nowrap" }}>
                         {sale.customer.customerCode}
                       </TableCell>
-                      <TableCell sx={bodyCell}>{sale.customer.name}</TableCell>
+                      <TableCell sx={{ ...bodyCell, minWidth: 140, wordBreak: "normal", overflowWrap: "normal" }}>{sale.customer.name}</TableCell>
 
-                      <TableCell sx={bodyCell}>
+                      <TableCell sx={{ ...bodyCell, minWidth: 180, wordBreak: "normal", overflowWrap: "normal" }}>
                         <Box sx={{ whiteSpace: "pre-line" }}>
                           {getAppointmentScheduleLabel(sale)}
                         </Box>
                       </TableCell>
-                      <TableCell sx={bodyCell}>
+                      <TableCell sx={{ ...bodyCell, minWidth: 110, wordBreak: "normal", overflowWrap: "normal" }}>
                         {sale.barber?.name || "—"}
                       </TableCell>
-                      <TableCell sx={bodyCell}>
+                      <TableCell sx={moneyCell}>
                         {formatPeso(
                           sale.source === "BOOKING"
                             ? Math.max(sale.totalAmount - (sale.payment?.downPayment || 0), 0)
                             : sale.totalAmount
                         )}
                       </TableCell>
-                      <TableCell sx={bodyCell}>
+                      <TableCell sx={{ ...moneyCell, minWidth: 90 }}>
                         {formatVatValue(sale.vatExempt, sale.vatAmount || 0)}
                       </TableCell>
-                      <TableCell sx={bodyCell}>
+                      <TableCell sx={{ ...bodyCell, minWidth: 105, whiteSpace: "nowrap" }}>
                         {sale.source === "WALKIN" ? "Walk-In" : "Appointment"}
                       </TableCell>
                       <TableCell
                         sx={{
                           ...bodyCell,
+                          minWidth: 95,
+                          whiteSpace: "nowrap",
                           color: getStatusColor(sale.status),
                         }}
                       >
@@ -1884,6 +1918,21 @@ export default function SalesPage() {
           <Typography sx={{ fontSize: 13, color: "#777", fontWeight: 700, mb: 2 }}>
             0%, 50%, 100%, and PWD/Senior are fixed. Custom buttons can be edited or deleted.
           </Typography>
+
+          <Box sx={{ display: "flex", gap: 1, mb: 3 }}>
+            <TextField
+              size="small"
+              type="number"
+              label="VAT Rate (%)"
+              value={vatRate * 100}
+              onChange={(e) => setVatRate(Number(e.target.value) / 100)}
+              slotProps={{ htmlInput: { min: 0, max: 100, step: 0.01 } }}
+              sx={{ flex: 1 }}
+            />
+            <Button variant="contained" onClick={saveVatRate} sx={{ bgcolor: "#000", color: "#ffc107", textTransform: "none", fontWeight: 900, "&:hover": { bgcolor: "#111" } }}>
+              Save VAT
+            </Button>
+          </Box>
 
           <Box sx={{ display: "flex", gap: 1, mb: 3 }}>
             <TextField
@@ -2391,15 +2440,10 @@ export default function SalesPage() {
                   </Box>
                 </Box>
 
-                <Box sx={{ bgcolor: "#fff", p: 2 }}>
-                  <Box sx={summaryRow}>
-                    <Typography>Subtotal</Typography>
-                    <Typography>{formatPeso(subtotal)}</Typography>
-                  </Box>
-
-                  <Box sx={summaryRow}>
-                    <Typography>{getVatIndicatorLabel(pwdDiscountSelected)}</Typography>
-                    <Typography>{formatVatValue(pwdDiscountSelected, vatAmount)}</Typography>
+                  <Box sx={{ bgcolor: "#fff", p: 2 }}>
+                    <Box sx={summaryRow}>
+                    <Typography>{pwdDiscountSelected ? "Subtotal (VAT incl.)" : "Subtotal"}</Typography>
+                    <Typography>{formatPeso(pwdDiscountSelected ? subtotal : standardPricing.subtotal)}</Typography>
                   </Box>
 
                   {pwdDiscountSelected && (
@@ -2410,10 +2454,22 @@ export default function SalesPage() {
                       </Box>
 
                       <Box sx={summaryRow}>
+                        <Typography>Subtotal (VAT-exempt)</Typography>
+                        <Typography>{formatPeso(pwdPricing.vatExemptBase)}</Typography>
+                      </Box>
+
+                      <Box sx={summaryRow}>
                         <Typography>{getSpecialDiscountLabel(specialDiscountType)} 20% Discount</Typography>
                         <Typography>-{formatPeso(pwdPricing.pwdDiscountAmount)}</Typography>
                       </Box>
                     </>
+                  )}
+
+                  {!pwdDiscountSelected && (
+                    <Box sx={summaryRow}>
+                      <Typography>{getVatIndicatorLabel(false, vatRate)}</Typography>
+                      <Typography>{formatVatValue(false, vatAmount)}</Typography>
+                    </Box>
                   )}
 
                   <Box sx={summaryRow}>
@@ -2874,16 +2930,16 @@ export default function SalesPage() {
 
           <Box sx={{ bgcolor: "#fff", p: 2 }}>
             <Box sx={summaryRow}>
-              <Typography>Subtotal</Typography>
-              <Typography>{formatPeso(selectedSale?.subtotal || 0)}</Typography>
+              <Typography>{viewPwdDiscount ? "Subtotal (VAT incl.)" : "Subtotal"}</Typography>
+              <Typography>{formatPeso(viewPwdDiscount ? selectedSale?.subtotal || 0 : viewStandardPricing.subtotal)}</Typography>
             </Box>
 
-            <Box sx={summaryRow}>
-              <Typography>{getVatIndicatorLabel(viewVatExempt)}</Typography>
-              <Typography>
-                {formatVatValue(viewVatExempt, viewVatAmount)}
-              </Typography>
-            </Box>
+            {!viewPwdDiscount && (
+              <Box sx={summaryRow}>
+                <Typography>{getVatIndicatorLabel(viewVatExempt, vatRate)}</Typography>
+                <Typography>{formatVatValue(viewVatExempt, viewVatAmount)}</Typography>
+              </Box>
+            )}
 
             {viewPwdDiscount && (
               <>
@@ -2898,13 +2954,17 @@ export default function SalesPage() {
                 </Box>
 
                 <Box sx={summaryRow}>
+                  <Typography>Subtotal (VAT-exempt)</Typography>
+                  <Typography>{formatPeso(viewPwdPricing.vatExemptBase)}</Typography>
+                </Box>
+
+                <Box sx={summaryRow}>
                   <Typography>
                     {getSpecialDiscountLabel(viewSpecialDiscountType)} 20% Discount
                   </Typography>
                   <Typography>
                     -{formatPeso(
-                      calculatePwdPricing(selectedSale?.subtotal || 0)
-                        .pwdDiscountAmount
+                      viewPwdPricing.pwdDiscountAmount
                     )}
                   </Typography>
                 </Box>
@@ -3023,6 +3083,7 @@ export default function SalesPage() {
               formatDate={formatDate}
               getSaleStatusLabel={getSaleStatusLabel}
               getAppointmentBarberName={getAppointmentBarberName}
+              vatRate={vatRate}
             />
           </div>,
           receiptPrintContainer
@@ -3131,12 +3192,8 @@ export default function SalesPage() {
 
           <Box sx={{ bgcolor: "#f8f8f8", border: "1px solid #eee", p: 2, mt: 2 }}>
             <Box sx={summaryRow}>
-              <Typography>Subtotal</Typography>
-              <Typography>{formatPeso(subtotal)}</Typography>
-            </Box>
-            <Box sx={summaryRow}>
-              <Typography>{getVatIndicatorLabel(pwdDiscountSelected)}</Typography>
-              <Typography>{formatVatValue(pwdDiscountSelected, vatAmount)}</Typography>
+              <Typography>{pwdDiscountSelected ? "Subtotal (VAT incl.)" : "Subtotal"}</Typography>
+              <Typography>{formatPeso(pwdDiscountSelected ? subtotal : standardPricing.subtotal)}</Typography>
             </Box>
             {pwdDiscountSelected && (
               <>
@@ -3149,10 +3206,27 @@ export default function SalesPage() {
                   <Typography>-{formatPeso(vatAmount)}</Typography>
                 </Box>
                 <Box sx={summaryRow}>
+                  <Typography>Subtotal (VAT-exempt)</Typography>
+                  <Typography>{formatPeso(pwdPricing.vatExemptBase)}</Typography>
+                </Box>
+                <Box sx={summaryRow}>
                   <Typography>{getSpecialDiscountLabel(specialDiscountType)} 20% Discount</Typography>
                   <Typography>-{formatPeso(pwdPricing.pwdDiscountAmount)}</Typography>
                 </Box>
               </>
+            )}
+
+            {!viewPwdDiscount && (
+              <Box sx={summaryRow}>
+                <Typography>{getVatIndicatorLabel(viewVatExempt, vatRate)}</Typography>
+                <Typography>{formatVatValue(viewVatExempt, viewVatAmount)}</Typography>
+              </Box>
+            )}
+            {!pwdDiscountSelected && (
+              <Box sx={summaryRow}>
+                <Typography>{getVatIndicatorLabel(false, vatRate)}</Typography>
+                <Typography>{formatVatValue(false, vatAmount)}</Typography>
+              </Box>
             )}
             <Box sx={summaryRow}>
               <Typography>Total Payment</Typography>

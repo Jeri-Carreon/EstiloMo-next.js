@@ -27,18 +27,12 @@ export async function getAdminUser() {
       lastName: true,
       email: true,
       role: true,
-      roleAssignments: {
-        select: {
-          role: true,
-        },
-      },
     },
   });
 
   if (!dbUser) return null;
 
-  const assignedRoles = dbUser.roleAssignments.map((assignment) => assignment.role);
-  const roles = assignedRoles.length > 0 ? assignedRoles : [dbUser.role];
+  const roles = [dbUser.role];
 
   return {
     id: dbUser.id,

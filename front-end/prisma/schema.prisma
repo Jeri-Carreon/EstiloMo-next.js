@@ -213,11 +213,12 @@ model Appointment {
 }
 
 model AppointmentSetting {
-  id                 String   @id @default(cuid())
-  bookingCutoffHours Int      @default(1)
-  pendingCheckoutExpirationMinutes Int @default(15)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                               String   @id @default(cuid())
+  bookingCutoffHours               Int      @default(1)
+  createdAt                        DateTime @default(now())
+  updatedAt                        DateTime @updatedAt
+  pendingCheckoutExpirationMinutes Int      @default(15)
+  vatRate                          Decimal  @default(0.12) @db.Decimal(5, 4)
 }
 
 model AfterServicePhoto {
@@ -237,19 +238,19 @@ model Sale {
   barberId            String?
   source              SaleSource            @default(WALKIN)
   status              SaleStatus            @default(PENDING)
-  downPaymentStatus   String                @default("PENDING")        
   subtotal            Decimal               @default(0) @db.Decimal(10, 2)
   discount            Decimal               @default(0) @db.Decimal(10, 2)
-  pwdDiscount         Boolean               @default(false)
-  pwdId               String?
-  specialDiscountType String?
-  vatExempt           Boolean               @default(false)
-  vatAmount           Decimal               @default(0) @db.Decimal(10, 2)
   totalAmount         Decimal               @default(0) @db.Decimal(10, 2)
-  checkoutExpiresAt   DateTime?
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
   cancelReason        String?
+  downPaymentStatus   String                @default("PENDING")
+  checkoutExpiresAt   DateTime?
+  pwdDiscount         Boolean               @default(false)
+  pwdId               String?
+  vatExempt           Boolean               @default(false)
+  vatAmount           Decimal               @default(0) @db.Decimal(10, 2)
+  specialDiscountType String?
   appointments        Appointment[]
   LoyaltyCardActivity LoyaltyCardActivity[]
   payment             Payment?
@@ -286,19 +287,19 @@ model Payment {
   createdAt                 DateTime       @default(now())
   updatedAt                 DateTime       @updatedAt
   discount                  Decimal        @default(0) @db.Decimal(10, 2)
-  pwdDiscount               Boolean        @default(false)
-  pwdId                     String?
-  specialDiscountType       String?
-  vatExempt                 Boolean        @default(false)
-  vatAmount                 Decimal        @default(0) @db.Decimal(10, 2)
   paymentCode               String?        @unique
   saleId                    String?        @unique
   paymongoCheckoutSessionId String?        @unique
   paymongoPaymentId         String?
   paymongoCheckoutUrl       String?
-  paymongoPaymentIntentId   String?        @unique
   screenshotUrl             String?
   gcashRefNo                String?
+  paymongoPaymentIntentId   String?        @unique
+  pwdDiscount               Boolean        @default(false)
+  pwdId                     String?
+  vatExempt                 Boolean        @default(false)
+  vatAmount                 Decimal        @default(0) @db.Decimal(10, 2)
+  specialDiscountType       String?
   appointment               Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   sale                      Sale?          @relation(fields: [saleId], references: [id], onDelete: Cascade)
 }
@@ -315,14 +316,14 @@ model LoyaltyCard {
 }
 
 model LoyaltyCardSetting {
-  id                            String   @id @default(cuid())
-  stickersPerTransaction        Int      @default(1)
-  fiveStickerReward             String   @default("50% Off")
-  tenStickerReward              String   @default("100% Off")
-  fiftyPercentStickerThreshold  Int      @default(5)
-  freeStickerThreshold          Int      @default(10)
-  createdAt                     DateTime @default(now())
-  updatedAt                     DateTime @updatedAt
+  id                           String   @id @default(cuid())
+  stickersPerTransaction       Int      @default(1)
+  fiveStickerReward            String   @default("50% Off")
+  tenStickerReward             String   @default("100% Off")
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+  fiftyPercentStickerThreshold Int      @default(5)
+  freeStickerThreshold         Int      @default(10)
 }
 
 model DiscountButtonSetting {
@@ -477,13 +478,14 @@ enum PaymentStatus {
 }
 
 enum downPaymentStatus {
-  WALKIN
   PENDING
   PAID
   FAILED
   EXPIRED
   CANCELLED
+  WALKIN
 }
+
 enum SaleSource {
   BOOKING
   WALKIN

@@ -34,11 +34,6 @@ export async function GET() {
     select: {
       role: true,
       isActive: true,
-      roleAssignments: {
-        select: {
-          role: true,
-        },
-      },
     }
   })
 
@@ -46,8 +41,22 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const assignedRoles = dbUser.roleAssignments.map((assignment) => assignment.role)
-  const roles = normalizeAdminRoles(assignedRoles.length > 0 ? assignedRoles : dbUser.role)
+  let roles = normalizeAdminRoles(dbUser.role)
+
+  // Role assignments were introduced after the base User.role field. Keep
+  // login working on databases that have not applied that migration yet.
+  try {
+    const assignments = await db.userRoleAssignment.findMany({
+      where: { userId: user.id },
+      select: { role: true },
+    })
+    if (assignments.length > 0) {
+      roles = normalizeAdminRoles(assignments.map((assignment) => assignment.role))
+    }
+  } catch {
+    // Fall back to the primary role until the role-assignment migration exists.
+  }
+
   const primaryRole = getPrimaryRole(roles, dbUser.role)
   let accessibleTabs = getDefaultTabsForRoles(roles)
 

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
+import { getAppointmentPricing } from "@/lib/appointmentPricing";
+import { getVatRate } from "@/lib/appointmentSettings";
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -55,6 +57,7 @@ export async function GET() {
     }
 
     const customer = dbUser.customer;
+    const vatRate = await getVatRate();
 
     const appointments = await db.appointment.findMany({
       where: {
@@ -83,6 +86,8 @@ export async function GET() {
     const appointmentHistory = appointments.map((appointment) => {
       const sale = appointment.sale;
       const servicePrice = Number(appointment.service.price || 0);
+      const pricing = getAppointmentPricing(servicePrice, vatRate);
+      const vatExempt = Boolean(sale?.vatExempt || sale?.payment?.vatExempt || sale?.pwdDiscount || sale?.payment?.pwdDiscount);
 
       return {
         id: appointment.id,
@@ -102,7 +107,7 @@ export async function GET() {
             serviceName: appointment.service.name,
             quantity: 1,
             price: servicePrice,
-            subtotal: servicePrice,
+            subtotal: pricing.subtotal,
           },
         ],
 
@@ -115,9 +120,11 @@ export async function GET() {
           appointment.startMinutes
         )} - ${minutesToTime(appointment.endMinutes)}`,
 
-        subtotal: servicePrice,
+        subtotal: vatExempt ? Number(sale?.subtotal ?? pricing.subtotal) : pricing.subtotal,
         discount: 0,
         discountPercent: 0,
+        vatAmount: vatExempt ? Number(sale?.vatAmount ?? sale?.payment?.vatAmount ?? 0) : pricing.vatAmount,
+        vatExempt,
         totalAmount: servicePrice,
 
         status: appointment.status,
@@ -171,9 +178,11 @@ export async function GET() {
         subtotal: Number(item.subtotal || 0),
       }));
 
-      const subtotal = Number(sale.subtotal || 0);
       const discount = Number(sale.discount || 0);
       const totalAmount = Number(sale.totalAmount || 0);
+      const vatExempt = Boolean(sale.vatExempt || sale.payment?.vatExempt || sale.pwdDiscount || sale.payment?.pwdDiscount);
+      const pricing = getAppointmentPricing(totalAmount, vatRate);
+      const subtotal = vatExempt ? Number(sale.subtotal || 0) : pricing.subtotal;
 
       return {
         id: sale.id,
@@ -204,6 +213,8 @@ export async function GET() {
         discountPercent:
           subtotal > 0 ? Math.round((discount / subtotal) * 100) : 0,
         totalAmount,
+        vatAmount: vatExempt ? Number(sale.vatAmount || sale.payment?.vatAmount || 0) : pricing.vatAmount,
+        vatExempt,
 
         status: saleDisplayStatus(sale.status),
         paymentStatus: sale.payment?.status || "PENDING",

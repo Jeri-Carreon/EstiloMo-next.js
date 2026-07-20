@@ -8,6 +8,8 @@ import {
   logLoyaltyStickerEarned,
   logPaymentReceived,
 } from "@/lib/securityLogEvents";
+import { getSpecialDiscountPricing, getVatInclusivePricing } from "@/lib/salesPricing";
+import { getVatRate } from "@/lib/appointmentSettings";
 
 type LoyaltyRewardType = "NONE" | "FIFTY_PERCENT" | "FREE";
 
@@ -20,19 +22,13 @@ function isSignatureHaircut(serviceName: string) {
   return serviceName.trim().toLowerCase() === "signature haircut";
 }
 
-function calculatePwdPricing(subtotal: number) {
-  const vatAmount = Math.round(subtotal * 0.12 * 100) / 100;
-  const vatExemptBase = Math.round((subtotal - vatAmount) * 100) / 100;
-  const pwdDiscountAmount = Math.round(vatExemptBase * 0.2 * 100) / 100;
-  const fullTotalAmount = Math.max(
-    Math.round((vatExemptBase - pwdDiscountAmount) * 100) / 100,
-    0
-  );
+function calculatePwdPricing(subtotal: number, vatRate: number) {
+  const pricing = getSpecialDiscountPricing(subtotal, vatRate);
 
   return {
-    vatAmount,
-    discount: Math.round((subtotal - fullTotalAmount) * 100) / 100,
-    fullTotalAmount,
+    vatAmount: pricing.vatAmount,
+    discount: pricing.discountAmount,
+    fullTotalAmount: pricing.totalAmount,
   };
 }
 
@@ -121,6 +117,7 @@ export async function PUT(
     }
 
     const subtotal = Number(sale.subtotal || 0);
+    const vatRate = await getVatRate();
     const requestedLoyaltyRewardType: LoyaltyRewardType =
       body.loyaltyRewardType === "FIFTY_PERCENT" ||
       body.loyaltyRewardType === "FREE"
@@ -229,16 +226,16 @@ export async function PUT(
       discount = signatureHaircutSubtotal;
     }
 
-    const pwdPricing = usePwdDiscount ? calculatePwdPricing(subtotal) : null;
+    const pwdPricing = usePwdDiscount ? calculatePwdPricing(subtotal, vatRate) : null;
     if (pwdPricing) {
       discount = pwdPricing.discount;
       loyaltyRewardType = "NONE";
     }
 
+    const fullTotalAmount = pwdPricing?.fullTotalAmount ?? Math.max(subtotal - discount, 0);
     const vatAmount =
       pwdPricing?.vatAmount ??
-      Math.round(subtotal * 0.12 * 100) / 100;
-    const fullTotalAmount = pwdPricing?.fullTotalAmount ?? Math.max(subtotal - discount, 0);
+      getVatInclusivePricing(fullTotalAmount, vatRate).vatAmount;
     const downPayment = Number(sale.payment.downPayment || 0);
     const totalAmount =
       sale.source === "BOOKING"
