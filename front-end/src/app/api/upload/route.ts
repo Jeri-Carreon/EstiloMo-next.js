@@ -1,8 +1,21 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
+import {
+  adminAuthorizationResponse,
+  requireAnyAdminTabAccess,
+} from '@/lib/adminAuthorization';
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireAnyAdminTabAccess(
+      ['appointments', 'barbers', 'services'],
+      req
+    );
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
+    }
+
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const bucket =

@@ -25,7 +25,10 @@ import {
   toDashboardDateTime,
 } from "@/lib/dashboardDateRange";
 import { db as prisma } from "@/lib/db";
-import { createClient } from "@/lib/supabase/server";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 const appointmentSelect = Prisma.validator<Prisma.AppointmentSelect>()({
   id: true,
@@ -189,39 +192,10 @@ function reviewWhere(dateRange: { gte: Date; lte: Date }, barberId?: string | nu
   };
 }
 
-async function requireOwnerOrReceptionist(
-  req: NextRequest,
-): Promise<{ ok: true } | { ok: false; status: number }> {
-  const supabase = await createClient();
-  const authHeader = req.headers.get("authorization");
-  let user = null;
-
-  if (authHeader?.startsWith("Bearer ")) {
-    const token = authHeader.replace("Bearer ", "");
-    const { data } = await supabase.auth.getUser(token);
-    user = data?.user;
-  } else {
-    const { data } = await supabase.auth.getUser();
-    user = data?.user;
-  }
-
-  if (!user) return { ok: false, status: 401 };
-
-  const dbUser = await prisma.user.findUnique({
-    where: { email: user.email! },
-    select: { role: true },
-  });
-
-  if (!dbUser || !["OWNER", "RECEPTIONIST"].includes(dbUser.role)) {
-    return { ok: false, status: 403 };
-  }
-  return { ok: true };
-}
-
 export async function GET(req: NextRequest) {
-  const auth = await requireOwnerOrReceptionist(req);
-  if (!auth.ok) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: auth.status });
+  const auth = await requireAdminTabAccess("dashboard", req);
+  if (auth.status !== 200) {
+    return adminAuthorizationResponse(auth.status);
   }
 
   const period = parsePeriod(req.nextUrl.searchParams.get("period"));
@@ -278,7 +252,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.appointment.findMany({
         where: appointmentWhere(previousAppointmentDate, barberId),
-        select: { id: true },
+        select: { id: true, status: true },
       }),
       prisma.sale.findMany({
         where: currentSaleWhere,
@@ -286,7 +260,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.sale.findMany({
         where: previousSaleWhere,
-        select: { id: true, status: true, totalAmount: true },
+        select: { id: true, status: true, totalAmount: true, source: true },
       }),
       range.period === "custom"
         ? Promise.resolve(null)
@@ -328,13 +302,21 @@ export async function GET(req: NextRequest) {
       0,
     );
 
-    const completedAppointments = sales.filter(
-      (s) => s.status === SaleStatus.PAID && s.source === SaleSource.BOOKING,
+    const completedAppointments = appointments.filter(
+      (a) => a.status === AppointmentStatus.COMPLETED,
     ).length;
-    const completedTransactions = paidSales.length;
-    const nonCancelledTransactions = sales.filter(
-      (s) => s.status !== SaleStatus.CANCELLED,
+    const paidWalkInSales = paidSales.filter((s) => s.source === SaleSource.WALKIN);
+    const completedTransactions = completedAppointments + paidWalkInSales.length;
+    const nonCancelledAppointmentTransactions = appointments.filter(
+      (a) =>
+        a.status !== AppointmentStatus.CANCELLED &&
+        a.status !== AppointmentStatus.REJECTED,
     ).length;
+    const nonCancelledWalkInTransactions = sales.filter(
+      (s) => s.source === SaleSource.WALKIN && s.status !== SaleStatus.CANCELLED,
+    ).length;
+    const nonCancelledTransactions =
+      nonCancelledAppointmentTransactions + nonCancelledWalkInTransactions;
     const completionRate = nonCancelledTransactions
       ? Math.round((completedTransactions / nonCancelledTransactions) * 100)
       : 0;
@@ -350,14 +332,29 @@ export async function GET(req: NextRequest) {
       (total, sale) => total + Number(sale.totalAmount ?? 0),
       0,
     );
-    const previousNonCancelledTransactions = previousSales.filter(
-      (s) => s.status !== SaleStatus.CANCELLED,
+    const previousCompletedAppointments = previousAppointments.filter(
+      (a) => a.status === AppointmentStatus.COMPLETED,
     ).length;
+    const previousPaidWalkInSales = previousPaidSales.filter(
+      (s) => s.source === SaleSource.WALKIN,
+    );
+    const previousCompletedTransactions =
+      previousCompletedAppointments + previousPaidWalkInSales.length;
+    const previousNonCancelledAppointmentTransactions = previousAppointments.filter(
+      (a) =>
+        a.status !== AppointmentStatus.CANCELLED &&
+        a.status !== AppointmentStatus.REJECTED,
+    ).length;
+    const previousNonCancelledWalkInTransactions = previousSales.filter(
+      (s) => s.source === SaleSource.WALKIN && s.status !== SaleStatus.CANCELLED,
+    ).length;
+    const previousNonCancelledTransactions =
+      previousNonCancelledAppointmentTransactions + previousNonCancelledWalkInTransactions;
     const previousCompletionRate = previousNonCancelledTransactions
-      ? Math.round((previousPaidSales.length / previousNonCancelledTransactions) * 100)
+      ? Math.round((previousCompletedTransactions / previousNonCancelledTransactions) * 100)
       : 0;
 
-    const walkInSalesPaid = paidSales.filter((s) => s.source === SaleSource.WALKIN);
+    const walkInSalesPaid = paidWalkInSales;
     const bookedSalesPaid = paidSales.filter((s) => s.source !== SaleSource.WALKIN);
     const walkInVsAppointments = [
       {
@@ -537,7 +534,7 @@ export async function GET(req: NextRequest) {
       trends: {
         revenue: calcTrend(todaySales, previousRevenue),
         appointments: calcTrend(appointments.length, previousAppointments.length),
-        transactions: calcTrend(completedTransactions, previousPaidSales.length),
+        transactions: calcTrend(completedTransactions, previousCompletedTransactions),
         completionRate: calcTrend(completionRate, previousCompletionRate),
       },
     });

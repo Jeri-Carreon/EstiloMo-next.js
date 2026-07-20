@@ -1,0 +1,3 @@
+-- Compatibility migration retained from the merged branch.
+-- The final role model uses User.role as TEXT plus AdminStaffRole/AdminRoleTabAccess,
+-- so no enum-based UserRoleAssignment table is created.

@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getAdminUser } from "@/lib/supabase/getUser";
 import { logScheduleUpdated } from "@/lib/securityLogEvents";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 export async function POST(
   req: Request,
@@ -12,11 +15,13 @@ export async function POST(
   }
 ) {
   try {
-    const user = await getAdminUser();
+    const auth = await requireAdminTabAccess("barbers", req);
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
+
+    const user = auth.user;
 
     const body = await req.json();
     const { schedules } = body;

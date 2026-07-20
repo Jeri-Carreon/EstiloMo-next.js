@@ -1,16 +1,19 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getAdminUser } from "@/lib/supabase/getUser";
 import { logServiceCreated } from "@/lib/securityLogEvents";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const user = await getAdminUser();
+    const auth = await requireAdminTabAccess("services");
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
 
     const services = await db.service.findMany({
@@ -89,10 +92,13 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const user = await getAdminUser()
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const auth = await requireAdminTabAccess("services", req);
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
+
+    const user = auth.user;
 
     const toTitleCase = (str: string) =>
       str
@@ -102,7 +108,7 @@ export async function POST(req: Request) {
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" ");
 
-    let {
+    const {
       name,
       description,
       durationMinutes,
@@ -112,26 +118,27 @@ export async function POST(req: Request) {
       imageUrl,
     } = await req.json();
 
-    name = toTitleCase(name ?? "").trim();
-    description = (description ?? "").trim();
-    durationMinutes = Number(durationMinutes);
-    price = Number(price);
+    const normalizedName = toTitleCase(name ?? "").trim();
+    const normalizedDescription = (description ?? "").trim();
+    const normalizedDurationMinutes = Number(durationMinutes);
+    const normalizedPrice = Number(price);
+    let normalizedAssignedStaffIds = assignedStaffIds;
 
-    if (!name || !description || !durationMinutes || !price) {
+    if (!normalizedName || !normalizedDescription || !normalizedDurationMinutes || !normalizedPrice) {
       return NextResponse.json(
         { error: "Missing Fields" },
         { status: 400 }
       );
     }
 
-    if (name.length > 50) {
+    if (normalizedName.length > 50) {
       return NextResponse.json(
         { error: "Service Name too long" },
         { status: 400 }
       );
     }
 
-    if (description.length > 150) {
+    if (normalizedDescription.length > 150) {
       return NextResponse.json(
         { error: "Description too long" },
         { status: 400 }
@@ -139,9 +146,9 @@ export async function POST(req: Request) {
     }
 
     if (
-      Number.isNaN(durationMinutes) ||
-      durationMinutes < 1 ||
-      durationMinutes > 999
+      Number.isNaN(normalizedDurationMinutes) ||
+      normalizedDurationMinutes < 1 ||
+      normalizedDurationMinutes > 999
     ) {
       return NextResponse.json(
         { error: "Duration must only be 3 digits" },
@@ -149,7 +156,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (Number.isNaN(price) || price < 1 || price > 99999) {
+    if (Number.isNaN(normalizedPrice) || normalizedPrice < 1 || normalizedPrice > 99999) {
       return NextResponse.json(
         { error: "Price must be 5 digits (Pesos)" },
         { status: 400 }
@@ -163,22 +170,22 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!Array.isArray(assignedStaffIds)) {
-      assignedStaffIds = [];
+    if (!Array.isArray(normalizedAssignedStaffIds)) {
+      normalizedAssignedStaffIds = [];
     }
 
-    if (isAvailable && assignedStaffIds.length < 1) {
+    if (isAvailable && normalizedAssignedStaffIds.length < 1) {
       return NextResponse.json(
         { error: "Please assign at least 1 staff member" },
         { status: 400 }
       );
     }
 
-    if (assignedStaffIds.length > 0) {
+    if (normalizedAssignedStaffIds.length > 0) {
       const validBarbers = await db.barber.findMany({
         where: {
           id: {
-            in: assignedStaffIds,
+              in: normalizedAssignedStaffIds,
           },
         },
         select: {
@@ -186,7 +193,7 @@ export async function POST(req: Request) {
         },
       });
 
-      if (validBarbers.length !== assignedStaffIds.length) {
+      if (validBarbers.length !== normalizedAssignedStaffIds.length) {
         return NextResponse.json(
           { error: "One or more barbers not found" },
           { status: 400 }
@@ -214,16 +221,16 @@ export async function POST(req: Request) {
     const service = await db.service.create({
       data: {
         serviceCode,
-        name,
-        description,
-        durationMinutes,
-        price,
+        name: normalizedName,
+        description: normalizedDescription,
+        durationMinutes: normalizedDurationMinutes,
+        price: normalizedPrice,
         isAvailable,
         sortOrder: nextSortOrder,
         imageUrl: imageUrl || null,
 
         assignedStaff: {
-          connect: assignedStaffIds.map((id: string) => ({ id })),
+          connect: normalizedAssignedStaffIds.map((id: string) => ({ id })),
         },
       },
       include: {

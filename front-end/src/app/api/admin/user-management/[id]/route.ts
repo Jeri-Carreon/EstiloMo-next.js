@@ -1,18 +1,24 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-import { getAdminUser } from "@/lib/supabase/getUser";
 import { logUserAvailabilityChanged, logUserUpdated } from "@/lib/securityLogEvents";
+import {
+  adminAuthorizationResponse,
+  requireOwner,
+} from "@/lib/adminAuthorization";
 
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const adminUser = await getAdminUser()
-    if (!adminUser || !["OWNER"].includes(adminUser.role)){
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const auth = await requireOwner(req);
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
+
+    const adminUser = auth.user;
 
     const { id } = await params; 
 
@@ -27,7 +33,14 @@ export async function PUT(
 
     const existingUser = await db.user.findUnique({
       where: { id },
-      select: { role: true },
+      select: {
+        role: true,
+        barber: {
+          select: {
+            id: true,
+          },
+        },
+      },
     });
 
     if (!existingUser) {
@@ -44,6 +57,26 @@ export async function PUT(
       );
     }
 
+    const requestedRole =
+      typeof body.role === "string" ? body.role.trim() : "";
+
+    const [assignableRole] = await db.$queryRaw<
+      { role: string; isActive: boolean }[]
+    >`
+      SELECT "role", "isActive"
+      FROM "AdminStaffRole"
+      WHERE "role" = ${requestedRole}
+        AND "isActive" = true
+      LIMIT 1
+    `;
+
+    if (!assignableRole) {
+      return NextResponse.json(
+        { error: "Select an active role before saving." },
+        { status: 400 }
+      );
+    }
+
     const updatedUser = await db.user.update({
       where: { 
         id 
@@ -53,7 +86,7 @@ export async function PUT(
         lastName: body.lastName,
         email: body.email,
         mobileNumber: body.mobileNumber,
-        role: body.role,
+        role: assignableRole.role,
       },
     });
 
@@ -74,10 +107,13 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const adminUser = await getAdminUser()
-    if (!adminUser || !["OWNER"].includes(adminUser.role)){
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const auth = await requireOwner(req);
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
+
+    const adminUser = auth.user;
 
     const { id } = await params;
 

@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
-import { getAdminUser } from "@/lib/supabase/getUser";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 export const dynamic = "force-dynamic";
 
@@ -52,21 +55,21 @@ function isUniqueError(error: unknown) {
 }
 
 async function requireSalesManager() {
-  const user = await getAdminUser();
+  const auth = await requireAdminTabAccess("sales");
 
-  if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-    return null;
+  if (auth.status !== 200) {
+    return auth;
   }
 
-  return user;
+  return auth;
 }
 
 export async function GET() {
   try {
-    const user = await getAdminUser();
+    const auth = await requireAdminTabAccess("sales");
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
 
     await ensureDiscountButtonTable();
@@ -97,10 +100,10 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const user = await requireSalesManager();
+    const auth = await requireSalesManager();
 
-    if (!user) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
 
     await ensureDiscountButtonTable();
@@ -149,10 +152,10 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    const user = await requireSalesManager();
+    const auth = await requireSalesManager();
 
-    if (!user) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
 
     await ensureDiscountButtonTable();
@@ -210,10 +213,10 @@ export async function PATCH(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const user = await requireSalesManager();
+    const auth = await requireSalesManager();
 
-    if (!user) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
 
     await ensureDiscountButtonTable();

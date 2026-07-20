@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getAdminUser } from "@/lib/supabase/getUser";
 import { logLoyaltySettingsUpdated } from "@/lib/securityLogEvents";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +21,10 @@ const LOYALTY_SETTINGS_SELECT = {
 
 export async function GET() {
   try {
-    const user = await getAdminUser();
+    const auth = await requireAdminTabAccess("loyaltyCard");
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
 
     let settings = await db.loyaltyCardSetting.findFirst({
@@ -109,11 +112,13 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   try {
-    const user = await getAdminUser();
+    const auth = await requireAdminTabAccess("loyaltyCard", req);
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
+
+    const user = auth.user;
 
     const body = await req.json();
 

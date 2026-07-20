@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-import { getAdminUser } from "@/lib/supabase/getUser";
 import { logLoyaltyCardStatusUpdated } from "@/lib/securityLogEvents";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 export async function PUT(
   req: Request,
@@ -13,11 +16,13 @@ export async function PUT(
   }
 ) {
   try {
-    const user = await getAdminUser();
+    const auth = await requireAdminTabAccess("loyaltyCard", req);
 
-    if (!user || !["OWNER"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
+
+    const user = auth.user;
 
     const { id } = await context.params;
     const body = await req.json();

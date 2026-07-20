@@ -1,21 +1,25 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-import { getAdminUser } from "@/lib/supabase/getUser";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    const user = await getAdminUser()
-    if (!user || !["OWNER"].includes(user.role)){
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const auth = await requireAdminTabAccess("user-management", req);
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
 
     const users = await db.user.findMany({
       where: {
-        role: {
-          in: ["OWNER", "RECEPTIONIST", "BARBER"],
+        NOT: {
+          role: "CUSTOMER",
         },
       },
       orderBy: [
@@ -28,25 +32,39 @@ export async function GET(req: Request) {
       ],
     });
 
-    const result = users.map((user) => ({
-      id: user.id,
-      name:
-        [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-        user.email ||
-        "Unknown",
+    const staffRoles = await db.$queryRaw<
+      { role: string; displayName: string; isActive: boolean }[]
+    >`
+      SELECT "role", "displayName", "isActive"
+      FROM "AdminStaffRole"
+    `;
+    const roleByName = new Map(staffRoles.map((role) => [role.role, role]));
 
-      mobileNumber:
-        user.mobileNumber || "N/A",
+    const result = users.map((user) => {
+      const roleMeta = roleByName.get(user.role);
 
-      email:
-        user.email,
+      return {
+        id: user.id,
+        name:
+          [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+          user.email ||
+          "Unknown",
+
+        mobileNumber:
+          user.mobileNumber || "N/A",
+
+        email:
+          user.email,
         
-      role: user.role,
+        role: user.role,
+        roleDisplayName: roleMeta?.displayName ?? user.role,
+        roleIsArchived: roleMeta ? !roleMeta.isActive : false,
 
-      isActive: user.isActive,
+        isActive: user.isActive,
 
-      createdAt: user.createdAt,
-    }));
+        createdAt: user.createdAt,
+      };
+    });
 
     return NextResponse.json({ users: result });
     } catch (error) {

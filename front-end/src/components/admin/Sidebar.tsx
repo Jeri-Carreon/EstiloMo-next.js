@@ -35,7 +35,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import SecurityIcon from '@mui/icons-material/Security';
-import { DEFAULT_ROLE_TAB_ACCESS, type AdminTabKey } from '@/lib/adminTabs';
+import { type AdminTabKey } from '@/lib/adminTabs';
 
 const menuItems = [
   { key: 'dashboard' as AdminTabKey, label: 'Dashboard', icon: DashboardIcon, path: '/admin/dashboard' },
@@ -55,6 +55,7 @@ const menuItems = [
 type SidebarProps = {
   currentName: string;
   currentRole: string;
+  accessibleTabs: AdminTabKey[];
 };
 
 // ─── Shared nav list ──────────────────────────────────────────────────────────
@@ -168,16 +169,16 @@ function NavList({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function Sidebar({ currentName, currentRole }: SidebarProps) {
+export default function Sidebar({
+  currentName,
+  currentRole,
+  accessibleTabs: initialAccessibleTabs,
+}: SidebarProps) {
   const pathname = usePathname();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [accessibleTabs, setAccessibleTabs] = useState<string[]>(
-    currentRole === 'OWNER'
-      ? DEFAULT_ROLE_TAB_ACCESS.OWNER
-      : DEFAULT_ROLE_TAB_ACCESS[currentRole as keyof typeof DEFAULT_ROLE_TAB_ACCESS] || []
-  );
+  const [accessibleTabs, setAccessibleTabs] = useState<string[]>(initialAccessibleTabs);
   const router = useRouter();
   const supabase = createClient();
 
@@ -206,10 +207,7 @@ export default function Sidebar({ currentName, currentRole }: SidebarProps) {
     };
   }, [currentRole]);
 
-  const filteredMenu =
-    currentRole === 'OWNER'
-      ? menuItems
-      : menuItems.filter((item) => accessibleTabs.includes(item.key));
+  const filteredMenu = menuItems.filter((item) => accessibleTabs.includes(item.key));
 
   // sign-out
     const handleSignOut = async () => {

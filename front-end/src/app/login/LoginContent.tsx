@@ -16,6 +16,7 @@ import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ADMIN_TABS } from "@/lib/adminTabs";
 
 export default function LoginContent() {
   const [showPassword, setShowPassword] = useState(false);
@@ -38,27 +39,34 @@ export default function LoginContent() {
     try {
       const normalizedEmail = email.toLowerCase().trim();
 
-      const loginResponse = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: normalizedEmail,
-          password,
-        }),
-      });
+      let loginResponse: Response;
+
+      try {
+        loginResponse = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: normalizedEmail,
+            password,
+          }),
+        });
+      } catch {
+        setErrorMsg("Unable to reach the login service. Please try again.");
+        return;
+      }
 
       if (!loginResponse.ok) {
         const loginResult = await loginResponse.json().catch(() => ({}));
         const message = String(loginResult.error || "").toLowerCase();
 
-        await fetch("/api/auth/security-login", {
+        void fetch("/api/auth/security-login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             email: normalizedEmail,
             success: false,
           }),
-        }).catch(() => null);
+        }).catch(() => undefined);
 
         if (message.includes("supabase browser client is not configured")) {
           setErrorMsg(
@@ -76,14 +84,14 @@ export default function LoginContent() {
         return;
       }
 
-      await fetch("/api/auth/security-login", {
+      void fetch("/api/auth/security-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: normalizedEmail,
           success: true,
         }),
-      }).catch(() => null);
+      }).catch(() => undefined);
 
       const res = await fetch("/api/user/role");
 
@@ -106,6 +114,12 @@ export default function LoginContent() {
         router.replace("/admin/dashboard");
       } else if (user.role === "BARBER") {
         router.replace("/admin/barbers");
+      } else if (user.role && user.role !== "CUSTOMER") {
+        const firstAccessibleTab = ADMIN_TABS.find((tab) =>
+          user.accessibleTabs?.includes(tab.key)
+        );
+
+        router.replace(firstAccessibleTab?.path || "/unauthorized");
       } else {
         router.replace(redirect || "/myAppointments");
       }

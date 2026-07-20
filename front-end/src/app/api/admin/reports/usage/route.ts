@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
 import { isChatbotOpenAIModel, type ChatbotOpenAIModel } from "@/lib/openaiPricing";
-import { getAdminUser } from "@/lib/supabase/getUser";
+import {
+  adminAuthorizationResponse,
+  requireOwner,
+} from "@/lib/adminAuthorization";
 
 export const dynamic = "force-dynamic";
 
@@ -118,9 +121,10 @@ function averageCost(totalCost: number, totalRequests: number): number {
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getAdminUser();
-    if (!user || !["OWNER"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const auth = await requireOwner(req);
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
 
     const createdAt = getCreatedAtRange(req);

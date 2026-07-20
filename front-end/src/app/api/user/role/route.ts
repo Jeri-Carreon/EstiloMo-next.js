@@ -1,11 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { DEFAULT_ROLE_TAB_ACCESS, normalizeAdminRole, type AdminTabKey } from '@/lib/adminTabs'
-
-type AccessRow = {
-  tabKey: string;
-};
+import { getAccessibleAdminTabsForRole } from '@/lib/adminAuthorization'
 
 export async function GET() {
   const supabase = await createClient()
@@ -25,32 +21,19 @@ export async function GET() {
         ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
       ],
     },
-    select: { role: true, isActive: true }
+    select: {
+      role: true,
+      isActive: true,
+    }
   })
 
   if (!dbUser || dbUser.isActive === false) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const normalizedRole = normalizeAdminRole(dbUser.role)
-  let accessibleTabs = normalizedRole ? DEFAULT_ROLE_TAB_ACCESS[normalizedRole] : []
+  const accessibleTabs = await getAccessibleAdminTabsForRole(dbUser.role)
+  const role = dbUser.role
+  const roles = role ? [role] : []
 
-  if (normalizedRole && normalizedRole !== 'OWNER') {
-    try {
-      const rows = await db.$queryRaw<AccessRow[]>`
-        SELECT "tabKey"
-        FROM "AdminRoleTabAccess"
-        WHERE role = ${normalizedRole}
-        ORDER BY "tabKey" ASC
-      `
-
-      if (rows.length > 0) {
-        accessibleTabs = rows.map((row) => row.tabKey as AdminTabKey)
-      }
-    } catch (error) {
-      console.error("ROLE ACCESS FALLBACK:", error)
-    }
-  }
-
-  return NextResponse.json({ role: dbUser.role, accessibleTabs })
+  return NextResponse.json({ role, roles, accessibleTabs })
 }

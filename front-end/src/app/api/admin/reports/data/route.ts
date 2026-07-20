@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
-import { getAdminUser } from '@/lib/supabase/getUser';
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from '@/lib/adminAuthorization';
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const user = await getAdminUser()
-    if (!user || !["OWNER"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+  const auth = await requireAdminTabAccess("reports", req);
+
+  if (auth.status !== 200) {
+    return adminAuthorizationResponse(auth.status);
+  }
     
   const { searchParams } = new URL(req.url);
   const from = searchParams.get('from');
@@ -142,8 +146,8 @@ export async function GET(req: NextRequest) {
   // Group paid sales by date
   const dailyMap = new Map<string, { revenue: number; transactions: number }>();
   sales
-    .filter((s: any) => s.status === 'PAID')
-    .forEach((sale: any) => {
+    .filter((sale) => sale.status === 'PAID')
+    .forEach((sale) => {
       const date = toISO(new Date(sale.createdAt)); // "2026-06-18"
       if (!dailyMap.has(date)) dailyMap.set(date, { revenue: 0, transactions: 0 });
       const entry = dailyMap.get(date)!;

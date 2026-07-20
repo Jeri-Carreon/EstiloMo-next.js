@@ -12,7 +12,11 @@ export type AdminTabKey =
   | "chatbot"
   | "security";
 
-export type AdminRole = "OWNER" | "RECEPTIONIST" | "BARBER";
+export type BuiltInAdminRole = "OWNER" | "RECEPTIONIST" | "BARBER";
+export type AdminRole = string;
+
+export const ADMIN_ROLES: AdminRole[] = ["OWNER", "RECEPTIONIST", "BARBER"];
+export const ASSIGNABLE_ADMIN_ROLES: AdminRole[] = ["RECEPTIONIST", "BARBER"];
 
 export const ADMIN_TABS: { key: AdminTabKey; label: string; path: string }[] = [
   { key: "dashboard", label: "Dashboard", path: "/admin/dashboard" },
@@ -30,8 +34,28 @@ export const ADMIN_TABS: { key: AdminTabKey; label: string; path: string }[] = [
 ];
 
 export const ALL_ADMIN_TAB_KEYS = ADMIN_TABS.map((tab) => tab.key);
+export const ADMIN_TAB_BY_PATH = ADMIN_TABS.reduce<Record<string, AdminTabKey>>(
+  (acc, tab) => {
+    acc[tab.path] = tab.key;
+    return acc;
+  },
+  {}
+);
 
-export const DEFAULT_ROLE_TAB_ACCESS: Record<AdminRole, AdminTabKey[]> = {
+export function getAdminTabForPath(pathname: string): AdminTabKey | null {
+  const normalizedPath = pathname.replace(/\/+$/, "") || "/admin";
+
+  const matchingTab = ADMIN_TABS
+    .filter(
+      (tab) =>
+        normalizedPath === tab.path || normalizedPath.startsWith(`${tab.path}/`)
+    )
+    .sort((a, b) => b.path.length - a.path.length)[0];
+
+  return matchingTab?.key ?? null;
+}
+
+export const DEFAULT_ROLE_TAB_ACCESS: Record<BuiltInAdminRole, AdminTabKey[]> = {
   OWNER: ALL_ADMIN_TAB_KEYS,
   RECEPTIONIST: [
     "dashboard",
@@ -45,11 +69,54 @@ export const DEFAULT_ROLE_TAB_ACCESS: Record<AdminRole, AdminTabKey[]> = {
 };
 
 export function normalizeAdminRole(role: string | null | undefined): AdminRole | null {
-  if (role === "OWNER" || role === "RECEPTIONIST" || role === "BARBER") {
-    return role;
+  const normalizedRole = role?.trim();
+
+  if (!normalizedRole || normalizedRole === "CUSTOMER") {
+    return null;
   }
 
-  return null;
+  return normalizedRole;
+}
+
+export function normalizeAdminRoles(value: unknown): AdminRole[] {
+  const input = Array.isArray(value) ? value : [value];
+  return Array.from(
+    new Set(
+      input
+        .map((role) => normalizeAdminRole(typeof role === "string" ? role : null))
+        .filter((role): role is AdminRole => Boolean(role))
+    )
+  );
+}
+
+export function getPrimaryRole(roles: readonly string[], fallback = "CUSTOMER") {
+  if (roles.includes("OWNER")) return "OWNER";
+  if (roles.includes("RECEPTIONIST")) return "RECEPTIONIST";
+  if (roles.includes("BARBER")) return "BARBER";
+  return fallback;
+}
+
+type RoleBearing = { role?: string | null; roles?: readonly string[] | null };
+
+export function hasAnyRole<T extends RoleBearing>(
+  user: T | null | undefined,
+  allowedRoles: readonly AdminRole[]
+): user is T {
+  if (!user) return false;
+  const roles = normalizeAdminRoles(user.roles?.length ? user.roles : user.role);
+  return roles.some((role) => allowedRoles.includes(role));
+}
+
+export function getDefaultTabsForRoles(roles: readonly string[]) {
+  const normalizedRoles = normalizeAdminRoles(roles);
+  if (normalizedRoles.includes("OWNER")) return ALL_ADMIN_TAB_KEYS;
+
+  const tabs = normalizedRoles.flatMap((role) =>
+    ADMIN_ROLES.includes(role)
+      ? DEFAULT_ROLE_TAB_ACCESS[role as BuiltInAdminRole] ?? []
+      : []
+  );
+  return Array.from(new Set(tabs));
 }
 
 export function canAccessAdminTab(
@@ -64,7 +131,7 @@ export function canAccessAdminTab(
 
   const tabs = accessibleTabs?.length
     ? accessibleTabs
-    : DEFAULT_ROLE_TAB_ACCESS[normalizedRole];
+    : DEFAULT_ROLE_TAB_ACCESS[normalizedRole as BuiltInAdminRole] || [];
 
   return tabs.includes(tabKey);
 }

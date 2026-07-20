@@ -1,26 +1,23 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
-import { getAdminUser } from "@/lib/supabase/getUser";
 import { logCustomerUpdated, logCustomerDeactivated, } from "@/lib/securityLogEvents";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const auth = await requireAdminTabAccess("customers", req);
 
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
 
-    const adminUser = await getAdminUser();
-
-    if (!adminUser || !["OWNER", "RECEPTIONIST"].includes(adminUser.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const adminUser = auth.user;
 
     const { id } = await params;
     console.log("PARAM ID:", id);
@@ -32,7 +29,8 @@ export async function PUT(
     const body = await req.json();
     console.log("BODY:", body);
 
-    let { firstName, lastName, mobileNumber, isActive } = body;
+    const { isActive } = body;
+    let { firstName, lastName, mobileNumber } = body;
 
     firstName = (firstName ?? "").trim();
     lastName = (lastName ?? "").trim();

@@ -8,6 +8,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import PaymentIcon from '@mui/icons-material/Payment';
 
 import type { AppointmentData } from '@/app/appointment/page';
+import { getAppointmentPricing, roundMoney } from '@/lib/appointmentPricing';
 
 const steps = ['Barber', 'Service', 'Schedule', 'Cart', 'Confirmation'];
 
@@ -18,6 +19,7 @@ interface ConfirmationStepProps {
   downPayment: number;
   loading: boolean;
   handleConfirm: () => void;
+  vatRate: number;
 }
 
 function formatTime(minutes: number) {
@@ -46,8 +48,13 @@ export default function ConfirmationStep({
   downPayment,
   loading,
   handleConfirm,
+  vatRate,
 }: ConfirmationStepProps) {
-  const remainingBalance = Math.max(totalPrice - downPayment, 0);
+  const pricing = getAppointmentPricing(totalPrice, vatRate);
+  const remainingBalance = Math.max(
+    roundMoney(pricing.totalPayment - downPayment),
+    0
+  );
 
   return (
     <Box
@@ -327,10 +334,20 @@ export default function ConfirmationStep({
 
                 <Stack spacing={1.5}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, borderBottom: '1px solid #ddd', pb: 1 }}>
-                    <Typography sx={{ fontWeight: 800 }}>Total Price</Typography>
+                    <Typography sx={{ fontWeight: 800 }}>Subtotal</Typography>
                     <Typography sx={{ fontWeight: 900 }}>
-                      ₱{totalPrice.toFixed(2)}
+                      ₱{pricing.subtotal.toFixed(2)}
                     </Typography>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, borderBottom: '1px solid #ddd', pb: 1 }}>
+                    <Typography sx={{ fontWeight: 800 }}>VAT ({vatRate * 100}%)</Typography>
+                    <Typography sx={{ fontWeight: 900 }}>₱{pricing.vatAmount.toFixed(2)}</Typography>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, borderBottom: '1px solid #ddd', pb: 1 }}>
+                    <Typography sx={{ fontWeight: 800 }}>Total Payment</Typography>
+                    <Typography sx={{ fontWeight: 900 }}>₱{pricing.totalPayment.toFixed(2)}</Typography>
                   </Box>
 
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, borderBottom: '1px solid #ddd', pb: 1 }}>
