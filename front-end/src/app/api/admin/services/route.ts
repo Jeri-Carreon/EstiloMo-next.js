@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { logServiceCreated } from "@/lib/securityLogEvents";
 import {
   adminAuthorizationResponse,
+  requireAnyAdminTabAccess,
   requireAdminTabAccess,
 } from "@/lib/adminAuthorization";
 
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const auth = await requireAdminTabAccess("services");
+    const auth = await requireAnyAdminTabAccess(["services", "sales", "appointments"]);
 
     if (auth.status !== 200) {
       return adminAuthorizationResponse(auth.status);

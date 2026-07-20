@@ -274,6 +274,8 @@ export default function BarbersPage() {
 
   // Session
   const [role, setRole] = useState<string>("");
+  const [roleNames, setRoleNames] = useState<string[]>([]);
+  const [accessibleTabs, setAccessibleTabs] = useState<string[]>([]);
 
   const [scheduledPage, setScheduledPage] = useState(1);
   const [processedPage, setProcessedPage] = useState(1);
@@ -676,6 +678,14 @@ export default function BarbersPage() {
         const res = await fetch("/api/user/role");
         const data = await res.json();
         setRole(data.role);
+        setRoleNames(
+          Array.isArray(data.roleNames)
+            ? data.roleNames
+            : data.role
+            ? [data.role]
+            : []
+        );
+        setAccessibleTabs(Array.isArray(data.accessibleTabs) ? data.accessibleTabs : []);
 
         if (!data.accessibleTabs?.includes("barbers")) {
           router.push("/unauthorized");
@@ -688,6 +698,12 @@ export default function BarbersPage() {
 
     init();
   }, [router, supabase]);
+
+  const isBarberOnly =
+    roleNames.length > 0 &&
+    roleNames.every((roleName) => roleName === "BARBER") &&
+    accessibleTabs.length === 1 &&
+    accessibleTabs.includes("barbers");
 
 
   useEffect(() => {
@@ -1205,10 +1221,10 @@ export default function BarbersPage() {
           }}
         >
           <Typography variant="h3" sx={{ fontWeight: 700, fontSize: { xs: 30, sm: 38, md: 48 } }}>
-            {role === "BARBER" ? "My Appointments" : "Barber's Management"}
+            {isBarberOnly ? "My Appointments" : "Barber's Management"}
           </Typography>
 
-          {role !== "BARBER" && (
+          {!isBarberOnly && (
             <Button
               variant={showUnavailableBarbers ? "contained" : "outlined"}
               onClick={() => {
@@ -1265,10 +1281,10 @@ export default function BarbersPage() {
             overflowWrap: "anywhere",
           }}
         >
-          {role === "BARBER" ? "My Appointments" : "Barber's Management"}
+          {isBarberOnly ? "My Appointments" : "Barber's Management"}
         </Typography>
 
-        {role !== "BARBER" && (
+        {!isBarberOnly && (
           <Button
             variant={showUnavailableBarbers ? "contained" : "outlined"}
             onClick={() => {
@@ -1310,7 +1326,7 @@ export default function BarbersPage() {
         </Typography>
       </Box>
 
-      {role !== "BARBER" && (
+      {!isBarberOnly && (
         <Button
           variant="contained"
           onClick={() => {
@@ -1361,7 +1377,7 @@ export default function BarbersPage() {
           <TableContainer
             component={Paper}
             sx={{
-              display: role === "BARBER" ? "none" : { xs: "none", md: "block" },
+              display: isBarberOnly ? "none" : { xs: "none", md: "block" },
             }}
           >
             <Table>
@@ -1423,7 +1439,7 @@ export default function BarbersPage() {
 
           <Box
             sx={{
-              display: role === "BARBER" ? "flex" : { xs: "flex", md: "none" },
+              display: isBarberOnly ? "flex" : { xs: "flex", md: "none" },
               flexDirection: "column",
               gap: 1.5,
               width: "100%",
@@ -1587,7 +1603,7 @@ export default function BarbersPage() {
           <TableContainer
             component={Paper}
             sx={{
-              display: role === "BARBER" ? "none" : { xs: "none", md: "block" },
+              display: isBarberOnly ? "none" : { xs: "none", md: "block" },
             }}
           >
             <Table>
@@ -1649,7 +1665,7 @@ export default function BarbersPage() {
 
           <Box
             sx={{
-              display: role === "BARBER" ? "flex" : { xs: "flex", md: "none" },
+              display: isBarberOnly ? "flex" : { xs: "flex", md: "none" },
               flexDirection: "column",
               gap: 1.5,
               width: "100%",
@@ -1768,7 +1784,7 @@ export default function BarbersPage() {
           </Box>
         </>
       )}
-      {role !== "BARBER" && (
+      {!isBarberOnly && (
         <Box
           sx={{ display: "flex", justifyContent: "flex-end", gap: 2, mt: 2 }}
         >

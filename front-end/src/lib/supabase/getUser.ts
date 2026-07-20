@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
-import { getPrimaryRole } from "@/lib/adminTabs";
+import {
+  getEffectiveRolesForUser,
+  getPrimaryRoleFromEffectiveRoles,
+} from "@/lib/adminRoleAssignments";
 
 export async function getAdminUser() {
   const supabase = await createClient();
@@ -32,14 +35,14 @@ export async function getAdminUser() {
 
   if (!dbUser) return null;
 
-  const roles = [dbUser.role];
+  const effectiveRoles = await getEffectiveRolesForUser(dbUser.id, dbUser.role);
 
   return {
     id: dbUser.id,
     firstName: dbUser.firstName,
     lastName: dbUser.lastName,
     email: dbUser.email,
-    role: getPrimaryRole(roles, dbUser.role),
-    roles,
+    role: getPrimaryRoleFromEffectiveRoles(effectiveRoles, dbUser.role),
+    roles: effectiveRoles,
   };
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import {
   adminAuthorizationResponse,
@@ -22,9 +23,13 @@ type AccessRow = {
 async function ensureRoleAccessTable() {
   await db.$executeRaw`
     CREATE TABLE IF NOT EXISTS "AdminStaffRole" (
+      "id" TEXT NOT NULL,
       "role" TEXT NOT NULL,
+      "normalizedName" TEXT,
+      "systemKey" TEXT,
       "displayName" TEXT NOT NULL,
       "isBuiltIn" BOOLEAN NOT NULL DEFAULT false,
+      "isSystemRole" BOOLEAN NOT NULL DEFAULT false,
       "isActive" BOOLEAN NOT NULL DEFAULT true,
       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -59,17 +64,80 @@ async function ensureRoleAccessTable() {
   `;
 
   await db.$executeRaw`
-    INSERT INTO "AdminStaffRole" ("role", "displayName", "isBuiltIn", "createdAt", "updatedAt")
+    ALTER TABLE "AdminStaffRole"
+    ADD COLUMN IF NOT EXISTS "id" TEXT,
+    ADD COLUMN IF NOT EXISTS "normalizedName" TEXT,
+    ADD COLUMN IF NOT EXISTS "systemKey" TEXT,
+    ADD COLUMN IF NOT EXISTS "isSystemRole" BOOLEAN NOT NULL DEFAULT false
+  `;
+
+  await db.$executeRaw`
+    UPDATE "AdminStaffRole"
+    SET
+      "id" = CASE
+        WHEN "role" = 'OWNER' THEN 'system_owner'
+        WHEN "role" = 'RECEPTIONIST' THEN 'system_receptionist'
+        WHEN "role" = 'BARBER' THEN 'system_barber'
+        WHEN "role" = 'CUSTOMER' THEN 'system_customer'
+        WHEN "id" IS NULL OR "id" = "role" THEN 'role_' || md5(LOWER(TRIM("role")))
+        ELSE "id"
+      END,
+      "normalizedName" = COALESCE("normalizedName", LOWER(TRIM("role"))),
+      "systemKey" = CASE
+        WHEN "role" IN ('OWNER', 'RECEPTIONIST', 'BARBER', 'CUSTOMER') THEN "role"
+        ELSE "systemKey"
+      END,
+      "isSystemRole" = CASE
+        WHEN "role" IN ('OWNER', 'RECEPTIONIST', 'BARBER', 'CUSTOMER') THEN true
+        ELSE "isSystemRole"
+      END
+  `;
+
+  await db.$executeRaw`
+    ALTER TABLE "AdminStaffRole"
+    ALTER COLUMN "id" SET NOT NULL
+  `;
+
+  await db.$executeRaw`
+    INSERT INTO "AdminStaffRole" ("id", "role", "normalizedName", "systemKey", "displayName", "isBuiltIn", "isSystemRole", "createdAt", "updatedAt")
     VALUES
-      ('OWNER', 'Owner', true, NOW(), NOW()),
-      ('RECEPTIONIST', 'Receptionist', true, NOW(), NOW()),
-      ('BARBER', 'Barber', true, NOW(), NOW())
-    ON CONFLICT ("role") DO NOTHING
+      ('system_owner', 'OWNER', 'owner', 'OWNER', 'Owner', true, true, NOW(), NOW()),
+      ('system_receptionist', 'RECEPTIONIST', 'receptionist', 'RECEPTIONIST', 'Receptionist', true, true, NOW(), NOW()),
+      ('system_barber', 'BARBER', 'barber', 'BARBER', 'Barber', true, true, NOW(), NOW()),
+      ('system_customer', 'CUSTOMER', 'customer', 'CUSTOMER', 'Customer', true, true, NOW(), NOW())
+    ON CONFLICT ("role") DO UPDATE
+    SET
+      "id" = CASE
+        WHEN "AdminStaffRole"."id" IS NULL OR "AdminStaffRole"."id" = "AdminStaffRole"."role" THEN EXCLUDED."id"
+        ELSE "AdminStaffRole"."id"
+      END,
+      "normalizedName" = COALESCE("AdminStaffRole"."normalizedName", EXCLUDED."normalizedName"),
+      "systemKey" = EXCLUDED."systemKey",
+      "displayName" = EXCLUDED."displayName",
+      "isBuiltIn" = true,
+      "isSystemRole" = true,
+      "isActive" = true,
+      "updatedAt" = NOW()
   `;
 
   await db.$executeRaw`
     CREATE UNIQUE INDEX IF NOT EXISTS "AdminStaffRole_role_lower_key"
     ON "AdminStaffRole"(LOWER("role"))
+  `;
+
+  await db.$executeRaw`
+    CREATE UNIQUE INDEX IF NOT EXISTS "AdminStaffRole_id_key"
+    ON "AdminStaffRole"("id")
+  `;
+
+  await db.$executeRaw`
+    CREATE UNIQUE INDEX IF NOT EXISTS "AdminStaffRole_normalizedName_key"
+    ON "AdminStaffRole"("normalizedName")
+  `;
+
+  await db.$executeRaw`
+    CREATE UNIQUE INDEX IF NOT EXISTS "AdminStaffRole_systemKey_key"
+    ON "AdminStaffRole"("systemKey")
   `;
 }
 
@@ -101,9 +169,12 @@ function groupAccess(rows: AccessRow[]) {
 }
 
 type StaffRoleRow = {
+  id: string;
   role: string;
   displayName: string;
   isBuiltIn: boolean;
+  isSystemRole: boolean;
+  systemKey: string | null;
   isActive: boolean;
 };
 
@@ -120,7 +191,7 @@ async function getStaffRoles({
 } = {}) {
   if (archivedOnly) {
     return db.$queryRaw<StaffRoleRow[]>`
-      SELECT "role", "displayName", "isBuiltIn", "isActive"
+      SELECT "id", "role", "displayName", "isBuiltIn", "isSystemRole", "systemKey", "isActive"
       FROM "AdminStaffRole"
       WHERE "isActive" = false
       ORDER BY "isBuiltIn" DESC, "displayName" ASC
@@ -129,14 +200,14 @@ async function getStaffRoles({
 
   if (includeArchived) {
     return db.$queryRaw<StaffRoleRow[]>`
-      SELECT "role", "displayName", "isBuiltIn", "isActive"
+      SELECT "id", "role", "displayName", "isBuiltIn", "isSystemRole", "systemKey", "isActive"
       FROM "AdminStaffRole"
       ORDER BY "isBuiltIn" DESC, "displayName" ASC
     `;
   }
 
   return db.$queryRaw<StaffRoleRow[]>`
-    SELECT "role", "displayName", "isBuiltIn", "isActive"
+    SELECT "id", "role", "displayName", "isBuiltIn", "isSystemRole", "systemKey", "isActive"
     FROM "AdminStaffRole"
     WHERE "isActive" = true
     ORDER BY "isBuiltIn" DESC, "displayName" ASC
@@ -150,7 +221,7 @@ async function getRoleLists() {
   ]);
 
   return {
-    roles,
+    roles: roles.filter((role) => role.systemKey !== "CUSTOMER"),
     archivedRoles: archivedRoles.filter((role) => !role.isBuiltIn),
   };
 }
@@ -168,7 +239,7 @@ async function roleExists(role: string) {
 
 async function getRole(role: string) {
   const rows = await db.$queryRaw<StaffRoleRow[]>`
-    SELECT "role", "displayName", "isBuiltIn", "isActive"
+    SELECT "id", "role", "displayName", "isBuiltIn", "isSystemRole", "systemKey", "isActive"
     FROM "AdminStaffRole"
     WHERE LOWER("role") = LOWER(${role})
     LIMIT 1
@@ -326,8 +397,8 @@ export async function POST(req: Request) {
 
     await db.$transaction(async (tx) => {
       await tx.$executeRaw`
-        INSERT INTO "AdminStaffRole" ("role", "displayName", "isBuiltIn", "createdAt", "updatedAt")
-        VALUES (${role}, ${role}, false, NOW(), NOW())
+        INSERT INTO "AdminStaffRole" ("id", "role", "normalizedName", "displayName", "isBuiltIn", "isSystemRole", "createdAt", "updatedAt")
+        VALUES (${randomUUID()}, ${role}, ${role.toLowerCase()}, ${role}, false, false, NOW(), NOW())
       `;
 
       for (const tabKey of tabs) {
@@ -377,7 +448,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Role not found." }, { status: 404 });
     }
 
-    if (roleRow.isBuiltIn || roleRow.role === "OWNER") {
+    if (roleRow.isSystemRole || roleRow.systemKey === "OWNER") {
       return NextResponse.json(
         {
           error:
@@ -440,19 +511,44 @@ export async function PATCH(req: Request) {
       );
     }
 
-    const assignedUsers = await db.user.findMany({
-      where: {
-        role: roleRow.role,
-        isActive: true,
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-      },
-      orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
-    });
+    let assignedUsers: {
+      id: string;
+      firstName: string | null;
+      lastName: string | null;
+      email: string | null;
+    }[] = [];
+
+    try {
+      assignedUsers = await db.$queryRaw<
+        { id: string; firstName: string | null; lastName: string | null; email: string | null }[]
+      >`
+        SELECT DISTINCT u."id", u."firstName", u."lastName", u."email"
+        FROM "User" u
+        JOIN "UserRoleAssignment" a ON a."userId" = u."id"
+        WHERE a."roleId" = ${roleRow.id}
+          AND a."removedAt" IS NULL
+          AND u."isActive" = true
+        ORDER BY u."firstName" ASC, u."lastName" ASC
+      `;
+    } catch (error) {
+      console.error("ROLE ASSIGNMENT ARCHIVE CHECK FALLBACK:", error);
+    }
+
+    if (assignedUsers.length === 0) {
+      assignedUsers = await db.user.findMany({
+        where: {
+          role: roleRow.role,
+          isActive: true,
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+        orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+      });
+    }
 
     if (assignedUsers.length > 0) {
       const users = assignedUsers.map((user) => ({

@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { ensureSingleAppointmentSetting } from "@/lib/appointmentSettings";
 import {
   adminAuthorizationResponse,
+  requireAnyAdminTabAccess,
   requireAdminTabAccess,
 } from "@/lib/adminAuthorization";
 
 export async function GET() {
   try {
-    const auth = await requireAdminTabAccess("appointments");
+    const auth = await requireAnyAdminTabAccess(["appointments", "sales"]);
 
     if (auth.status !== 200) {
       return adminAuthorizationResponse(auth.status);
