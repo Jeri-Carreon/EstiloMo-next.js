@@ -6,6 +6,14 @@ import {
   type AdminTabKey,
   type BuiltInAdminRole,
 } from "@/lib/adminTabs";
+import {
+  getAccessibleAdminTabsForRoles,
+  getDirectAdminTabsForUser,
+  getEffectiveRolesForUser,
+  getPrimaryRoleFromEffectiveRoles,
+  isOwnerRole,
+  type EffectiveAdminRole,
+} from "@/lib/adminRoleAssignments";
 import { NextResponse } from "next/server";
 
 type AccessRow = {
@@ -16,12 +24,16 @@ type CurrentAdminAccess =
   | {
       user: null;
       role: null;
+      inheritedTabs: AdminTabKey[];
+      directUserTabs: AdminTabKey[];
       accessibleTabs: AdminTabKey[];
       status: 401;
     }
   | {
       user: null;
       role: null;
+      inheritedTabs: AdminTabKey[];
+      directUserTabs: AdminTabKey[];
       accessibleTabs: AdminTabKey[];
       status: 403;
     }
@@ -35,6 +47,10 @@ type CurrentAdminAccess =
         isActive: boolean;
       };
       role: string;
+      roles: EffectiveAdminRole[];
+      isOwner: boolean;
+      inheritedTabs: AdminTabKey[];
+      directUserTabs: AdminTabKey[];
       accessibleTabs: AdminTabKey[];
       status: 200 | 403;
     };
@@ -101,7 +117,14 @@ export async function getCurrentAdminAccess(req?: Request): Promise<CurrentAdmin
   }
 
   if (!authUser) {
-    return { user: null, role: null, accessibleTabs: [], status: 401 };
+    return {
+      user: null,
+      role: null,
+      inheritedTabs: [],
+      directUserTabs: [],
+      accessibleTabs: [],
+      status: 401,
+    };
   }
 
   const normalizedEmail = authUser.email?.toLowerCase().trim();
@@ -123,16 +146,36 @@ export async function getCurrentAdminAccess(req?: Request): Promise<CurrentAdmin
   });
 
   if (!user || user.isActive === false) {
-    return { user: null, role: null, accessibleTabs: [], status: 401 };
+    return {
+      user: null,
+      role: null,
+      inheritedTabs: [],
+      directUserTabs: [],
+      accessibleTabs: [],
+      status: 401,
+    };
   }
 
   const accessibleTabs = await getAccessibleAdminTabsForRole(user.role);
+  const roles = await getEffectiveRolesForUser(user.id, user.role);
+  const inheritedTabs =
+    roles.length > 0
+      ? await getAccessibleAdminTabsForRoles(roles)
+      : accessibleTabs;
+  const directUserTabs = await getDirectAdminTabsForUser(user.id);
+  const effectiveTabs = Array.from(new Set([...inheritedTabs, ...directUserTabs]));
+  const primaryRole = getPrimaryRoleFromEffectiveRoles(roles, user.role);
+  const isOwner = isOwnerRole(roles);
 
   return {
     user,
-    role: user.role,
-    accessibleTabs,
-    status: accessibleTabs.length > 0 ? 200 : 403,
+    role: primaryRole,
+    roles,
+    isOwner,
+    inheritedTabs,
+    directUserTabs,
+    accessibleTabs: effectiveTabs,
+    status: effectiveTabs.length > 0 ? 200 : 403,
   };
 }
 
@@ -185,7 +228,7 @@ export async function requireOwner(req?: Request) {
     return access;
   }
 
-  if (normalizeAdminRole(access.role) !== "OWNER") {
+  if (!access.isOwner) {
     return { ...access, status: 403 };
   }
 

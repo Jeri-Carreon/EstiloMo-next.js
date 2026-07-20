@@ -43,27 +43,29 @@ model Counter {
 }
 
 model User {
-  id            String        @id @default(cuid())
-  email         String        @unique
-  image         String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  password      String
-  firstName     String
-  lastName      String
-  lockedUntil   DateTime?
-  loginAttempts Int           @default(0)
-  mobileNumber  String        @db.VarChar(11)
-  role          String        @default("CUSTOMER")
-  emailVerified Boolean       @default(false)
-  userCode      String        @unique
-  isActive      Boolean       @default(true)
-  accounts      Account[]     @relation("accounts")
-  barber        Barber?
-  customer      Customer?
-  reviews       Review[]
-  securityLogs  SecurityLog[]
-  sessions      Session[]
+  id              String               @id @default(cuid())
+  email           String               @unique
+  image           String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  password        String
+  firstName       String
+  lastName        String
+  lockedUntil     DateTime?
+  loginAttempts   Int                  @default(0)
+  mobileNumber    String               @db.VarChar(11)
+  role            String               @default("CUSTOMER")
+  emailVerified   Boolean              @default(false)
+  userCode        String               @unique
+  isActive        Boolean              @default(true)
+  accounts        Account[]            @relation("accounts")
+  barber          Barber?
+  customer        Customer?
+  reviews         Review[]
+  directTabAccess UserAdminTabAccess[]
+  roleAssignments UserRoleAssignment[]
+  securityLogs    SecurityLog[]
+  sessions        Session[]
 }
 
 model Customer {
@@ -332,12 +334,47 @@ model AdminRoleTabAccess {
 }
 
 model AdminStaffRole {
-  role        String   @id
-  displayName String
-  isBuiltIn   Boolean  @default(false)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String               @unique @default(cuid())
+  role           String               @id
+  normalizedName String?              @unique
+  systemKey      String?              @unique
+  displayName    String
+  isBuiltIn      Boolean              @default(false)
+  isSystemRole   Boolean              @default(false)
+  isActive       Boolean              @default(true)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  assignments    UserRoleAssignment[]
+}
+
+model UserRoleAssignment {
+  id               String         @id @default(cuid())
+  userId           String
+  roleId           String
+  assignedAt       DateTime       @default(now())
+  assignedBy       String?
+  assignedRoleName String
+  removedAt        DateTime?
+  removedBy        String?
+  removedRoleName  String?
+  role             AdminStaffRole @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, removedAt])
+  @@index([roleId, removedAt])
+}
+
+model UserAdminTabAccess {
+  id        String   @id @default(cuid())
+  userId    String
+  tabKey    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tabKey])
+  @@index([userId])
+  @@index([tabKey])
 }
 
 model LoyaltyCardActivity {
@@ -393,6 +430,7 @@ model SecurityLog {
   action    String
   ipAddress String?
   userAgent String?
+  metadata  Json?
   createdAt DateTime @default(now())
   user      User?    @relation(fields: [userId], references: [id])
 

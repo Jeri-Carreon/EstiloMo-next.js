@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { logLoyaltySettingsUpdated } from "@/lib/securityLogEvents";
 import {
   adminAuthorizationResponse,
+  requireAnyAdminTabAccess,
   requireAdminTabAccess,
 } from "@/lib/adminAuthorization";
 
@@ -21,7 +22,7 @@ const LOYALTY_SETTINGS_SELECT = {
 
 export async function GET() {
   try {
-    const auth = await requireAdminTabAccess("loyaltyCard");
+    const auth = await requireAnyAdminTabAccess(["loyaltyCard", "sales"]);
 
     if (auth.status !== 200) {
       return adminAuthorizationResponse(auth.status);

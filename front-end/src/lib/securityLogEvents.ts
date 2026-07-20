@@ -568,6 +568,38 @@ export function logUserUpdated(req: Request, user: UserLike, name: string) {
   return logManagedRecord(req, user, "Users", `Edited User ${name}`);
 }
 
+export function logUserRolesUpdated(
+  req: Request,
+  user: UserLike,
+  name: string,
+  metadata: unknown
+) {
+  return createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "Users",
+    action: `Updated roles for ${name}`,
+    metadata,
+    ...getRequestMeta(req),
+  });
+}
+
+export function logUserDirectAccessUpdated(
+  req: Request,
+  user: UserLike,
+  name: string,
+  metadata: unknown
+) {
+  return createSecurityLog({
+    userId: user.id,
+    userName: getUserName(user),
+    section: "Users",
+    action: `Updated direct module access for ${name}`,
+    metadata,
+    ...getRequestMeta(req),
+  });
+}
+
 export function logUserAvailabilityChanged(req: Request, user: UserLike, name: string, available: boolean) {
   return logManagedRecord(req, user, "Users", `Made User ${name} ${available ? "Available" : "Unavailable"}`);
 }

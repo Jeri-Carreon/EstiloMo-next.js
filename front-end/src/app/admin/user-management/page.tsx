@@ -28,6 +28,8 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 
 import Dialog from "@mui/material/Dialog";
 import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogActions from "@mui/material/DialogActions";
 import CloseIcon from "@mui/icons-material/Close";
 
 import Select from "@mui/material/Select";
@@ -48,6 +50,11 @@ interface User {
   mobileNumber: string;
   email: string;
   role: string;
+  roleIds?: string[];
+  roles?: StaffRole[];
+  directAccessTabs?: string[];
+  inheritedTabs?: string[];
+  accessibleTabs?: string[];
   roleDisplayName?: string;
   roleIsArchived?: boolean;
   isActive: boolean;
@@ -57,26 +64,42 @@ interface User {
 type RoleAccess = Record<AdminRole, string[]>;
 
 type StaffRole = {
+  id: string;
   role: string;
   displayName: string;
   isBuiltIn: boolean;
+  isSystemRole?: boolean;
+  systemKey?: string | null;
   isActive: boolean;
 };
 
+let roleFieldCounter = 0;
+
+function createRoleFieldId() {
+  roleFieldCounter += 1;
+  return `role-field-${Date.now()}-${roleFieldCounter}`;
+}
+
 const DEFAULT_STAFF_ROLES: StaffRole[] = [
-  { role: "OWNER", displayName: "Owner", isBuiltIn: true, isActive: true },
-  { role: "RECEPTIONIST", displayName: "Receptionist", isBuiltIn: true, isActive: true },
-  { role: "BARBER", displayName: "Barber", isBuiltIn: true, isActive: true },
+  { id: "system_owner", role: "OWNER", displayName: "Owner", isBuiltIn: true, isSystemRole: true, systemKey: "OWNER", isActive: true },
+  { id: "system_receptionist", role: "RECEPTIONIST", displayName: "Receptionist", isBuiltIn: true, isSystemRole: true, systemKey: "RECEPTIONIST", isActive: true },
+  { id: "system_barber", role: "BARBER", displayName: "Barber", isBuiltIn: true, isSystemRole: true, systemKey: "BARBER", isActive: true },
 ];
 
 function RoleModuleSelection({
   selectedTabs,
   onToggle,
   disabled = false,
+  inheritedTabs = [],
+  inheritedSources = {},
+  showSources = false,
 }: {
   selectedTabs: string[];
   onToggle: (tabKey: string) => void;
   disabled?: boolean;
+  inheritedTabs?: string[];
+  inheritedSources?: Record<string, string[]>;
+  showSources?: boolean;
 }) {
   return (
     <Box
@@ -86,19 +109,40 @@ function RoleModuleSelection({
         gap: 0.5,
       }}
     >
-      {ADMIN_TABS.map((tab) => (
-        <FormControlLabel
-          key={tab.key}
-          control={
-            <Checkbox
-              checked={selectedTabs.includes(tab.key)}
-              disabled={disabled}
-              onChange={() => onToggle(tab.key)}
+      {ADMIN_TABS.map((tab) => {
+        const isDirect = selectedTabs.includes(tab.key);
+        const sources = inheritedSources[tab.key] || [];
+        const isInherited = inheritedTabs.includes(tab.key) || sources.length > 0;
+        const helperText = showSources
+          ? [
+              isDirect ? "Direct user access" : null,
+              sources.length > 0 ? `Inherited from: ${sources.join(", ")}` : null,
+              !isDirect && !isInherited ? "No access" : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")
+          : "";
+
+        return (
+          <Box key={tab.key}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={isDirect}
+                  disabled={disabled}
+                  onChange={() => onToggle(tab.key)}
+                />
+              }
+              label={tab.label}
             />
-          }
-          label={tab.label}
-        />
-      ))}
+            {helperText && (
+              <Typography sx={{ ml: 4, mt: -0.5, fontSize: 12, color: "text.secondary" }}>
+                {helperText}
+              </Typography>
+            )}
+          </Box>
+        );
+      })}
     </Box>
   );
 }
@@ -153,7 +197,10 @@ export default function AdminPage() {
   const [openDiffPass, setOpenDiffPass] = useState(false);
   const [openServerError, setOpenServerError] = useState(false);
   const [serverErrorMsg, setServerErrorMsg] = useState("");
-  const [role, setRole] = useState("RECEPTIONIST");
+  const [roleIds, setRoleIds] = useState<string[]>(["RECEPTIONIST"]);
+  const [roleFieldIds, setRoleFieldIds] = useState<string[]>([
+    createRoleFieldId(),
+  ]);
 
   const [openEdit, setOpenEdit] = useState(false);
   const [openEditConfirm, setOpenEditConfirm] = useState(false);
@@ -162,7 +209,10 @@ export default function AdminPage() {
   const [editLastName, setEditLastName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editMobileNumber, setEditMobileNumber] = useState("");
-  const [editRole, setEditRole] = useState("");
+  const [editRoleIds, setEditRoleIds] = useState<string[]>([]);
+  const [editRoleFieldIds, setEditRoleFieldIds] = useState<string[]>([]);
+  const [editDirectAccessTabs, setEditDirectAccessTabs] = useState<string[]>([]);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const [openDel, setOpenDel] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -179,7 +229,7 @@ export default function AdminPage() {
 
   const activeStaffRoles = staffRoles.filter((staffRole) => staffRole.isActive);
   const assignableStaffRoles = activeStaffRoles.filter(
-    (staffRole) => staffRole.role !== "OWNER"
+    (staffRole) => staffRole.systemKey !== "OWNER" && staffRole.systemKey !== "CUSTOMER"
   );
   const archiveableStaffRoles = activeStaffRoles.filter(
     (staffRole) => !staffRole.isBuiltIn
@@ -190,6 +240,153 @@ export default function AdminPage() {
   const selectedRestoreRoleName =
     restorableStaffRoles.find((staffRole) => staffRole.role === restoreRole)
       ?.displayName || restoreRole;
+  const roleById = new Map(staffRoles.map((staffRole) => [staffRole.id, staffRole]));
+
+  const resolveRoleId = (value: unknown) => {
+    const rawValue = typeof value === "string" ? value.trim() : "";
+    if (!rawValue) return null;
+
+    const normalized = rawValue.toLowerCase();
+    const upper = rawValue.toUpperCase();
+    const match = staffRoles.find(
+      (staffRole) =>
+        staffRole.id === rawValue ||
+        staffRole.systemKey?.toUpperCase() === upper ||
+        staffRole.role.toUpperCase() === upper ||
+        staffRole.displayName.toLowerCase() === normalized
+    );
+
+    return match?.id ?? null;
+  };
+
+  const normalizeSelectedRoleIds = (values: unknown) => {
+    const input = Array.isArray(values) ? values : [];
+    return Array.from(
+      new Set(
+        input
+          .map((value) => resolveRoleId(value))
+          .filter((roleId): roleId is string => Boolean(roleId))
+      )
+    );
+  };
+
+  const getDefaultRoleId = () =>
+    assignableStaffRoles.find((staffRole) => staffRole.systemKey === "RECEPTIONIST")
+      ?.id ||
+    assignableStaffRoles[0]?.id ||
+    "";
+
+  const getAvailableRolesForSelection = (
+    selectedIds: string[],
+    currentIndex: number
+  ) => {
+    const currentExistingRole = selectedUser?.roles?.find(
+      (staffRole) => staffRole.id === selectedIds[currentIndex]
+    );
+    const roles = assignableStaffRoles.filter(
+      (staffRole) =>
+        staffRole.id === selectedIds[currentIndex] ||
+        !selectedIds.includes(staffRole.id)
+    );
+
+    return currentExistingRole &&
+      !roles.some((staffRole) => staffRole.id === currentExistingRole.id)
+      ? [currentExistingRole, ...roles]
+      : roles;
+  };
+
+  const setRoleIdAt = (
+    selectedIds: string[],
+    setter: (nextIds: string[]) => void,
+    index: number,
+    value: string
+  ) => {
+    setter(selectedIds.map((roleId, roleIndex) => (roleIndex === index ? value : roleId)));
+  };
+
+  const addRoleBox = (
+    selectedIds: string[],
+    setter: (nextIds: string[]) => void,
+    fieldSetter?: (nextIds: string[]) => void,
+    currentFieldIds: string[] = []
+  ) => {
+    const nextRole = assignableStaffRoles.find(
+      (staffRole) => !selectedIds.includes(staffRole.id)
+    );
+
+    if (nextRole) {
+      setter([...selectedIds, nextRole.id]);
+      fieldSetter?.([...currentFieldIds, createRoleFieldId()]);
+    }
+  };
+
+  const removeRoleBox = (
+    selectedIds: string[],
+    setter: (nextIds: string[]) => void,
+    index: number,
+    fieldSetter?: (nextIds: string[]) => void,
+    currentFieldIds: string[] = []
+  ) => {
+    setter(selectedIds.filter((_, roleIndex) => roleIndex !== index));
+    fieldSetter?.(currentFieldIds.filter((_, roleIndex) => roleIndex !== index));
+  };
+
+  const getInheritedAccessSources = (selectedIds: string[]) => {
+    const sources: Record<string, string[]> = {};
+
+    selectedIds.forEach((roleId) => {
+      const staffRole = roleById.get(roleId);
+      if (!staffRole || !staffRole.isActive) return;
+      const tabs = roleAccess[staffRole.role] || [];
+      tabs.forEach((tabKey) => {
+        sources[tabKey] = sources[tabKey] || [];
+        sources[tabKey].push(staffRole.displayName);
+      });
+    });
+
+    return sources;
+  };
+
+  const getInheritedAccessTabs = (selectedIds: string[]) =>
+    Object.keys(getInheritedAccessSources(selectedIds));
+
+  const renderEffectiveAccessPreview = (
+    selectedIds: string[],
+    directTabs: string[] = []
+  ) => {
+    const inheritedTabs = getInheritedAccessTabs(selectedIds);
+    const effectiveTabs = Array.from(new Set([...inheritedTabs, ...directTabs]));
+    const labels = ADMIN_TABS.filter((tab) => effectiveTabs.includes(tab.key)).map(
+      (tab) => tab.label
+    );
+
+    return (
+      <Box sx={{ bgcolor: "#f6f6f6", borderRadius: 2, p: 1.5 }}>
+        <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.5 }}>
+          Effective Access
+        </Typography>
+        {labels.length > 0 ? (
+          labels.map((label) => (
+            <Typography key={label} sx={{ fontSize: 13, color: "#555" }}>
+              {`\u2022 ${label}`}
+            </Typography>
+          ))
+        ) : (
+          <Typography sx={{ fontSize: 13, color: "text.secondary" }}>
+            No modules selected.
+          </Typography>
+        )}
+      </Box>
+    );
+  };
+
+  const toggleEditDirectAccessTab = (tabKey: string) => {
+    setEditDirectAccessTabs((currentTabs) =>
+      currentTabs.includes(tabKey)
+        ? currentTabs.filter((tab) => tab !== tabKey)
+        : [...currentTabs, tabKey]
+    );
+  };
 
   const roleNameExists = (name: string) => {
     const normalizedName = name.trim().toLowerCase();
@@ -302,15 +499,36 @@ export default function AdminPage() {
 
       if (Array.isArray(data.roles)) {
         setStaffRoles(data.roles);
+        const activeRoleIds = new Set(
+          data.roles
+            .filter((staffRole: StaffRole) => staffRole.isActive)
+            .map((staffRole: StaffRole) => staffRole.id)
+        );
+        const defaultRoleId =
+          data.roles.find(
+            (staffRole: StaffRole) =>
+              staffRole.systemKey === "RECEPTIONIST" && staffRole.isActive
+          )?.id ||
+          data.roles.find((staffRole: StaffRole) => staffRole.isActive)?.id ||
+          "";
         const activeRoleNames = new Set(
           data.roles
             .filter((staffRole: StaffRole) => staffRole.isActive)
             .map((staffRole: StaffRole) => staffRole.role)
         );
 
-        setRole((currentRole) =>
-          activeRoleNames.has(currentRole) ? currentRole : "RECEPTIONIST"
-        );
+        setRoleIds((currentRoleIds) => {
+          const currentCanonicalRoleIds = normalizeSelectedRoleIds(currentRoleIds);
+          const nextRoleIds =
+            currentCanonicalRoleIds.length > 0 &&
+            currentCanonicalRoleIds.every((roleId) => activeRoleIds.has(roleId))
+              ? currentCanonicalRoleIds
+              : defaultRoleId
+              ? [defaultRoleId]
+              : [];
+          setRoleFieldIds(nextRoleIds.map(() => createRoleFieldId()));
+          return nextRoleIds;
+        });
         setRoleAccessRole((currentRole) =>
           activeRoleNames.has(currentRole) ? currentRole : "RECEPTIONIST"
         );
@@ -387,7 +605,7 @@ export default function AdminPage() {
           mobileNumber,
           email,
           password,
-          role,
+          roleIds: normalizeSelectedRoleIds(roleIds),
         }),
       });
 
@@ -408,7 +626,9 @@ export default function AdminPage() {
       setEmail("");
       setPassword("");
       setConfirmPassword("");
-      setRole("RECEPTIONIST");
+      const defaultRoleId = getDefaultRoleId();
+      setRoleIds(defaultRoleId ? [defaultRoleId] : []);
+      setRoleFieldIds(defaultRoleId ? [createRoleFieldId()] : []);
 
       showStatusModal("Success", "User created successfully!");
     } catch {
@@ -428,7 +648,8 @@ export default function AdminPage() {
       !trimmedEmail ||
       !trimmedMobileNumber ||
       !password ||
-      !confirmPassword
+      !confirmPassword ||
+      normalizeSelectedRoleIds(roleIds).length === 0
     ) {
       showStatusModal(
         "Incomplete Fields",
@@ -465,6 +686,16 @@ export default function AdminPage() {
 
   const handleUpdateUser = async () => {
     if (!selectedUser) return;
+    if (isUpdating) return;
+
+    const normalizedEditRoleIds = normalizeSelectedRoleIds(editRoleIds);
+
+    if (normalizedEditRoleIds.length === 0) {
+      showStatusModal("Incomplete Fields", "Select at least one unique role.");
+      return;
+    }
+
+    setIsUpdating(true);
 
     try {
       const res = await fetch(`/api/admin/user-management/${selectedUser.id}`, {
@@ -475,42 +706,79 @@ export default function AdminPage() {
           lastName: editLastName,
           email: editEmail,
           mobileNumber: editMobileNumber,
-          role: editRole,
+          roleIds: normalizedEditRoleIds,
+          directAccessTabs: editDirectAccessTabs,
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        showStatusModal("Error", data.error || "Failed to update user");
+        console.error("Update user failed", {
+          status: res.status,
+          response: data,
+          payload: { roleIds: normalizedEditRoleIds },
+        });
+        showStatusModal(
+          "Error",
+          data?.error || data?.message || `Failed to update user (${res.status})`
+        );
         return;
       }
 
       await queryClient.invalidateQueries({ queryKey: ["adminUsersData"] });
-      await queryClient.invalidateQueries({ queryKey: ["adminUsersData"] });
+      const savedUser = data?.user;
+      const savedRoleIds = normalizeSelectedRoleIds(
+        savedUser?.roleIds?.length
+          ? savedUser.roleIds
+          : savedUser?.roles?.map((staffRole: StaffRole) => staffRole.id)
+      );
+      const nextRoleIds = savedRoleIds.length ? savedRoleIds : normalizedEditRoleIds;
+      const nextDirectAccessTabs = Array.isArray(savedUser?.directAccessTabs)
+        ? savedUser.directAccessTabs
+        : editDirectAccessTabs;
       setUsers((prev) =>
         sortUsers(
           prev.map((user) =>
             user.id === selectedUser.id
               ? {
                   ...user,
-                  name: `${editFirstName} ${editLastName}`,
-                  email: editEmail,
-                  mobileNumber: editMobileNumber,
-                  role: editRole,
+                  ...(savedUser || {}),
+                  name:
+                    savedUser?.name ||
+                    `${editFirstName} ${editLastName}`.trim(),
+                  email: savedUser?.email || editEmail,
+                  mobileNumber: savedUser?.mobileNumber || editMobileNumber,
+                  roleIds: nextRoleIds,
+                  directAccessTabs: nextDirectAccessTabs,
+                  inheritedTabs: savedUser?.inheritedTabs,
+                  accessibleTabs: savedUser?.accessibleTabs,
+                  roles:
+                    savedUser?.roles ||
+                    nextRoleIds
+                      .map((roleId) => roleById.get(roleId))
+                      .filter((staffRole): staffRole is StaffRole => Boolean(staffRole)),
+                  role: savedUser?.role || roleById.get(nextRoleIds[0])?.role || user.role,
                 }
               : user
           )
         )
       );
+      setSelectedUser(savedUser || null);
+      setEditRoleIds(nextRoleIds);
+      setEditRoleFieldIds(nextRoleIds.map(() => createRoleFieldId()));
+      setEditDirectAccessTabs(nextDirectAccessTabs);
 
       setOpenEdit(false);
       setOpenEditConfirm(false);
       setSelectedUser(null);
 
       showStatusModal("Success", "User updated successfully!");
-    } catch {
+    } catch (error) {
+      console.error("Update user request failed", error);
       showStatusModal("Error", "Something went wrong");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -655,9 +923,12 @@ export default function AdminPage() {
         setStaffRoles((prev) => [
           ...prev,
           {
+            id: trimmedRoleName,
             role: trimmedRoleName,
             displayName: trimmedRoleName,
             isBuiltIn: false,
+            isSystemRole: false,
+            systemKey: null,
             isActive: true,
           },
         ]);
@@ -671,7 +942,10 @@ export default function AdminPage() {
         ...prev,
         [trimmedRoleName]: data.tabs || newRoleTabs,
       }));
-      setRole(trimmedRoleName);
+      const createdRoleId =
+        data.roles?.find((staffRole: StaffRole) => staffRole.role === trimmedRoleName)
+          ?.id || trimmedRoleName;
+      setRoleIds([createdRoleId]);
       setOpenAddRole(false);
       resetAddRoleForm();
       showStatusModal("Success", "Role created successfully.");
@@ -745,9 +1019,19 @@ export default function AdminPage() {
         setArchivedStaffRoles(data.archivedRoles);
       }
 
-      setRole((currentRole) =>
-        currentRole === archiveRole ? "RECEPTIONIST" : currentRole
-      );
+      setRoleIds((currentRoleIds) => {
+        const archivedRoleId = staffRoles.find(
+          (staffRole) => staffRole.role === archiveRole
+        )?.id;
+        const nextRoleIds = currentRoleIds.filter(
+          (roleId) => roleId !== archivedRoleId
+        );
+        return nextRoleIds.length > 0
+          ? nextRoleIds
+          : getDefaultRoleId()
+          ? [getDefaultRoleId()]
+          : [];
+      });
       setRoleAccessRole((currentRole) =>
         currentRole === archiveRole ? "RECEPTIONIST" : currentRole
       );
@@ -818,7 +1102,12 @@ export default function AdminPage() {
         setArchivedStaffRoles(data.archivedRoles);
       }
 
-      setRole(restoreRole);
+      const restoredRoleId =
+        data.roles?.find((staffRole: StaffRole) => staffRole.role === restoreRole)
+          ?.id || "";
+      if (restoredRoleId) {
+        setRoleIds([restoredRoleId]);
+      }
       setOpenRestoreRole(false);
       resetRestoreRoleForm();
       await loadRoleAccess();
@@ -839,18 +1128,8 @@ export default function AdminPage() {
 
   const totalPages = Math.ceil(sortedUsers.length / itemsPerPage);
   const selectedUserRoleIsArchived =
-    selectedUser?.role === editRole && selectedUser?.roleIsArchived === true;
-  const editRoleOptions = selectedUserRoleIsArchived
-    ? [
-        {
-          role: selectedUser.role,
-          displayName: `${selectedUser.roleDisplayName || selectedUser.role} (Archived)`,
-          isBuiltIn: false,
-          isActive: false,
-        },
-        ...assignableStaffRoles,
-      ]
-    : assignableStaffRoles;
+    selectedUser?.roleIsArchived === true &&
+    editRoleIds.some((roleId) => !roleById.get(roleId)?.isActive);
 
   return (
     <Box sx={{ flex: 1, p: 4, backgroundColor: "#fff" }}>
@@ -1004,8 +1283,41 @@ export default function AdminPage() {
                     <TableCell>{user.mobileNumber}</TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell sx={{ color: user.roleIsArchived ? "#9e6300" : "#666" }}>
-                      {user.roleDisplayName || user.role}
-                      {user.roleIsArchived ? " (Archived)" : ""}
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                        {(user.roles?.length
+                          ? user.roles
+                          : [
+                              {
+                                id: user.role,
+                                role: user.role,
+                                displayName: user.roleDisplayName || user.role,
+                                isBuiltIn: false,
+                                isActive: !user.roleIsArchived,
+                              },
+                            ]
+                        ).slice(0, 3).map((staffRole) => (
+                          <Box
+                            key={staffRole.id}
+                            component="span"
+                            sx={{
+                              border: "1px solid #d7d7d7",
+                              borderRadius: 1,
+                              px: 0.75,
+                              py: 0.25,
+                              fontSize: 12,
+                              bgcolor: staffRole.isActive ? "#f7f7f7" : "#fff3cd",
+                            }}
+                          >
+                            {staffRole.displayName}
+                            {staffRole.isActive ? "" : " (Archived)"}
+                          </Box>
+                        ))}
+                        {(user.roles?.length || 0) > 3 && (
+                          <Box component="span" sx={{ fontSize: 12, color: "#666" }}>
+                            +{(user.roles?.length || 0) - 3}
+                          </Box>
+                        )}
+                      </Box>
                     </TableCell>
                     <TableCell>
                       {new Date(user.createdAt).toLocaleDateString()}
@@ -1027,7 +1339,23 @@ export default function AdminPage() {
                               setEditLastName(names.slice(1).join(" ") || "");
                               setEditEmail(user.email);
                               setEditMobileNumber(user.mobileNumber);
-                              setEditRole(user.role || "RECEPTIONIST");
+                              const assignedRoleIds =
+                                user.roleIds?.length
+                                  ? user.roleIds
+                                  : user.roles?.map((staffRole) => staffRole.id) || [];
+                              const nextEditRoleIds =
+                                assignedRoleIds.length > 0
+                                  ? normalizeSelectedRoleIds(assignedRoleIds)
+                                  : [getDefaultRoleId()].filter(Boolean)
+                              setEditRoleIds(nextEditRoleIds);
+                              setEditRoleFieldIds(
+                                nextEditRoleIds.map(() => createRoleFieldId())
+                              );
+                              setEditDirectAccessTabs(
+                                Array.isArray(user.directAccessTabs)
+                                  ? user.directAccessTabs
+                                  : []
+                              );
 
                               setOpenEdit(true);
                             }}
@@ -1237,22 +1565,66 @@ export default function AdminPage() {
               sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
             />
 
-            <FormControl fullWidth sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}>
-              <InputLabel>
-                Role <span style={{ color: "red" }}>*</span>
-              </InputLabel>
-              <Select
-                value={role}
-                label="Role *"
-                onChange={(e) => setRole(e.target.value)}
+            {roleIds.map((roleId, index) => (
+              <Box
+                key={roleFieldIds[index] || `role-${roleId}-${index}`}
+                sx={{ display: "flex", alignItems: "center", gap: 1 }}
               >
-                {assignableStaffRoles.map((staffRole) => (
-                  <MenuItem key={staffRole.role} value={staffRole.role}>
-                    {staffRole.displayName}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+                <FormControl fullWidth sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}>
+                  <InputLabel>
+                    {index === 0 ? "Role" : `Role ${index + 1}`}{" "}
+                    {index === 0 && <span style={{ color: "red" }}>*</span>}
+                  </InputLabel>
+                  <Select
+                    value={roleId}
+                    label={index === 0 ? "Role *" : `Role ${index + 1}`}
+                    onChange={(e) =>
+                      setRoleIdAt(roleIds, setRoleIds, index, e.target.value)
+                    }
+                  >
+                    {getAvailableRolesForSelection(roleIds, index).map((staffRole) => (
+                      <MenuItem
+                        key={staffRole.id}
+                        value={staffRole.id}
+                        disabled={!staffRole.isActive || staffRole.systemKey === "OWNER"}
+                      >
+                        {staffRole.displayName}
+                        {staffRole.isActive ? "" : " (Archived)"}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                {index > 0 && (
+                  <Button
+                    onClick={() =>
+                      removeRoleBox(
+                        roleIds,
+                        setRoleIds,
+                        index,
+                        setRoleFieldIds,
+                        roleFieldIds
+                      )
+                    }
+                    sx={{ textTransform: "none", minWidth: 88 }}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </Box>
+            ))}
+
+            <Button
+              onClick={() =>
+                addRoleBox(roleIds, setRoleIds, setRoleFieldIds, roleFieldIds)
+              }
+              disabled={roleIds.length >= assignableStaffRoles.length}
+              sx={{ alignSelf: "flex-start", textTransform: "none", px: 0 }}
+            >
+              + New Role
+            </Button>
+
+            {renderEffectiveAccessPreview(roleIds)}
           </DialogContent>
 
           <Box
@@ -1855,46 +2227,50 @@ export default function AdminPage() {
       <Dialog
         open={openEdit}
         onClose={() => setOpenEdit(false)}
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
         sx={{
           "& .MuiPaper-root": {
             borderRadius: 4,
-            bgcolor: "#f2f2f2",
-            overflow: "visible",
+            bgcolor: "#fff",
+            boxShadow: "0 10px 40px rgba(0,0,0,0.08)",
+            display: "flex",
+            flexDirection: "column",
+            maxHeight: "90vh",
+            overflow: "hidden",
           },
         }}
       >
-        <Box
+        <DialogTitle
           sx={{
-            m: 2,
-            bgcolor: "#fff",
-            borderRadius: 4,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
             p: 3,
             pb: 2,
-            boxShadow: "0 10px 40px rgba(0,0,0,0.08)",
           }}
         >
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              mb: 2,
-            }}
-          >
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              Edit User Details
-            </Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Edit User Details
+          </Typography>
 
-            <IconButton onClick={() => setOpenEdit(false)} size="small">
-              <CloseIcon />
-            </IconButton>
-          </Box>
+          <IconButton onClick={() => setOpenEdit(false)} size="small">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
 
-          <DialogContent
-            sx={{ p: 1, display: "flex", flexDirection: "column", gap: 2 }}
-          >
+        <DialogContent
+          dividers
+          sx={{
+            display: "flex",
+            flex: "1 1 auto",
+            flexDirection: "column",
+            gap: 2,
+            minHeight: 0,
+            overflowY: "auto",
+            p: 3,
+          }}
+        >
             <TextField
               label={
                 <>
@@ -1971,43 +2347,110 @@ export default function AdminPage() {
               sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
             />
 
-            <FormControl fullWidth sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}>
-              <InputLabel>
-                Role <span style={{ color: "red" }}>*</span>
-              </InputLabel>
-
-              <Select
-                value={editRole}
-                label="Role *"
-                onChange={(e) => setEditRole(e.target.value)}
+            {editRoleIds.map((roleId, index) => (
+              <Box
+                key={editRoleFieldIds[index] || `edit-role-${roleId}-${index}`}
+                sx={{ display: "flex", alignItems: "center", gap: 1 }}
               >
-                {editRoleOptions.map((staffRole) => (
-                  <MenuItem
-                    key={staffRole.role}
-                    value={staffRole.role}
-                    disabled={!staffRole.isActive}
-                  >
-                    {staffRole.displayName}
-                  </MenuItem>
-                ))}
-              </Select>
-              {selectedUserRoleIsArchived && (
-                <Typography sx={{ mt: 1, fontSize: 12, color: "#9e6300" }}>
-                  This user's current role is archived. Select an active role before saving.
-                </Typography>
-              )}
-            </FormControl>
-          </DialogContent>
+                <FormControl fullWidth sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}>
+                  <InputLabel>
+                    {index === 0 ? "Role" : `Role ${index + 1}`}{" "}
+                    {index === 0 && <span style={{ color: "red" }}>*</span>}
+                  </InputLabel>
 
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 1,
-              mt: 3,
-              mb: 2,
-            }}
-          >
+                  <Select
+                    value={roleId}
+                    label={index === 0 ? "Role *" : `Role ${index + 1}`}
+                    onChange={(e) =>
+                      setRoleIdAt(editRoleIds, setEditRoleIds, index, e.target.value)
+                    }
+                  >
+                    {getAvailableRolesForSelection(editRoleIds, index).map(
+                      (staffRole) => (
+                        <MenuItem
+                          key={staffRole.id}
+                          value={staffRole.id}
+                          disabled={!staffRole.isActive || staffRole.systemKey === "OWNER"}
+                        >
+                          {staffRole.displayName}
+                          {staffRole.isActive ? "" : " (Archived)"}
+                        </MenuItem>
+                      )
+                    )}
+                  </Select>
+                </FormControl>
+
+                {index > 0 && (
+                  <Button
+                    onClick={() =>
+                      removeRoleBox(
+                        editRoleIds,
+                        setEditRoleIds,
+                        index,
+                        setEditRoleFieldIds,
+                        editRoleFieldIds
+                      )
+                    }
+                    sx={{ textTransform: "none", minWidth: 88 }}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </Box>
+            ))}
+
+            <Button
+              onClick={() =>
+                addRoleBox(
+                  editRoleIds,
+                  setEditRoleIds,
+                  setEditRoleFieldIds,
+                  editRoleFieldIds
+                )
+              }
+              disabled={editRoleIds.length >= assignableStaffRoles.length}
+              sx={{ alignSelf: "flex-start", textTransform: "none", px: 0 }}
+            >
+              + New Role
+            </Button>
+
+            {selectedUserRoleIsArchived && (
+              <Typography sx={{ mt: 1, fontSize: 12, color: "#9e6300" }}>
+                This user&apos;s current role is archived. Select an active role before saving.
+              </Typography>
+            )}
+
+            <Box sx={{ bgcolor: "#f6f6f6", borderRadius: 2, p: 1.5 }}>
+              <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.5 }}>
+                Direct Module Access
+              </Typography>
+              <Typography sx={{ fontSize: 12, color: "text.secondary", mb: 1 }}>
+                Checked modules are direct user grants. Inherited role access remains active even when unchecked here.
+              </Typography>
+              <RoleModuleSelection
+                selectedTabs={editDirectAccessTabs}
+                inheritedTabs={getInheritedAccessTabs(editRoleIds)}
+                inheritedSources={getInheritedAccessSources(editRoleIds)}
+                showSources
+                onToggle={toggleEditDirectAccessTab}
+              />
+            </Box>
+
+            {renderEffectiveAccessPreview(editRoleIds, editDirectAccessTabs)}
+        </DialogContent>
+
+        <DialogActions
+          sx={{
+            bgcolor: "background.paper",
+            flexShrink: 0,
+            justifyContent: "space-between",
+            gap: 1,
+            p: 3,
+            position: "sticky",
+            bottom: 0,
+            zIndex: 1,
+          }}
+        >
             <Button
               onClick={() => setOpenEdit(false)}
               sx={{
@@ -2044,8 +2487,7 @@ export default function AdminPage() {
             >
               Update
             </Button>
-          </Box>
-        </Box>
+        </DialogActions>
       </Dialog>
 
       <Dialog
@@ -2099,6 +2541,7 @@ export default function AdminPage() {
             <Button
               variant="contained"
               onClick={handleUpdateUser}
+              disabled={isUpdating}
               sx={{
                 backgroundColor: "#000",
                 color: "#fff",
@@ -2108,7 +2551,7 @@ export default function AdminPage() {
                 ":hover": { backgroundColor: "#111" },
               }}
             >
-              Update
+              {isUpdating ? "Updating..." : "Update"}
             </Button>
           </Box>
         </Box>

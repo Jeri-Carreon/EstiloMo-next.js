@@ -2,11 +2,19 @@ import bcrypt from "bcrypt";
 import { db } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
-import { logUserCreated } from "@/lib/securityLogEvents";
+import {
+  logUserCreated,
+  logUserRolesUpdated,
+} from "@/lib/securityLogEvents";
 import {
   adminAuthorizationResponse,
   requireOwner,
 } from "@/lib/adminAuthorization";
+import {
+  getPrimaryRoleFromEffectiveRoles,
+  uniqueRoleIds,
+  type EffectiveAdminRole,
+} from "@/lib/adminRoleAssignments";
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -32,8 +40,9 @@ export async function POST(req: Request) {
     const user = auth.user;
 
     // REQUEST BODY
-    let { firstName, lastName, email, password, mobileNumber, role } =
-      await req.json();
+    const body = await req.json();
+    let { firstName, lastName, email, password, mobileNumber, role } = body;
+    const { roleIds } = body;
     
     console.log("REQUEST BODY:", { firstName, lastName, email, mobileNumber, role, password: !!password });
 
@@ -110,21 +119,67 @@ export async function POST(req: Request) {
     }
 
     role = (role ?? "").trim();
+    const submittedRoleIds = Array.isArray(roleIds)
+      ? roleIds.map((roleId) => String(roleId || "").trim()).filter(Boolean)
+      : [];
+    if (new Set(submittedRoleIds).size !== submittedRoleIds.length) {
+      return NextResponse.json(
+        { ok: false, error: "Duplicate roles are not allowed" },
+        { status: 400 }
+      );
+    }
+    const requestedRoleIds = uniqueRoleIds(submittedRoleIds);
 
     // ROLE VALIDATION
-    const allowedRoles = await db.$queryRaw<{ role: string }[]>`
-      SELECT "role"
-      FROM "AdminStaffRole"
-      WHERE "role" <> 'OWNER'
-        AND "isActive" = true
-    `;
-    if (!allowedRoles.some((staffRole) => staffRole.role === role)) {
+    const selectedRoles = requestedRoleIds.length
+      ? await db.$queryRaw<EffectiveAdminRole[]>`
+          SELECT
+            "id",
+            "role",
+            "displayName",
+            "systemKey",
+            "isSystemRole",
+            "isActive",
+            NULL::timestamp AS "assignedAt"
+          FROM "AdminStaffRole"
+          WHERE "id" = ANY(${requestedRoleIds})
+            AND "isActive" = true
+            AND COALESCE("systemKey", '') NOT IN ('OWNER', 'CUSTOMER')
+        `
+      : await db.$queryRaw<EffectiveAdminRole[]>`
+          SELECT
+            "id",
+            "role",
+            "displayName",
+            "systemKey",
+            "isSystemRole",
+            "isActive",
+            NULL::timestamp AS "assignedAt"
+          FROM "AdminStaffRole"
+          WHERE "role" = ${role}
+            AND "isActive" = true
+            AND COALESCE("systemKey", '') NOT IN ('OWNER', 'CUSTOMER')
+        `;
+
+    if (
+      selectedRoles.length === 0 ||
+      selectedRoles.length !== (requestedRoleIds.length || 1)
+    ) {
       return NextResponse.json(
         { ok: false, error: "Invalid role" },
         { status: 400 }
       );
     }
 
+    const duplicateRoleIds = new Set(selectedRoles.map((staffRole) => staffRole.id));
+    if (duplicateRoleIds.size !== selectedRoles.length) {
+      return NextResponse.json(
+        { ok: false, error: "Duplicate roles are not allowed" },
+        { status: 400 }
+      );
+    }
+
+    role = getPrimaryRoleFromEffectiveRoles(selectedRoles, selectedRoles[0].role);
 
     // CHECK EXISTING EMAIL
     const existingUser = await db.user.findUnique({ where: { email } });
@@ -208,8 +263,30 @@ export async function POST(req: Request) {
           },
         });
 
+        for (const selectedRole of selectedRoles) {
+          await tx.$executeRaw`
+            INSERT INTO "UserRoleAssignment" (
+              "id",
+              "userId",
+              "roleId",
+              "assignedAt",
+              "assignedBy",
+              "assignedRoleName"
+            )
+            VALUES (
+              ${`${newUser.id}-${selectedRole.id}-${Date.now()}`},
+              ${newUser.id},
+              ${selectedRole.id},
+              NOW(),
+              ${user.id},
+              ${selectedRole.displayName}
+            )
+            ON CONFLICT DO NOTHING
+          `;
+        }
+
         // CREATE BARBER IF ROLE IS BARBER
-        if (role === "BARBER") {
+        if (selectedRoles.some((selectedRole) => selectedRole.systemKey === "BARBER")) {
           const barberCounter = await tx.counter.update({
             where: { id: "barberCode" },
             data: { value: { increment: 1 } },
@@ -243,6 +320,27 @@ export async function POST(req: Request) {
       });
 
     await logUserCreated(req, user, `${result.firstName} ${result.lastName}`.trim());
+    await logUserRolesUpdated(
+      req,
+      user,
+      `${result.firstName} ${result.lastName}`.trim(),
+      {
+        targetUserId: result.id,
+        targetUserName: `${result.firstName} ${result.lastName}`.trim(),
+        previousRoles: [],
+        newRoles: selectedRoles.map((role) => ({
+          id: role.id,
+          name: role.displayName,
+          systemKey: role.systemKey,
+        })),
+        addedRoles: selectedRoles.map((role) => ({
+          id: role.id,
+          name: role.displayName,
+          systemKey: role.systemKey,
+        })),
+        removedRoles: [],
+      }
+    );
 
     return NextResponse.json({
       ok: true,

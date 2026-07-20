@@ -110,16 +110,17 @@ export default function LoginContent() {
 
       const user = await res.json();
 
-      if (["OWNER", "RECEPTIONIST"].includes(user.role)) {
-        router.replace("/admin/dashboard");
-      } else if (user.role === "BARBER") {
-        router.replace("/admin/barbers");
-      } else if (user.role && user.role !== "CUSTOMER") {
-        const firstAccessibleTab = ADMIN_TABS.find((tab) =>
-          user.accessibleTabs?.includes(tab.key)
-        );
+      const accessibleTabs = Array.isArray(user.accessibleTabs)
+        ? user.accessibleTabs
+        : [];
+      const firstAccessibleTab = ADMIN_TABS.find((tab) =>
+        accessibleTabs.includes(tab.key)
+      );
 
-        router.replace(firstAccessibleTab?.path || "/unauthorized");
+      if (firstAccessibleTab) {
+        router.replace(firstAccessibleTab.path);
+      } else if (user.role && user.role !== "CUSTOMER") {
+        router.replace("/unauthorized");
       } else {
         router.replace(redirect || "/myAppointments");
       }
