@@ -50,6 +50,52 @@ interface User {
 
 type RoleAccess = Record<AdminRole, string[]>;
 
+type StaffRole = {
+  role: string;
+  displayName: string;
+  isBuiltIn: boolean;
+};
+
+const DEFAULT_STAFF_ROLES: StaffRole[] = [
+  { role: "OWNER", displayName: "Owner", isBuiltIn: true },
+  { role: "RECEPTIONIST", displayName: "Receptionist", isBuiltIn: true },
+  { role: "BARBER", displayName: "Barber", isBuiltIn: true },
+];
+
+function RoleModuleSelection({
+  selectedTabs,
+  onToggle,
+  disabled = false,
+}: {
+  selectedTabs: string[];
+  onToggle: (tabKey: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+        gap: 0.5,
+      }}
+    >
+      {ADMIN_TABS.map((tab) => (
+        <FormControlLabel
+          key={tab.key}
+          control={
+            <Checkbox
+              checked={selectedTabs.includes(tab.key)}
+              disabled={disabled}
+              onChange={() => onToggle(tab.key)}
+            />
+          }
+          label={tab.label}
+        />
+      ))}
+    </Box>
+  );
+}
+
 export default function AdminPage() {
   const router = useRouter();
 
@@ -64,12 +110,19 @@ export default function AdminPage() {
 
   const [openAdd, setOpenAdd] = useState(false);
   const [openRoleAccess, setOpenRoleAccess] = useState(false);
+  const [openAddRole, setOpenAddRole] = useState(false);
   const [roleAccessRole, setRoleAccessRole] = useState<AdminRole>("RECEPTIONIST");
   const [roleAccess, setRoleAccess] = useState<RoleAccess>({
     OWNER: DEFAULT_ROLE_TAB_ACCESS.OWNER,
     RECEPTIONIST: DEFAULT_ROLE_TAB_ACCESS.RECEPTIONIST,
     BARBER: DEFAULT_ROLE_TAB_ACCESS.BARBER,
   });
+  const [staffRoles, setStaffRoles] = useState<StaffRole[]>(DEFAULT_STAFF_ROLES);
+  const [currentUserRole, setCurrentUserRole] = useState("");
+  const [newRoleName, setNewRoleName] = useState("");
+  const [newRoleNameError, setNewRoleNameError] = useState("");
+  const [newRoleTabs, setNewRoleTabs] = useState<string[]>([]);
+  const [creatingRole, setCreatingRole] = useState(false);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -104,6 +157,36 @@ export default function AdminPage() {
     setStatusTitle(title);
     setStatusMessage(message);
     setOpenStatusModal(true);
+  };
+
+  const assignableStaffRoles = staffRoles.filter(
+    (staffRole) => staffRole.role !== "OWNER"
+  );
+
+  const roleNameExists = (name: string) => {
+    const normalizedName = name.trim().toLowerCase();
+
+    if (!normalizedName) return false;
+
+    return ["CUSTOMER", ...staffRoles.map((staffRole) => staffRole.role)].some(
+      (existingRole) => existingRole.toLowerCase() === normalizedName
+    );
+  };
+
+  const getRoleNameError = (name: string) => {
+    const trimmedName = name.trim();
+
+    if (!trimmedName) return "Role name is required.";
+    if (roleNameExists(trimmedName)) return "This role already exists.";
+
+    return "";
+  };
+
+  const resetAddRoleForm = () => {
+    setNewRoleName("");
+    setNewRoleNameError("");
+    setNewRoleTabs([]);
+    setCreatingRole(false);
   };
 
   const sortUsers = (list: User[]) => {
@@ -165,11 +248,16 @@ export default function AdminPage() {
 
       if (data.access) {
         setRoleAccess({
-          OWNER: data.access.OWNER || DEFAULT_ROLE_TAB_ACCESS.OWNER,
+          OWNER: data.access.OWNER ?? DEFAULT_ROLE_TAB_ACCESS.OWNER,
           RECEPTIONIST:
-            data.access.RECEPTIONIST || DEFAULT_ROLE_TAB_ACCESS.RECEPTIONIST,
-          BARBER: data.access.BARBER || DEFAULT_ROLE_TAB_ACCESS.BARBER,
+            data.access.RECEPTIONIST ?? DEFAULT_ROLE_TAB_ACCESS.RECEPTIONIST,
+          BARBER: data.access.BARBER ?? DEFAULT_ROLE_TAB_ACCESS.BARBER,
+          ...data.access,
         });
+      }
+
+      if (Array.isArray(data.roles)) {
+        setStaffRoles(data.roles);
       }
     } catch {
       showStatusModal("Error", "Unable to load role access.");
@@ -197,6 +285,7 @@ export default function AdminPage() {
 
           const res = await fetch('/api/user/role')
           const data = await res.json()
+          setCurrentUserRole(data.role || "")
 
           if (!data.accessibleTabs?.includes("user-management")) {
             router.push('/unauthorized')
@@ -204,6 +293,7 @@ export default function AdminPage() {
           }
 
           await loadUsers(true)
+          await loadRoleAccess()
         } catch (err) {
           console.error("Initialization failed:", err)
         }
@@ -412,6 +502,20 @@ export default function AdminPage() {
     });
   };
 
+  const toggleNewRoleAccessTab = (tabKey: string) => {
+    setNewRoleTabs((prev) =>
+      prev.includes(tabKey)
+        ? prev.filter((key) => key !== tabKey)
+        : [...prev, tabKey]
+    );
+  };
+
+  const handleOpenAddRole = async () => {
+    resetAddRoleForm();
+    await loadRoleAccess();
+    setOpenAddRole(true);
+  };
+
   const handleSaveRoleAccess = async () => {
     try {
       const res = await fetch("/api/admin/role-access", {
@@ -434,6 +538,63 @@ export default function AdminPage() {
       showStatusModal("Success", "Role accessibility updated successfully.");
     } catch {
       showStatusModal("Error", "Something went wrong updating role access.");
+    }
+  };
+
+  const handleCreateRole = async () => {
+    const trimmedRoleName = newRoleName.trim();
+    const validationError = getRoleNameError(trimmedRoleName);
+
+    if (validationError) {
+      setNewRoleNameError(validationError);
+      return;
+    }
+
+    try {
+      setCreatingRole(true);
+
+      const res = await fetch("/api/admin/role-access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: trimmedRoleName,
+          tabs: newRoleTabs,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 409) {
+          setNewRoleNameError("This role already exists.");
+          return;
+        }
+
+        showStatusModal("Error", data.error || "Failed to create role.");
+        return;
+      }
+
+      if (Array.isArray(data.roles)) {
+        setStaffRoles(data.roles);
+      } else {
+        setStaffRoles((prev) => [
+          ...prev,
+          { role: trimmedRoleName, displayName: trimmedRoleName, isBuiltIn: false },
+        ]);
+      }
+
+      setRoleAccess((prev) => ({
+        ...prev,
+        [trimmedRoleName]: data.tabs || newRoleTabs,
+      }));
+      setRole(trimmedRoleName);
+      setOpenAddRole(false);
+      resetAddRoleForm();
+      showStatusModal("Success", "Role created successfully.");
+    } catch {
+      showStatusModal("Error", "Something went wrong creating the role.");
+    } finally {
+      setCreatingRole(false);
     }
   };
 
@@ -490,6 +651,17 @@ export default function AdminPage() {
         >
           Edit Role Accessibility
         </Button>
+
+        {currentUserRole === "OWNER" && (
+          <Button
+            startIcon={<AddIcon />}
+            variant="outlined"
+            onClick={handleOpenAddRole}
+            sx={{ textTransform: "none" }}
+          >
+            Add Role
+          </Button>
+        )}
       </Box>
 
       {error && (
@@ -794,8 +966,11 @@ export default function AdminPage() {
                 label="Role *"
                 onChange={(e) => setRole(e.target.value)}
               >
-                <MenuItem value="RECEPTIONIST">Receptionist</MenuItem>
-                <MenuItem value="BARBER">Barber</MenuItem>
+                {assignableStaffRoles.map((staffRole) => (
+                  <MenuItem key={staffRole.role} value={staffRole.role}>
+                    {staffRole.displayName}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
           </DialogContent>
@@ -891,31 +1066,18 @@ export default function AdminPage() {
                 label="Role"
                 onChange={(e) => setRoleAccessRole(e.target.value as AdminRole)}
               >
-                <MenuItem value="RECEPTIONIST">Receptionist</MenuItem>
-                <MenuItem value="BARBER">Barber</MenuItem>
+                {assignableStaffRoles.map((staffRole) => (
+                  <MenuItem key={staffRole.role} value={staffRole.role}>
+                    {staffRole.displayName}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
 
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-                gap: 0.5,
-              }}
-            >
-              {ADMIN_TABS.map((tab) => (
-                <FormControlLabel
-                  key={tab.key}
-                  control={
-                    <Checkbox
-                      checked={(roleAccess[roleAccessRole] || []).includes(tab.key)}
-                      onChange={() => toggleRoleAccessTab(tab.key)}
-                    />
-                  }
-                  label={tab.label}
-                />
-              ))}
-            </Box>
+            <RoleModuleSelection
+              selectedTabs={roleAccess[roleAccessRole] || []}
+              onToggle={toggleRoleAccessTab}
+            />
           </DialogContent>
 
           <Box
@@ -954,6 +1116,149 @@ export default function AdminPage() {
               }}
             >
               Save
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
+
+      <Dialog
+        open={openAddRole}
+        onClose={() => {
+          if (!creatingRole) {
+            setOpenAddRole(false);
+            resetAddRoleForm();
+          }
+        }}
+        maxWidth="sm"
+        fullWidth
+        sx={{
+          "& .MuiPaper-root": {
+            borderRadius: 4,
+            bgcolor: "#f2f2f2",
+            overflow: "visible",
+          },
+        }}
+      >
+        <Box
+          sx={{
+            m: 2,
+            bgcolor: "#fff",
+            borderRadius: 4,
+            p: 3,
+            pb: 2,
+            boxShadow: "0 10px 40px rgba(0,0,0,0.08)",
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 2,
+            }}
+          >
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Add Role
+            </Typography>
+
+            <IconButton
+              onClick={() => {
+                setOpenAddRole(false);
+                resetAddRoleForm();
+              }}
+              disabled={creatingRole}
+              size="small"
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          <DialogContent
+            sx={{ p: 1, display: "flex", flexDirection: "column", gap: 2 }}
+          >
+            <TextField
+              label={
+                <>
+                  Role Name <span style={{ color: "red" }}>*</span>
+                </>
+              }
+              fullWidth
+              value={newRoleName}
+              onChange={(e) => {
+                const nextName = e.target.value;
+                setNewRoleName(nextName);
+                setNewRoleNameError(
+                  nextName.trim() ? getRoleNameError(nextName) : ""
+                );
+              }}
+              onBlur={() => {
+                const trimmedName = newRoleName.trim();
+                setNewRoleName(trimmedName);
+                setNewRoleNameError(trimmedName ? getRoleNameError(trimmedName) : "");
+              }}
+              error={Boolean(newRoleNameError)}
+              helperText={newRoleNameError}
+              disabled={creatingRole}
+              slotProps={{ htmlInput: { maxLength: 50 } }}
+              sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
+            />
+
+            <RoleModuleSelection
+              selectedTabs={newRoleTabs}
+              onToggle={toggleNewRoleAccessTab}
+              disabled={creatingRole}
+            />
+          </DialogContent>
+
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 1,
+              mt: 3,
+              mb: 2,
+            }}
+          >
+            <Button
+              onClick={() => {
+                setOpenAddRole(false);
+                resetAddRoleForm();
+              }}
+              disabled={creatingRole}
+              sx={{
+                backgroundColor: "#6d6d6d",
+                color: "#f7c948",
+                textTransform: "none",
+                minWidth: 120,
+                py: 1.25,
+                ":hover": { backgroundColor: "#5a5a5a" },
+              }}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={handleCreateRole}
+              disabled={
+                creatingRole ||
+                !newRoleName.trim() ||
+                Boolean(newRoleNameError)
+              }
+              sx={{
+                backgroundColor: "#000",
+                color: "#fff",
+                textTransform: "none",
+                minWidth: 120,
+                py: 1.25,
+                ":hover": { backgroundColor: "#111" },
+                "&.Mui-disabled": {
+                  backgroundColor: "#777",
+                  color: "#eee",
+                },
+              }}
+            >
+              {creatingRole ? "Creating..." : "Create Role"}
             </Button>
           </Box>
         </Box>
@@ -1093,9 +1398,11 @@ export default function AdminPage() {
                   },
                 }}
               >
-                <MenuItem value="OWNER">Owner</MenuItem>
-                <MenuItem value="RECEPTIONIST">Receptionist</MenuItem>
-                <MenuItem value="BARBER">Barber</MenuItem>
+                {staffRoles.map((staffRole) => (
+                  <MenuItem key={staffRole.role} value={staffRole.role}>
+                    {staffRole.displayName}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
           </DialogContent>

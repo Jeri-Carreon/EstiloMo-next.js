@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { DEFAULT_ROLE_TAB_ACCESS, normalizeAdminRole, type AdminTabKey } from '@/lib/adminTabs'
+import { DEFAULT_ROLE_TAB_ACCESS, normalizeAdminRole, type BuiltInAdminRole, type AdminTabKey } from '@/lib/adminTabs'
 
 type AccessRow = {
   tabKey: string;
@@ -33,7 +33,10 @@ export async function GET() {
   }
 
   const normalizedRole = normalizeAdminRole(dbUser.role)
-  let accessibleTabs = normalizedRole ? DEFAULT_ROLE_TAB_ACCESS[normalizedRole] : []
+  let accessibleTabs =
+    normalizedRole === 'OWNER'
+      ? DEFAULT_ROLE_TAB_ACCESS.OWNER
+      : DEFAULT_ROLE_TAB_ACCESS[normalizedRole as BuiltInAdminRole] || []
 
   if (normalizedRole && normalizedRole !== 'OWNER') {
     try {
@@ -44,7 +47,10 @@ export async function GET() {
         ORDER BY "tabKey" ASC
       `
 
-      if (rows.length > 0) {
+      if (
+        rows.length > 0 ||
+        !DEFAULT_ROLE_TAB_ACCESS[normalizedRole as BuiltInAdminRole]
+      ) {
         accessibleTabs = rows.map((row) => row.tabKey as AdminTabKey)
       }
     } catch (error) {

@@ -16,6 +16,7 @@ import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ADMIN_TABS } from "@/lib/adminTabs";
 
 export default function LoginContent() {
   const [showPassword, setShowPassword] = useState(false);
@@ -106,6 +107,12 @@ export default function LoginContent() {
         router.replace("/admin/dashboard");
       } else if (user.role === "BARBER") {
         router.replace("/admin/barbers");
+      } else if (user.role && user.role !== "CUSTOMER") {
+        const firstAccessibleTab = ADMIN_TABS.find((tab) =>
+          user.accessibleTabs?.includes(tab.key)
+        );
+
+        router.replace(firstAccessibleTab?.path || "/unauthorized");
       } else {
         router.replace(redirect || "/myAppointments");
       }

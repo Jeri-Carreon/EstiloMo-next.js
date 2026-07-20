@@ -12,7 +12,8 @@ export type AdminTabKey =
   | "chatbot"
   | "security";
 
-export type AdminRole = "OWNER" | "RECEPTIONIST" | "BARBER";
+export type BuiltInAdminRole = "OWNER" | "RECEPTIONIST" | "BARBER";
+export type AdminRole = string;
 
 export const ADMIN_TABS: { key: AdminTabKey; label: string; path: string }[] = [
   { key: "dashboard", label: "Dashboard", path: "/admin/dashboard" },
@@ -31,7 +32,7 @@ export const ADMIN_TABS: { key: AdminTabKey; label: string; path: string }[] = [
 
 export const ALL_ADMIN_TAB_KEYS = ADMIN_TABS.map((tab) => tab.key);
 
-export const DEFAULT_ROLE_TAB_ACCESS: Record<AdminRole, AdminTabKey[]> = {
+export const DEFAULT_ROLE_TAB_ACCESS: Record<BuiltInAdminRole, AdminTabKey[]> = {
   OWNER: ALL_ADMIN_TAB_KEYS,
   RECEPTIONIST: [
     "dashboard",
@@ -45,11 +46,13 @@ export const DEFAULT_ROLE_TAB_ACCESS: Record<AdminRole, AdminTabKey[]> = {
 };
 
 export function normalizeAdminRole(role: string | null | undefined): AdminRole | null {
-  if (role === "OWNER" || role === "RECEPTIONIST" || role === "BARBER") {
-    return role;
+  const normalizedRole = role?.trim();
+
+  if (!normalizedRole || normalizedRole === "CUSTOMER") {
+    return null;
   }
 
-  return null;
+  return normalizedRole;
 }
 
 export function canAccessAdminTab(
@@ -64,7 +67,7 @@ export function canAccessAdminTab(
 
   const tabs = accessibleTabs?.length
     ? accessibleTabs
-    : DEFAULT_ROLE_TAB_ACCESS[normalizedRole];
+    : DEFAULT_ROLE_TAB_ACCESS[normalizedRole as BuiltInAdminRole] || [];
 
   return tabs.includes(tabKey);
 }

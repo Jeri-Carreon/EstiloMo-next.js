@@ -105,9 +105,22 @@ export async function POST(req: Request) {
       );
     }
 
+    role = (role ?? "").trim();
+
     // ROLE VALIDATION
-    const allowedRoles = ["RECEPTIONIST", "BARBER"];
-    if (!allowedRoles.includes(role)) {
+    const allowedRoles = await db.$queryRaw<{ role: string }[]>`
+      SELECT "role"
+      FROM "AdminStaffRole"
+      WHERE "role" <> 'OWNER'
+    `;
+    if (!allowedRoles.some((staffRole) => staffRole.role === role)) {
+      return NextResponse.json(
+        { ok: false, error: "Invalid role" },
+        { status: 400 }
+      );
+    }
+
+    if (user.role !== "OWNER" && !["RECEPTIONIST", "BARBER"].includes(role)) {
       return NextResponse.json(
         { ok: false, error: "Invalid role" },
         { status: 400 }

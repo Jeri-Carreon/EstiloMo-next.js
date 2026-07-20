@@ -14,8 +14,8 @@ export async function GET(req: Request) {
 
     const users = await db.user.findMany({
       where: {
-        role: {
-          in: ["OWNER", "RECEPTIONIST", "BARBER"],
+        NOT: {
+          role: "CUSTOMER",
         },
       },
       orderBy: [

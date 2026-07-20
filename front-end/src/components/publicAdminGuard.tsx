@@ -22,7 +22,7 @@ export default function PublicAdminLogoutGuard() {
 
       const data = await res.json();
 
-      if (["OWNER", "RECEPTIONIST", "BARBER"].includes(data.role)) {
+      if (data.role && data.role !== "CUSTOMER") {
         await fetch("/api/auth/signout", { method: "POST" }).catch(() => null);
         await supabase.auth.signOut().catch(() => null);
         window.location.href = "/login";
