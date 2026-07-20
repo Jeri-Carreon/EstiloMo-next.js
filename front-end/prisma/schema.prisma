@@ -334,6 +334,7 @@ model AdminStaffRole {
   role        String   @id
   displayName String
   isBuiltIn   Boolean  @default(false)
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

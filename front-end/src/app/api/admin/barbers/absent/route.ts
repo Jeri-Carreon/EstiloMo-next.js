@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getAdminUser } from "@/lib/supabase/getUser";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +19,13 @@ function toDate(dateStr: string) {
 
 export async function POST(req: Request) {
   try {
-    const user = await getAdminUser();
+    const auth = await requireAdminTabAccess("barbers", req);
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
+
+    const user = auth.user;
 
     const { barberId, date } = await req.json();
 
@@ -77,6 +82,12 @@ export async function POST(req: Request) {
 
 export async function GET() {
   try {
+    const auth = await requireAdminTabAccess("barbers");
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
+    }
+
     const absents = await db.barberAbsent.findMany({
       select: {
         id: true,
@@ -100,11 +111,13 @@ export async function GET() {
 
 export async function DELETE(req: Request) {
   try {
-    const user = await getAdminUser();
+    const auth = await requireAdminTabAccess("barbers", req);
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
+
+    const user = auth.user;
 
     const { barberId, date } = await req.json();
 

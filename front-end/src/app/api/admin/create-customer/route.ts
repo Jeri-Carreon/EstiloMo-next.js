@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { registerUser } from "@/lib/register-user";
-import { getAdminUser } from "@/lib/supabase/getUser";
 import { logCustomerCreated } from "@/lib/securityLogEvents";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 export async function POST(req: NextRequest) {
   try {
-    const adminUser = await getAdminUser();
-    if (!adminUser || !["OWNER", "RECEPTIONIST"].includes(adminUser.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const auth = await requireAdminTabAccess("customers", req);
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
+
+    const adminUser = auth.user;
 
     let { firstName, lastName, email, mobileNumber } = await req.json();
 
@@ -49,7 +55,19 @@ export async function POST(req: NextRequest) {
       mobileNumber,
     });
 
-    const { password: _, ...safeUser } = user;
+    const safeUser = {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      mobileNumber: user.mobileNumber,
+      role: user.role,
+      userCode: user.userCode,
+      isActive: user.isActive,
+      emailVerified: user.emailVerified,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
 
     await logCustomerCreated(req, adminUser, `${customer.firstName} ${customer.lastName}`.trim());
 
@@ -59,10 +77,12 @@ export async function POST(req: NextRequest) {
       user: safeUser,
       customer,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("create-customer error:", error);
+    const message = error instanceof Error ? error.message : "Failed to create customer";
+
     return NextResponse.json(
-      { ok: false, error: error.message ?? "Failed to create customer" },
+      { ok: false, error: message },
       { status: 400 }
     );
   }

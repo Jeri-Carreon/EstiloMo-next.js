@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { buildAIReportAnalytics } from "@/lib/reportAnalytics";
-import { getAdminUser } from "@/lib/supabase/getUser";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 import { getReportServiceClientConfig } from "@/server/reports-api/config";
 import type { ReportEstimateSuccessResponse } from "@/server/reports-api/types/reports";
 
@@ -74,9 +77,10 @@ async function requestExternalReportEstimate({
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getAdminUser();
-    if (!user || !["OWNER"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const auth = await requireAdminTabAccess("reports", req);
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
 
     const from = req.nextUrl.searchParams.get("from");

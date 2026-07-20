@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getAdminUser } from "@/lib/supabase/getUser";
 import { logAppointmentCreated } from "@/lib/securityLogEvents";
 import { parsePHDateOnly } from "@/lib/dateUtils";
 import {
@@ -13,6 +12,10 @@ import {
   assertCustomerAppointmentTimeAvailable,
   assertAppointmentTimeAvailable,
 } from "@/lib/appointmentAvailability";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 export const dynamic = "force-dynamic";
 
@@ -27,10 +30,10 @@ function minutesToTime(minutes: number) {
 
 export async function GET() {
   try {
-    const user = await getAdminUser();
+    const auth = await requireAdminTabAccess("appointments");
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
 
     const appointments = await db.appointment.findMany({
@@ -150,11 +153,13 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const user = await getAdminUser();
+    const auth = await requireAdminTabAccess("appointments", req);
 
-    if (!user || !["OWNER", "RECEPTIONIST", "BARBER"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
+
+    const user = auth.user;
 
     const body = await req.json();
 
@@ -333,10 +338,10 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    const user = await getAdminUser();
+    const auth = await requireAdminTabAccess("appointments", req);
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
 
     const body = await req.json();

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +50,12 @@ async function ensureDefaults() {
 
 export async function GET() {
   try {
+    const auth = await requireAdminTabAccess("chatbot");
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
+    }
+
     await ensureDefaults();
 
     const settings = await db.chatbotSetting.findMany({
@@ -65,6 +75,12 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   try {
+    const auth = await requireAdminTabAccess("chatbot", req);
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
+    }
+
     const body = await req.json().catch(() => null);
 
     if (!Array.isArray(body?.settings)) {
@@ -115,6 +131,12 @@ export async function PUT(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const auth = await requireAdminTabAccess("chatbot", req);
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
+    }
+
     const body = await req.json().catch(() => null);
 
     if (!body?.key) {

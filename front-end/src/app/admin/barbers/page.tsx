@@ -1310,7 +1310,7 @@ export default function BarbersPage() {
         </Typography>
       </Box>
 
-      {["OWNER", "RECEPTIONIST"].includes(role) && (
+      {role !== "BARBER" && (
         <Button
           variant="contained"
           onClick={() => {

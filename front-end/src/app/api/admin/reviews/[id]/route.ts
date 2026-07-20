@@ -1,16 +1,21 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import type { Prisma, ReviewStatus } from "@prisma/client";
 
-import { getAdminUser } from "@/lib/supabase/getUser";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getAdminUser()
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const auth = await requireAdminTabAccess("reviews", req);
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
 
     const { id } = await params;
@@ -18,10 +23,10 @@ export async function PUT(
 
     const { status, isVisible } = body;
 
-    const data: any = {};
+    const data: Prisma.ReviewUpdateInput = {};
 
     if (status) {
-      data.status = status;
+      data.status = status as ReviewStatus;
       data.isVisible = status === "COMPLETED";
     }
 
@@ -31,11 +36,13 @@ export async function PUT(
 
     const review = await db.review.update({
       where: { id },
-      data: data as any,
+      data,
     });
 
     return NextResponse.json({ review });
   } catch (error) {
+    console.error("ADMIN REVIEW UPDATE ERROR:", error);
+
     return NextResponse.json(
       { error: "Unable to update review." },
       { status: 500 }

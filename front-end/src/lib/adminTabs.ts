@@ -31,6 +31,26 @@ export const ADMIN_TABS: { key: AdminTabKey; label: string; path: string }[] = [
 ];
 
 export const ALL_ADMIN_TAB_KEYS = ADMIN_TABS.map((tab) => tab.key);
+export const ADMIN_TAB_BY_PATH = ADMIN_TABS.reduce<Record<string, AdminTabKey>>(
+  (acc, tab) => {
+    acc[tab.path] = tab.key;
+    return acc;
+  },
+  {}
+);
+
+export function getAdminTabForPath(pathname: string): AdminTabKey | null {
+  const normalizedPath = pathname.replace(/\/+$/, "") || "/admin";
+
+  const matchingTab = ADMIN_TABS
+    .filter(
+      (tab) =>
+        normalizedPath === tab.path || normalizedPath.startsWith(`${tab.path}/`)
+    )
+    .sort((a, b) => b.path.length - a.path.length)[0];
+
+  return matchingTab?.key ?? null;
+}
 
 export const DEFAULT_ROLE_TAB_ACCESS: Record<BuiltInAdminRole, AdminTabKey[]> = {
   OWNER: ALL_ADMIN_TAB_KEYS,

@@ -23,6 +23,7 @@ export async function middleware(req: NextRequest) {
 
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("x-pathname", req.nextUrl.pathname);
   requestHeaders.set("Content-Security-Policy", contentSecurityPolicy);
 
   let response = NextResponse.next({

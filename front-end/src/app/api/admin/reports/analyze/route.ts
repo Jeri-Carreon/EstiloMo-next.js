@@ -6,7 +6,10 @@ import {
   type AIReportAnalytics,
 } from "@/lib/reportAnalytics";
 import { db } from "@/lib/db";
-import { getAdminUser } from "@/lib/supabase/getUser";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 import { getReportServiceClientConfig } from "@/server/reports-api/config";
 import type { ReportAnalyzeSuccessResponse } from "@/server/reports-api/types/reports";
 
@@ -99,11 +102,13 @@ async function requestExternalReportAnalysis({
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getAdminUser();
+  const auth = await requireAdminTabAccess("reports", req);
 
-  if (!user || user.role !== "OWNER") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (auth.status !== 200) {
+    return adminAuthorizationResponse(auth.status);
   }
+
+  const user = auth.user;
 
   let analytics: AIReportAnalytics | undefined;
 

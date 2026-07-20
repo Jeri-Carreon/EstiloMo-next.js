@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/getUser";
 import { ensureSingleAppointmentSetting } from "@/lib/appointmentSettings";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 export async function GET() {
   try {
-    const user = await getAdminUser()
-      if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
+    const auth = await requireAdminTabAccess("appointments");
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
+    }
 
     const settings = await ensureSingleAppointmentSetting();
 

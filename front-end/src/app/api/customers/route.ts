@@ -1,10 +1,23 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import {
+  adminAuthorizationResponse,
+  requireAnyAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const auth = await requireAnyAdminTabAccess(
+      ["customers", "appointments", "sales", "loyaltyCard"],
+      req
+    );
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
+    }
+
     const customers = await db.customer.findMany({
       include: {
         user: true,

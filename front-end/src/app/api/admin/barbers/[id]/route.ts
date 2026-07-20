@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getAdminUser } from "@/lib/supabase/getUser";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -16,13 +19,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const dbUser = await getAdminUser();
+    const auth = await requireAdminTabAccess("barbers", req);
 
-    if (
-      !dbUser ||
-      !["OWNER", "RECEPTIONIST", "BARBER"].includes(dbUser.role)
-    ) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
 
     const { id } = await params;

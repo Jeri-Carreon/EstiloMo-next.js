@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { getAdminUser } from "@/lib/supabase/getUser";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 export async function GET(req: Request) {
   try {
-    const admin = await getAdminUser();
+    const auth = await requireAdminTabAccess("security", req);
 
-    if (!admin || admin.role !== "OWNER") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
 
     const { searchParams } = new URL(req.url);
@@ -17,7 +21,7 @@ export async function GET(req: Request) {
     const page = Math.max(Number(searchParams.get("page") || "1"), 1);
     const limit = 5;
 
-    const filters: any[] = [];
+    const filters: Prisma.SecurityLogWhereInput[] = [];
 
     if (search) {
       filters.push({

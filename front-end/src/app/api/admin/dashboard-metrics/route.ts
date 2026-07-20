@@ -25,7 +25,10 @@ import {
   toDashboardDateTime,
 } from "@/lib/dashboardDateRange";
 import { db as prisma } from "@/lib/db";
-import { createClient } from "@/lib/supabase/server";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 const appointmentSelect = Prisma.validator<Prisma.AppointmentSelect>()({
   id: true,
@@ -189,39 +192,10 @@ function reviewWhere(dateRange: { gte: Date; lte: Date }, barberId?: string | nu
   };
 }
 
-async function requireOwnerOrReceptionist(
-  req: NextRequest,
-): Promise<{ ok: true } | { ok: false; status: number }> {
-  const supabase = await createClient();
-  const authHeader = req.headers.get("authorization");
-  let user = null;
-
-  if (authHeader?.startsWith("Bearer ")) {
-    const token = authHeader.replace("Bearer ", "");
-    const { data } = await supabase.auth.getUser(token);
-    user = data?.user;
-  } else {
-    const { data } = await supabase.auth.getUser();
-    user = data?.user;
-  }
-
-  if (!user) return { ok: false, status: 401 };
-
-  const dbUser = await prisma.user.findUnique({
-    where: { email: user.email! },
-    select: { role: true },
-  });
-
-  if (!dbUser || !["OWNER", "RECEPTIONIST"].includes(dbUser.role)) {
-    return { ok: false, status: 403 };
-  }
-  return { ok: true };
-}
-
 export async function GET(req: NextRequest) {
-  const auth = await requireOwnerOrReceptionist(req);
-  if (!auth.ok) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: auth.status });
+  const auth = await requireAdminTabAccess("dashboard", req);
+  if (auth.status !== 200) {
+    return adminAuthorizationResponse(auth.status);
   }
 
   const period = parsePeriod(req.nextUrl.searchParams.get("period"));

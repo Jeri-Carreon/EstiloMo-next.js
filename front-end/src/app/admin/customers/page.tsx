@@ -210,6 +210,11 @@ export default function CustomersPage() {
         cache: "no-store",
       });
 
+      if (res.status === 401) {
+        router.push("/login");
+        return [];
+      }
+
       if (res.status === 403) {
         router.push("/unauthorized");
         return [];

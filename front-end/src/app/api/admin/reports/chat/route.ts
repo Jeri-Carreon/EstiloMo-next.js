@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
-import { getAdminUser } from "@/lib/supabase/getUser";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 import { getReportServiceClientConfig } from "@/server/reports-api/config";
 import type {
   ReportChatMessage,
@@ -90,10 +93,13 @@ async function requestExternalReportChat({
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getAdminUser();
-    if (!user || !["OWNER"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const auth = await requireAdminTabAccess("reports", req);
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
+
+    const user = auth.user;
 
     const { messages, reportData, reportRequest, deep } = (await req.json()) as {
       messages: ChatMsg[];

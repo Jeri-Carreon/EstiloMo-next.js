@@ -44,6 +44,8 @@ interface User {
   mobileNumber: string;
   email: string;
   role: string;
+  roleDisplayName?: string;
+  roleIsArchived?: boolean;
   isActive: boolean;
   createdAt: string;
 }
@@ -54,12 +56,13 @@ type StaffRole = {
   role: string;
   displayName: string;
   isBuiltIn: boolean;
+  isActive: boolean;
 };
 
 const DEFAULT_STAFF_ROLES: StaffRole[] = [
-  { role: "OWNER", displayName: "Owner", isBuiltIn: true },
-  { role: "RECEPTIONIST", displayName: "Receptionist", isBuiltIn: true },
-  { role: "BARBER", displayName: "Barber", isBuiltIn: true },
+  { role: "OWNER", displayName: "Owner", isBuiltIn: true, isActive: true },
+  { role: "RECEPTIONIST", displayName: "Receptionist", isBuiltIn: true, isActive: true },
+  { role: "BARBER", displayName: "Barber", isBuiltIn: true, isActive: true },
 ];
 
 function RoleModuleSelection({
@@ -123,6 +126,17 @@ export default function AdminPage() {
   const [newRoleNameError, setNewRoleNameError] = useState("");
   const [newRoleTabs, setNewRoleTabs] = useState<string[]>([]);
   const [creatingRole, setCreatingRole] = useState(false);
+  const [openArchiveRole, setOpenArchiveRole] = useState(false);
+  const [archiveRole, setArchiveRole] = useState("");
+  const [archiveChecking, setArchiveChecking] = useState(false);
+  const [archiveConfirm, setArchiveConfirm] = useState(false);
+  const [archiveBlockMessage, setArchiveBlockMessage] = useState("");
+  const [archivedStaffRoles, setArchivedStaffRoles] = useState<StaffRole[]>([]);
+  const [openRestoreRole, setOpenRestoreRole] = useState(false);
+  const [restoreRole, setRestoreRole] = useState("");
+  const [restoreChecking, setRestoreChecking] = useState(false);
+  const [restoreConfirm, setRestoreConfirm] = useState(false);
+  const [restoreBlockMessage, setRestoreBlockMessage] = useState("");
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -159,18 +173,30 @@ export default function AdminPage() {
     setOpenStatusModal(true);
   };
 
-  const assignableStaffRoles = staffRoles.filter(
+  const activeStaffRoles = staffRoles.filter((staffRole) => staffRole.isActive);
+  const assignableStaffRoles = activeStaffRoles.filter(
     (staffRole) => staffRole.role !== "OWNER"
   );
+  const archiveableStaffRoles = activeStaffRoles.filter(
+    (staffRole) => !staffRole.isBuiltIn
+  );
+  const restorableStaffRoles = archivedStaffRoles.filter(
+    (staffRole) => !staffRole.isBuiltIn && !staffRole.isActive
+  );
+  const selectedRestoreRoleName =
+    restorableStaffRoles.find((staffRole) => staffRole.role === restoreRole)
+      ?.displayName || restoreRole;
 
   const roleNameExists = (name: string) => {
     const normalizedName = name.trim().toLowerCase();
 
     if (!normalizedName) return false;
 
-    return ["CUSTOMER", ...staffRoles.map((staffRole) => staffRole.role)].some(
-      (existingRole) => existingRole.toLowerCase() === normalizedName
-    );
+    return [
+      "CUSTOMER",
+      ...staffRoles.map((staffRole) => staffRole.role),
+      ...archivedStaffRoles.map((staffRole) => staffRole.role),
+    ].some((existingRole) => existingRole.toLowerCase() === normalizedName);
   };
 
   const getRoleNameError = (name: string) => {
@@ -187,6 +213,20 @@ export default function AdminPage() {
     setNewRoleNameError("");
     setNewRoleTabs([]);
     setCreatingRole(false);
+  };
+
+  const resetArchiveRoleForm = () => {
+    setArchiveRole("");
+    setArchiveChecking(false);
+    setArchiveConfirm(false);
+    setArchiveBlockMessage("");
+  };
+
+  const resetRestoreRoleForm = () => {
+    setRestoreRole("");
+    setRestoreChecking(false);
+    setRestoreConfirm(false);
+    setRestoreBlockMessage("");
   };
 
   const sortUsers = (list: User[]) => {
@@ -258,6 +298,22 @@ export default function AdminPage() {
 
       if (Array.isArray(data.roles)) {
         setStaffRoles(data.roles);
+        const activeRoleNames = new Set(
+          data.roles
+            .filter((staffRole: StaffRole) => staffRole.isActive)
+            .map((staffRole: StaffRole) => staffRole.role)
+        );
+
+        setRole((currentRole) =>
+          activeRoleNames.has(currentRole) ? currentRole : "RECEPTIONIST"
+        );
+        setRoleAccessRole((currentRole) =>
+          activeRoleNames.has(currentRole) ? currentRole : "RECEPTIONIST"
+        );
+      }
+
+      if (Array.isArray(data.archivedRoles)) {
+        setArchivedStaffRoles(data.archivedRoles);
       }
     } catch {
       showStatusModal("Error", "Unable to load role access.");
@@ -293,7 +349,10 @@ export default function AdminPage() {
           }
 
           await loadUsers(true)
-          await loadRoleAccess()
+
+          if (data.role === "OWNER") {
+            await loadRoleAccess()
+          }
         } catch (err) {
           console.error("Initialization failed:", err)
         }
@@ -516,6 +575,18 @@ export default function AdminPage() {
     setOpenAddRole(true);
   };
 
+  const handleOpenArchiveRole = async () => {
+    resetArchiveRoleForm();
+    await loadRoleAccess();
+    setOpenArchiveRole(true);
+  };
+
+  const handleOpenRestoreRole = async () => {
+    resetRestoreRoleForm();
+    await loadRoleAccess();
+    setOpenRestoreRole(true);
+  };
+
   const handleSaveRoleAccess = async () => {
     try {
       const res = await fetch("/api/admin/role-access", {
@@ -579,8 +650,17 @@ export default function AdminPage() {
       } else {
         setStaffRoles((prev) => [
           ...prev,
-          { role: trimmedRoleName, displayName: trimmedRoleName, isBuiltIn: false },
+          {
+            role: trimmedRoleName,
+            displayName: trimmedRoleName,
+            isBuiltIn: false,
+            isActive: true,
+          },
         ]);
+      }
+
+      if (Array.isArray(data.archivedRoles)) {
+        setArchivedStaffRoles(data.archivedRoles);
       }
 
       setRoleAccess((prev) => ({
@@ -598,6 +678,154 @@ export default function AdminPage() {
     }
   };
 
+  const buildArchiveBlockMessage = (
+    assignedUsers: { name: string }[],
+    assignedUserCount: number
+  ) => {
+    const names = assignedUsers.map((user) => `\u2022 ${user.name}`).join("\n");
+    const remainingCount = Math.max(assignedUserCount - assignedUsers.length, 0);
+    const moreText =
+      remainingCount > 0 ? `\n\n...and ${remainingCount} more users.` : "";
+
+    return `Cannot archive role.\n\nCurrently assigned to:\n\n${names}${moreText}\n\nReassign these users before archiving the role.`;
+  };
+
+  const handleArchiveRole = async () => {
+    if (!archiveRole) {
+      showStatusModal("Error", "Select a role to archive.");
+      return;
+    }
+
+    try {
+      setArchiveChecking(true);
+      setArchiveBlockMessage("");
+
+      const res = await fetch("/api/admin/role-access", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "archive",
+          role: archiveRole,
+          confirm: archiveConfirm,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.status === 409 && Array.isArray(data.assignedUsers)) {
+        setArchiveConfirm(false);
+        setArchiveBlockMessage(
+          buildArchiveBlockMessage(
+            data.assignedUsers,
+            Number(data.assignedUserCount || data.assignedUsers.length)
+          )
+        );
+        return;
+      }
+
+      if (!res.ok) {
+        showStatusModal("Error", data.error || "Failed to archive role.");
+        return;
+      }
+
+      if (!archiveConfirm && data.canArchive) {
+        setArchiveConfirm(true);
+        return;
+      }
+
+      if (Array.isArray(data.roles)) {
+        setStaffRoles(data.roles);
+      }
+
+      if (Array.isArray(data.archivedRoles)) {
+        setArchivedStaffRoles(data.archivedRoles);
+      }
+
+      setRole((currentRole) =>
+        currentRole === archiveRole ? "RECEPTIONIST" : currentRole
+      );
+      setRoleAccessRole((currentRole) =>
+        currentRole === archiveRole ? "RECEPTIONIST" : currentRole
+      );
+      setOpenArchiveRole(false);
+      resetArchiveRoleForm();
+      await loadRoleAccess();
+      showStatusModal("Success", "Role archived successfully.");
+    } catch {
+      showStatusModal("Error", "Something went wrong archiving the role.");
+    } finally {
+      setArchiveChecking(false);
+    }
+  };
+
+  const buildRestoreBlockMessage = (activeRole: {
+    displayName?: string;
+    role?: string;
+  }) => {
+    const roleName =
+      activeRole.displayName || activeRole.role || selectedRestoreRoleName;
+
+    return `Cannot restore role.\n\nAn active role named "${roleName}" already exists.\n\nRename or archive the active role before restoring this one.`;
+  };
+
+  const handleRestoreRole = async () => {
+    if (!restoreRole) {
+      showStatusModal("Error", "Select a role to restore.");
+      return;
+    }
+
+    try {
+      setRestoreChecking(true);
+      setRestoreBlockMessage("");
+
+      const res = await fetch("/api/admin/role-access", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "restore",
+          role: restoreRole,
+          confirm: restoreConfirm,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.status === 409 && data.activeRole) {
+        setRestoreConfirm(false);
+        setRestoreBlockMessage(buildRestoreBlockMessage(data.activeRole));
+        return;
+      }
+
+      if (!res.ok) {
+        showStatusModal("Error", data.error || "Failed to restore role.");
+        return;
+      }
+
+      if (!restoreConfirm && data.canRestore) {
+        setRestoreConfirm(true);
+        return;
+      }
+
+      if (Array.isArray(data.roles)) {
+        setStaffRoles(data.roles);
+      }
+
+      if (Array.isArray(data.archivedRoles)) {
+        setArchivedStaffRoles(data.archivedRoles);
+      }
+
+      setRole(restoreRole);
+      setOpenRestoreRole(false);
+      resetRestoreRoleForm();
+      await loadRoleAccess();
+      showStatusModal("Success", "Role restored successfully.");
+    } catch {
+      showStatusModal("Error", "Something went wrong restoring the role.");
+    } finally {
+      setRestoreChecking(false);
+    }
+  };
+
   const sortedUsers = sortUsers(users);
 
   const paginatedUsers = sortedUsers.slice(
@@ -606,6 +834,19 @@ export default function AdminPage() {
   );
 
   const totalPages = Math.ceil(sortedUsers.length / itemsPerPage);
+  const selectedUserRoleIsArchived =
+    selectedUser?.role === editRole && selectedUser?.roleIsArchived === true;
+  const editRoleOptions = selectedUserRoleIsArchived
+    ? [
+        {
+          role: selectedUser.role,
+          displayName: `${selectedUser.roleDisplayName || selectedUser.role} (Archived)`,
+          isBuiltIn: false,
+          isActive: false,
+        },
+        ...assignableStaffRoles,
+      ]
+    : assignableStaffRoles;
 
   return (
     <Box sx={{ flex: 1, p: 4, backgroundColor: "#fff" }}>
@@ -632,35 +873,63 @@ export default function AdminPage() {
           mb: 4,
         }}
       >
-        <Button
-          startIcon={<AddIcon />}
-          variant="contained"
-          onClick={() => setOpenAdd(true)}
-          sx={{ textTransform: "none" }}
-        >
-          Add User
-        </Button>
-
-        <Button
-          variant="outlined"
-          onClick={async () => {
-            await loadRoleAccess();
-            setOpenRoleAccess(true);
-          }}
-          sx={{ textTransform: "none" }}
-        >
-          Edit Role Accessibility
-        </Button>
-
         {currentUserRole === "OWNER" && (
-          <Button
-            startIcon={<AddIcon />}
-            variant="outlined"
-            onClick={handleOpenAddRole}
-            sx={{ textTransform: "none" }}
-          >
-            Add Role
-          </Button>
+          <>
+            <Button
+              startIcon={<AddIcon />}
+              variant="contained"
+              onClick={() => setOpenAdd(true)}
+              sx={{ textTransform: "none" }}
+            >
+              Add User
+            </Button>
+
+            <Button
+              variant="outlined"
+              onClick={async () => {
+                await loadRoleAccess();
+                setOpenRoleAccess(true);
+              }}
+              sx={{ textTransform: "none" }}
+            >
+              Edit Role Accessibility
+            </Button>
+
+            <Button
+              startIcon={<AddIcon />}
+              variant="outlined"
+              onClick={handleOpenAddRole}
+              sx={{ textTransform: "none" }}
+            >
+              Add Role
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={handleOpenArchiveRole}
+              sx={{
+                textTransform: "none",
+                backgroundColor: "#d32f2f",
+                color: "#fff",
+                ":hover": { backgroundColor: "#b71c1c" },
+              }}
+            >
+              Archive Role
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={handleOpenRestoreRole}
+              sx={{
+                textTransform: "none",
+                backgroundColor: "#2e7d32",
+                color: "#fff",
+                ":hover": { backgroundColor: "#1b5e20" },
+              }}
+            >
+              Restore Role
+            </Button>
+          </>
         )}
       </Box>
 
@@ -730,48 +999,55 @@ export default function AdminPage() {
                     <TableCell>{user.name}</TableCell>
                     <TableCell>{user.mobileNumber}</TableCell>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell sx={{ color: "#666" }}>{user.role}</TableCell>
+                    <TableCell sx={{ color: user.roleIsArchived ? "#9e6300" : "#666" }}>
+                      {user.roleDisplayName || user.role}
+                      {user.roleIsArchived ? " (Archived)" : ""}
+                    </TableCell>
                     <TableCell>
                       {new Date(user.createdAt).toLocaleDateString()}
                     </TableCell>
 
                     <TableCell>
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        disabled={!user.isActive}
-                        onClick={() => {
-                          setSelectedUser(user);
+                      {currentUserRole === "OWNER" && (
+                        <>
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            disabled={!user.isActive}
+                            onClick={() => {
+                              setSelectedUser(user);
 
-                          const names = (user.name ?? "").split(" ");
+                              const names = (user.name ?? "").split(" ");
 
-                          setEditFirstName(names[0] || "");
-                          setEditLastName(names.slice(1).join(" ") || "");
-                          setEditEmail(user.email);
-                          setEditMobileNumber(user.mobileNumber);
-                          setEditRole(user.role || "RECEPTIONIST");
+                              setEditFirstName(names[0] || "");
+                              setEditLastName(names.slice(1).join(" ") || "");
+                              setEditEmail(user.email);
+                              setEditMobileNumber(user.mobileNumber);
+                              setEditRole(user.role || "RECEPTIONIST");
 
-                          setOpenEdit(true);
-                        }}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
+                              setOpenEdit(true);
+                            }}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
 
-                      <IconButton
-                        size="small"
-                        color={user.isActive ? "warning" : "success"}
-                        onClick={() => {
-                          setSelectedUser(user);
-                          setOpenDel(true);
-                        }}
-                        title={user.isActive ? "Deactivate User" : "Activate User"}
-                      >
-                        {user.isActive ? (
-                          <PersonOffIcon fontSize="small" />
-                        ) : (
-                          <PersonIcon fontSize="small" />
-                        )}
-                      </IconButton>
+                          <IconButton
+                            size="small"
+                            color={user.isActive ? "warning" : "success"}
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setOpenDel(true);
+                            }}
+                            title={user.isActive ? "Deactivate User" : "Activate User"}
+                          >
+                            {user.isActive ? (
+                              <PersonOffIcon fontSize="small" />
+                            ) : (
+                              <PersonIcon fontSize="small" />
+                            )}
+                          </IconButton>
+                        </>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1265,6 +1541,314 @@ export default function AdminPage() {
       </Dialog>
 
       <Dialog
+        open={openArchiveRole}
+        onClose={() => {
+          if (!archiveChecking) {
+            setOpenArchiveRole(false);
+            resetArchiveRoleForm();
+          }
+        }}
+        maxWidth="sm"
+        fullWidth
+        sx={{
+          "& .MuiPaper-root": {
+            borderRadius: 4,
+            bgcolor: "#f2f2f2",
+            overflow: "visible",
+          },
+        }}
+      >
+        <Box
+          sx={{
+            m: 2,
+            bgcolor: "#fff",
+            borderRadius: 4,
+            p: 3,
+            pb: 2,
+            boxShadow: "0 10px 40px rgba(0,0,0,0.08)",
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 2,
+            }}
+          >
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Archive Role
+            </Typography>
+
+            <IconButton
+              onClick={() => {
+                setOpenArchiveRole(false);
+                resetArchiveRoleForm();
+              }}
+              disabled={archiveChecking}
+              size="small"
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          <DialogContent
+            sx={{ p: 1, display: "flex", flexDirection: "column", gap: 2 }}
+          >
+            <FormControl fullWidth sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}>
+              <InputLabel>Role</InputLabel>
+              <Select
+                value={archiveRole}
+                label="Role"
+                disabled={archiveChecking || archiveConfirm}
+                onChange={(e) => {
+                  setArchiveRole(e.target.value);
+                  setArchiveConfirm(false);
+                  setArchiveBlockMessage("");
+                }}
+              >
+                {archiveableStaffRoles.map((staffRole) => (
+                  <MenuItem key={staffRole.role} value={staffRole.role}>
+                    {staffRole.displayName}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {archiveableStaffRoles.length === 0 && (
+              <Typography sx={{ fontSize: 14, color: "text.secondary" }}>
+                No active custom roles are available to archive.
+              </Typography>
+            )}
+
+            {archiveBlockMessage && (
+              <Typography sx={{ whiteSpace: "pre-wrap", color: "#9e6300" }}>
+                {archiveBlockMessage}
+              </Typography>
+            )}
+
+            {archiveConfirm && (
+              <Typography sx={{ whiteSpace: "pre-wrap", color: "#333" }}>
+                {`Archive role "${archiveRole}"?\n\nArchived roles cannot be assigned to new users.\n\nHistorical data referencing this role will be preserved.\n\nYou can restore this role later.`}
+              </Typography>
+            )}
+          </DialogContent>
+
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 1,
+              mt: 3,
+              mb: 2,
+            }}
+          >
+            <Button
+              onClick={() => {
+                setOpenArchiveRole(false);
+                resetArchiveRoleForm();
+              }}
+              disabled={archiveChecking}
+              sx={{
+                backgroundColor: "#6d6d6d",
+                color: "#f7c948",
+                textTransform: "none",
+                minWidth: 120,
+                py: 1.25,
+                ":hover": { backgroundColor: "#5a5a5a" },
+              }}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={handleArchiveRole}
+              disabled={
+                archiveChecking ||
+                !archiveRole ||
+                archiveableStaffRoles.length === 0
+              }
+              sx={{
+                backgroundColor: "#d32f2f",
+                color: "#fff",
+                textTransform: "none",
+                minWidth: 120,
+                py: 1.25,
+                ":hover": { backgroundColor: "#b71c1c" },
+                "&.Mui-disabled": {
+                  backgroundColor: "#9e9e9e",
+                  color: "#eee",
+                },
+              }}
+            >
+              {archiveChecking
+                ? "Checking..."
+                : archiveConfirm
+                ? "Archive"
+                : "Archive Role"}
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
+
+      <Dialog
+        open={openRestoreRole}
+        onClose={() => {
+          if (!restoreChecking) {
+            setOpenRestoreRole(false);
+            resetRestoreRoleForm();
+          }
+        }}
+        maxWidth="sm"
+        fullWidth
+        sx={{
+          "& .MuiPaper-root": {
+            borderRadius: 4,
+            bgcolor: "#f2f2f2",
+            overflow: "visible",
+          },
+        }}
+      >
+        <Box
+          sx={{
+            m: 2,
+            bgcolor: "#fff",
+            borderRadius: 4,
+            p: 3,
+            pb: 2,
+            boxShadow: "0 10px 40px rgba(0,0,0,0.08)",
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 2,
+            }}
+          >
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Restore Role
+            </Typography>
+
+            <IconButton
+              onClick={() => {
+                setOpenRestoreRole(false);
+                resetRestoreRoleForm();
+              }}
+              disabled={restoreChecking}
+              size="small"
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          <DialogContent
+            sx={{ p: 1, display: "flex", flexDirection: "column", gap: 2 }}
+          >
+            <FormControl fullWidth sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}>
+              <InputLabel>Archived Role</InputLabel>
+              <Select
+                value={restoreRole}
+                label="Archived Role"
+                disabled={
+                  restoreChecking ||
+                  restoreConfirm ||
+                  restorableStaffRoles.length === 0
+                }
+                onChange={(e) => {
+                  setRestoreRole(e.target.value);
+                  setRestoreConfirm(false);
+                  setRestoreBlockMessage("");
+                }}
+              >
+                {restorableStaffRoles.map((staffRole) => (
+                  <MenuItem key={staffRole.role} value={staffRole.role}>
+                    {staffRole.displayName}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {restorableStaffRoles.length === 0 && (
+              <Typography sx={{ fontSize: 14, color: "text.secondary" }}>
+                No archived roles available.
+              </Typography>
+            )}
+
+            {restoreBlockMessage && (
+              <Typography sx={{ whiteSpace: "pre-wrap", color: "#9e6300" }}>
+                {restoreBlockMessage}
+              </Typography>
+            )}
+
+            {restoreConfirm && (
+              <Typography sx={{ whiteSpace: "pre-wrap", color: "#333" }}>
+                {`Restore role "${selectedRestoreRoleName}"?\n\nThe role will become active again.\n\nIts previously saved module permissions will be restored automatically.`}
+              </Typography>
+            )}
+          </DialogContent>
+
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 1,
+              mt: 3,
+              mb: 2,
+            }}
+          >
+            <Button
+              onClick={() => {
+                setOpenRestoreRole(false);
+                resetRestoreRoleForm();
+              }}
+              disabled={restoreChecking}
+              sx={{
+                backgroundColor: "#6d6d6d",
+                color: "#f7c948",
+                textTransform: "none",
+                minWidth: 120,
+                py: 1.25,
+                ":hover": { backgroundColor: "#5a5a5a" },
+              }}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={handleRestoreRole}
+              disabled={
+                restoreChecking ||
+                !restoreRole ||
+                restorableStaffRoles.length === 0
+              }
+              sx={{
+                backgroundColor: "#2e7d32",
+                color: "#fff",
+                textTransform: "none",
+                minWidth: 120,
+                py: 1.25,
+                ":hover": { backgroundColor: "#1b5e20" },
+                "&.Mui-disabled": {
+                  backgroundColor: "#9e9e9e",
+                  color: "#eee",
+                },
+              }}
+            >
+              {restoreChecking
+                ? "Checking..."
+                : restoreConfirm
+                ? "Restore"
+                : "Restore Role"}
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
+
+      <Dialog
         open={openEdit}
         onClose={() => setOpenEdit(false)}
         maxWidth="sm"
@@ -1391,19 +1975,23 @@ export default function AdminPage() {
               <Select
                 value={editRole}
                 label="Role *"
-                disabled
-                sx={{
-                  "& .Mui-disabled": {
-                    WebkitTextFillColor: "#555",
-                  },
-                }}
+                onChange={(e) => setEditRole(e.target.value)}
               >
-                {staffRoles.map((staffRole) => (
-                  <MenuItem key={staffRole.role} value={staffRole.role}>
+                {editRoleOptions.map((staffRole) => (
+                  <MenuItem
+                    key={staffRole.role}
+                    value={staffRole.role}
+                    disabled={!staffRole.isActive}
+                  >
                     {staffRole.displayName}
                   </MenuItem>
                 ))}
               </Select>
+              {selectedUserRoleIsArchived && (
+                <Typography sx={{ mt: 1, fontSize: 12, color: "#9e6300" }}>
+                  This user's current role is archived. Select an active role before saving.
+                </Typography>
+              )}
             </FormControl>
           </DialogContent>
 
@@ -1436,6 +2024,7 @@ export default function AdminPage() {
                 setOpenEdit(false);
                 setOpenEditConfirm(true);
               }}
+              disabled={selectedUserRoleIsArchived}
               sx={{
                 backgroundColor: "#000",
                 color: "#fff",
@@ -1443,6 +2032,10 @@ export default function AdminPage() {
                 minWidth: 120,
                 py: 1.25,
                 ":hover": { backgroundColor: "#111" },
+                "&.Mui-disabled": {
+                  backgroundColor: "#777",
+                  color: "#eee",
+                },
               }}
             >
               Update

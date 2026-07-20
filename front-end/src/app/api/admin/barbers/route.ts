@@ -1,10 +1,26 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import {
+  adminAuthorizationResponse,
+  requireAnyAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const auth = await requireAnyAdminTabAccess([
+      "barbers",
+      "dashboard",
+      "appointments",
+      "services",
+      "sales",
+    ]);
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
+    }
+
     const barbers = await db.barber.findMany({
       include: {
         user: {

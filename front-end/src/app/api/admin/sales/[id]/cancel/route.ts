@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-import { getAdminUser } from "@/lib/supabase/getUser";
 import { logRefund, logSaleCancelled, } from "@/lib/securityLogEvents";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 type CancelReason = "PARTIAL" | "CANCELLED" | "REFUNDED";
 type AppointmentCancelStatus = "CANCELLED" | "NOSHOW";
@@ -12,10 +15,13 @@ export async function PUT(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getAdminUser()
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const auth = await requireAdminTabAccess("sales", req);
+
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
+
+    const user = auth.user;
 
     const { id } = await context.params;
     const body = await req.json().catch(() => ({}));

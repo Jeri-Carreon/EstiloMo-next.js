@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getAdminUser } from "@/lib/supabase/getUser";
 import {
   logDiscountApplied,
   logLoyaltyRewardRedeemed,
   logLoyaltyStickerEarned,
   logPaymentReceived,
 } from "@/lib/securityLogEvents";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 type LoyaltyRewardType = "NONE" | "FIFTY_PERCENT" | "FREE";
 
@@ -52,11 +55,13 @@ export async function PUT(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getAdminUser();
+    const auth = await requireAdminTabAccess("sales", req);
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
+
+    const user = auth.user;
 
     const { id } = await context.params;
     const body = await req.json().catch(() => ({}));

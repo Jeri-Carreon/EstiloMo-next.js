@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getAdminUser } from "@/lib/supabase/getUser";
 import { logAppointmentEdited, logAppointmentCancelled, logAfterServicePhotoUploaded, } from "@/lib/securityLogEvents";
 import { createUniqueCode } from "@/lib/createCode";
 import { parsePHDateOnly, toPHDateKey } from "@/lib/dateUtils";
@@ -9,6 +8,10 @@ import {
   assertCustomerAppointmentTimeAvailable,
   assertAppointmentTimeAvailable,
 } from "@/lib/appointmentAvailability";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 type EditableAppointmentStatus = "PENDING" | "SCHEDULED" | "REJECTED";
 
@@ -26,11 +29,13 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getAdminUser();
+    const auth = await requireAdminTabAccess("appointments", req);
 
-    if (!user || !["OWNER", "RECEPTIONIST", "BARBER"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
+
+    const user = auth.user;
 
     const { id } = await params;
 
@@ -309,11 +314,13 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getAdminUser();
+    const auth = await requireAdminTabAccess("appointments", req);
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
+
+    const user = auth.user;
 
     const { id } = await params;
 

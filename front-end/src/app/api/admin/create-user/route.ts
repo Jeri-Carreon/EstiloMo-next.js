@@ -1,9 +1,12 @@
 import bcrypt from "bcrypt";
 import { db } from "@/lib/db";
-import { getAdminUser } from "@/lib/supabase/getUser";
 import { NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { logUserCreated } from "@/lib/securityLogEvents";
+import {
+  adminAuthorizationResponse,
+  requireOwner,
+} from "@/lib/adminAuthorization";
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,12 +23,13 @@ export async function POST(req: Request) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
     
-    const user = await getAdminUser();
-    console.log("getAdminUser result:", user);
+    const auth = await requireOwner(req);
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
+
+    const user = auth.user;
 
     // REQUEST BODY
     let { firstName, lastName, email, password, mobileNumber, role } =
@@ -112,6 +116,7 @@ export async function POST(req: Request) {
       SELECT "role"
       FROM "AdminStaffRole"
       WHERE "role" <> 'OWNER'
+        AND "isActive" = true
     `;
     if (!allowedRoles.some((staffRole) => staffRole.role === role)) {
       return NextResponse.json(
@@ -120,12 +125,6 @@ export async function POST(req: Request) {
       );
     }
 
-    if (user.role !== "OWNER" && !["RECEPTIONIST", "BARBER"].includes(role)) {
-      return NextResponse.json(
-        { ok: false, error: "Invalid role" },
-        { status: 400 }
-      );
-    }
 
     // CHECK EXISTING EMAIL
     const existingUser = await db.user.findUnique({ where: { email } });

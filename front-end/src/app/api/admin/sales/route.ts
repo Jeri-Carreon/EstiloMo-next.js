@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getAdminUser } from "@/lib/supabase/getUser";
 import { createUniqueCode } from "@/lib/createCode";
 import { logSaleCreated,logDiscountApplied, } from "@/lib/securityLogEvents";
+import {
+  adminAuthorizationResponse,
+  requireAdminTabAccess,
+} from "@/lib/adminAuthorization";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +13,6 @@ type SaleItemInput = {
   serviceId?: string;
   quantity?: number;
 };
-
-type SpecialDiscountType = "PWD" | "SENIOR";
 
 function resolveSpecialDiscountType(value: unknown, legacyPwdDiscount?: boolean) {
   if (value === "PWD" || value === "SENIOR") return value;
@@ -59,10 +60,10 @@ async function createPaymentCode() {
 
 export async function GET() {
   try {
-    const user = await getAdminUser();
+    const auth = await requireAdminTabAccess("sales");
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
 
     const rawSales = await db.sale.findMany({
@@ -225,11 +226,13 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const user = await getAdminUser();
+    const auth = await requireAdminTabAccess("sales", req);
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (auth.status !== 200) {
+      return adminAuthorizationResponse(auth.status);
     }
+
+    const user = auth.user;
 
     const body = await req.json();
 
