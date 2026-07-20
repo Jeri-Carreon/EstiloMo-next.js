@@ -4,6 +4,12 @@ import { getAdminUser } from "@/lib/supabase/getUser";
 import { NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { logUserCreated } from "@/lib/securityLogEvents";
+import {
+  ASSIGNABLE_ADMIN_ROLES,
+  getPrimaryRole,
+  hasAnyRole,
+  normalizeAdminRoles,
+} from "@/lib/adminTabs";
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -23,15 +29,15 @@ export async function POST(req: Request) {
     const user = await getAdminUser();
     console.log("getAdminUser result:", user);
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+    if (!hasAnyRole(user, ["OWNER", "RECEPTIONIST"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // REQUEST BODY
-    let { firstName, lastName, email, password, mobileNumber, role } =
+    let { firstName, lastName, email, password, mobileNumber, role, roles } =
       await req.json();
     
-    console.log("REQUEST BODY:", { firstName, lastName, email, mobileNumber, role, password: !!password });
+    console.log("REQUEST BODY:", { firstName, lastName, email, mobileNumber, role, roles, password: !!password });
 
     // SANITIZE
     firstName = (firstName ?? "").trim();
@@ -106,13 +112,17 @@ export async function POST(req: Request) {
     }
 
     // ROLE VALIDATION
-    const allowedRoles = ["RECEPTIONIST", "BARBER"];
-    if (!allowedRoles.includes(role)) {
+    const normalizedRoles = normalizeAdminRoles(Array.isArray(roles) ? roles : role);
+    const invalidRoles = normalizedRoles.filter(
+      (candidateRole) => !ASSIGNABLE_ADMIN_ROLES.includes(candidateRole)
+    );
+    if (normalizedRoles.length === 0 || invalidRoles.length > 0) {
       return NextResponse.json(
         { ok: false, error: "Invalid role" },
         { status: 400 }
       );
     }
+    role = getPrimaryRole(normalizedRoles, "RECEPTIONIST");
 
     // CHECK EXISTING EMAIL
     const existingUser = await db.user.findUnique({ where: { email } });
@@ -191,13 +201,18 @@ export async function POST(req: Request) {
             password: hashedPassword,
             mobileNumber,
             role,
+            roleAssignments: {
+              create: normalizedRoles.map((assignedRole) => ({
+                role: assignedRole,
+              })),
+            },
             isActive: true,
             emailVerified: true,
           },
         });
 
         // CREATE BARBER IF ROLE IS BARBER
-        if (role === "BARBER") {
+        if (normalizedRoles.includes("BARBER")) {
           const barberCounter = await tx.counter.update({
             where: { id: "barberCode" },
             data: { value: { increment: 1 } },

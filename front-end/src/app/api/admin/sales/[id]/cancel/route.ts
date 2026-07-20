@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 
 import { getAdminUser } from "@/lib/supabase/getUser";
 import { logRefund, logSaleCancelled, } from "@/lib/securityLogEvents";
+import { hasAnyRole } from "@/lib/adminTabs";
 
 type CancelReason = "PARTIAL" | "CANCELLED" | "REFUNDED";
 type AppointmentCancelStatus = "CANCELLED" | "NOSHOW";
@@ -13,7 +14,7 @@ export async function PUT(
 ) {
   try {
     const user = await getAdminUser()
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+    if (!hasAnyRole(user, ["OWNER", "RECEPTIONIST"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

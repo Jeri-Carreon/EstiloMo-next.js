@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { hasAnyRole } from "@/lib/adminTabs";
 import { logAppointmentCreated } from "@/lib/securityLogEvents";
 import { parsePHDateOnly } from "@/lib/dateUtils";
 import {
@@ -29,7 +30,7 @@ export async function GET() {
   try {
     const user = await getAdminUser();
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+    if (!hasAnyRole(user, ["OWNER", "RECEPTIONIST"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -152,7 +153,7 @@ export async function POST(req: Request) {
   try {
     const user = await getAdminUser();
 
-    if (!user || !["OWNER", "RECEPTIONIST", "BARBER"].includes(user.role)) {
+    if (!hasAnyRole(user, ["OWNER", "RECEPTIONIST", "BARBER"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -335,7 +336,7 @@ export async function PUT(req: Request) {
   try {
     const user = await getAdminUser();
 
-    if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+    if (!hasAnyRole(user, ["OWNER", "RECEPTIONIST"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

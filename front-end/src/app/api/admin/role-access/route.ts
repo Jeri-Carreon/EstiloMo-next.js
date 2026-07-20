@@ -4,9 +4,12 @@ import { getAdminUser } from "@/lib/supabase/getUser";
 import {
   ALL_ADMIN_TAB_KEYS,
   DEFAULT_ROLE_TAB_ACCESS,
+  getDefaultTabsForRoles,
+  hasAnyRole,
   type AdminRole,
   type AdminTabKey,
   normalizeAdminRole,
+  normalizeAdminRoles,
 } from "@/lib/adminTabs";
 
 export const dynamic = "force-dynamic";
@@ -72,7 +75,7 @@ export async function GET() {
   try {
     const user = await getAdminUser();
 
-    if (!user || !["OWNER", "RECEPTIONIST", "BARBER"].includes(user.role)) {
+    if (!hasAnyRole(user, ["OWNER", "RECEPTIONIST", "BARBER"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -85,11 +88,21 @@ export async function GET() {
     `;
 
     const access = groupAccess(rows);
+    const roles = normalizeAdminRoles(user.roles?.length ? user.roles : user.role);
     userRole = normalizeAdminRole(user.role);
+    const accessibleTabs = roles.includes("OWNER")
+      ? DEFAULT_ROLE_TAB_ACCESS.OWNER
+      : Array.from(
+          new Set(
+            roles.flatMap((role) =>
+              access[role]?.length ? access[role] : getDefaultTabsForRoles([role])
+            )
+          )
+        );
 
     return NextResponse.json({
       access,
-      accessibleTabs: userRole ? access[userRole] : [],
+      accessibleTabs,
     });
   } catch (error) {
     console.error("GET ROLE ACCESS ERROR:", error);
@@ -107,7 +120,7 @@ export async function PUT(req: Request) {
   try {
     const user = await getAdminUser();
 
-    if (!user || user.role !== "OWNER") {
+    if (!hasAnyRole(user, ["OWNER"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
 import { logCustomerUpdated, logCustomerDeactivated, } from "@/lib/securityLogEvents";
+import { hasAnyRole } from "@/lib/adminTabs";
 
 export async function PUT(
   req: Request,
@@ -18,7 +19,7 @@ export async function PUT(
 
     const adminUser = await getAdminUser();
 
-    if (!adminUser || !["OWNER", "RECEPTIONIST"].includes(adminUser.role)) {
+    if (!hasAnyRole(adminUser, ["OWNER", "RECEPTIONIST"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

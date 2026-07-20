@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { hasAnyRole } from "@/lib/adminTabs";
 
 export async function GET(req: Request) {
   try {
     const admin = await getAdminUser();
 
-    if (!admin || admin.role !== "OWNER") {
+    if (!hasAnyRole(admin, ["OWNER"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

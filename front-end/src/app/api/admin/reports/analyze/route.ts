@@ -7,6 +7,7 @@ import {
 } from "@/lib/reportAnalytics";
 import { db } from "@/lib/db";
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { hasAnyRole } from "@/lib/adminTabs";
 import { getReportServiceClientConfig } from "@/server/reports-api/config";
 import type { ReportAnalyzeSuccessResponse } from "@/server/reports-api/types/reports";
 
@@ -101,7 +102,7 @@ async function requestExternalReportAnalysis({
 export async function POST(req: NextRequest) {
   const user = await getAdminUser();
 
-  if (!user || user.role !== "OWNER") {
+  if (!hasAnyRole(user, ["OWNER"])) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

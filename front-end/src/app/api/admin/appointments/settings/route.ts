@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getAdminUser } from "@/lib/supabase/getUser";
+import { hasAnyRole } from "@/lib/adminTabs";
 import { ensureSingleAppointmentSetting } from "@/lib/appointmentSettings";
 
 export async function GET() {
   try {
     const user = await getAdminUser()
-      if (!user || !["OWNER", "RECEPTIONIST"].includes(user.role)) {
+      if (!hasAnyRole(user, ["OWNER", "RECEPTIONIST"])) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
 

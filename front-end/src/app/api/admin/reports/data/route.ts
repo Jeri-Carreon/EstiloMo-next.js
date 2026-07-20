@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
 import { getAdminUser } from '@/lib/supabase/getUser';
+import { hasAnyRole } from '@/lib/adminTabs';
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const user = await getAdminUser()
-    if (!user || !["OWNER"].includes(user.role)) {
+    if (!hasAnyRole(user, ["OWNER"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     

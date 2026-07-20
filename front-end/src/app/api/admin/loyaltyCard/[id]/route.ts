@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 
 import { getAdminUser } from "@/lib/supabase/getUser";
 import { logLoyaltyCardStatusUpdated } from "@/lib/securityLogEvents";
+import { hasAnyRole } from "@/lib/adminTabs";
 
 export async function PUT(
   req: Request,
@@ -15,7 +16,7 @@ export async function PUT(
   try {
     const user = await getAdminUser();
 
-    if (!user || !["OWNER"].includes(user.role)) {
+    if (!hasAnyRole(user, ["OWNER"])) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
