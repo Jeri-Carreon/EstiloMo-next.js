@@ -36,7 +36,11 @@ import InputLabel from "@mui/material/InputLabel";
 import FormControl from "@mui/material/FormControl";
 
 import Pagination from "@mui/material/Pagination";
-import { ADMIN_TABS, DEFAULT_ROLE_TAB_ACCESS, type AdminRole } from "@/lib/adminTabs";
+import {
+  ADMIN_TABS,
+  DEFAULT_ROLE_TAB_ACCESS,
+  type AdminRole,
+} from "@/lib/adminTabs";
 
 interface User {
   id: string;

@@ -12,7 +12,8 @@ import {
 } from "@/lib/appointmentAvailability";
 import { Prisma } from "@prisma/client";
 import { getAppOriginFromRequest } from "@/lib/appOrigin";
-import { getPendingCheckoutExpirationMinutes } from "@/lib/appointmentSettings";
+import { ensureSingleAppointmentSetting, getPendingCheckoutExpirationMinutes } from "@/lib/appointmentSettings";
+import { getAppointmentPricing } from "@/lib/appointmentPricing";
 
 const ALLOWED_PAYMONGO_METHODS = ["card", "gcash", "qrph"];
 const CREATE_CHECKOUT_FUNCTION_NAME = "smooth-task";
@@ -137,7 +138,7 @@ async function createPayMongoCheckout(params: {
               line_items: [
                 {
                   name: params.description,
-                  amount: DOWN_PAYMENT * 100,
+                  amount: Math.round(DOWN_PAYMENT * 100),
                   currency: "PHP",
                   quantity: 1,
                 },
@@ -306,9 +307,12 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const subtotal = cartItems.reduce((sum, item) => {
-        return sum + Number(item.servicePrice || 0);
+      const totalPayment = cartItems.reduce((sum, item) => {
+        const service = services.find((candidate) => candidate.id === item.serviceId);
+        return sum + Number(service?.price || 0);
       }, 0);
+      const settings = await ensureSingleAppointmentSetting();
+      const pricing = getAppointmentPricing(totalPayment, Number(settings.vatRate));
 
       const expirationMinutes = await getPendingCheckoutExpirationMinutes();
       const checkoutExpiresAt = new Date(
@@ -324,9 +328,10 @@ export async function POST(req: NextRequest) {
           status: "PENDING",
           downPaymentStatus: "PENDING",
           checkoutExpiresAt,
-          subtotal,
+          subtotal: pricing.subtotal,
           discount: 0,
-          totalAmount: subtotal,
+          vatAmount: pricing.vatAmount,
+          totalAmount: pricing.totalPayment,
         },
       });
 
@@ -379,7 +384,8 @@ export async function POST(req: NextRequest) {
           blockedRanges,
         });
 
-        const itemPrice = Number(item.servicePrice || service.price);
+        const itemPrice = Number(service.price);
+        const itemPricing = getAppointmentPricing(itemPrice, Number(settings.vatRate));
 
         await tx.saleItem.create({
           data: {
@@ -387,7 +393,7 @@ export async function POST(req: NextRequest) {
             serviceId: item.serviceId,
             quantity: 1,
             price: itemPrice,
-            subtotal: itemPrice,
+            subtotal: itemPricing.subtotal,
           },
         });
 
@@ -446,9 +452,10 @@ export async function POST(req: NextRequest) {
         data: {
           saleId: sale.id,
           paymentCode: await createUniqueCode("PAY"),
-          amount: subtotal,
+          amount: pricing.totalPayment,
           downPayment: DOWN_PAYMENT,
           discount: 0,
+          vatAmount: pricing.vatAmount,
           method: null,
           status: "PENDING",
         },

@@ -2,10 +2,12 @@ import { db } from "@/lib/db";
 
 export const DEFAULT_PENDING_CHECKOUT_EXPIRATION_MINUTES = 5;
 export const MAX_PENDING_CHECKOUT_EXPIRATION_MINUTES = 60;
+export const DEFAULT_APPOINTMENT_VAT_RATE = 0.12;
 
 type AppointmentSettingInput = {
   bookingCutoffHours?: number;
   pendingCheckoutExpirationMinutes?: number;
+  vatRate?: number;
 };
 
 /**
@@ -72,6 +74,7 @@ export async function ensureSingleAppointmentSetting(
           pendingCheckoutExpirationMinutes:
             normalizedExpirationInput ??
             getEnvironmentExpirationFallback(),
+          vatRate: normalizeVatRate(input?.vatRate),
         },
       });
     }
@@ -91,6 +94,7 @@ export async function ensureSingleAppointmentSetting(
     const updateData: {
       bookingCutoffHours?: number;
       pendingCheckoutExpirationMinutes?: number;
+      vatRate?: number;
     } = {};
 
     if (
@@ -107,6 +111,13 @@ export async function ensureSingleAppointmentSetting(
     ) {
       updateData.pendingCheckoutExpirationMinutes =
         normalizedExpirationInput;
+    }
+
+    if (input?.vatRate !== undefined) {
+      const normalizedVatRate = normalizeVatRate(input.vatRate);
+      if (Number(primarySetting.vatRate) !== normalizedVatRate) {
+        updateData.vatRate = normalizedVatRate;
+      }
     }
 
     if (Object.keys(updateData).length > 0) {
@@ -137,4 +148,17 @@ export async function getPendingCheckoutExpirationMinutes(): Promise<number> {
     setting.pendingCheckoutExpirationMinutes,
     getEnvironmentExpirationFallback()
   );
+}
+
+/** Returns the persisted VAT rate shared by appointment and sales pricing. */
+export async function getVatRate(): Promise<number> {
+  const setting = await ensureSingleAppointmentSetting();
+  return normalizeVatRate(setting.vatRate);
+}
+
+function normalizeVatRate(value: unknown, fallback = DEFAULT_APPOINTMENT_VAT_RATE) {
+  const parsedValue = Number(value);
+  return Number.isFinite(parsedValue) && parsedValue >= 0 && parsedValue <= 1
+    ? parsedValue
+    : fallback;
 }

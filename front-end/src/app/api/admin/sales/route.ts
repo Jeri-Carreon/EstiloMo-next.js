@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { SaleSource } from "@prisma/client";
 import { db } from "@/lib/db";
 import { createUniqueCode } from "@/lib/createCode";
 import { logSaleCreated,logDiscountApplied, } from "@/lib/securityLogEvents";
@@ -6,6 +7,11 @@ import {
   adminAuthorizationResponse,
   requireAdminTabAccess,
 } from "@/lib/adminAuthorization";
+import {
+  getSpecialDiscountPricing,
+  getVatInclusivePricing,
+} from "@/lib/salesPricing";
+import { getVatRate } from "@/lib/appointmentSettings";
 
 export const dynamic = "force-dynamic";
 
@@ -28,20 +34,29 @@ function minutesToTime(minutes: number) {
   return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
-function calculatePwdPricing(subtotal: number) {
-  const vatAmount = Math.round(subtotal * 0.12 * 100) / 100;
-  const vatExemptBase = Math.round((subtotal - vatAmount) * 100) / 100;
-  const pwdDiscountAmount = Math.round(vatExemptBase * 0.2 * 100) / 100;
-  const totalAmount = Math.max(
-    Math.round((vatExemptBase - pwdDiscountAmount) * 100) / 100,
+function calculatePwdPricing(subtotal: number, vatRate: number) {
+  const pricing = getSpecialDiscountPricing(subtotal, vatRate);
+
+  return {
+    vatAmount: pricing.vatAmount,
+    discount: pricing.discountAmount,
+    totalAmount: pricing.totalAmount,
+  };
+}
+
+function getFullGrossTotal(sale: {
+  source: SaleSource;
+  totalAmount: unknown;
+  items: { price: unknown; quantity: number }[];
+}) {
+  const itemGrossTotal = sale.items.reduce(
+    (total, item) => total + Number(item.price || 0) * Number(item.quantity || 0),
     0
   );
 
-  return {
-    vatAmount,
-    discount: Math.round((subtotal - totalAmount) * 100) / 100,
-    totalAmount,
-  };
+  return sale.source === SaleSource.BOOKING && itemGrossTotal > 0
+    ? itemGrossTotal
+    : Number(sale.totalAmount || 0);
 }
 
 /*function createCode(prefix: string) {
@@ -66,7 +81,8 @@ export async function GET() {
       return adminAuthorizationResponse(auth.status);
     }
 
-    const rawSales = await db.sale.findMany({
+    const [rawSales, vatRate] = await Promise.all([
+      db.sale.findMany({
       include: {
         customer: true,
         barber: true,
@@ -81,7 +97,9 @@ export async function GET() {
         },
       },
       orderBy: { createdAt: "desc" },
-    });
+      }),
+      getVatRate(),
+    ]);
 
     const sales = rawSales.filter((sale) => {
       if (sale.source === "WALKIN") return true;
@@ -98,7 +116,14 @@ export async function GET() {
     });
 
     return NextResponse.json({
-      sales: sales.map((sale) => ({
+      sales: sales.map((sale) => {
+        const grossTotal = getFullGrossTotal(sale);
+        const vatExempt = Boolean(sale.vatExempt || sale.payment?.vatExempt || sale.pwdDiscount || sale.payment?.pwdDiscount);
+        const vatAmount = vatExempt
+          ? Number(sale.vatAmount || sale.payment?.vatAmount || 0)
+          : getVatInclusivePricing(grossTotal, vatRate).vatAmount;
+
+        return ({
         id: sale.id,
         saleCode: sale.saleCode,
         source: sale.source,
@@ -108,9 +133,10 @@ export async function GET() {
         pwdDiscount: sale.pwdDiscount,
         pwdId: sale.pwdId,
         specialDiscountType: sale.specialDiscountType,
-        vatExempt: sale.vatExempt,
-        vatAmount: Number(sale.vatAmount),
+        vatExempt,
+        vatAmount,
         totalAmount: Number(sale.totalAmount),
+        grossTotal,
         createdAt: sale.createdAt,
 
         customer: {
@@ -212,7 +238,7 @@ export async function GET() {
             : null,
         })),
 
-      })),
+      }); }),
     });
   } catch (error) {
     console.error("GET SALES ERROR:", error);
@@ -235,6 +261,7 @@ export async function POST(req: Request) {
     const user = auth.user;
 
     const body = await req.json();
+    const vatRate = await getVatRate();
 
     const {
       customerId,
@@ -365,12 +392,12 @@ export async function POST(req: Request) {
         });
       }
 
-      const pwdPricing = usePwdDiscount ? calculatePwdPricing(subtotal) : null;
+      const pwdPricing = usePwdDiscount ? calculatePwdPricing(subtotal, vatRate) : null;
+      const totalAmount = pwdPricing?.totalAmount ?? Math.max(subtotal - parsedDiscount, 0);
       const vatAmount =
         pwdPricing?.vatAmount ??
-        Math.round(subtotal * 0.12 * 100) / 100;
+        getVatInclusivePricing(totalAmount, vatRate).vatAmount;
       const finalDiscount = pwdPricing?.discount ?? parsedDiscount;
-      const totalAmount = pwdPricing?.totalAmount ?? Math.max(subtotal - parsedDiscount, 0);
 
       await tx.sale.update({
         where: { id: sale.id },

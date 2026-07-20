@@ -68,6 +68,7 @@ type CustomerHistory = {
   subtotal: number;
   discount: number;
   discountPercent: number;
+  vatAmount?: number;
   totalAmount: number;
   status: string;
   paymentStatus: string;
@@ -538,26 +539,26 @@ export default function MyAppointmentsPage() {
         <TableContainer
           component={Paper}
           elevation={0}
-          sx={{ display: { xs: "none", md: "block" } }}
+          sx={{ display: { xs: "none", md: "block" }, overflowX: "auto" }}
         >
-          <Table>
+          <Table sx={{ minWidth: 1060 }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                <TableCell sx={{ fontWeight: 900, color: "#888", minWidth: 165, whiteSpace: "nowrap" }}>
                   Transaction #
                 </TableCell>
-                <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                <TableCell sx={{ fontWeight: 900, color: "#888", minWidth: 105, whiteSpace: "nowrap" }}>
                   Type
                 </TableCell>
-                <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                <TableCell sx={{ fontWeight: 900, color: "#888", minWidth: 110 }}>
                   Barber
                 </TableCell>
-                <TableCell sx={{ fontWeight: 900 }}>Service</TableCell>
-                <TableCell sx={{ fontWeight: 900 }}>Date</TableCell>
-                <TableCell sx={{ fontWeight: 900 }}>Time</TableCell>
-                <TableCell sx={{ fontWeight: 900 }}>Total Amount</TableCell>
-                <TableCell sx={{ fontWeight: 900 }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 900 }}>Actions</TableCell>
+                <TableCell sx={{ fontWeight: 900, minWidth: 130 }}>Service</TableCell>
+                <TableCell sx={{ fontWeight: 900, minWidth: 125, whiteSpace: "nowrap" }}>Date</TableCell>
+                <TableCell sx={{ fontWeight: 900, minWidth: 110, whiteSpace: "nowrap" }}>Time</TableCell>
+                <TableCell sx={{ fontWeight: 900, minWidth: 110, textAlign: "right", whiteSpace: "nowrap" }}>Total Amount</TableCell>
+                <TableCell sx={{ fontWeight: 900, minWidth: 95, whiteSpace: "nowrap" }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 900, minWidth: 80, textAlign: "center", whiteSpace: "nowrap" }}>Actions</TableCell>
               </TableRow>
             </TableHead>
 
@@ -571,19 +572,19 @@ export default function MyAppointmentsPage() {
               ) : (
                 paginatedHistory.map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                    <TableCell sx={{ fontWeight: 900, color: "#888", minWidth: 165, whiteSpace: "nowrap" }}>
                       {item.saleCode || item.appointmentCode}
                     </TableCell>
 
-                    <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                    <TableCell sx={{ fontWeight: 900, color: "#888", minWidth: 105, whiteSpace: "nowrap" }}>
                       {formatDisplayType(item.type)}
                     </TableCell>
 
-                    <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                    <TableCell sx={{ fontWeight: 900, color: "#888", minWidth: 110, wordBreak: "normal", overflowWrap: "normal" }}>
                       {item.barberName}
                     </TableCell>
 
-                    <TableCell sx={{ fontWeight: 900 }}>
+                    <TableCell sx={{ fontWeight: 900, minWidth: 130, wordBreak: "normal", overflowWrap: "normal" }}>
                       {item.serviceName}
                     </TableCell>
 
@@ -600,6 +601,8 @@ export default function MyAppointmentsPage() {
                         fontWeight: 900,
                         minWidth: 120,
                         whiteSpace: "nowrap",
+                        fontVariantNumeric: "tabular-nums",
+                        textAlign: "right",
                       }}
                     >
                       {formatAmount(item.totalAmount)}
@@ -609,12 +612,14 @@ export default function MyAppointmentsPage() {
                       sx={{
                         fontWeight: 900,
                         color: getStatusColor(item.status),
+                        minWidth: 95,
+                        whiteSpace: "nowrap",
                       }}
                     >
                       {item.status}
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell sx={{ minWidth: 80, whiteSpace: "nowrap", textAlign: "center" }}>
                       {renderHistoryActions(item)}
                     </TableCell>
                   </TableRow>
@@ -987,25 +992,25 @@ export default function MyAppointmentsPage() {
           </Box>
 
           <TableContainer sx={{ bgcolor: "#fff", mb: 2, overflowX: "auto" }}>
-            <Table sx={{ minWidth: 680 }}>
+            <Table sx={{ minWidth: 760 }}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                  <TableCell sx={{ fontWeight: 900, color: "#888", minWidth: 110 }}>
                     Barber
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                  <TableCell sx={{ fontWeight: 900, color: "#888", minWidth: 130 }}>
                     Service Type
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                  <TableCell sx={{ fontWeight: 900, color: "#888", minWidth: 70, whiteSpace: "nowrap" }}>
                     Qty
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                  <TableCell sx={{ fontWeight: 900, color: "#888", minWidth: 125, whiteSpace: "nowrap" }}>
                     Date
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                  <TableCell sx={{ fontWeight: 900, color: "#888", minWidth: 110, whiteSpace: "nowrap" }}>
                     Time
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 900, color: "#888" }}>
+                  <TableCell sx={{ fontWeight: 900, color: "#888", minWidth: 110, textAlign: "right", whiteSpace: "nowrap" }}>
                     Price
                   </TableCell>
                 </TableRow>
@@ -1042,6 +1047,7 @@ export default function MyAppointmentsPage() {
                         color: "#888",
                         whiteSpace: "nowrap",
                         minWidth: 110,
+                        fontVariantNumeric: "tabular-nums",
                       }}
                     >
                       {formatAmount(service.subtotal)}
@@ -1055,6 +1061,7 @@ export default function MyAppointmentsPage() {
           <Box sx={{ width: { xs: "100%", sm: 400 }, mx: "auto" }}>
             {[
               ["Subtotal", formatAmount(selectedItem?.subtotal || 0)],
+              ["VAT", formatAmount(selectedItem?.vatAmount || 0)],
               ["Discount", formatAmount(selectedItem?.discount || 0)],
               ["Discount %", `${Number(selectedItem?.discountPercent || 0)}%`],
               ["Total Payment", formatAmount(selectedItem?.totalAmount || 0)],

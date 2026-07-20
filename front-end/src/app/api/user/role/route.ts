@@ -21,7 +21,10 @@ export async function GET() {
         ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
       ],
     },
-    select: { role: true, isActive: true }
+    select: {
+      role: true,
+      isActive: true,
+    }
   })
 
   if (!dbUser || dbUser.isActive === false) {
@@ -29,6 +32,8 @@ export async function GET() {
   }
 
   const accessibleTabs = await getAccessibleAdminTabsForRole(dbUser.role)
+  const role = dbUser.role
+  const roles = role ? [role] : []
 
-  return NextResponse.json({ role: dbUser.role, accessibleTabs })
+  return NextResponse.json({ role, roles, accessibleTabs })
 }

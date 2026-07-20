@@ -15,6 +15,9 @@ export type AdminTabKey =
 export type BuiltInAdminRole = "OWNER" | "RECEPTIONIST" | "BARBER";
 export type AdminRole = string;
 
+export const ADMIN_ROLES: AdminRole[] = ["OWNER", "RECEPTIONIST", "BARBER"];
+export const ASSIGNABLE_ADMIN_ROLES: AdminRole[] = ["RECEPTIONIST", "BARBER"];
+
 export const ADMIN_TABS: { key: AdminTabKey; label: string; path: string }[] = [
   { key: "dashboard", label: "Dashboard", path: "/admin/dashboard" },
   { key: "customers", label: "Customers", path: "/admin/customers" },
@@ -73,6 +76,47 @@ export function normalizeAdminRole(role: string | null | undefined): AdminRole |
   }
 
   return normalizedRole;
+}
+
+export function normalizeAdminRoles(value: unknown): AdminRole[] {
+  const input = Array.isArray(value) ? value : [value];
+  return Array.from(
+    new Set(
+      input
+        .map((role) => normalizeAdminRole(typeof role === "string" ? role : null))
+        .filter((role): role is AdminRole => Boolean(role))
+    )
+  );
+}
+
+export function getPrimaryRole(roles: readonly string[], fallback = "CUSTOMER") {
+  if (roles.includes("OWNER")) return "OWNER";
+  if (roles.includes("RECEPTIONIST")) return "RECEPTIONIST";
+  if (roles.includes("BARBER")) return "BARBER";
+  return fallback;
+}
+
+type RoleBearing = { role?: string | null; roles?: readonly string[] | null };
+
+export function hasAnyRole<T extends RoleBearing>(
+  user: T | null | undefined,
+  allowedRoles: readonly AdminRole[]
+): user is T {
+  if (!user) return false;
+  const roles = normalizeAdminRoles(user.roles?.length ? user.roles : user.role);
+  return roles.some((role) => allowedRoles.includes(role));
+}
+
+export function getDefaultTabsForRoles(roles: readonly string[]) {
+  const normalizedRoles = normalizeAdminRoles(roles);
+  if (normalizedRoles.includes("OWNER")) return ALL_ADMIN_TAB_KEYS;
+
+  const tabs = normalizedRoles.flatMap((role) =>
+    ADMIN_ROLES.includes(role)
+      ? DEFAULT_ROLE_TAB_ACCESS[role as BuiltInAdminRole] ?? []
+      : []
+  );
+  return Array.from(new Set(tabs));
 }
 
 export function canAccessAdminTab(

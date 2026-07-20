@@ -33,7 +33,14 @@ export async function PUT(
 
     const existingUser = await db.user.findUnique({
       where: { id },
-      select: { role: true },
+      select: {
+        role: true,
+        barber: {
+          select: {
+            id: true,
+          },
+        },
+      },
     });
 
     if (!existingUser) {

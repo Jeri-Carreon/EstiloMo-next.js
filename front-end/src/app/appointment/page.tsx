@@ -96,6 +96,7 @@ export default function AppointmentPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [successOpen, setSuccessOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [vatRate, setVatRate] = useState(0.12);
 
   const [warningOpen, setWarningOpen] = useState(false);
   const [warningTitle, setWarningTitle] = useState('');
@@ -127,6 +128,13 @@ export default function AppointmentPage() {
   const downPayment = 150;
 
   useEffect(() => {
+    fetch('/api/appointment/settings')
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.vatRate !== undefined) setVatRate(Number(data.vatRate));
+      })
+      .catch(() => null);
+
     const supabase = createClient();
 
     const checkUser = async () => {
@@ -710,7 +718,8 @@ export default function AppointmentPage() {
           prevStep={prevStep}
           totalPrice={totalPrice}
           downPayment={downPayment}
-          handleConfirm={handleConfirm}
+                handleConfirm={handleConfirm}
+                vatRate={vatRate}
           loading={loading}
         />
       )}

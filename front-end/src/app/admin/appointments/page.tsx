@@ -55,6 +55,9 @@ interface Appointment {
   barberId?: string;
   barberName: string;
   totalAmount: number | string | null;
+  subtotal?: number;
+  downPayment?: number;
+  isBooking?: boolean;
   discount?: number;
   pwdDiscount?: boolean;
   pwdId?: string | null;
@@ -100,6 +103,7 @@ interface AvailableTime {
 interface AppointmentSettings {
   bookingCutoffHours: number;
   pendingCheckoutExpirationMinutes: number;
+  vatRate: number;
 }
 const readOnlyStatuses = ['COMPLETED', 'NOSHOW', 'CANCELLED', 'REJECTED'];
 
@@ -181,6 +185,7 @@ export default function AppointmentsPage() {
   const [bookingCutoffHours, setBookingCutoffHours] = useState<number>(1);
   const [pendingCheckoutExpirationMinutes, setPendingCheckoutExpirationMinutes] =
     useState<number>(5);
+  const [vatRate, setVatRate] = useState<number>(0.12);
 
   const [selectedAppointment, setSelectedAppointment] =
     useState<Appointment | null>(null);
@@ -310,7 +315,7 @@ export default function AppointmentsPage() {
   };
 
   const getVatIndicatorLabel = (vatExempt?: boolean) =>
-    vatExempt ? 'VAT Exempt' : 'VAT 12%';
+    vatExempt ? 'VAT Exempt' : `VAT ${vatRate * 100}%`;
 
   const formatVatValue = (vatExempt: boolean | undefined, vatAmount: number) =>
     vatExempt ? 'VAT Exempt' : formatAmount(vatAmount);
@@ -360,6 +365,7 @@ export default function AppointmentsPage() {
 
       if (data.settings) {
         setBookingCutoffHours(data.settings.bookingCutoffHours);
+        setVatRate(Number(data.settings.vatRate ?? 0.12));
       }
 
       setError('');
@@ -396,6 +402,9 @@ export default function AppointmentsPage() {
           appointment.payment?.amount !== null
             ? appointment.payment.amount
             : null,
+        subtotal: Number(appointment.payment?.subtotal ?? 0),
+        downPayment: Number(appointment.payment?.downPayment ?? 0),
+        isBooking: Boolean(appointment.payment?.grossTotal && appointment.payment?.downPayment),
         discount: Number(appointment.payment?.discount || 0),
         pwdDiscount: Boolean(appointment.payment?.pwdDiscount),
         pwdId: appointment.payment?.pwdId || null,
@@ -808,20 +817,20 @@ export default function AppointmentsPage() {
   };
 
   const renderAppointmentTable = (rows: Appointment[]) => (
-    <TableContainer component={Paper}>
-      <Table>
+    <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+      <Table sx={{ minWidth: 1220 }}>
         <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
           <TableRow>
-            <TableCell sx={{ fontWeight: 700 }}>Appointment#</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>ID</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>Customer Name</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>Schedule</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>Service</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>Barber Name</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>Total Amount</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>VAT</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>Action</TableCell>
+            <TableCell sx={{ fontWeight: 700, minWidth: 165, whiteSpace: 'nowrap' }}>Appointment#</TableCell>
+            <TableCell sx={{ fontWeight: 700, minWidth: 125, whiteSpace: 'nowrap' }}>ID</TableCell>
+            <TableCell sx={{ fontWeight: 700, minWidth: 140 }}>Customer Name</TableCell>
+            <TableCell sx={{ fontWeight: 700, minWidth: 180 }}>Schedule</TableCell>
+            <TableCell sx={{ fontWeight: 700, minWidth: 130 }}>Service</TableCell>
+            <TableCell sx={{ fontWeight: 700, minWidth: 110 }}>Barber Name</TableCell>
+            <TableCell sx={{ fontWeight: 700, minWidth: 110, textAlign: 'right', whiteSpace: 'nowrap' }}>Total Amount</TableCell>
+            <TableCell sx={{ fontWeight: 700, minWidth: 90, textAlign: 'right', whiteSpace: 'nowrap' }}>VAT</TableCell>
+            <TableCell sx={{ fontWeight: 700, minWidth: 95, whiteSpace: 'nowrap' }}>Status</TableCell>
+            <TableCell sx={{ fontWeight: 700, minWidth: 80, textAlign: 'center', whiteSpace: 'nowrap' }}>Action</TableCell>
           </TableRow>
         </TableHead>
 
@@ -842,25 +851,27 @@ export default function AppointmentsPage() {
                   },
                 }}
               >
-                <TableCell>{appointment.appointmentCode}</TableCell>
-                <TableCell>{appointment.customerCode}</TableCell>
-                <TableCell>{appointment.customerName}</TableCell>
-                <TableCell>{appointment.schedule}</TableCell>
-                <TableCell>{appointment.serviceName}</TableCell>
-                <TableCell>{appointment.barberName}</TableCell>
-                <TableCell>{formatAmount(appointment.totalAmount)}</TableCell>
-                <TableCell>
+                <TableCell sx={{ minWidth: 165, whiteSpace: 'nowrap' }}>{appointment.appointmentCode}</TableCell>
+                <TableCell sx={{ minWidth: 125, whiteSpace: 'nowrap' }}>{appointment.customerCode}</TableCell>
+                <TableCell sx={{ minWidth: 140, wordBreak: 'normal', overflowWrap: 'normal' }}>{appointment.customerName}</TableCell>
+                <TableCell sx={{ minWidth: 180, wordBreak: 'normal', overflowWrap: 'normal' }}>{appointment.schedule}</TableCell>
+                <TableCell sx={{ minWidth: 130, wordBreak: 'normal', overflowWrap: 'normal' }}>{appointment.serviceName}</TableCell>
+                <TableCell sx={{ minWidth: 110, wordBreak: 'normal', overflowWrap: 'normal' }}>{appointment.barberName}</TableCell>
+                <TableCell sx={{ minWidth: 110, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>{formatAmount(appointment.totalAmount)}</TableCell>
+                <TableCell sx={{ minWidth: 90, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
                   {formatVatValue(appointment.vatExempt, appointment.vatAmount || 0)}
                 </TableCell>
                 <TableCell
                   sx={{
                     fontWeight: 700,
                     color: getStatusColor(appointment.status),
+                    minWidth: 95,
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   {appointment.status}
                 </TableCell>
-                <TableCell>
+                <TableCell sx={{ minWidth: 80, whiteSpace: 'nowrap', textAlign: 'center' }}>
                   <IconButton
                     size="small"
                     color="primary"
@@ -1120,6 +1131,7 @@ export default function AppointmentsPage() {
         body: JSON.stringify({
           bookingCutoffHours,
           pendingCheckoutExpirationMinutes,
+          vatRate,
         }),
       });
 
@@ -2099,6 +2111,12 @@ export default function AppointmentsPage() {
                 </Typography>
                 <Box sx={{ display: 'grid', gap: 0.7 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>Subtotal</Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                      {formatAmount(selectedAppointment.subtotal || 0)}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
                     <Typography sx={{ fontSize: 12, color: '#666' }}>
                       {getVatIndicatorLabel(selectedAppointment.vatExempt)}
                     </Typography>
@@ -2147,8 +2165,18 @@ export default function AppointmentsPage() {
                       -{formatAmount(selectedAppointment.discount || 0)}
                     </Typography>
                   </Box>
+                  {selectedAppointment.downPayment ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                      <Typography sx={{ fontSize: 12, color: '#666' }}>Downpayment</Typography>
+                      <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                        {formatAmount(selectedAppointment.downPayment)}
+                      </Typography>
+                    </Box>
+                  ) : null}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                    <Typography sx={{ fontSize: 12, color: '#666' }}>Total Payment</Typography>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>
+                      {selectedAppointment.isBooking ? 'Remaining Payment' : 'Total Payment'}
+                    </Typography>
                     <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
                       {formatAmount(selectedAppointment.totalAmount)}
                     </Typography>
@@ -2863,6 +2891,12 @@ export default function AppointmentsPage() {
                 </Typography>
                 <Box sx={{ display: 'grid', gap: 0.7 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>Subtotal</Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                      {formatAmount(selectedAppointment.subtotal || 0)}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
                     <Typography sx={{ fontSize: 12, color: '#666' }}>
                       {getVatIndicatorLabel(selectedAppointment.vatExempt)}
                     </Typography>
@@ -2911,8 +2945,18 @@ export default function AppointmentsPage() {
                       -{formatAmount(selectedAppointment.discount || 0)}
                     </Typography>
                   </Box>
+                  {selectedAppointment.downPayment ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                      <Typography sx={{ fontSize: 12, color: '#666' }}>Downpayment</Typography>
+                      <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                        {formatAmount(selectedAppointment.downPayment)}
+                      </Typography>
+                    </Box>
+                  ) : null}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                    <Typography sx={{ fontSize: 12, color: '#666' }}>Total Payment</Typography>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>
+                      {selectedAppointment.isBooking ? 'Remaining Payment' : 'Total Payment'}
+                    </Typography>
                     <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
                       {formatAmount(selectedAppointment.totalAmount)}
                     </Typography>
@@ -3608,6 +3652,15 @@ export default function AppointmentsPage() {
             mb: 5,
             bgcolor: "#fff",
           }}
+        />
+        <Typography sx={{ fontWeight: 700, mb: 0.5 }}>VAT Rate (%)</Typography>
+        <TextField
+          type="number"
+          fullWidth
+          value={vatRate * 100}
+          onChange={(e) => setVatRate(Number(e.target.value) / 100)}
+          slotProps={{ htmlInput: { min: 0, max: 100, step: 0.01 } }}
+          sx={{ mb: 5, bgcolor: "#fff" }}
         />
         <Box sx={{ display: "flex", justifyContent: "center" }}>
           <Button
