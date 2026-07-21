@@ -160,6 +160,7 @@ export default function AdminPage() {
   const itemsPerPage = 5;
 
   const [openAdd, setOpenAdd] = useState(false);
+  const [openManageRoles, setOpenManageRoles] = useState(false);
   const [openRoleAccess, setOpenRoleAccess] = useState(false);
   const [openAddRole, setOpenAddRole] = useState(false);
   const [roleAccessRole, setRoleAccessRole] = useState<AdminRole>("RECEPTIONIST");
@@ -841,6 +842,16 @@ export default function AdminPage() {
     );
   };
 
+  const handleOpenRoleAccess = async () => {
+    await loadRoleAccess();
+    setOpenRoleAccess(true);
+  };
+
+  const openRoleManagementAction = async (action: () => void | Promise<void>) => {
+    setOpenManageRoles(false);
+    await action();
+  };
+
   const handleOpenAddRole = async () => {
     resetAddRoleForm();
     await loadRoleAccess();
@@ -1130,6 +1141,24 @@ export default function AdminPage() {
   const selectedUserRoleIsArchived =
     selectedUser?.roleIsArchived === true &&
     editRoleIds.some((roleId) => !roleById.get(roleId)?.isActive);
+  const roleManagementActions = [
+    {
+      label: "Edit Role Accessibility",
+      onClick: () => openRoleManagementAction(handleOpenRoleAccess),
+    },
+    {
+      label: "Add Role",
+      onClick: () => openRoleManagementAction(handleOpenAddRole),
+    },
+    {
+      label: "Archive Role",
+      onClick: () => openRoleManagementAction(handleOpenArchiveRole),
+    },
+    {
+      label: "Restore Role",
+      onClick: () => openRoleManagementAction(handleOpenRestoreRole),
+    },
+  ];
 
   return (
     <Box sx={{ flex: 1, p: 4, backgroundColor: "#fff" }}>
@@ -1162,55 +1191,20 @@ export default function AdminPage() {
               startIcon={<AddIcon />}
               variant="contained"
               onClick={() => setOpenAdd(true)}
-              sx={{ textTransform: "none" }}
+              sx={{ textTransform: "none", minWidth: 160 }}
             >
               Add User
             </Button>
 
             <Button
               variant="outlined"
-              onClick={async () => {
-                await loadRoleAccess();
-                setOpenRoleAccess(true);
-              }}
-              sx={{ textTransform: "none" }}
-            >
-              Edit Role Accessibility
-            </Button>
-
-            <Button
-              startIcon={<AddIcon />}
-              variant="outlined"
-              onClick={handleOpenAddRole}
-              sx={{ textTransform: "none" }}
-            >
-              Add Role
-            </Button>
-
-            <Button
-              variant="contained"
-              onClick={handleOpenArchiveRole}
+              onClick={() => setOpenManageRoles(true)}
               sx={{
                 textTransform: "none",
-                backgroundColor: "#d32f2f",
-                color: "#fff",
-                ":hover": { backgroundColor: "#b71c1c" },
+                minWidth: 160,
               }}
             >
-              Archive Role
-            </Button>
-
-            <Button
-              variant="contained"
-              onClick={handleOpenRestoreRole}
-              sx={{
-                textTransform: "none",
-                backgroundColor: "#2e7d32",
-                color: "#fff",
-                ":hover": { backgroundColor: "#1b5e20" },
-              }}
-            >
-              Restore Role
+              Manage Roles
             </Button>
           </>
         )}
@@ -1686,6 +1680,69 @@ export default function AdminPage() {
               Add
             </Button>
           </Box>
+        </Box>
+      </Dialog>
+
+      <Dialog
+        open={openManageRoles}
+        onClose={() => setOpenManageRoles(false)}
+        maxWidth="sm"
+        fullWidth
+        sx={{
+          "& .MuiPaper-root": {
+            borderRadius: 4,
+            bgcolor: "#f2f2f2",
+            overflow: "visible",
+          },
+        }}
+      >
+        <Box
+          sx={{
+            m: 2,
+            bgcolor: "#fff",
+            borderRadius: 4,
+            p: 3,
+            pb: 2,
+            boxShadow: "0 10px 40px rgba(0,0,0,0.08)",
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 2,
+            }}
+          >
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Manage Roles
+            </Typography>
+
+            <IconButton onClick={() => setOpenManageRoles(false)} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          <DialogContent
+            sx={{ p: 1, display: "flex", flexDirection: "column", gap: 1.25 }}
+          >
+            {roleManagementActions.map((action) => (
+              <Button
+                key={action.label}
+                variant="outlined"
+                fullWidth
+                onClick={action.onClick}
+                sx={{
+                  borderRadius: 2,
+                  justifyContent: "flex-start",
+                  py: 1.25,
+                  textTransform: "none",
+                }}
+              >
+                {action.label}
+              </Button>
+            ))}
+          </DialogContent>
         </Box>
       </Dialog>
 
