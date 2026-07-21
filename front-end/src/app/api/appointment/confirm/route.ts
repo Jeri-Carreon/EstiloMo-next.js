@@ -312,7 +312,8 @@ export async function POST(req: NextRequest) {
         return sum + Number(service?.price || 0);
       }, 0);
       const settings = await ensureSingleAppointmentSetting();
-      const pricing = getAppointmentPricing(totalPayment, Number(settings.vatRate));
+      const checkoutVatRate = Number(settings.vatRate);
+      const pricing = getAppointmentPricing(totalPayment, checkoutVatRate);
 
       const expirationMinutes = await getPendingCheckoutExpirationMinutes();
       const checkoutExpiresAt = new Date(
@@ -330,6 +331,7 @@ export async function POST(req: NextRequest) {
           checkoutExpiresAt,
           subtotal: pricing.subtotal,
           discount: 0,
+          vatRate: checkoutVatRate,
           vatAmount: pricing.vatAmount,
           totalAmount: pricing.totalPayment,
         },
@@ -385,7 +387,7 @@ export async function POST(req: NextRequest) {
         });
 
         const itemPrice = Number(service.price);
-        const itemPricing = getAppointmentPricing(itemPrice, Number(settings.vatRate));
+        const itemPricing = getAppointmentPricing(itemPrice, checkoutVatRate);
 
         await tx.saleItem.create({
           data: {

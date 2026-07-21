@@ -3,7 +3,23 @@ import { todayCodePH } from "@/lib/dateUtils";
 import { Prisma } from "@prisma/client";
 
 export type CodePrefix = "APT" | "TRX" | "PAY";
-type DbClient = typeof db | Prisma.TransactionClient;
+type DbClient = {
+  appointment: {
+    findMany(
+      args: Prisma.AppointmentFindManyArgs
+    ): PromiseLike<Array<{ appointmentCode: string }>>;
+  };
+  sale: {
+    findMany(
+      args: Prisma.SaleFindManyArgs
+    ): PromiseLike<Array<{ saleCode: string }>>;
+  };
+  payment: {
+    findMany(
+      args: Prisma.PaymentFindManyArgs
+    ): PromiseLike<Array<{ paymentCode: string | null }>>;
+  };
+};
 
 export async function createUniqueCode(
   prefix: CodePrefix,

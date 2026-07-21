@@ -80,6 +80,7 @@ export type Sale = {
   specialDiscountType?: SpecialDiscountType | null;
   vatExempt: boolean;
   vatAmount: number;
+  vatRate: number;
   totalAmount: number;
   grossTotal?: number;
   createdAt: string;
@@ -126,6 +127,7 @@ export type Sale = {
     specialDiscountType?: SpecialDiscountType | null;
     vatExempt?: boolean;
     vatAmount?: number;
+    vatRate?: number;
     method: "CASH" | "GCASH";
     status: "PENDING" | "PAID";
     screenshotUrl: string | null;
@@ -267,6 +269,13 @@ function calculatePwdPricing(subtotal: number, vatRate: number) {
 
 function getVatIndicatorLabel(vatExempt: boolean | undefined, vatRate: number) {
   return vatExempt ? "VAT Exempt" : `VAT ${vatRate * 100}%`;
+}
+
+function getSaleVatRate(
+  sale: Pick<Sale, "vatRate" | "payment"> | null | undefined,
+  fallbackRate: number
+) {
+  return Number(sale?.vatRate ?? sale?.payment?.vatRate ?? fallbackRate);
 }
 
 function formatVatValue(vatExempt: boolean | undefined, vatAmount: number) {
@@ -615,20 +624,32 @@ export default function SalesPage() {
   const viewPwdDiscount = Boolean(
     selectedSale?.pwdDiscount || selectedSale?.payment?.pwdDiscount
   );
+  const selectedSaleVatRate = getSaleVatRate(selectedSale, vatRate);
   const viewPwdPricing = useMemo(
-    () => calculatePwdPricing(selectedSale?.subtotal || 0, vatRate),
-    [selectedSale?.subtotal, vatRate]
+    () => calculatePwdPricing(selectedSale?.subtotal || 0, selectedSaleVatRate),
+    [selectedSale?.subtotal, selectedSaleVatRate]
   );
   const viewStandardPricing = useMemo(
-    () => getVatInclusivePricing(selectedSale?.grossTotal ?? selectedSale?.totalAmount ?? 0, vatRate),
-    [selectedSale?.grossTotal, selectedSale?.totalAmount, vatRate]
+    () => ({
+      ...getVatInclusivePricing(
+        selectedSale?.grossTotal ?? selectedSale?.totalAmount ?? 0,
+        selectedSaleVatRate
+      ),
+      subtotal: Number(selectedSale?.subtotal ?? 0),
+    }),
+    [
+      selectedSale?.grossTotal,
+      selectedSale?.subtotal,
+      selectedSale?.totalAmount,
+      selectedSaleVatRate,
+    ]
   );
   const viewVatExempt = Boolean(
     selectedSale?.vatExempt || selectedSale?.payment?.vatExempt || viewPwdDiscount
   );
   const viewVatAmount = viewVatExempt
     ? Math.max(Number(selectedSale?.vatAmount || 0), Number(selectedSale?.payment?.vatAmount || 0))
-    : viewStandardPricing.vatAmount;
+    : Number(selectedSale?.vatAmount || selectedSale?.payment?.vatAmount || 0);
   const viewSpecialDiscountType =
     selectedSale?.specialDiscountType ||
     selectedSale?.payment?.specialDiscountType ||
@@ -2936,7 +2957,7 @@ export default function SalesPage() {
 
             {!viewPwdDiscount && (
               <Box sx={summaryRow}>
-                <Typography>{getVatIndicatorLabel(viewVatExempt, vatRate)}</Typography>
+                <Typography>{getVatIndicatorLabel(viewVatExempt, selectedSaleVatRate)}</Typography>
                 <Typography>{formatVatValue(viewVatExempt, viewVatAmount)}</Typography>
               </Box>
             )}
@@ -3218,7 +3239,7 @@ export default function SalesPage() {
 
             {!viewPwdDiscount && (
               <Box sx={summaryRow}>
-                <Typography>{getVatIndicatorLabel(viewVatExempt, vatRate)}</Typography>
+                <Typography>{getVatIndicatorLabel(viewVatExempt, selectedSaleVatRate)}</Typography>
                 <Typography>{formatVatValue(viewVatExempt, viewVatAmount)}</Typography>
               </Box>
             )}

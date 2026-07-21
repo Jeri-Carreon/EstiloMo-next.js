@@ -14,10 +14,28 @@ export interface AvailableTime extends TimeRange {
   label: string;
 }
 
-type SchedulingDbClient = Pick<
-  Prisma.TransactionClient,
-  "barberSchedule" | "barberAbsent" | "appointment" | "appointmentSetting"
->;
+type SchedulingDbClient = {
+  barberSchedule: {
+    findUnique(
+      args: Prisma.BarberScheduleFindUniqueArgs
+    ): PromiseLike<{
+      startTime: number;
+      endTime: number;
+      isDayOff: boolean;
+    } | null>;
+  };
+  barberAbsent: {
+    findFirst(args: Prisma.BarberAbsentFindFirstArgs): PromiseLike<unknown>;
+  };
+  appointment: {
+    findMany(args: Prisma.AppointmentFindManyArgs): PromiseLike<TimeRange[]>;
+  };
+  appointmentSetting: {
+    findFirst(
+      args?: Prisma.AppointmentSettingFindFirstArgs
+    ): PromiseLike<{ bookingCutoffHours: number | null } | null>;
+  };
+};
 
 export class AppointmentAvailabilityError extends Error {
   status = 400;

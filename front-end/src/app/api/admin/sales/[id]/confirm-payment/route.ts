@@ -10,7 +10,6 @@ import {
   adminAuthorizationResponse,
   requireAdminTabAccess,
 } from "@/lib/adminAuthorization";
-import { getVatRate } from "@/lib/appointmentSettings";
 import {
   getSpecialDiscountPricing,
   getVatInclusivePricing,
@@ -124,7 +123,7 @@ export async function PUT(
     }
 
     const subtotal = Number(sale.subtotal || 0);
-    const vatRate = await getVatRate();
+    const vatRate = Number(sale.vatRate);
     const requestedLoyaltyRewardType: LoyaltyRewardType =
       body.loyaltyRewardType === "FIFTY_PERCENT" ||
       body.loyaltyRewardType === "FREE"
