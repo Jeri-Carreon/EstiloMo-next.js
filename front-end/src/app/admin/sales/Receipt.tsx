@@ -1,5 +1,4 @@
 import type { Sale } from "./page";
-import { getVatInclusivePricing } from "@/lib/salesPricing";
 
 export const receiptPrintStyles = `
   .receipt-print-container { display: none; }
@@ -41,9 +40,9 @@ export default function Receipt({ sale, formatPeso, formatDate, getSaleStatusLab
   const appointmentDate = appointment ? formatDate(appointment.appointmentDate) : formatDate(sale.createdAt);
   const appointmentTime = appointment ? `${minutesToTime(appointment.startMinutes)} - ${minutesToTime(appointment.endMinutes)}` : "—";
   const vatExempt = Boolean(sale.vatExempt || sale.payment?.vatExempt || sale.pwdDiscount || sale.payment?.pwdDiscount);
+  const saleVatRate = Number(sale.vatRate ?? sale.payment?.vatRate ?? vatRate);
   const grossTotal = Number(sale.grossTotal ?? sale.totalAmount ?? 0);
-  const pricing = getVatInclusivePricing(grossTotal, vatRate);
-  const vatAmount = pricing.vatAmount;
+  const vatAmount = Number(sale.vatAmount || sale.payment?.vatAmount || 0);
   const discount = Math.max(Number(sale.discount || 0), Number(sale.payment?.discount || 0));
 
   return (
@@ -76,8 +75,8 @@ export default function Receipt({ sale, formatPeso, formatDate, getSaleStatusLab
         })}</section>
         <ReceiptDivider /><strong style={{ display: "block", margin: "10px 0" }}>SUMMARY</strong><ReceiptDivider />
         <section className="print-receipt__section" style={{ margin: "12px 0" }}>
-          <ReceiptRow label="Subtotal" value={formatPeso(pricing.subtotal)} />
-          <ReceiptRow label={vatExempt ? "VAT (Exempt)" : `VAT (${vatRate * 100}%)`} value={vatExempt ? "VAT Exempt" : formatPeso(vatAmount)} />
+          <ReceiptRow label="Subtotal" value={formatPeso(Number(sale.subtotal || 0))} />
+          <ReceiptRow label={vatExempt ? "VAT (Exempt)" : `VAT (${saleVatRate * 100}%)`} value={vatExempt ? "VAT Exempt" : formatPeso(vatAmount)} />
           <ReceiptRow label="Downpayment" value={formatPeso(sale.payment?.downPayment || 0)} />
           <ReceiptRow label="Discount" value={formatPeso(discount)} />
           <ReceiptRow label="Total Payment" value={formatPeso(sale.source === "BOOKING" ? Math.max(grossTotal - Number(sale.payment?.downPayment || 0), 0) : sale.totalAmount)} />

@@ -81,8 +81,7 @@ export async function GET() {
       return adminAuthorizationResponse(auth.status);
     }
 
-    const [rawSales, vatRate] = await Promise.all([
-      db.sale.findMany({
+    const rawSales = await db.sale.findMany({
       include: {
         customer: true,
         barber: true,
@@ -97,9 +96,7 @@ export async function GET() {
         },
       },
       orderBy: { createdAt: "desc" },
-      }),
-      getVatRate(),
-    ]);
+    });
 
     const sales = rawSales.filter((sale) => {
       if (sale.source === "WALKIN") return true;
@@ -119,9 +116,8 @@ export async function GET() {
       sales: sales.map((sale) => {
         const grossTotal = getFullGrossTotal(sale);
         const vatExempt = Boolean(sale.vatExempt || sale.payment?.vatExempt || sale.pwdDiscount || sale.payment?.pwdDiscount);
-        const vatAmount = vatExempt
-          ? Number(sale.vatAmount || sale.payment?.vatAmount || 0)
-          : getVatInclusivePricing(grossTotal, vatRate).vatAmount;
+        const vatAmount = Number(sale.vatAmount || sale.payment?.vatAmount || 0);
+        const saleVatRate = Number(sale.vatRate);
 
         return ({
         id: sale.id,
@@ -135,6 +131,7 @@ export async function GET() {
         specialDiscountType: sale.specialDiscountType,
         vatExempt,
         vatAmount,
+        vatRate: saleVatRate,
         totalAmount: Number(sale.totalAmount),
         grossTotal,
         createdAt: sale.createdAt,
@@ -192,6 +189,7 @@ export async function GET() {
               specialDiscountType: sale.payment.specialDiscountType,
               vatExempt: sale.payment.vatExempt,
               vatAmount: Number(sale.payment.vatAmount),
+              vatRate: saleVatRate,
               method: sale.payment.method,
               status: sale.payment.status,
               gcashRefNo: sale.payment.gcashRefNo,
@@ -230,6 +228,7 @@ export async function GET() {
                 specialDiscountType: appointment.payment.specialDiscountType,
                 vatExempt: appointment.payment.vatExempt,
                 vatAmount: Number(appointment.payment.vatAmount),
+                vatRate: saleVatRate,
                 method: appointment.payment.method,
                 status: appointment.payment.status,
                 gcashRefNo: appointment.payment.gcashRefNo,
@@ -367,6 +366,7 @@ export async function POST(req: Request) {
           subtotal: 0,
           discount: parsedDiscount,
           totalAmount: 0,
+          vatRate,
         },
       });
 

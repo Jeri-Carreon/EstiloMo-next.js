@@ -65,7 +65,8 @@ export async function GET() {
       ) ?? 0;
       const grossTotal = grossFromItems || Number(a.sale?.totalAmount ?? a.service?.price ?? payment?.amount ?? 0);
       const vatExempt = Boolean(payment?.vatExempt ?? a.sale?.vatExempt ?? false);
-      const pricing = getAppointmentPricing(grossTotal, Number(settings.vatRate));
+      const saleVatRate = Number(a.sale?.vatRate ?? settings.vatRate);
+      const pricing = getAppointmentPricing(grossTotal, saleVatRate);
       const downPayment = Number(payment?.downPayment ?? 0);
       const remainingAmount = a.sale?.source === "BOOKING"
         ? Math.max(grossTotal - downPayment, 0)
@@ -138,9 +139,8 @@ export async function GET() {
           specialDiscountType:
             payment?.specialDiscountType ?? a.sale?.specialDiscountType ?? null,
           vatExempt,
-          vatAmount: vatExempt
-            ? Number(payment?.vatAmount ?? a.sale?.vatAmount ?? 0)
-            : pricing.vatAmount,
+          vatAmount: Number(a.sale?.vatAmount ?? payment?.vatAmount ?? pricing.vatAmount),
+          vatRate: saleVatRate,
           method: payment?.method ?? "GCASH",
           status: payment?.status ?? "PENDING",
           screenshotUrl: payment?.screenshotUrl ?? null,
@@ -255,7 +255,8 @@ export async function POST(req: Request) {
       });
 
       const settings = await ensureSingleAppointmentSetting();
-      const pricing = getAppointmentPricing(Number(service.price), Number(settings.vatRate));
+      const appointmentVatRate = Number(settings.vatRate);
+      const pricing = getAppointmentPricing(Number(service.price), appointmentVatRate);
 
       const appointment = await tx.appointment.create({
         data: {
@@ -280,6 +281,7 @@ export async function POST(req: Request) {
           status: "PENDING",
           subtotal: pricing.subtotal,
           discount: 0,
+          vatRate: appointmentVatRate,
           vatAmount: pricing.vatAmount,
           totalAmount: pricing.totalPayment,
         },

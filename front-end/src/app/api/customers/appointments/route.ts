@@ -86,7 +86,8 @@ export async function GET() {
     const appointmentHistory = appointments.map((appointment) => {
       const sale = appointment.sale;
       const servicePrice = Number(appointment.service.price || 0);
-      const pricing = getAppointmentPricing(servicePrice, vatRate);
+      const saleVatRate = Number(sale?.vatRate ?? vatRate);
+      const pricing = getAppointmentPricing(servicePrice, saleVatRate);
       const vatExempt = Boolean(sale?.vatExempt || sale?.payment?.vatExempt || sale?.pwdDiscount || sale?.payment?.pwdDiscount);
 
       return {
@@ -123,7 +124,12 @@ export async function GET() {
         subtotal: vatExempt ? Number(sale?.subtotal ?? pricing.subtotal) : pricing.subtotal,
         discount: 0,
         discountPercent: 0,
-        vatAmount: vatExempt ? Number(sale?.vatAmount ?? sale?.payment?.vatAmount ?? 0) : pricing.vatAmount,
+        vatAmount: vatExempt
+          ? Number(sale?.vatAmount ?? sale?.payment?.vatAmount ?? 0)
+          : sale
+          ? Number(sale.vatAmount ?? sale.payment?.vatAmount ?? pricing.vatAmount)
+          : pricing.vatAmount,
+        vatRate: saleVatRate,
         vatExempt,
         totalAmount: servicePrice,
 
@@ -181,7 +187,8 @@ export async function GET() {
       const discount = Number(sale.discount || 0);
       const totalAmount = Number(sale.totalAmount || 0);
       const vatExempt = Boolean(sale.vatExempt || sale.payment?.vatExempt || sale.pwdDiscount || sale.payment?.pwdDiscount);
-      const pricing = getAppointmentPricing(totalAmount, vatRate);
+      const saleVatRate = Number(sale.vatRate ?? vatRate);
+      const pricing = getAppointmentPricing(totalAmount, saleVatRate);
       const subtotal = vatExempt ? Number(sale.subtotal || 0) : pricing.subtotal;
 
       return {
@@ -213,7 +220,8 @@ export async function GET() {
         discountPercent:
           subtotal > 0 ? Math.round((discount / subtotal) * 100) : 0,
         totalAmount,
-        vatAmount: vatExempt ? Number(sale.vatAmount || sale.payment?.vatAmount || 0) : pricing.vatAmount,
+        vatAmount: Number(sale.vatAmount || sale.payment?.vatAmount || 0),
+        vatRate: saleVatRate,
         vatExempt,
 
         status: saleDisplayStatus(sale.status),
