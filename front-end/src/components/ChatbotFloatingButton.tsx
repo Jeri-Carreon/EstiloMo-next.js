@@ -41,6 +41,40 @@ const fallbackSettings: ChatbotSetting[] = [
       "Welcome to The Barbs Bro!\n\nI am your virtual assistant. I can help you with inquiries regarding our barbershop!\n\nHow may I help you today?",
   },
   {
+    key: "book_appointment",
+    label: "Book Appointment",
+    response:
+      "You can book an appointment through our online appointment page.",
+  },
+  {
+    key: "services_prices",
+    label: "Services & Prices",
+    response: "Here are our available services and prices:",
+  },
+  {
+    key: "location_hours",
+    label: "Location & Hours",
+    response:
+      "The Barbs Bro is located at Unit F, Saranay Homes, Congressional Rd. cor. Malapitan Rd., Caloocan City. Please contact us through Facebook for the latest operating hours.",
+  },
+  {
+    key: "barber_availability",
+    label: "Barber Availability",
+    response: "Pick a barber to check their availability:",
+  },
+  {
+    key: "social_media",
+    label: "Social Media",
+    response:
+      "You can visit The Barbs Bro through our official social media pages.",
+  },
+  {
+    key: "talk_to_receptionist",
+    label: "Talk to Receptionist",
+    response:
+      "You can contact The Barbs Bro receptionist through Facebook Messenger.",
+  },
+  {
     key: "fallback",
     label: "Fallback Response",
     response:
@@ -183,7 +217,26 @@ export default function ChatbotFloatingButton() {
     refetchOnWindowFocus: false,
   });
 
-  const settings = chatbotSettings ?? fallbackSettings;
+  const settings = useMemo<ChatbotSetting[]>(() => {
+    const mergedSettings = new Map<string, ChatbotSetting>();
+
+    // Start with defaults so every required option is always available.
+    fallbackSettings.forEach((setting) => {
+      mergedSettings.set(setting.key, setting);
+    });
+
+    // Persisted settings override matching defaults while missing defaults remain.
+    (chatbotSettings ?? []).forEach((setting) => {
+      const existingSetting = mergedSettings.get(setting.key);
+
+      mergedSettings.set(setting.key, {
+        ...existingSetting,
+        ...setting,
+      });
+    });
+
+    return Array.from(mergedSettings.values());
+  }, [chatbotSettings]);
   const barbers = (chatbotBarbers ?? []).filter(
     (barber) => barber.isActive !== false
   );
@@ -405,34 +458,38 @@ export default function ChatbotFloatingButton() {
         };
       }
 
-      const needsLink =
-        directOptionMatch.key.includes("social") ||
-        directOptionMatch.key.includes("receptionist") ||
-        directOptionMatch.key.includes("contact") ||
-        normalizeText(directOptionMatch.label).includes("social") ||
-        normalizeText(directOptionMatch.label).includes("receptionist") ||
-        normalizeText(directOptionMatch.label).includes("contact");
+      const normalizedOption = normalizeText(
+        `${directOptionMatch.key.replaceAll("_", " ")} ${directOptionMatch.label}`
+      );
+
+      const isReceptionistOption = matchesAny(normalizedOption, [
+        "talk to receptionist",
+        "receptionist",
+        "contact receptionist",
+        "contact staff",
+        "customer support",
+      ]);
+
+      const isSocialMediaOption = matchesAny(normalizedOption, [
+        "social media",
+        "social",
+        "facebook instagram tiktok",
+      ]);
 
       return {
         id: nextMessageId("bot"),
         role: "bot",
         text: directOptionMatch.response,
-        links: needsLink
+        links: isReceptionistOption
           ? [
               {
-                label: "Open Facebook Page",
+                label: "Chat with Receptionist on Facebook",
                 url: "https://www.facebook.com/thebarbsbro",
               },
-              {
-                label: "Open Instagram Page",
-                url: "https://www.instagram.com/thebarbsbro",
-              },
-              {
-                label: "Open TikTok Page",
-                url: "https://www.tiktok.com/@thebarbsbro",
-              },
             ]
-          : undefined,
+          : isSocialMediaOption
+            ? socialLinks
+            : undefined,
       };
     }
 
@@ -504,7 +561,9 @@ export default function ChatbotFloatingButton() {
       return {
         id: nextMessageId("bot"),
         role: "bot",
-        text: item?.response || getResponse("fallback"),
+        text:
+          item?.response ||
+          "You can contact The Barbs Bro receptionist through Facebook Messenger.",
         links: [
           {
             label: "Chat with Receptionist on Facebook",
@@ -778,14 +837,27 @@ export default function ChatbotFloatingButton() {
     setShowQuickOptions(false);
     setLoadingBot(true);
 
-    const botMessage = await getBotReply(messageText);
+    try {
+      const botMessage = await getBotReply(messageText);
 
-    setMessages((prev) => [
-      ...prev.filter((item) => item.id !== loadingId),
-      botMessage,
-    ]);
+      setMessages((prev) => [
+        ...prev.filter((item) => item.id !== loadingId),
+        botMessage,
+      ]);
+    } catch (error) {
+      console.error("CHATBOT RESPONSE ERROR:", error);
 
-    setLoadingBot(false);
+      setMessages((prev) => [
+        ...prev.filter((item) => item.id !== loadingId),
+        {
+          id: nextMessageId("bot"),
+          role: "bot",
+          text: "Sorry, I could not process your message. Please try again.",
+        },
+      ]);
+    } finally {
+      setLoadingBot(false);
+    }
   };
 
   const greetingParts = getResponse("greeting").split("\n\n");
