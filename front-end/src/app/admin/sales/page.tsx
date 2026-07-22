@@ -630,20 +630,17 @@ export default function SalesPage() {
     [selectedSale?.subtotal, selectedSaleVatRate]
   );
   const viewStandardPricing = useMemo(
-    () => ({
-      ...getVatInclusivePricing(
-        selectedSale?.grossTotal ?? selectedSale?.totalAmount ?? 0,
-        selectedSaleVatRate
-      ),
-      subtotal: Number(selectedSale?.subtotal ?? 0),
-    }),
-    [
-      selectedSale?.grossTotal,
-      selectedSale?.subtotal,
-      selectedSale?.totalAmount,
-      selectedSaleVatRate,
-    ]
-  );
+  () =>
+    getVatInclusivePricing(
+      selectedSale?.grossTotal ?? selectedSale?.totalAmount ?? 0,
+      selectedSaleVatRate
+    ),
+  [
+    selectedSale?.grossTotal,
+    selectedSale?.totalAmount,
+    selectedSaleVatRate,
+  ]
+);
   const viewVatExempt = Boolean(
     selectedSale?.vatExempt || selectedSale?.payment?.vatExempt || viewPwdDiscount
   );
@@ -2463,7 +2460,7 @@ export default function SalesPage() {
 
                   <Box sx={{ bgcolor: "#fff", p: 2 }}>
                     <Box sx={summaryRow}>
-                    <Typography>{pwdDiscountSelected ? "Subtotal (VAT incl.)" : "Subtotal"}</Typography>
+                    <Typography>{pwdDiscountSelected ? "Subtotal (VAT incl.)" : "Vatable Sales"}</Typography>
                     <Typography>{formatPeso(pwdDiscountSelected ? subtotal : standardPricing.subtotal)}</Typography>
                   </Box>
 
@@ -2949,9 +2946,10 @@ export default function SalesPage() {
             ))}
           </Box>
 
+          {/* View Transaction modal */}
           <Box sx={{ bgcolor: "#fff", p: 2 }}>
             <Box sx={summaryRow}>
-              <Typography>{viewPwdDiscount ? "Subtotal (VAT incl.)" : "Subtotal"}</Typography>
+              <Typography>{viewPwdDiscount ? "Subtotal (VAT incl.)" : "Vatable Sales"}</Typography>
               <Typography>{formatPeso(viewPwdDiscount ? selectedSale?.subtotal || 0 : viewStandardPricing.subtotal)}</Typography>
             </Box>
 
@@ -3213,7 +3211,7 @@ export default function SalesPage() {
 
           <Box sx={{ bgcolor: "#f8f8f8", border: "1px solid #eee", p: 2, mt: 2 }}>
             <Box sx={summaryRow}>
-              <Typography>{pwdDiscountSelected ? "Subtotal (VAT incl.)" : "Subtotal"}</Typography>
+              <Typography>{pwdDiscountSelected ? "Subtotal (VAT incl.)" : "Vatable Sales"}</Typography>
               <Typography>{formatPeso(pwdDiscountSelected ? subtotal : standardPricing.subtotal)}</Typography>
             </Box>
             {pwdDiscountSelected && (
@@ -3237,12 +3235,6 @@ export default function SalesPage() {
               </>
             )}
 
-            {!viewPwdDiscount && (
-              <Box sx={summaryRow}>
-                <Typography>{getVatIndicatorLabel(viewVatExempt, selectedSaleVatRate)}</Typography>
-                <Typography>{formatVatValue(viewVatExempt, viewVatAmount)}</Typography>
-              </Box>
-            )}
             {!pwdDiscountSelected && (
               <Box sx={summaryRow}>
                 <Typography>{getVatIndicatorLabel(false, vatRate)}</Typography>
