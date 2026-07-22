@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
@@ -81,9 +81,33 @@ function createRoleFieldId() {
 }
 
 const DEFAULT_STAFF_ROLES: StaffRole[] = [
-  { id: "system_owner", role: "OWNER", displayName: "Owner", isBuiltIn: true, isSystemRole: true, systemKey: "OWNER", isActive: true },
-  { id: "system_receptionist", role: "RECEPTIONIST", displayName: "Receptionist", isBuiltIn: true, isSystemRole: true, systemKey: "RECEPTIONIST", isActive: true },
-  { id: "system_barber", role: "BARBER", displayName: "Barber", isBuiltIn: true, isSystemRole: true, systemKey: "BARBER", isActive: true },
+  {
+    id: "system_owner",
+    role: "OWNER",
+    displayName: "Owner",
+    isBuiltIn: true,
+    isSystemRole: true,
+    systemKey: "OWNER",
+    isActive: true,
+  },
+  {
+    id: "system_receptionist",
+    role: "RECEPTIONIST",
+    displayName: "Receptionist",
+    isBuiltIn: true,
+    isSystemRole: true,
+    systemKey: "RECEPTIONIST",
+    isActive: true,
+  },
+  {
+    id: "system_barber",
+    role: "BARBER",
+    displayName: "Barber",
+    isBuiltIn: true,
+    isSystemRole: true,
+    systemKey: "BARBER",
+    isActive: true,
+  },
 ];
 
 function RoleModuleSelection({
@@ -112,11 +136,14 @@ function RoleModuleSelection({
       {ADMIN_TABS.map((tab) => {
         const isDirect = selectedTabs.includes(tab.key);
         const sources = inheritedSources[tab.key] || [];
-        const isInherited = inheritedTabs.includes(tab.key) || sources.length > 0;
+        const isInherited =
+          inheritedTabs.includes(tab.key) || sources.length > 0;
         const helperText = showSources
           ? [
               isDirect ? "Direct user access" : null,
-              sources.length > 0 ? `Inherited from: ${sources.join(", ")}` : null,
+              sources.length > 0
+                ? `Inherited from: ${sources.join(", ")}`
+                : null,
               !isDirect && !isInherited ? "No access" : null,
             ]
               .filter(Boolean)
@@ -124,8 +151,18 @@ function RoleModuleSelection({
           : "";
 
         return (
-          <Box key={tab.key}>
+          <Box key={tab.key} sx={{ minWidth: 0 }}>
             <FormControlLabel
+              sx={{
+                width: "100%",
+                m: 0,
+                minHeight: 44,
+                alignItems: "center",
+                "& .MuiFormControlLabel-label": {
+                  fontSize: { xs: 14, sm: 16 },
+                  overflowWrap: "anywhere",
+                },
+              }}
               control={
                 <Checkbox
                   checked={isDirect}
@@ -136,7 +173,9 @@ function RoleModuleSelection({
               label={tab.label}
             />
             {helperText && (
-              <Typography sx={{ ml: 4, mt: -0.5, fontSize: 12, color: "text.secondary" }}>
+              <Typography
+                sx={{ ml: 4, mt: -0.5, fontSize: 12, color: "text.secondary" }}
+              >
                 {helperText}
               </Typography>
             )}
@@ -163,13 +202,15 @@ export default function AdminPage() {
   const [openManageRoles, setOpenManageRoles] = useState(false);
   const [openRoleAccess, setOpenRoleAccess] = useState(false);
   const [openAddRole, setOpenAddRole] = useState(false);
-  const [roleAccessRole, setRoleAccessRole] = useState<AdminRole>("RECEPTIONIST");
+  const [roleAccessRole, setRoleAccessRole] =
+    useState<AdminRole>("RECEPTIONIST");
   const [roleAccess, setRoleAccess] = useState<RoleAccess>({
     OWNER: DEFAULT_ROLE_TAB_ACCESS.OWNER,
     RECEPTIONIST: DEFAULT_ROLE_TAB_ACCESS.RECEPTIONIST,
     BARBER: DEFAULT_ROLE_TAB_ACCESS.BARBER,
   });
-  const [staffRoles, setStaffRoles] = useState<StaffRole[]>(DEFAULT_STAFF_ROLES);
+  const [staffRoles, setStaffRoles] =
+    useState<StaffRole[]>(DEFAULT_STAFF_ROLES);
   const [currentUserRole, setCurrentUserRole] = useState("");
   const [newRoleName, setNewRoleName] = useState("");
   const [newRoleNameError, setNewRoleNameError] = useState("");
@@ -212,7 +253,9 @@ export default function AdminPage() {
   const [editMobileNumber, setEditMobileNumber] = useState("");
   const [editRoleIds, setEditRoleIds] = useState<string[]>([]);
   const [editRoleFieldIds, setEditRoleFieldIds] = useState<string[]>([]);
-  const [editDirectAccessTabs, setEditDirectAccessTabs] = useState<string[]>([]);
+  const [editDirectAccessTabs, setEditDirectAccessTabs] = useState<string[]>(
+    [],
+  );
   const [isUpdating, setIsUpdating] = useState(false);
 
   const [openDel, setOpenDel] = useState(false);
@@ -230,18 +273,21 @@ export default function AdminPage() {
 
   const activeStaffRoles = staffRoles.filter((staffRole) => staffRole.isActive);
   const assignableStaffRoles = activeStaffRoles.filter(
-    (staffRole) => staffRole.systemKey !== "OWNER" && staffRole.systemKey !== "CUSTOMER"
+    (staffRole) =>
+      staffRole.systemKey !== "OWNER" && staffRole.systemKey !== "CUSTOMER",
   );
   const archiveableStaffRoles = activeStaffRoles.filter(
-    (staffRole) => !staffRole.isBuiltIn
+    (staffRole) => !staffRole.isBuiltIn,
   );
   const restorableStaffRoles = archivedStaffRoles.filter(
-    (staffRole) => !staffRole.isBuiltIn && !staffRole.isActive
+    (staffRole) => !staffRole.isBuiltIn && !staffRole.isActive,
   );
   const selectedRestoreRoleName =
     restorableStaffRoles.find((staffRole) => staffRole.role === restoreRole)
       ?.displayName || restoreRole;
-  const roleById = new Map(staffRoles.map((staffRole) => [staffRole.id, staffRole]));
+  const roleById = new Map(
+    staffRoles.map((staffRole) => [staffRole.id, staffRole]),
+  );
 
   const resolveRoleId = (value: unknown) => {
     const rawValue = typeof value === "string" ? value.trim() : "";
@@ -254,7 +300,7 @@ export default function AdminPage() {
         staffRole.id === rawValue ||
         staffRole.systemKey?.toUpperCase() === upper ||
         staffRole.role.toUpperCase() === upper ||
-        staffRole.displayName.toLowerCase() === normalized
+        staffRole.displayName.toLowerCase() === normalized,
     );
 
     return match?.id ?? null;
@@ -266,28 +312,29 @@ export default function AdminPage() {
       new Set(
         input
           .map((value) => resolveRoleId(value))
-          .filter((roleId): roleId is string => Boolean(roleId))
-      )
+          .filter((roleId): roleId is string => Boolean(roleId)),
+      ),
     );
   };
 
   const getDefaultRoleId = () =>
-    assignableStaffRoles.find((staffRole) => staffRole.systemKey === "RECEPTIONIST")
-      ?.id ||
+    assignableStaffRoles.find(
+      (staffRole) => staffRole.systemKey === "RECEPTIONIST",
+    )?.id ||
     assignableStaffRoles[0]?.id ||
     "";
 
   const getAvailableRolesForSelection = (
     selectedIds: string[],
-    currentIndex: number
+    currentIndex: number,
   ) => {
     const currentExistingRole = selectedUser?.roles?.find(
-      (staffRole) => staffRole.id === selectedIds[currentIndex]
+      (staffRole) => staffRole.id === selectedIds[currentIndex],
     );
     const roles = assignableStaffRoles.filter(
       (staffRole) =>
         staffRole.id === selectedIds[currentIndex] ||
-        !selectedIds.includes(staffRole.id)
+        !selectedIds.includes(staffRole.id),
     );
 
     return currentExistingRole &&
@@ -300,19 +347,23 @@ export default function AdminPage() {
     selectedIds: string[],
     setter: (nextIds: string[]) => void,
     index: number,
-    value: string
+    value: string,
   ) => {
-    setter(selectedIds.map((roleId, roleIndex) => (roleIndex === index ? value : roleId)));
+    setter(
+      selectedIds.map((roleId, roleIndex) =>
+        roleIndex === index ? value : roleId,
+      ),
+    );
   };
 
   const addRoleBox = (
     selectedIds: string[],
     setter: (nextIds: string[]) => void,
     fieldSetter?: (nextIds: string[]) => void,
-    currentFieldIds: string[] = []
+    currentFieldIds: string[] = [],
   ) => {
     const nextRole = assignableStaffRoles.find(
-      (staffRole) => !selectedIds.includes(staffRole.id)
+      (staffRole) => !selectedIds.includes(staffRole.id),
     );
 
     if (nextRole) {
@@ -326,10 +377,12 @@ export default function AdminPage() {
     setter: (nextIds: string[]) => void,
     index: number,
     fieldSetter?: (nextIds: string[]) => void,
-    currentFieldIds: string[] = []
+    currentFieldIds: string[] = [],
   ) => {
     setter(selectedIds.filter((_, roleIndex) => roleIndex !== index));
-    fieldSetter?.(currentFieldIds.filter((_, roleIndex) => roleIndex !== index));
+    fieldSetter?.(
+      currentFieldIds.filter((_, roleIndex) => roleIndex !== index),
+    );
   };
 
   const getInheritedAccessSources = (selectedIds: string[]) => {
@@ -353,13 +406,15 @@ export default function AdminPage() {
 
   const renderEffectiveAccessPreview = (
     selectedIds: string[],
-    directTabs: string[] = []
+    directTabs: string[] = [],
   ) => {
     const inheritedTabs = getInheritedAccessTabs(selectedIds);
-    const effectiveTabs = Array.from(new Set([...inheritedTabs, ...directTabs]));
-    const labels = ADMIN_TABS.filter((tab) => effectiveTabs.includes(tab.key)).map(
-      (tab) => tab.label
+    const effectiveTabs = Array.from(
+      new Set([...inheritedTabs, ...directTabs]),
     );
+    const labels = ADMIN_TABS.filter((tab) =>
+      effectiveTabs.includes(tab.key),
+    ).map((tab) => tab.label);
 
     return (
       <Box sx={{ bgcolor: "#f6f6f6", borderRadius: 2, p: 1.5 }}>
@@ -385,7 +440,7 @@ export default function AdminPage() {
     setEditDirectAccessTabs((currentTabs) =>
       currentTabs.includes(tabKey)
         ? currentTabs.filter((tab) => tab !== tabKey)
-        : [...currentTabs, tabKey]
+        : [...currentTabs, tabKey],
     );
   };
 
@@ -503,35 +558,36 @@ export default function AdminPage() {
         const activeRoleIds = new Set(
           data.roles
             .filter((staffRole: StaffRole) => staffRole.isActive)
-            .map((staffRole: StaffRole) => staffRole.id)
+            .map((staffRole: StaffRole) => staffRole.id),
         );
         const defaultRoleId =
           data.roles.find(
             (staffRole: StaffRole) =>
-              staffRole.systemKey === "RECEPTIONIST" && staffRole.isActive
+              staffRole.systemKey === "RECEPTIONIST" && staffRole.isActive,
           )?.id ||
           data.roles.find((staffRole: StaffRole) => staffRole.isActive)?.id ||
           "";
         const activeRoleNames = new Set(
           data.roles
             .filter((staffRole: StaffRole) => staffRole.isActive)
-            .map((staffRole: StaffRole) => staffRole.role)
+            .map((staffRole: StaffRole) => staffRole.role),
         );
 
         setRoleIds((currentRoleIds) => {
-          const currentCanonicalRoleIds = normalizeSelectedRoleIds(currentRoleIds);
+          const currentCanonicalRoleIds =
+            normalizeSelectedRoleIds(currentRoleIds);
           const nextRoleIds =
             currentCanonicalRoleIds.length > 0 &&
             currentCanonicalRoleIds.every((roleId) => activeRoleIds.has(roleId))
               ? currentCanonicalRoleIds
               : defaultRoleId
-              ? [defaultRoleId]
-              : [];
+                ? [defaultRoleId]
+                : [];
           setRoleFieldIds(nextRoleIds.map(() => createRoleFieldId()));
           return nextRoleIds;
         });
         setRoleAccessRole((currentRole) =>
-          activeRoleNames.has(currentRole) ? currentRole : "RECEPTIONIST"
+          activeRoleNames.has(currentRole) ? currentRole : "RECEPTIONIST",
         );
       }
 
@@ -554,33 +610,35 @@ export default function AdminPage() {
   });
 
   useEffect(() => {
-      const init = async () => {
-        try {
-          const { data: { user } } = await supabase.auth.getUser()
-          if (!user) {
-            router.push('/login')
-            return
-          }
-
-          const res = await fetch('/api/user/role')
-          const data = await res.json()
-          setCurrentUserRole(data.role || "")
-
-          if (!data.accessibleTabs?.includes("user-management")) {
-            router.push('/unauthorized')
-            return
-          }
-
-          await loadUsers(true)
-
-          if (data.role === "OWNER") {
-            await loadRoleAccess()
-          }
-        } catch (err) {
-          console.error("Initialization failed:", err)
+    const init = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) {
+          router.push("/login");
+          return;
         }
+
+        const res = await fetch("/api/user/role");
+        const data = await res.json();
+        setCurrentUserRole(data.role || "");
+
+        if (!data.accessibleTabs?.includes("user-management")) {
+          router.push("/unauthorized");
+          return;
+        }
+
+        await loadUsers(true);
+
+        if (data.role === "OWNER") {
+          await loadRoleAccess();
+        }
+      } catch (err) {
+        console.error("Initialization failed:", err);
       }
-      init()
+    };
+    init();
   }, [router]);
 
   const handleCreateUser = async ({
@@ -654,7 +712,7 @@ export default function AdminPage() {
     ) {
       showStatusModal(
         "Incomplete Fields",
-        "Please fill in all fields before continuing."
+        "Please fill in all fields before continuing.",
       );
       return;
     }
@@ -722,7 +780,9 @@ export default function AdminPage() {
         });
         showStatusModal(
           "Error",
-          data?.error || data?.message || `Failed to update user (${res.status})`
+          data?.error ||
+            data?.message ||
+            `Failed to update user (${res.status})`,
         );
         return;
       }
@@ -732,9 +792,11 @@ export default function AdminPage() {
       const savedRoleIds = normalizeSelectedRoleIds(
         savedUser?.roleIds?.length
           ? savedUser.roleIds
-          : savedUser?.roles?.map((staffRole: StaffRole) => staffRole.id)
+          : savedUser?.roles?.map((staffRole: StaffRole) => staffRole.id),
       );
-      const nextRoleIds = savedRoleIds.length ? savedRoleIds : normalizedEditRoleIds;
+      const nextRoleIds = savedRoleIds.length
+        ? savedRoleIds
+        : normalizedEditRoleIds;
       const nextDirectAccessTabs = Array.isArray(savedUser?.directAccessTabs)
         ? savedUser.directAccessTabs
         : editDirectAccessTabs;
@@ -758,12 +820,17 @@ export default function AdminPage() {
                     savedUser?.roles ||
                     nextRoleIds
                       .map((roleId) => roleById.get(roleId))
-                      .filter((staffRole): staffRole is StaffRole => Boolean(staffRole)),
-                  role: savedUser?.role || roleById.get(nextRoleIds[0])?.role || user.role,
+                      .filter((staffRole): staffRole is StaffRole =>
+                        Boolean(staffRole),
+                      ),
+                  role:
+                    savedUser?.role ||
+                    roleById.get(nextRoleIds[0])?.role ||
+                    user.role,
                 }
-              : user
-          )
-        )
+              : user,
+          ),
+        ),
       );
       setSelectedUser(savedUser || null);
       setEditRoleIds(nextRoleIds);
@@ -803,9 +870,9 @@ export default function AdminPage() {
           prev.map((user) =>
             user.id === selectedUser.id
               ? { ...user, isActive: !user.isActive }
-              : user
-          )
-        )
+              : user,
+          ),
+        ),
       );
 
       setOpenDel(false);
@@ -813,7 +880,7 @@ export default function AdminPage() {
 
       showStatusModal(
         "Success",
-        data.message || "User status updated successfully!"
+        data.message || "User status updated successfully!",
       );
     } catch {
       showStatusModal("Error", "Something went wrong updating user status");
@@ -838,7 +905,7 @@ export default function AdminPage() {
     setNewRoleTabs((prev) =>
       prev.includes(tabKey)
         ? prev.filter((key) => key !== tabKey)
-        : [...prev, tabKey]
+        : [...prev, tabKey],
     );
   };
 
@@ -847,7 +914,9 @@ export default function AdminPage() {
     setOpenRoleAccess(true);
   };
 
-  const openRoleManagementAction = async (action: () => void | Promise<void>) => {
+  const openRoleManagementAction = async (
+    action: () => void | Promise<void>,
+  ) => {
     setOpenManageRoles(false);
     await action();
   };
@@ -954,8 +1023,9 @@ export default function AdminPage() {
         [trimmedRoleName]: data.tabs || newRoleTabs,
       }));
       const createdRoleId =
-        data.roles?.find((staffRole: StaffRole) => staffRole.role === trimmedRoleName)
-          ?.id || trimmedRoleName;
+        data.roles?.find(
+          (staffRole: StaffRole) => staffRole.role === trimmedRoleName,
+        )?.id || trimmedRoleName;
       setRoleIds([createdRoleId]);
       setOpenAddRole(false);
       resetAddRoleForm();
@@ -969,10 +1039,13 @@ export default function AdminPage() {
 
   const buildArchiveBlockMessage = (
     assignedUsers: { name: string }[],
-    assignedUserCount: number
+    assignedUserCount: number,
   ) => {
     const names = assignedUsers.map((user) => `\u2022 ${user.name}`).join("\n");
-    const remainingCount = Math.max(assignedUserCount - assignedUsers.length, 0);
+    const remainingCount = Math.max(
+      assignedUserCount - assignedUsers.length,
+      0,
+    );
     const moreText =
       remainingCount > 0 ? `\n\n...and ${remainingCount} more users.` : "";
 
@@ -1006,8 +1079,8 @@ export default function AdminPage() {
         setArchiveBlockMessage(
           buildArchiveBlockMessage(
             data.assignedUsers,
-            Number(data.assignedUserCount || data.assignedUsers.length)
-          )
+            Number(data.assignedUserCount || data.assignedUsers.length),
+          ),
         );
         return;
       }
@@ -1032,19 +1105,19 @@ export default function AdminPage() {
 
       setRoleIds((currentRoleIds) => {
         const archivedRoleId = staffRoles.find(
-          (staffRole) => staffRole.role === archiveRole
+          (staffRole) => staffRole.role === archiveRole,
         )?.id;
         const nextRoleIds = currentRoleIds.filter(
-          (roleId) => roleId !== archivedRoleId
+          (roleId) => roleId !== archivedRoleId,
         );
         return nextRoleIds.length > 0
           ? nextRoleIds
           : getDefaultRoleId()
-          ? [getDefaultRoleId()]
-          : [];
+            ? [getDefaultRoleId()]
+            : [];
       });
       setRoleAccessRole((currentRole) =>
-        currentRole === archiveRole ? "RECEPTIONIST" : currentRole
+        currentRole === archiveRole ? "RECEPTIONIST" : currentRole,
       );
       setOpenArchiveRole(false);
       resetArchiveRoleForm();
@@ -1114,8 +1187,9 @@ export default function AdminPage() {
       }
 
       const restoredRoleId =
-        data.roles?.find((staffRole: StaffRole) => staffRole.role === restoreRole)
-          ?.id || "";
+        data.roles?.find(
+          (staffRole: StaffRole) => staffRole.role === restoreRole,
+        )?.id || "";
       if (restoredRoleId) {
         setRoleIds([restoredRoleId]);
       }
@@ -1134,7 +1208,7 @@ export default function AdminPage() {
 
   const paginatedUsers = sortedUsers.slice(
     (page - 1) * itemsPerPage,
-    page * itemsPerPage
+    page * itemsPerPage,
   );
 
   const totalPages = Math.ceil(sortedUsers.length / itemsPerPage);
@@ -1161,16 +1235,37 @@ export default function AdminPage() {
   ];
 
   return (
-    <Box sx={{ flex: 1, p: 4, backgroundColor: "#fff" }}>
+    <Box
+      sx={{
+        flex: 1,
+        p: { xs: 2, sm: 3, md: 4 },
+        backgroundColor: "#fff",
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
+        overflowX: "hidden",
+      }}
+    >
       <Box
         sx={{
           display: "flex",
-          alignItems: "center",
+          alignItems: { xs: "flex-start", sm: "center" },
           justifyContent: "space-between",
+          flexDirection: { xs: "column", sm: "row" },
+          gap: 2,
           mb: 4,
         }}
       >
-        <Typography variant="h3" sx={{ fontWeight: 700 }}>
+        <Typography
+          variant="h3"
+          sx={{
+            fontWeight: 700,
+            fontSize: { xs: 34, sm: 42, md: 48 },
+            lineHeight: 1.05,
+            wordBreak: "normal",
+          }}
+        >
           User Management
         </Typography>
       </Box>
@@ -1179,8 +1274,9 @@ export default function AdminPage() {
         sx={{
           display: "flex",
           justifyContent: "flex-end",
-          alignItems: "flex-end",
+          alignItems: { xs: "stretch", sm: "flex-end" },
           flexDirection: "column",
+          width: { xs: "100%", sm: "auto" },
           gap: 1.25,
           mb: 4,
         }}
@@ -1191,7 +1287,11 @@ export default function AdminPage() {
               startIcon={<AddIcon />}
               variant="contained"
               onClick={() => setOpenAdd(true)}
-              sx={{ textTransform: "none", minWidth: 160 }}
+              sx={{
+                textTransform: "none",
+                width: { xs: "100%", sm: "auto" },
+                minWidth: { xs: 0, sm: 160 },
+              }}
             >
               Add User
             </Button>
@@ -1201,7 +1301,8 @@ export default function AdminPage() {
               onClick={() => setOpenManageRoles(true)}
               sx={{
                 textTransform: "none",
-                minWidth: 160,
+                width: { xs: "100%", sm: "auto" },
+                minWidth: { xs: 0, sm: 160 },
               }}
             >
               Manage Roles
@@ -1226,19 +1327,18 @@ export default function AdminPage() {
         </Typography>
       ) : (
         <>
-          <TableContainer component={Paper}>
-            <Table>
+          <TableContainer
+            component={Paper}
+            sx={{ overflowX: "auto", maxWidth: "100%" }}
+          >
+            <Table sx={{ minWidth: 1050 }}>
               <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 700 }}>ID</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>
-                    Contact Number
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>
-                    Email Address
-                  </TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Contact Number</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Email Address</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Role</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Date Added</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Actions</TableCell>
@@ -1260,7 +1360,7 @@ export default function AdminPage() {
                     <TableCell>
                       {String((page - 1) * itemsPerPage + index + 1).padStart(
                         1,
-                        "0"
+                        "0",
                       )}
                     </TableCell>
 
@@ -1276,7 +1376,9 @@ export default function AdminPage() {
                     <TableCell>{user.name}</TableCell>
                     <TableCell>{user.mobileNumber}</TableCell>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell sx={{ color: user.roleIsArchived ? "#9e6300" : "#666" }}>
+                    <TableCell
+                      sx={{ color: user.roleIsArchived ? "#9e6300" : "#666" }}
+                    >
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                         {(user.roles?.length
                           ? user.roles
@@ -1289,25 +1391,32 @@ export default function AdminPage() {
                                 isActive: !user.roleIsArchived,
                               },
                             ]
-                        ).slice(0, 3).map((staffRole) => (
-                          <Box
-                            key={staffRole.id}
-                            component="span"
-                            sx={{
-                              border: "1px solid #d7d7d7",
-                              borderRadius: 1,
-                              px: 0.75,
-                              py: 0.25,
-                              fontSize: 12,
-                              bgcolor: staffRole.isActive ? "#f7f7f7" : "#fff3cd",
-                            }}
-                          >
-                            {staffRole.displayName}
-                            {staffRole.isActive ? "" : " (Archived)"}
-                          </Box>
-                        ))}
+                        )
+                          .slice(0, 3)
+                          .map((staffRole) => (
+                            <Box
+                              key={staffRole.id}
+                              component="span"
+                              sx={{
+                                border: "1px solid #d7d7d7",
+                                borderRadius: 1,
+                                px: 0.75,
+                                py: 0.25,
+                                fontSize: 12,
+                                bgcolor: staffRole.isActive
+                                  ? "#f7f7f7"
+                                  : "#fff3cd",
+                              }}
+                            >
+                              {staffRole.displayName}
+                              {staffRole.isActive ? "" : " (Archived)"}
+                            </Box>
+                          ))}
                         {(user.roles?.length || 0) > 3 && (
-                          <Box component="span" sx={{ fontSize: 12, color: "#666" }}>
+                          <Box
+                            component="span"
+                            sx={{ fontSize: 12, color: "#666" }}
+                          >
                             +{(user.roles?.length || 0) - 3}
                           </Box>
                         )}
@@ -1333,22 +1442,23 @@ export default function AdminPage() {
                               setEditLastName(names.slice(1).join(" ") || "");
                               setEditEmail(user.email);
                               setEditMobileNumber(user.mobileNumber);
-                              const assignedRoleIds =
-                                user.roleIds?.length
-                                  ? user.roleIds
-                                  : user.roles?.map((staffRole) => staffRole.id) || [];
+                              const assignedRoleIds = user.roleIds?.length
+                                ? user.roleIds
+                                : user.roles?.map(
+                                    (staffRole) => staffRole.id,
+                                  ) || [];
                               const nextEditRoleIds =
                                 assignedRoleIds.length > 0
                                   ? normalizeSelectedRoleIds(assignedRoleIds)
-                                  : [getDefaultRoleId()].filter(Boolean)
+                                  : [getDefaultRoleId()].filter(Boolean);
                               setEditRoleIds(nextEditRoleIds);
                               setEditRoleFieldIds(
-                                nextEditRoleIds.map(() => createRoleFieldId())
+                                nextEditRoleIds.map(() => createRoleFieldId()),
                               );
                               setEditDirectAccessTabs(
                                 Array.isArray(user.directAccessTabs)
                                   ? user.directAccessTabs
-                                  : []
+                                  : [],
                               );
 
                               setOpenEdit(true);
@@ -1364,7 +1474,11 @@ export default function AdminPage() {
                               setSelectedUser(user);
                               setOpenDel(true);
                             }}
-                            title={user.isActive ? "Deactivate User" : "Activate User"}
+                            title={
+                              user.isActive
+                                ? "Deactivate User"
+                                : "Activate User"
+                            }
                           >
                             {user.isActive ? (
                               <PersonOffIcon fontSize="small" />
@@ -1385,7 +1499,9 @@ export default function AdminPage() {
             sx={{
               display: "flex",
               justifyContent: "space-between",
-              alignItems: "center",
+              alignItems: { xs: "stretch", sm: "center" },
+              flexDirection: { xs: "column", sm: "row" },
+              gap: 1.5,
               mt: 4,
             }}
           >
@@ -1506,9 +1622,7 @@ export default function AdminPage() {
                 const value = e.target.value.replace(/\D/g, "");
                 if (value.length <= 11) setMobileNumber(value);
               }}
-              error={
-                mobileNumber.length > 0 && !/^09\d{9}$/.test(mobileNumber)
-              }
+              error={mobileNumber.length > 0 && !/^09\d{9}$/.test(mobileNumber)}
               helperText={
                 mobileNumber.length > 0 && !/^09\d{9}$/.test(mobileNumber)
                   ? "Mobile number must be 11 digits and start with 09"
@@ -1583,7 +1697,10 @@ export default function AdminPage() {
                 key={roleFieldIds[index] || `role-${roleId}-${index}`}
                 sx={{ display: "flex", alignItems: "center", gap: 1 }}
               >
-                <FormControl fullWidth sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}>
+                <FormControl
+                  fullWidth
+                  sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
+                >
                   <InputLabel>
                     {index === 0 ? "Role" : `Role ${index + 1}`}{" "}
                     {index === 0 && <span style={{ color: "red" }}>*</span>}
@@ -1595,16 +1712,21 @@ export default function AdminPage() {
                       setRoleIdAt(roleIds, setRoleIds, index, e.target.value)
                     }
                   >
-                    {getAvailableRolesForSelection(roleIds, index).map((staffRole) => (
-                      <MenuItem
-                        key={staffRole.id}
-                        value={staffRole.id}
-                        disabled={!staffRole.isActive || staffRole.systemKey === "OWNER"}
-                      >
-                        {staffRole.displayName}
-                        {staffRole.isActive ? "" : " (Archived)"}
-                      </MenuItem>
-                    ))}
+                    {getAvailableRolesForSelection(roleIds, index).map(
+                      (staffRole) => (
+                        <MenuItem
+                          key={staffRole.id}
+                          value={staffRole.id}
+                          disabled={
+                            !staffRole.isActive ||
+                            staffRole.systemKey === "OWNER"
+                          }
+                        >
+                          {staffRole.displayName}
+                          {staffRole.isActive ? "" : " (Archived)"}
+                        </MenuItem>
+                      ),
+                    )}
                   </Select>
                 </FormControl>
 
@@ -1616,7 +1738,7 @@ export default function AdminPage() {
                         setRoleIds,
                         index,
                         setRoleFieldIds,
-                        roleFieldIds
+                        roleFieldIds,
                       )
                     }
                     sx={{ textTransform: "none", minWidth: 88 }}
@@ -1755,7 +1877,12 @@ export default function AdminPage() {
           "& .MuiPaper-root": {
             borderRadius: 4,
             bgcolor: "#f2f2f2",
-            overflow: "visible",
+            width: { xs: "calc(100vw - 24px)", sm: "100%" },
+            maxHeight: { xs: "calc(100vh - 24px)", sm: "90vh" },
+            m: { xs: "12px", sm: "32px" },
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
           },
         }}
       >
@@ -1764,9 +1891,14 @@ export default function AdminPage() {
             m: 2,
             bgcolor: "#fff",
             borderRadius: 4,
-            p: 3,
+            p: { xs: 2, sm: 3 },
             pb: 2,
             boxShadow: "0 10px 40px rgba(0,0,0,0.08)",
+            display: "flex",
+            flexDirection: "column",
+            flex: 1,
+            minHeight: 0,
+            overflow: "hidden",
           }}
         >
           <Box
@@ -1787,7 +1919,16 @@ export default function AdminPage() {
           </Box>
 
           <DialogContent
-            sx={{ p: 1, display: "flex", flexDirection: "column", gap: 2 }}
+            sx={{
+              p: 1,
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              flex: 1,
+              minHeight: 0,
+              overflowY: "auto",
+              overflowX: "hidden",
+            }}
           >
             <FormControl fullWidth sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}>
               <InputLabel>Role</InputLabel>
@@ -1815,8 +1956,11 @@ export default function AdminPage() {
               display: "flex",
               justifyContent: "space-between",
               gap: 1,
-              mt: 3,
-              mb: 2,
+              mt: 2,
+              pt: 2,
+              borderTop: "1px solid #eee",
+              bgcolor: "#fff",
+              flexShrink: 0,
             }}
           >
             <Button
@@ -1862,29 +2006,43 @@ export default function AdminPage() {
         maxWidth="sm"
         fullWidth
         sx={{
-          "& .MuiPaper-root": {
-            borderRadius: 4,
+          "& .MuiDialog-paper": {
+            width: { xs: "calc(100vw - 24px)", sm: "100%" },
+            maxWidth: 560,
+            maxHeight: { xs: "calc(100vh - 24px)", sm: "90vh" },
+            m: { xs: 1.5, sm: 4 },
+            borderRadius: 3,
             bgcolor: "#f2f2f2",
-            overflow: "visible",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
           },
         }}
       >
         <Box
           sx={{
-            m: 2,
+            m: { xs: 1.5, sm: 2 },
             bgcolor: "#fff",
-            borderRadius: 4,
-            p: 3,
-            pb: 2,
+            borderRadius: 3,
             boxShadow: "0 10px 40px rgba(0,0,0,0.08)",
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            maxHeight: {
+              xs: "calc(100vh - 48px)",
+              sm: "calc(90vh - 32px)",
+            },
+            overflow: "hidden",
           }}
         >
-          <Box
+          <DialogTitle
             sx={{
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              mb: 2,
+              flexShrink: 0,
+              px: { xs: 2, sm: 3 },
+              py: 2,
             }}
           >
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
@@ -1901,10 +2059,20 @@ export default function AdminPage() {
             >
               <CloseIcon />
             </IconButton>
-          </Box>
+          </DialogTitle>
 
           <DialogContent
-            sx={{ p: 1, display: "flex", flexDirection: "column", gap: 2 }}
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: "auto",
+              overflowX: "hidden",
+              px: { xs: 2, sm: 3 },
+              py: 1,
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+            }}
           >
             <TextField
               label={
@@ -1918,13 +2086,15 @@ export default function AdminPage() {
                 const nextName = e.target.value;
                 setNewRoleName(nextName);
                 setNewRoleNameError(
-                  nextName.trim() ? getRoleNameError(nextName) : ""
+                  nextName.trim() ? getRoleNameError(nextName) : "",
                 );
               }}
               onBlur={() => {
                 const trimmedName = newRoleName.trim();
                 setNewRoleName(trimmedName);
-                setNewRoleNameError(trimmedName ? getRoleNameError(trimmedName) : "");
+                setNewRoleNameError(
+                  trimmedName ? getRoleNameError(trimmedName) : "",
+                );
               }}
               error={Boolean(newRoleNameError)}
               helperText={newRoleNameError}
@@ -1940,13 +2110,21 @@ export default function AdminPage() {
             />
           </DialogContent>
 
-          <Box
+          <DialogActions
             sx={{
+              flexShrink: 0,
+              px: { xs: 2, sm: 3 },
+              py: 2,
+              borderTop: "1px solid #eee",
+              bgcolor: "#fff",
               display: "flex",
-              justifyContent: "space-between",
+              flexDirection: { xs: "column-reverse", sm: "row" },
+              alignItems: "stretch",
+              justifyContent: "flex-end",
               gap: 1,
-              mt: 3,
-              mb: 2,
+              "& > :not(style) ~ :not(style)": {
+                ml: 0,
+              },
             }}
           >
             <Button
@@ -1955,13 +2133,18 @@ export default function AdminPage() {
                 resetAddRoleForm();
               }}
               disabled={creatingRole}
+              fullWidth
               sx={{
+                width: { xs: "100%", sm: "auto" },
+                minWidth: { xs: 0, sm: 120 },
+                py: 1.1,
                 backgroundColor: "#6d6d6d",
                 color: "#f7c948",
                 textTransform: "none",
-                minWidth: 120,
-                py: 1.25,
-                ":hover": { backgroundColor: "#5a5a5a" },
+                whiteSpace: "nowrap",
+                "&:hover": {
+                  backgroundColor: "#5a5a5a",
+                },
               }}
             >
               Cancel
@@ -1971,17 +2154,20 @@ export default function AdminPage() {
               variant="contained"
               onClick={handleCreateRole}
               disabled={
-                creatingRole ||
-                !newRoleName.trim() ||
-                Boolean(newRoleNameError)
+                creatingRole || !newRoleName.trim() || Boolean(newRoleNameError)
               }
+              fullWidth
               sx={{
+                width: { xs: "100%", sm: "auto" },
+                minWidth: { xs: 0, sm: 120 },
+                py: 1.1,
                 backgroundColor: "#000",
                 color: "#fff",
                 textTransform: "none",
-                minWidth: 120,
-                py: 1.25,
-                ":hover": { backgroundColor: "#111" },
+                whiteSpace: "nowrap",
+                "&:hover": {
+                  backgroundColor: "#111",
+                },
                 "&.Mui-disabled": {
                   backgroundColor: "#777",
                   color: "#eee",
@@ -1990,25 +2176,22 @@ export default function AdminPage() {
             >
               {creatingRole ? "Creating..." : "Create Role"}
             </Button>
-          </Box>
+          </DialogActions>
         </Box>
       </Dialog>
 
       <Dialog
         open={openArchiveRole}
-        onClose={() => {
-          if (!archiveChecking) {
-            setOpenArchiveRole(false);
-            resetArchiveRoleForm();
-          }
-        }}
-        maxWidth="sm"
+        onClose={() => setOpenArchiveRole(false)}
         fullWidth
+        maxWidth="xs"
         sx={{
-          "& .MuiPaper-root": {
-            borderRadius: 4,
-            bgcolor: "#f2f2f2",
-            overflow: "visible",
+          "& .MuiDialog-paper": {
+            width: { xs: "calc(100vw - 24px)", sm: "100%" },
+            maxWidth: 420,
+            m: { xs: 1.5, sm: 4 },
+            borderRadius: 3,
+            overflow: "hidden",
           },
         }}
       >
@@ -2088,28 +2271,32 @@ export default function AdminPage() {
             )}
           </DialogContent>
 
-          <Box
+          <DialogActions
             sx={{
+              px: { xs: 2, sm: 3 },
+              pb: { xs: 2, sm: 3 },
+              pt: 1.5,
               display: "flex",
-              justifyContent: "space-between",
+              flexDirection: { xs: "column-reverse", sm: "row" },
+              alignItems: "stretch",
+              justifyContent: "flex-end",
               gap: 1,
-              mt: 3,
-              mb: 2,
             }}
           >
             <Button
-              onClick={() => {
-                setOpenArchiveRole(false);
-                resetArchiveRoleForm();
-              }}
-              disabled={archiveChecking}
+              onClick={() => setOpenArchiveRole(false)}
+              fullWidth
               sx={{
+                width: { xs: "100%", sm: "auto" },
+                minWidth: { xs: 0, sm: 120 },
+                py: 1.1,
                 backgroundColor: "#6d6d6d",
                 color: "#f7c948",
                 textTransform: "none",
-                minWidth: 120,
-                py: 1.25,
-                ":hover": { backgroundColor: "#5a5a5a" },
+                whiteSpace: "nowrap",
+                "&:hover": {
+                  backgroundColor: "#5a5a5a",
+                },
               }}
             >
               Cancel
@@ -2118,49 +2305,46 @@ export default function AdminPage() {
             <Button
               variant="contained"
               onClick={handleArchiveRole}
-              disabled={
-                archiveChecking ||
-                !archiveRole ||
-                archiveableStaffRoles.length === 0
-              }
+              disabled={!archiveRole || archiveChecking}
+              fullWidth
               sx={{
-                backgroundColor: "#d32f2f",
+                width: { xs: "100%", sm: "auto" },
+                minWidth: { xs: 0, sm: 120 },
+                py: 1.1,
+                backgroundColor: "#000",
                 color: "#fff",
                 textTransform: "none",
-                minWidth: 120,
-                py: 1.25,
-                ":hover": { backgroundColor: "#b71c1c" },
-                "&.Mui-disabled": {
-                  backgroundColor: "#9e9e9e",
-                  color: "#eee",
+                whiteSpace: "nowrap",
+                "&:hover": {
+                  backgroundColor: "#111",
                 },
               }}
             >
               {archiveChecking
                 ? "Checking..."
                 : archiveConfirm
-                ? "Archive"
-                : "Archive Role"}
+                  ? "Confirm Archive"
+                  : "Archive Role"}
             </Button>
-          </Box>
+          </DialogActions>
         </Box>
       </Dialog>
 
       <Dialog
         open={openRestoreRole}
         onClose={() => {
-          if (!restoreChecking) {
-            setOpenRestoreRole(false);
-            resetRestoreRoleForm();
-          }
+          setOpenRestoreRole(false);
+          resetRestoreRoleForm();
         }}
-        maxWidth="sm"
         fullWidth
+        maxWidth="xs"
         sx={{
-          "& .MuiPaper-root": {
-            borderRadius: 4,
-            bgcolor: "#f2f2f2",
-            overflow: "visible",
+          "& .MuiDialog-paper": {
+            width: { xs: "calc(100vw - 24px)", sm: "100%" },
+            maxWidth: 420,
+            m: { xs: 1.5, sm: 4 },
+            borderRadius: 3,
+            overflow: "hidden",
           },
         }}
       >
@@ -2244,13 +2428,16 @@ export default function AdminPage() {
             )}
           </DialogContent>
 
-          <Box
+          <DialogActions
             sx={{
+              px: { xs: 2, sm: 3 },
+              pb: { xs: 2, sm: 3 },
+              pt: 1.5,
               display: "flex",
-              justifyContent: "space-between",
+              flexDirection: { xs: "column-reverse", sm: "row" },
+              alignItems: "stretch",
+              justifyContent: "flex-end",
               gap: 1,
-              mt: 3,
-              mb: 2,
             }}
           >
             <Button
@@ -2258,14 +2445,18 @@ export default function AdminPage() {
                 setOpenRestoreRole(false);
                 resetRestoreRoleForm();
               }}
-              disabled={restoreChecking}
+              fullWidth
               sx={{
+                width: { xs: "100%", sm: "auto" },
+                minWidth: { xs: 0, sm: 120 },
+                py: 1.1,
                 backgroundColor: "#6d6d6d",
                 color: "#f7c948",
                 textTransform: "none",
-                minWidth: 120,
-                py: 1.25,
-                ":hover": { backgroundColor: "#5a5a5a" },
+                whiteSpace: "nowrap",
+                "&:hover": {
+                  backgroundColor: "#5a5a5a",
+                },
               }}
             >
               Cancel
@@ -2274,31 +2465,28 @@ export default function AdminPage() {
             <Button
               variant="contained"
               onClick={handleRestoreRole}
-              disabled={
-                restoreChecking ||
-                !restoreRole ||
-                restorableStaffRoles.length === 0
-              }
+              disabled={!restoreRole || restoreChecking}
+              fullWidth
               sx={{
-                backgroundColor: "#2e7d32",
+                width: { xs: "100%", sm: "auto" },
+                minWidth: { xs: 0, sm: 120 },
+                py: 1.1,
+                backgroundColor: "#000",
                 color: "#fff",
                 textTransform: "none",
-                minWidth: 120,
-                py: 1.25,
-                ":hover": { backgroundColor: "#1b5e20" },
-                "&.Mui-disabled": {
-                  backgroundColor: "#9e9e9e",
-                  color: "#eee",
+                whiteSpace: "nowrap",
+                "&:hover": {
+                  backgroundColor: "#111",
                 },
               }}
             >
               {restoreChecking
                 ? "Checking..."
                 : restoreConfirm
-                ? "Restore"
-                : "Restore Role"}
+                  ? "Confirm Restore"
+                  : "Restore Role"}
             </Button>
-          </Box>
+          </DialogActions>
         </Box>
       </Dialog>
 
@@ -2349,172 +2537,182 @@ export default function AdminPage() {
             p: 3,
           }}
         >
-            <TextField
-              label={
-                <>
-                  First Name <span style={{ color: "red" }}>*</span>
-                </>
-              }
-              fullWidth
-              value={editFirstName}
-              onChange={(e) => setEditFirstName(e.target.value)}
-              slotProps={{ htmlInput: { maxLength: 50 } }}
-              sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
-            />
+          <TextField
+            label={
+              <>
+                First Name <span style={{ color: "red" }}>*</span>
+              </>
+            }
+            fullWidth
+            value={editFirstName}
+            onChange={(e) => setEditFirstName(e.target.value)}
+            slotProps={{ htmlInput: { maxLength: 50 } }}
+            sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
+          />
 
-            <TextField
-              label={
-                <>
-                  Last Name <span style={{ color: "red" }}>*</span>
-                </>
-              }
-              fullWidth
-              value={editLastName}
-              onChange={(e) => setEditLastName(e.target.value)}
-              slotProps={{ htmlInput: { maxLength: 50 } }}
-              sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
-            />
+          <TextField
+            label={
+              <>
+                Last Name <span style={{ color: "red" }}>*</span>
+              </>
+            }
+            fullWidth
+            value={editLastName}
+            onChange={(e) => setEditLastName(e.target.value)}
+            slotProps={{ htmlInput: { maxLength: 50 } }}
+            sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
+          />
 
-            <TextField
-              label={
-                <>
-                  Email <span style={{ color: "red" }}>*</span>
-                </>
-              }
-              fullWidth
-              value={editEmail}
-              disabled
-              sx={{
-                bgcolor: "#f6f6f6",
-                borderRadius: 2,
-                "& .MuiInputBase-input.Mui-disabled": {
-                  WebkitTextFillColor: "#555",
-                },
-              }}
-            />
+          <TextField
+            label={
+              <>
+                Email <span style={{ color: "red" }}>*</span>
+              </>
+            }
+            fullWidth
+            value={editEmail}
+            disabled
+            sx={{
+              bgcolor: "#f6f6f6",
+              borderRadius: 2,
+              "& .MuiInputBase-input.Mui-disabled": {
+                WebkitTextFillColor: "#555",
+              },
+            }}
+          />
 
-            <TextField
-              label={
-                <>
-                  Mobile Number <span style={{ color: "red" }}>*</span>
-                </>
-              }
-              fullWidth
-              value={editMobileNumber}
-              onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, "");
-                if (value.length <= 11) setEditMobileNumber(value);
-              }}
-              error={
-                editMobileNumber.length > 0 &&
-                !/^09\d{9}$/.test(editMobileNumber)
-              }
-              helperText={
-                editMobileNumber.length > 0 &&
-                !/^09\d{9}$/.test(editMobileNumber)
-                  ? "Mobile number must be 11 digits and start with 09"
-                  : ""
-              }
-              slotProps={{
-                htmlInput: {
-                  inputMode: "numeric",
-                  pattern: "[0-9]*",
-                  maxLength: 11,
-                },
-              }}
-              sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
-            />
+          <TextField
+            label={
+              <>
+                Mobile Number <span style={{ color: "red" }}>*</span>
+              </>
+            }
+            fullWidth
+            value={editMobileNumber}
+            onChange={(e) => {
+              const value = e.target.value.replace(/\D/g, "");
+              if (value.length <= 11) setEditMobileNumber(value);
+            }}
+            error={
+              editMobileNumber.length > 0 && !/^09\d{9}$/.test(editMobileNumber)
+            }
+            helperText={
+              editMobileNumber.length > 0 && !/^09\d{9}$/.test(editMobileNumber)
+                ? "Mobile number must be 11 digits and start with 09"
+                : ""
+            }
+            slotProps={{
+              htmlInput: {
+                inputMode: "numeric",
+                pattern: "[0-9]*",
+                maxLength: 11,
+              },
+            }}
+            sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
+          />
 
-            {editRoleIds.map((roleId, index) => (
-              <Box
-                key={editRoleFieldIds[index] || `edit-role-${roleId}-${index}`}
-                sx={{ display: "flex", alignItems: "center", gap: 1 }}
-              >
-                <FormControl fullWidth sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}>
-                  <InputLabel>
-                    {index === 0 ? "Role" : `Role ${index + 1}`}{" "}
-                    {index === 0 && <span style={{ color: "red" }}>*</span>}
-                  </InputLabel>
-
-                  <Select
-                    value={roleId}
-                    label={index === 0 ? "Role *" : `Role ${index + 1}`}
-                    onChange={(e) =>
-                      setRoleIdAt(editRoleIds, setEditRoleIds, index, e.target.value)
-                    }
-                  >
-                    {getAvailableRolesForSelection(editRoleIds, index).map(
-                      (staffRole) => (
-                        <MenuItem
-                          key={staffRole.id}
-                          value={staffRole.id}
-                          disabled={!staffRole.isActive || staffRole.systemKey === "OWNER"}
-                        >
-                          {staffRole.displayName}
-                          {staffRole.isActive ? "" : " (Archived)"}
-                        </MenuItem>
-                      )
-                    )}
-                  </Select>
-                </FormControl>
-
-                {index > 0 && (
-                  <Button
-                    onClick={() =>
-                      removeRoleBox(
-                        editRoleIds,
-                        setEditRoleIds,
-                        index,
-                        setEditRoleFieldIds,
-                        editRoleFieldIds
-                      )
-                    }
-                    sx={{ textTransform: "none", minWidth: 88 }}
-                  >
-                    Remove
-                  </Button>
-                )}
-              </Box>
-            ))}
-
-            <Button
-              onClick={() =>
-                addRoleBox(
-                  editRoleIds,
-                  setEditRoleIds,
-                  setEditRoleFieldIds,
-                  editRoleFieldIds
-                )
-              }
-              disabled={editRoleIds.length >= assignableStaffRoles.length}
-              sx={{ alignSelf: "flex-start", textTransform: "none", px: 0 }}
+          {editRoleIds.map((roleId, index) => (
+            <Box
+              key={editRoleFieldIds[index] || `edit-role-${roleId}-${index}`}
+              sx={{ display: "flex", alignItems: "center", gap: 1 }}
             >
-              + New Role
-            </Button>
+              <FormControl
+                fullWidth
+                sx={{ bgcolor: "#f6f6f6", borderRadius: 2 }}
+              >
+                <InputLabel>
+                  {index === 0 ? "Role" : `Role ${index + 1}`}{" "}
+                  {index === 0 && <span style={{ color: "red" }}>*</span>}
+                </InputLabel>
 
-            {selectedUserRoleIsArchived && (
-              <Typography sx={{ mt: 1, fontSize: 12, color: "#9e6300" }}>
-                This user&apos;s current role is archived. Select an active role before saving.
-              </Typography>
-            )}
+                <Select
+                  value={roleId}
+                  label={index === 0 ? "Role *" : `Role ${index + 1}`}
+                  onChange={(e) =>
+                    setRoleIdAt(
+                      editRoleIds,
+                      setEditRoleIds,
+                      index,
+                      e.target.value,
+                    )
+                  }
+                >
+                  {getAvailableRolesForSelection(editRoleIds, index).map(
+                    (staffRole) => (
+                      <MenuItem
+                        key={staffRole.id}
+                        value={staffRole.id}
+                        disabled={
+                          !staffRole.isActive || staffRole.systemKey === "OWNER"
+                        }
+                      >
+                        {staffRole.displayName}
+                        {staffRole.isActive ? "" : " (Archived)"}
+                      </MenuItem>
+                    ),
+                  )}
+                </Select>
+              </FormControl>
 
-            <Box sx={{ bgcolor: "#f6f6f6", borderRadius: 2, p: 1.5 }}>
-              <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.5 }}>
-                Direct Module Access
-              </Typography>
-              <Typography sx={{ fontSize: 12, color: "text.secondary", mb: 1 }}>
-                Checked modules are direct user grants. Inherited role access remains active even when unchecked here.
-              </Typography>
-              <RoleModuleSelection
-                selectedTabs={editDirectAccessTabs}
-                inheritedTabs={getInheritedAccessTabs(editRoleIds)}
-                inheritedSources={getInheritedAccessSources(editRoleIds)}
-                showSources
-                onToggle={toggleEditDirectAccessTab}
-              />
+              {index > 0 && (
+                <Button
+                  onClick={() =>
+                    removeRoleBox(
+                      editRoleIds,
+                      setEditRoleIds,
+                      index,
+                      setEditRoleFieldIds,
+                      editRoleFieldIds,
+                    )
+                  }
+                  sx={{ textTransform: "none", minWidth: 88 }}
+                >
+                  Remove
+                </Button>
+              )}
             </Box>
+          ))}
 
-            {renderEffectiveAccessPreview(editRoleIds, editDirectAccessTabs)}
+          <Button
+            onClick={() =>
+              addRoleBox(
+                editRoleIds,
+                setEditRoleIds,
+                setEditRoleFieldIds,
+                editRoleFieldIds,
+              )
+            }
+            disabled={editRoleIds.length >= assignableStaffRoles.length}
+            sx={{ alignSelf: "flex-start", textTransform: "none", px: 0 }}
+          >
+            + New Role
+          </Button>
+
+          {selectedUserRoleIsArchived && (
+            <Typography sx={{ mt: 1, fontSize: 12, color: "#9e6300" }}>
+              This user&apos;s current role is archived. Select an active role
+              before saving.
+            </Typography>
+          )}
+
+          <Box sx={{ bgcolor: "#f6f6f6", borderRadius: 2, p: 1.5 }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.5 }}>
+              Direct Module Access
+            </Typography>
+            <Typography sx={{ fontSize: 12, color: "text.secondary", mb: 1 }}>
+              Checked modules are direct user grants. Inherited role access
+              remains active even when unchecked here.
+            </Typography>
+            <RoleModuleSelection
+              selectedTabs={editDirectAccessTabs}
+              inheritedTabs={getInheritedAccessTabs(editRoleIds)}
+              inheritedSources={getInheritedAccessSources(editRoleIds)}
+              showSources
+              onToggle={toggleEditDirectAccessTab}
+            />
+          </Box>
+
+          {renderEffectiveAccessPreview(editRoleIds, editDirectAccessTabs)}
         </DialogContent>
 
         <DialogActions
@@ -2529,42 +2727,42 @@ export default function AdminPage() {
             zIndex: 1,
           }}
         >
-            <Button
-              onClick={() => setOpenEdit(false)}
-              sx={{
-                backgroundColor: "#6d6d6d",
-                color: "#f7c948",
-                textTransform: "none",
-                minWidth: 120,
-                py: 1.25,
-                ":hover": { backgroundColor: "#5a5a5a" },
-              }}
-            >
-              Cancel
-            </Button>
+          <Button
+            onClick={() => setOpenEdit(false)}
+            sx={{
+              backgroundColor: "#6d6d6d",
+              color: "#f7c948",
+              textTransform: "none",
+              minWidth: 120,
+              py: 1.25,
+              ":hover": { backgroundColor: "#5a5a5a" },
+            }}
+          >
+            Cancel
+          </Button>
 
-            <Button
-              variant="contained"
-              onClick={() => {
-                setOpenEdit(false);
-                setOpenEditConfirm(true);
-              }}
-              disabled={selectedUserRoleIsArchived}
-              sx={{
-                backgroundColor: "#000",
-                color: "#fff",
-                textTransform: "none",
-                minWidth: 120,
-                py: 1.25,
-                ":hover": { backgroundColor: "#111" },
-                "&.Mui-disabled": {
-                  backgroundColor: "#777",
-                  color: "#eee",
-                },
-              }}
-            >
-              Update
-            </Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setOpenEdit(false);
+              setOpenEditConfirm(true);
+            }}
+            disabled={selectedUserRoleIsArchived}
+            sx={{
+              backgroundColor: "#000",
+              color: "#fff",
+              textTransform: "none",
+              minWidth: 120,
+              py: 1.25,
+              ":hover": { backgroundColor: "#111" },
+              "&.Mui-disabled": {
+                backgroundColor: "#777",
+                color: "#eee",
+              },
+            }}
+          >
+            Update
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -2752,7 +2950,11 @@ export default function AdminPage() {
                 {statusTitle}
               </Typography>
 
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 0.5 }}
+              >
                 User Management
               </Typography>
             </Box>
@@ -2768,7 +2970,9 @@ export default function AdminPage() {
             </Typography>
           </DialogContent>
 
-          <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 4, mb: 2 }}>
+          <Box
+            sx={{ display: "flex", justifyContent: "flex-end", mt: 4, mb: 2 }}
+          >
             <Button
               variant="contained"
               onClick={() => setOpenStatusModal(false)}

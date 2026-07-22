@@ -1060,7 +1060,7 @@ export default function MyAppointmentsPage() {
 
           <Box sx={{ width: { xs: "100%", sm: 400 }, mx: "auto" }}>
             {[
-              ["Subtotal", formatAmount(selectedItem?.subtotal || 0)],
+              ["VATable Sales", formatAmount(selectedItem?.subtotal || 0)],
               ["VAT", formatAmount(selectedItem?.vatAmount || 0)],
               ["Discount", formatAmount(selectedItem?.discount || 0)],
               ["Discount %", `${Number(selectedItem?.discountPercent || 0)}%`],

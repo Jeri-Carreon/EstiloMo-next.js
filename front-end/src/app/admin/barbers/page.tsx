@@ -44,6 +44,7 @@ import TextField from "@mui/material/TextField";
 
 type Barber = {
   id: string;
+  userId?: string | null;
   firstName?: string;
   lastName?: string;
   name?: string;
@@ -273,6 +274,7 @@ export default function BarbersPage() {
   >({});
 
   // Session
+  const [loggedInUserId, setLoggedInUserId] = useState("");
   const [role, setRole] = useState<string>("");
   const [roleNames, setRoleNames] = useState<string[]>([]);
   const [accessibleTabs, setAccessibleTabs] = useState<string[]>([]);
@@ -340,13 +342,25 @@ export default function BarbersPage() {
     refetchOnWindowFocus: false,
   });
 
+  const isBarberOnly =
+    roleNames.length > 0 &&
+    roleNames.every((roleName) => roleName === "BARBER") &&
+    accessibleTabs.length === 1 &&
+    accessibleTabs.includes("barbers");
+
   const displayedBarbers = useMemo(() => {
     return showUnavailableBarbers
       ? barbers
       : barbers.filter(isBarberActive);
   }, [barbers, showUnavailableBarbers]);
 
-  const currentBarber = displayedBarbers[currentBarberIndex];
+  const currentBarber = useMemo(() => {
+    if (isBarberOnly) {
+      if (!loggedInUserId) return undefined;
+      return displayedBarbers.find((barber) => barber.userId === loggedInUserId);
+    }
+    return displayedBarbers[currentBarberIndex];
+  }, [displayedBarbers, currentBarberIndex, isBarberOnly, loggedInUserId]);
   const defaultAvailability = useMemo(() => {
     if (!currentBarber) return [];
 
@@ -627,41 +641,83 @@ export default function BarbersPage() {
   };
 
   async function saveAvailability() {
-    await fetch(`/api/admin/barbers/${currentBarber.id}/schedule`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        schedules: availability.map((item) => ({
-          dayOfWeek: item.dayOfWeek,
-          startTime: timeToMinutes(item.from),
-          endTime: timeToMinutes(item.to),
-          isDayOff: !item.enabled,
-        })),
-      }),
-    });
-
-    for (const [key, checked] of Object.entries(pendingAbsentChanges)) {
-      const date = key.replace(`${currentBarber.id}-`, "");
-
-      await fetch("/api/admin/barbers/absent", {
-        method: checked ? "POST" : "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          barberId: currentBarber.id,
-          date,
-        }),
-      });
+    if (!currentBarber) {
+      console.error("Cannot save availability: no barber is selected.");
+      return;
     }
 
-    setPendingAbsentChanges({});
-    setOpenAvailability(false);
-    setAvailabilityDraft(null);
+    const barberId = currentBarber.id;
 
-    queryClient.invalidateQueries({ queryKey: ["adminBarbers"] });
-    queryClient.invalidateQueries({ queryKey: ["adminBarberAbsents"] });
-    queryClient.invalidateQueries({
-      queryKey: ["adminBarberAppointments", currentBarber.id],
-    });
+    try {
+      const scheduleResponse = await fetch(
+        `/api/admin/barbers/${barberId}/schedule`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            schedules: availability.map((item) => ({
+              dayOfWeek: item.dayOfWeek,
+              startTime: timeToMinutes(item.from),
+              endTime: timeToMinutes(item.to),
+              isDayOff: !item.enabled,
+            })),
+          }),
+        },
+      );
+
+      if (!scheduleResponse.ok) {
+        const data = await scheduleResponse.json().catch(() => null);
+
+        throw new Error(
+          data?.error || "Failed to update barber availability.",
+        );
+      }
+
+      for (const [key, checked] of Object.entries(pendingAbsentChanges)) {
+        const date = key.replace(`${barberId}-`, "");
+
+        const absenceResponse = await fetch("/api/admin/barbers/absent", {
+          method: checked ? "POST" : "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            barberId,
+            date,
+          }),
+        });
+
+        if (!absenceResponse.ok) {
+          const data = await absenceResponse.json().catch(() => null);
+
+          throw new Error(
+            data?.error || "Failed to update barber absence.",
+          );
+        }
+      }
+
+      setPendingAbsentChanges({});
+      setOpenAvailability(false);
+      setAvailabilityDraft(null);
+
+      queryClient.invalidateQueries({
+        queryKey: ["adminBarbers"],
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ["adminBarberAbsents"],
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ["adminBarberAppointments", barberId],
+      });
+    } catch (error) {
+      console.error("SAVE BARBER AVAILABILITY ERROR:", error);
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to save barber availability.",
+      );
+    }
   }
 
   useEffect(() => {
@@ -674,6 +730,8 @@ export default function BarbersPage() {
           router.push("/login");
           return;
         }
+
+        setLoggedInUserId(user.id);
 
         const res = await fetch("/api/user/role");
         const data = await res.json();
@@ -699,21 +757,13 @@ export default function BarbersPage() {
     init();
   }, [router, supabase]);
 
-  const isBarberOnly =
-    roleNames.length > 0 &&
-    roleNames.every((roleName) => roleName === "BARBER") &&
-    accessibleTabs.length === 1 &&
-    accessibleTabs.includes("barbers");
-
 
   useEffect(() => {
-    if (
-      displayedBarbers.length > 0 &&
-      currentBarberIndex > displayedBarbers.length - 1
-    ) {
+    if (isBarberOnly) return;
+    if (displayedBarbers.length > 0 && currentBarberIndex > displayedBarbers.length - 1) {
       setCurrentBarberIndex(0);
     }
-  }, [displayedBarbers.length, currentBarberIndex]);
+  }, [displayedBarbers.length, currentBarberIndex, isBarberOnly]);
 
   const formatAmount = (amount: number | string | null) => {
     if (amount === null || amount === undefined) {
