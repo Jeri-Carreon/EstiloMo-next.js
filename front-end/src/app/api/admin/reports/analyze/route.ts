@@ -47,12 +47,12 @@ function parseDateRange(from?: string, to?: string) {
 function fallbackResponse(analytics?: AIReportAnalytics) {
   return {
     insights: [],
-    revenueTrend: analytics?.comparisons.revenue.percentChange ?? 0,
-    avgTrend: analytics?.comparisons.averageRevenuePerDay.percentChange ?? 0,
-    apptTrend: analytics?.comparisons.appointments.percentChange ?? 0,
-    rateTrend: analytics?.comparisons.completionRate.percentChange ?? 0,
-    weeklyInsight: "",
-    serviceRecommendation: "",
+    revenueTrend: analytics?.legacySummary.revenueTrend ?? 0,
+    avgTrend: analytics?.legacySummary.avgTrend ?? 0,
+    apptTrend: analytics?.legacySummary.apptTrend ?? 0,
+    rateTrend: analytics?.legacySummary.rateTrend ?? 0,
+    weeklyInsight: analytics?.ai.insight ?? "",
+    serviceRecommendation: analytics?.ai.recommendation ?? "",
   };
 }
 
@@ -122,6 +122,7 @@ export async function POST(req: NextRequest) {
       startDate,
       endDate,
       dateRangeLabel: dateRange,
+      reportType,
     });
 
     const serviceResponse = await requestExternalReportAnalysis({

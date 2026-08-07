@@ -1828,7 +1828,7 @@ export default function AppointmentsPage() {
                 </Box>
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
-                  <Typography sx={{ fontWeight: 900 }}>Subtotal</Typography>
+                  <Typography sx={{ fontWeight: 900 }}>Vatable Sales</Typography>
                   <Typography>₱ {servicePrice.toFixed(2)}</Typography>
                 </Box>
 

@@ -6,6 +6,8 @@ export function buildReportAnalysisPrompt(analytics: ReportAnalytics) {
   return `You are a business analyst for a barbershop. Analyze the summarized analytics below and respond ONLY with a valid JSON object, no markdown, no backticks, no explanation.
 
 Use the numbers in the analytics summary. Do not request or assume raw database rows.
+The server has already calculated financial totals, counts, rates, rankings, and trends. Do not recalculate them or invent values.
+Base every recommendation only on supplied analytics. Do not claim causation when the data only shows correlation or activity.
 
 Analytics summary:
 ${JSON.stringify(analytics)}
@@ -13,16 +15,16 @@ ${JSON.stringify(analytics)}
 Return exactly this JSON structure:
 {
   "insights": [
-    { "icon": "emoji", "title": "string", "body": "string" },
-    { "icon": "emoji", "title": "string", "body": "string" },
-    { "icon": "emoji", "title": "string", "body": "string" }
+    { "icon": "emoji", "title": "AI Insight", "body": "one concise insight for this report type" },
+    { "icon": "emoji", "title": "AI Recommendation", "body": "one concise practical recommendation for this report type" },
+    { "icon": "emoji", "title": "Business Note", "body": "one concise note using only supplied analytics" }
   ],
   "revenueTrend": <number, positive or negative integer>,
   "avgTrend": <number>,
   "apptTrend": <number>,
   "rateTrend": <number>,
-  "weeklyInsight": "<one sentence about the revenue/transaction trend>",
-  "serviceRecommendation": "<one sentence recommending which service to focus on>"
+  "weeklyInsight": "<one concise report-specific insight>",
+  "serviceRecommendation": "<one concise report-specific recommendation>"
 }`;
 }
 

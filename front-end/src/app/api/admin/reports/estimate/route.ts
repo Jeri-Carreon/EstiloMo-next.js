@@ -93,6 +93,7 @@ export async function GET(req: NextRequest) {
       startDate,
       endDate,
       dateRangeLabel: dateRange,
+      reportType,
     });
     const estimate = await requestExternalReportEstimate({
       analytics,
