@@ -4,11 +4,11 @@ import {
   adminAuthorizationResponse,
   requireAdminTabAccess,
 } from "@/lib/adminAuthorization";
-import { getReportServiceClientConfig } from "@/server/reports-api/config";
-import type {
-  ReportChatEstimateSuccessResponse,
-  ReportChatMessage,
-} from "@/server/reports-api/types/reports";
+import { ReportsService } from "@/server/reports-api/services/reports.service";
+import type { ReportChatMessage } from "@/server/reports-api/types/reports";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 type ChatMessage = {
   role: "user" | "assistant" | "system";
@@ -22,46 +22,7 @@ function normalizeMessages(messages: ChatMessage[]): ReportChatMessage[] {
   }));
 }
 
-async function requestExternalReportChatEstimate({
-  messages,
-  reportData,
-}: {
-  messages: ReportChatMessage[];
-  reportData?: Record<string, unknown>;
-}) {
-  const { chatEstimateUrl, apiKey } = getReportServiceClientConfig();
-
-  const response = await fetch(chatEstimateUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      messages,
-      reportData,
-    }),
-    cache: "no-store",
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    console.error("AI report chat estimate service request failed:", {
-      status: response.status,
-      statusText: response.statusText,
-      error: data?.error,
-    });
-
-    throw new Error(
-      data?.error?.message ||
-        data?.error ||
-        "AI report chat estimate service request failed.",
-    );
-  }
-
-  return data as ReportChatEstimateSuccessResponse;
-}
+const reportsService = new ReportsService();
 
 export async function POST(req: NextRequest) {
   try {
@@ -80,17 +41,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Messages are required" }, { status: 400 });
     }
 
-    const estimate = await requestExternalReportChatEstimate({
+    const estimate = reportsService.estimateChat({
       messages: normalizeMessages(messages),
       reportData,
     });
 
-    return NextResponse.json({
-      regular: estimate.regular,
-      deep: estimate.deep,
-    });
+    return NextResponse.json(estimate);
   } catch (error) {
-    console.error("AI report chat estimate error:", error);
+    console.error("AI report chat estimate error:", {
+      name: error instanceof Error ? error.name : "UnknownError",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

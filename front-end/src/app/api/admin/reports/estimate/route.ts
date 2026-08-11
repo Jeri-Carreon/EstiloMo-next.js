@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { buildAIReportAnalytics } from "@/lib/reportAnalytics";
+import { buildAIReportAnalytics, isReportType } from "@/lib/reportAnalytics";
 import {
   adminAuthorizationResponse,
   requireAdminTabAccess,
@@ -87,6 +87,9 @@ export async function GET(req: NextRequest) {
     const to = req.nextUrl.searchParams.get("to");
     const dateRange = req.nextUrl.searchParams.get("dateRange") ?? `${from} - ${to}`;
     const reportType = req.nextUrl.searchParams.get("reportType") ?? "summary";
+    if (!isReportType(reportType)) {
+      return NextResponse.json({ error: "Invalid report type" }, { status: 400 });
+    }
     const { startDate, endDate } = parseDateRange(from, to);
 
     const analytics = await buildAIReportAnalytics({
@@ -117,7 +120,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error("AI report estimate error:", error);
     const message = error instanceof Error ? error.message : "Internal server error";
-    const status = message.includes("date range") ? 400 : 500;
+    const status = message.includes("date range") || message.includes("report type") ? 400 : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }

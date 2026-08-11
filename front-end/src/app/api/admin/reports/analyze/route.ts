@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { calculateOpenAICost } from "@/lib/openaiPricing";
 import {
   buildAIReportAnalytics,
+  isReportType,
   type AIReportAnalytics,
 } from "@/lib/reportAnalytics";
 import { db } from "@/lib/db";
@@ -117,6 +118,9 @@ export async function POST(req: NextRequest) {
     const { startDate, endDate } = parseDateRange(body.from, body.to);
     const dateRange = body.dateRange ?? `${body.from} - ${body.to}`;
     const reportType = body.reportType ?? "summary";
+    if (!isReportType(reportType)) {
+      return NextResponse.json({ error: "Invalid report type" }, { status: 400 });
+    }
 
     analytics = await buildAIReportAnalytics({
       startDate,
@@ -165,7 +169,7 @@ export async function POST(req: NextRequest) {
 
     const message =
       error instanceof Error ? error.message : "Internal server error";
-    const status = message.toLowerCase().includes("date range") ? 400 : 500;
+    const status = message.toLowerCase().includes("date range") || message.toLowerCase().includes("report type") ? 400 : 500;
 
     if (status === 400) {
       return NextResponse.json({ error: message }, { status });

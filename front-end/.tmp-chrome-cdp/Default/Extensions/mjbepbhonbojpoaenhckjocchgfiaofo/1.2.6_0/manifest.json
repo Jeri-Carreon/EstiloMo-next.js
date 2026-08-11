@@ -1,0 +1,32 @@
+{
+   "action": {
+      "default_icon": {
+         "128": "assets/logo.png"
+      },
+      "default_popup": "src/popup.html"
+   },
+   "author": "Ace Stream, CodFrm",
+   "background": {
+      "service_worker": "src/service_worker.js"
+   },
+   "default_locale": "en",
+   "description": "__MSG_scriptcat_description__",
+   "host_permissions": [ "\u003Call_urls>" ],
+   "icons": {
+      "128": "assets/logo.png"
+   },
+   "incognito": "split",
+   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyWFKzQsLk08wBX1aQqGPT73gK/d7Nu/U+9rV3db7kFIm0OkFOGF1I8MBBoYoym1xbMaCM6jsB2MgB0DpgF9TnLpUFFWURTf19BMoBAvuphWR+G0jcZ2rgLK5n5IkxIy99gt7fUCdn18RbQsPhjMX4Azvo10aAUq7skx/kbwB871c/laUh/AcXHLmjMpkyqmSs277Hgatq7pUAHgOB/cEd5sH942t+b4yh2SqPeGFv0vDf2gv6+/1VQTHJGXSGIpGBnXFhOJX5OszXj4Ni40FcESkRX38dl7qARLUss//PyODPccWQIdZd3T++KPXqQ2Bl+J85m+xMLaFVjssD41NMwIDAQAB",
+   "manifest_version": 3,
+   "name": "__MSG_scriptcat__",
+   "options_ui": {
+      "open_in_tab": true,
+      "page": "src/options.html"
+   },
+   "permissions": [ "tabs", "alarms", "storage", "cookies", "offscreen", "scripting", "downloads", "activeTab", "webRequest", "userScripts", "contextMenus", "notifications", "clipboardWrite", "unlimitedStorage", "declarativeNetRequest" ],
+   "sandbox": {
+      "pages": [ "src/sandbox.html" ]
+   },
+   "update_url": "https://clients2.google.com/service/update2/crx",
+   "version": "1.2.6"
+}

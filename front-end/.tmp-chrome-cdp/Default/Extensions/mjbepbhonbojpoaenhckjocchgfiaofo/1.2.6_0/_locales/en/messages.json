@@ -1,0 +1,14 @@
+{
+   "i18n": {
+      "message": "i18n"
+   },
+   "scriptcat": {
+      "message": "Ace Script"
+   },
+   "scriptcat_beta": {
+      "message": "Ace Script Beta"
+   },
+   "scriptcat_description": {
+      "message": "Everything can be scripted, allowing your browser to do more!"
+   }
+}

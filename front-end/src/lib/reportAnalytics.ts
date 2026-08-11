@@ -1,5 +1,6 @@
 import {
   AppointmentStatus,
+  AppointmentSource,
   ReviewStatus,
   SaleSource,
   SaleStatus,
@@ -29,6 +30,7 @@ export type ReportMetric = {
   value: string | number;
   numericValue?: number;
   changePercent?: number | null;
+  kind?: "money" | "count" | "percent" | "text";
 };
 
 export type ReportChart = {
@@ -457,17 +459,27 @@ function buildSummary(input: DateRangeInput, ctx: LoadedContext, firstSaleDates:
     return first && first < input.startDate;
   }).length;
   const avgTransaction = ctx.sales.length ? roundNumber(revenue / ctx.sales.length) : 0;
+  const peakAppointmentData = buildPeakAppointmentData(ctx.appointments);
+  const peakAppointment = peakAppointmentData.reduce<(typeof peakAppointmentData)[number] | null>(
+    (best, row) => (!best || row.appointments > best.appointments ? row : best),
+    null,
+  );
 
   result.metrics = [
     { label: "Total Revenue", value: revenue, numericValue: revenue, changePercent: result.legacySummary.revenueTrend },
     { label: "Average Revenue Per Day", value: result.legacySummary.avgRevenuePerDay, numericValue: result.legacySummary.avgRevenuePerDay, changePercent: result.legacySummary.avgTrend },
-    { label: "Completed Transactions", value: ctx.sales.length, numericValue: ctx.sales.length, changePercent: result.legacySummary.apptTrend },
     { label: "Average Transaction Value", value: avgTransaction, numericValue: avgTransaction },
     { label: "Completion Rate", value: result.legacySummary.completionRate, numericValue: result.legacySummary.completionRate, changePercent: result.legacySummary.rateTrend },
+    { label: "Completed Transactions", value: ctx.sales.length, numericValue: ctx.sales.length, changePercent: result.legacySummary.apptTrend },
+    { label: "Walk-in Transactions", value: walkinSales.length, numericValue: walkinSales.length },
+    { label: "Booking Transactions", value: bookingSales.length, numericValue: bookingSales.length },
+    { label: "Total Appointments", value: ctx.appointments.length, numericValue: ctx.appointments.length },
     { label: "New Customers", value: newCustomers, numericValue: newCustomers },
     { label: "Returning Customers", value: returningCustomers, numericValue: returningCustomers },
-    { label: "Total Appointments", value: ctx.appointments.length, numericValue: ctx.appointments.length },
   ];
+  result.notes.push(
+    "Peak Appointment Hours uses booked appointments with SCHEDULED, COMPLETED, or NOSHOW status and groups their appointment startMinutes into dynamically derived two-hour buckets.",
+  );
   result.charts = [
     {
       title: "Revenue and Transaction Trend",
@@ -499,6 +511,13 @@ function buildSummary(input: DateRangeInput, ctx: LoadedContext, firstSaleDates:
         { key: "transactions", label: "Transactions", kind: "number" },
       ],
     },
+    {
+      title: "Peak Appointment Hours",
+      type: "bar",
+      data: peakAppointmentData,
+      xKey: "timeBucket",
+      series: [{ key: "appointments", label: "Appointments", kind: "number" }],
+    },
   ];
   result.tables = [
     {
@@ -525,13 +544,54 @@ function buildSummary(input: DateRangeInput, ctx: LoadedContext, firstSaleDates:
     },
   ];
   result.ai.insight = revenue
-    ? `${percent(bookingRevenue, revenue)}% of revenue came from booked appointments while ${percent(walkinRevenue, revenue)}% came from walk-in transactions.`
+    ? `${percent(bookingRevenue, revenue)}% of revenue came from booked appointments while ${percent(walkinRevenue, revenue)}% came from walk-in transactions.${peakAppointment ? ` ${peakAppointment.timeBucket} was the busiest appointment period with ${peakAppointment.appointments} appointments.` : ""}`
     : "No completed revenue was recorded for this period.";
   result.ai.recommendation = result.legacySummary.services[0]
     ? `Use ${result.legacySummary.services[0].name} as the anchor service for promotions because it currently leads service revenue.`
     : "No service-level recommendation is available without completed paid sales.";
   result.csv = makeCsv("summary-report.csv", ["metric", "value"], result.metrics.map((metric) => ({ metric: metric.label, value: metric.numericValue ?? metric.value })), ["metric", "value"]);
   return result;
+}
+
+function formatTimeBucket(minutes: number): string {
+  const format = (value: number) => {
+    const hour = Math.floor(value / 60) % 24;
+    const suffix = hour >= 12 ? "PM" : "AM";
+    const displayHour = hour % 12 || 12;
+    return `${displayHour} ${suffix}`;
+  };
+
+  return `${format(minutes)}–${format(minutes + 120)}`;
+}
+
+function buildPeakAppointmentData(appointments: LoadedContext["appointments"]) {
+  const qualifying = appointments.filter(
+    (appointment) =>
+      appointment.source === AppointmentSource.BOOKING &&
+      (appointment.status === AppointmentStatus.SCHEDULED ||
+        appointment.status === AppointmentStatus.COMPLETED ||
+        appointment.status === AppointmentStatus.NOSHOW),
+  );
+
+  if (!qualifying.length) return [];
+
+  const minStart = Math.floor(Math.min(...qualifying.map((appointment) => appointment.startMinutes)) / 120) * 120;
+  const maxStart = Math.ceil((Math.max(...qualifying.map((appointment) => appointment.startMinutes)) + 1) / 120) * 120;
+  const buckets = new Map<number, number>();
+
+  for (let start = minStart; start < Math.max(maxStart, minStart + 120); start += 120) {
+    buckets.set(start, 0);
+  }
+
+  for (const appointment of qualifying) {
+    const bucketStart = Math.floor(appointment.startMinutes / 120) * 120;
+    buckets.set(bucketStart, (buckets.get(bucketStart) ?? 0) + 1);
+  }
+
+  const total = qualifying.length;
+  return Array.from(buckets.entries())
+    .map(([start, count]) => ({ startMinutes: start, timeBucket: formatTimeBucket(start), appointments: count, share: percent(count, total) }))
+    .sort((a, b) => a.startMinutes - b.startMinutes);
 }
 
 type PaymentCollectionComponent = {
@@ -663,24 +723,25 @@ function buildSales(input: DateRangeInput, ctx: LoadedContext) {
   });
 
   result.metrics = [
-    { label: "Gross Sales / Revenue", value: revenue, numericValue: revenue, changePercent: result.legacySummary.revenueTrend },
-    { label: "Completed Sales", value: ctx.sales.length, numericValue: ctx.sales.length },
-    { label: "Average Transaction Value", value: ctx.sales.length ? roundNumber(revenue / ctx.sales.length) : 0 },
-    { label: "Highest Transaction Value", value: values.length ? Math.max(...values) : 0 },
-    { label: "Lowest Transaction Value", value: values.length ? Math.min(...values) : 0 },
-    { label: "Booking Revenue", value: bookingRevenue, numericValue: bookingRevenue },
-    { label: "Walk-in Revenue", value: walkinRevenue, numericValue: walkinRevenue },
-    { label: "Booking Transaction Count", value: bookingSales.length, numericValue: bookingSales.length },
-    { label: "Walk-in Transaction Count", value: walkinSales.length, numericValue: walkinSales.length },
-    { label: "Total Discounts", value: roundNumber(totals.discount), numericValue: roundNumber(totals.discount) },
-    { label: "Net Revenue after discounts", value: revenue, numericValue: revenue },
-    { label: "VAT-exclusive subtotal", value: roundNumber(totals.subtotal), numericValue: roundNumber(totals.subtotal) },
-    { label: "VAT amount", value: roundNumber(totals.vat), numericValue: roundNumber(totals.vat) },
-    { label: "VAT-inclusive total", value: revenue, numericValue: revenue },
-    { label: "Configured VAT rate", value: percent(ctx.currentVatRate, 1), numericValue: percent(ctx.currentVatRate, 1) },
-    { label: "Cash Payments", value: `${paymentByMethod.get("Cash")?.count ?? 0} payments`, numericValue: paymentByMethod.get("Cash")?.amount ?? 0 },
-    { label: "GCash Payments", value: `${paymentByMethod.get("GCash")?.count ?? 0} payments`, numericValue: paymentByMethod.get("GCash")?.amount ?? 0 },
-    { label: "PayMongo / Online Payments", value: `${paymentByMethod.get("PayMongo / Online")?.count ?? 0} payments`, numericValue: paymentByMethod.get("PayMongo / Online")?.amount ?? 0 },
+    { label: "Total Revenue", value: revenue, numericValue: revenue, kind: "money", changePercent: result.legacySummary.revenueTrend },
+    { label: "Completed Sales", value: ctx.sales.length, numericValue: ctx.sales.length, kind: "count" },
+    { label: "Average Transaction Value", value: ctx.sales.length ? roundNumber(revenue / ctx.sales.length) : 0, kind: "money" },
+    { label: "Highest Transaction Value", value: values.length ? Math.max(...values) : 0, kind: "money" },
+    { label: "Lowest Transaction Value", value: values.length ? Math.min(...values) : 0, kind: "money" },
+    { label: "Booking Revenue", value: bookingRevenue, numericValue: bookingRevenue, kind: "money" },
+    { label: "Walk-in Revenue", value: walkinRevenue, numericValue: walkinRevenue, kind: "money" },
+    { label: "Booking Transaction Count", value: bookingSales.length, numericValue: bookingSales.length, kind: "count" },
+    { label: "Walk-in Transaction Count", value: walkinSales.length, numericValue: walkinSales.length, kind: "count" },
+    { label: "Total Discounts", value: roundNumber(totals.discount), numericValue: roundNumber(totals.discount), kind: "money" },
+    { label: "Net Revenue after discounts", value: revenue, numericValue: revenue, kind: "money" },
+    { label: "VAT-exclusive subtotal", value: roundNumber(totals.subtotal), numericValue: roundNumber(totals.subtotal), kind: "money" },
+    { label: "VAT amount", value: roundNumber(totals.vat), numericValue: roundNumber(totals.vat), kind: "money" },
+    { label: "Revenue excluding VAT", value: roundNumber(revenue - totals.vat), numericValue: roundNumber(revenue - totals.vat), kind: "money" },
+    { label: "VAT-inclusive total", value: revenue, numericValue: revenue, kind: "money" },
+    { label: "Configured VAT rate", value: percent(ctx.currentVatRate, 1), numericValue: percent(ctx.currentVatRate, 1), kind: "percent" },
+    { label: "Cash Payments", value: `${paymentByMethod.get("Cash")?.count ?? 0} payments`, numericValue: paymentByMethod.get("Cash")?.amount ?? 0, kind: "money" },
+    { label: "GCash Payments", value: `${paymentByMethod.get("GCash")?.count ?? 0} payments`, numericValue: paymentByMethod.get("GCash")?.amount ?? 0, kind: "money" },
+    { label: "PayMongo / Online Payments", value: `${paymentByMethod.get("PayMongo / Online")?.count ?? 0} payments`, numericValue: paymentByMethod.get("PayMongo / Online")?.amount ?? 0, kind: "money" },
   ];
   result.charts = [
     { title: "Revenue over time", type: "line", data: trend, xKey: "period", series: [{ key: "revenue", label: "Revenue", kind: "money" }] },
@@ -1006,7 +1067,10 @@ function buildDiscounts(input: DateRangeInput, ctx: LoadedContext) {
 }
 
 export async function buildBusinessReportAnalytics(input: DateRangeInput): Promise<ReportAnalyticsResult> {
-  const reportType = input.reportType && isReportType(input.reportType) ? input.reportType : "summary";
+  if (input.reportType && !isReportType(input.reportType)) {
+    throw new Error("Invalid report type");
+  }
+  const reportType: ReportType = input.reportType ? (input.reportType as ReportType) : "summary";
   const ctx = await loadContext(input.startDate, input.endDate);
   const customerIds = Array.from(new Set(ctx.sales.map((sale) => sale.customerId)));
   const firstSaleDates = await customerFirstSaleDates(customerIds);

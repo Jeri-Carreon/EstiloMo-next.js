@@ -43,9 +43,10 @@ export async function GET(req: NextRequest) {
     const from = req.nextUrl.searchParams.get("from");
     const to = req.nextUrl.searchParams.get("to");
     const reportTypeParam = req.nextUrl.searchParams.get("reportType") ?? "summary";
-    const reportType: ReportType = isReportType(reportTypeParam)
-      ? reportTypeParam
-      : "summary";
+    if (!isReportType(reportTypeParam)) {
+      return NextResponse.json({ error: "Invalid report type" }, { status: 400 });
+    }
+    const reportType: ReportType = reportTypeParam;
     const dateRange = req.nextUrl.searchParams.get("dateRange") ?? `${from} - ${to}`;
     const { startDate, endDate } = parseDateRange(from, to);
     const report = await buildBusinessReportAnalytics({
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error("Admin report data error:", error);
     const message = error instanceof Error ? error.message : "Internal server error";
-    const status = message.toLowerCase().includes("date range") ? 400 : 500;
+    const status = message.toLowerCase().includes("date range") || message.toLowerCase().includes("report type") ? 400 : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }
