@@ -112,7 +112,7 @@ export async function PUT(
         });
       } catch (err) {
         console.error("SYNC PAID STATE ERROR:", err);
-        // Fallthrough to return success message — we don't want to treat
+        // Fallthrough to return success message â€” we don't want to treat
         // this as a hard failure for the admin confirm flow.
       }
 
@@ -172,13 +172,13 @@ export async function PUT(
 
     const loyaltyCard = sale.customer.loyaltyCards ?? null;
     const loyaltySettings = await db.loyaltyCardSetting.findFirst({
-      select: {
-        stickersPerTransaction: true,
-      },
+      select: { stickersPerTransaction: true, fiveStickerReward: true, tenStickerReward: true, fiftyPercentStickerThreshold: true, freeStickerThreshold: true },
     });
-    const fiftyPercentStickerThreshold = 5;
-    const freeStickerThreshold = 10;
+    const fiftyPercentStickerThreshold = loyaltySettings?.fiftyPercentStickerThreshold ?? 5;
+    const freeStickerThreshold = loyaltySettings?.freeStickerThreshold ?? 10;
     const stickersPerTransaction = loyaltySettings?.stickersPerTransaction ?? 1;
+    const firstRewardPercent = Number(/(\d+)/.exec(loyaltySettings?.fiveStickerReward ?? "50")?.[1] ?? 50);
+    const secondRewardPercent = Number(/(\d+)/.exec(loyaltySettings?.tenStickerReward ?? "100")?.[1] ?? 100);
 
     let loyaltyRewardType: LoyaltyRewardType = "NONE";
 
@@ -225,11 +225,11 @@ export async function PUT(
     }
 
     if (loyaltyRewardType === "FIFTY_PERCENT") {
-      discount = Math.round(signatureHaircutSubtotal * 0.5);
+      discount = Math.round(signatureHaircutSubtotal * (firstRewardPercent / 100));
     }
 
     if (loyaltyRewardType === "FREE") {
-      discount = signatureHaircutSubtotal;
+      discount = Math.round(signatureHaircutSubtotal * (secondRewardPercent / 100));
     }
 
     const pwdPricing = usePwdDiscount ? calculatePwdPricing(subtotal, vatRate) : null;
@@ -323,6 +323,7 @@ export async function PUT(
             appointmentId: sale.appointments[0]?.id || null,
             stickerNumber: updatedStars,
             rewardUsed: loyaltyRewardType,
+            type: loyaltyRewardType === "NONE" ? "EARNED" : "REDEEMED",
             customerName: `${sale.customer.firstName} ${sale.customer.lastName}`,
             message:
               loyaltyRewardType === "FREE"

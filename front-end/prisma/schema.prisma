@@ -316,6 +316,17 @@ model LoyaltyCardSetting {
   freeStickerThreshold         Int      @default(10)
 }
 
+model LoyaltyRewardOption {
+  id        String   @id @default(cuid())
+  name      String
+  value     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name])
+  @@unique([value])
+}
+
 model DiscountButtonSetting {
   id        String   @id @default(cuid())
   percent   Int      @unique
@@ -389,6 +400,7 @@ model LoyaltyCardActivity {
   rewardUsed    String       @default("NONE")
   saleId        String?
   stickerNumber Int?
+  type          String       @default("OTHER")
   Appointment   Appointment? @relation(fields: [appointmentId], references: [id])
   Sale          Sale?        @relation(fields: [saleId], references: [id], onDelete: Cascade)
   Customer      Customer?    @relation(fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "loyaltycardactivity_customerid_fkey")

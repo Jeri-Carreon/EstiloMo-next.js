@@ -23,6 +23,8 @@ import CloseIcon from "@mui/icons-material/Close";
 import LoyaltyIcon from "@mui/icons-material/Loyalty";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import AddIcon from "@mui/icons-material/Add";
+import RemoveIcon from "@mui/icons-material/Remove";
 
 type LoyaltyCard = {
   id: string;
@@ -44,11 +46,14 @@ type LoyaltySettings = {
   freeStickerThreshold: number;
 };
 
+type RewardOption = { id: string; name: string; value: number; };
+
 type Activity = {
   id: string;
   customerName: string;
   message: string;
   createdAt: string;
+  type: "EARNED" | "REDEEMED" | "ADJUSTED" | "OTHER";
 };
 
 export default function AdminLoyaltyCardPage() {
@@ -58,11 +63,20 @@ export default function AdminLoyaltyCardPage() {
 
   const [processedSearch, setProcessedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [activityFilter, setActivityFilter] = useState("ALL");
 
   const [editOpen, setEditOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [addRewardOpen, setAddRewardOpen] = useState(false);
+  const [rewardName, setRewardName] = useState("");
+  const [rewardValue, setRewardValue] = useState("");
 
   const [selectedCard, setSelectedCard] = useState<LoyaltyCard | null>(null);
+  const [draftStickers, setDraftStickers] = useState(0);
+  const [originalStickers, setOriginalStickers] = useState(0);
+  const [originalStatus, setOriginalStatus] = useState<"ACTIVE" | "COMPLETED">("ACTIVE");
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [editError, setEditError] = useState("");
   const [editStatus, setEditStatus] = useState<"ACTIVE" | "COMPLETED">(
     "ACTIVE"
   );
@@ -78,8 +92,9 @@ export default function AdminLoyaltyCardPage() {
     cards: LoyaltyCard[];
     activities: Activity[];
     settings: LoyaltySettings | null;
+      rewardOptions: RewardOption[];
   }>({
-    queryKey: ["adminLoyaltyCards"],
+    queryKey: ["adminLoyaltyCards", activityFilter],
     queryFn: async () => {
       const {
         data: { user },
@@ -90,7 +105,7 @@ export default function AdminLoyaltyCardPage() {
         throw new Error("Not authenticated");
       }
 
-      const res = await fetch("/api/admin/loyaltyCard", {
+      const res = await fetch(`/api/admin/loyaltyCard${activityFilter === "ALL" ? "" : `?activityType=${activityFilter}`}`, {
         cache: "no-store",
       });
 
@@ -109,6 +124,7 @@ export default function AdminLoyaltyCardPage() {
         cards: data.cards || [],
         activities: data.activities || [],
         settings: data.settings || null,
+        rewardOptions: data.rewardOptions || [],
       };
     },
     refetchInterval: 5000,
@@ -118,6 +134,7 @@ export default function AdminLoyaltyCardPage() {
   const cards = useMemo(() => loyaltyData?.cards || [], [loyaltyData?.cards]);
   const activities = loyaltyData?.activities || [];
   const settings = loyaltyData?.settings || null;
+  const rewardOptions = loyaltyData?.rewardOptions || [];
 
   const filteredCards = useMemo(() => {
     return cards.filter((card) => {
@@ -138,8 +155,26 @@ export default function AdminLoyaltyCardPage() {
 
   const openEdit = (card: LoyaltyCard) => {
     setSelectedCard(card);
+    setDraftStickers(card.stickers);
+    setOriginalStickers(card.stickers);
     setEditStatus(card.status);
+    setOriginalStatus(card.status);
+    setEditError("");
     setEditOpen(true);
+  };
+
+  const hasUnsavedEditChanges = draftStickers !== originalStickers || editStatus !== originalStatus;
+
+  const closeEdit = () => {
+    setEditOpen(false);
+    setDiscardOpen(false);
+    setSelectedCard(null);
+    setEditError("");
+  };
+
+  const requestCloseEdit = () => {
+    if (hasUnsavedEditChanges) setDiscardOpen(true);
+    else closeEdit();
   };
 
   const openSettings = () => {
@@ -158,32 +193,30 @@ export default function AdminLoyaltyCardPage() {
 
   const saveEdit = async () => {
     if (!selectedCard) return;
+    setEditError("");
 
     try {
       const res = await fetch(`/api/admin/loyaltyCard/${selectedCard.id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          status: editStatus,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: editStatus, stars: draftStickers }),
       });
-
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update loyalty card");
 
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to update loyalty card");
-      }
-
-      setEditOpen(false);
-      setSelectedCard(null);
+      const updated = { ...selectedCard, stickers: data.card.stars, maxStickers: data.maximum, status: data.card.status };
+      queryClient.setQueryData(["adminLoyaltyCards", activityFilter], (previous: typeof loyaltyData) => previous ? {
+        ...previous,
+        cards: previous.cards.map((card) => card.id === updated.id ? updated : card),
+      } : previous);
+      setOriginalStickers(updated.stickers);
+      setOriginalStatus(updated.status);
+      closeEdit();
       queryClient.invalidateQueries({ queryKey: ["adminLoyaltyCards"] });
     } catch (error) {
-      console.error("UPDATE LOYALTY CARD ERROR:", error);
+      setEditError(error instanceof Error ? error.message : "Failed to update loyalty card");
     }
   };
-
   const saveSettings = async () => {
     try {
       if (
@@ -193,11 +226,11 @@ export default function AdminLoyaltyCardPage() {
         freeStickerThreshold <= fiftyPercentStickerThreshold
       ) {
         throw new Error(
-          "Free reward sticker count must be higher than the 50% reward count."
+          "Second reward sticker count must be higher than the first reward count."
         );
       }
 
-      const res = await fetch("/api/admin/loyaltyCard", {
+      const res = await fetch(`/api/admin/loyaltyCard${activityFilter === "ALL" ? "" : `?activityType=${activityFilter}`}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -224,6 +257,16 @@ export default function AdminLoyaltyCardPage() {
     }
   };
 
+  const adjustDraftStickers = (delta: number) => {
+    if (!selectedCard) return;
+    setDraftStickers((current) => Math.max(0, Math.min(selectedCard.maxStickers, current + delta)));
+  };
+  const addReward = async () => {
+    const res = await fetch("/api/admin/loyaltyCard/rewards", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: rewardName, value: Number(rewardValue) }) });
+    if (!res.ok) { console.error((await res.json()).error); return; }
+    setAddRewardOpen(false); setRewardName(""); setRewardValue("");
+    queryClient.invalidateQueries({ queryKey: ["adminLoyaltyCards"] });
+  };
   if (loading) {
     return (
       <Box
@@ -443,9 +486,7 @@ export default function AdminLoyaltyCardPage() {
             overflowY: "auto",
           }}
         >
-          <Typography sx={{ fontWeight: 900, mb: 3 }}>
-            Recent Activity
-          </Typography>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}><Typography sx={{ fontWeight: 900 }}>Recent Activity</Typography><TextField select size="small" value={activityFilter} onChange={(e) => setActivityFilter(e.target.value)} sx={{ width: 150, bgcolor: "#fff" }}><MenuItem value="ALL">All Activity</MenuItem><MenuItem value="EARNED">Earned Stickers</MenuItem><MenuItem value="REDEEMED">Redeemed Stickers</MenuItem></TextField></Box>
 
           {activities.length === 0 ? (
             <Typography sx={{ color: "text.secondary", fontSize: 13 }}>
@@ -497,7 +538,7 @@ export default function AdminLoyaltyCardPage() {
 
       <Dialog
         open={editOpen}
-        onClose={() => setEditOpen(false)}
+        onClose={requestCloseEdit}
         maxWidth="sm"
         fullWidth
         slotProps={{
@@ -510,7 +551,8 @@ export default function AdminLoyaltyCardPage() {
           },
         }}
       >
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ p: 3, position: "relative" }}>
+          <IconButton onClick={requestCloseEdit} sx={{ position: "absolute", right: 8, top: 8 }}><CloseIcon /></IconButton>
           <Typography sx={{ fontSize: 26, fontWeight: 900, mb: 3 }}>
             Edit Loyalty Card
           </Typography>
@@ -542,16 +584,7 @@ export default function AdminLoyaltyCardPage() {
           <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
             Stickers
           </Typography>
-          <TextField
-            fullWidth
-            disabled
-            value={
-              selectedCard
-                ? `${selectedCard.stickers}/${selectedCard.maxStickers}`
-                : ""
-            }
-            sx={{ mb: 2, bgcolor: "#fff" }}
-          />
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}><IconButton onClick={() => adjustDraftStickers(-1)} disabled={!selectedCard || draftStickers <= 0} sx={{ bgcolor: "#fff" }}><RemoveIcon /></IconButton><Box sx={{ flex: 1, textAlign: "center", py: 1.5, bgcolor: "#fff", border: "1px solid #ddd", fontWeight: 900 }}>{selectedCard ? `${draftStickers}/${selectedCard.maxStickers}` : ""}</Box><IconButton onClick={() => adjustDraftStickers(1)} disabled={!selectedCard || draftStickers >= selectedCard.maxStickers} sx={{ bgcolor: "#fff" }}><AddIcon /></IconButton></Box>
 
           <Typography sx={{ fontWeight: 700, mb: 0.5 }}>Status</Typography>
           <TextField
@@ -567,6 +600,7 @@ export default function AdminLoyaltyCardPage() {
             <MenuItem value="COMPLETED">Completed</MenuItem>
           </TextField>
 
+          {editError && (<Typography sx={{ color: "error.main", mb: 2 }}>{editError}</Typography>)}
           <Box sx={{ display: "flex", justifyContent: "center" }}>
             <Button
               onClick={saveEdit}
@@ -581,6 +615,17 @@ export default function AdminLoyaltyCardPage() {
             >
               Save
             </Button>
+          </Box>
+        </Box>
+      </Dialog>
+
+      <Dialog open={discardOpen} onClose={() => setDiscardOpen(false)} maxWidth="xs" fullWidth>
+        <Box sx={{ p: 3, bgcolor: "#f3f3f3" }}>
+          <Typography sx={{ fontSize: 22, fontWeight: 900, mb: 1 }}>Unsaved Changes</Typography>
+          <Typography sx={{ mb: 3 }}>You have unsaved changes. Are you sure you want to discard them?</Typography>
+          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+            <Button onClick={() => setDiscardOpen(false)} sx={{ color: "#111" }}>Cancel</Button>
+            <Button onClick={closeEdit} sx={{ bgcolor: "#000", color: "#ffc400" }}>Discard</Button>
           </Box>
         </Box>
       </Dialog>
@@ -641,7 +686,7 @@ export default function AdminLoyaltyCardPage() {
           >
             <Box>
               <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
-                50% Reward{" "}
+                First Reward{" "}
                 <Box component="span" sx={{ color: "red" }}>
                   *
                 </Box>
@@ -654,7 +699,7 @@ export default function AdminLoyaltyCardPage() {
                 onChange={(e) => setFiveStickerReward(e.target.value)}
                 sx={{ bgcolor: "#fff" }}
               >
-                <MenuItem value="50% Off">50% Off</MenuItem>
+                {rewardOptions.map((option) => <MenuItem key={option.id} value={option.name}>{option.name}</MenuItem>)}
               </TextField>
             </Box>
 
@@ -687,12 +732,12 @@ export default function AdminLoyaltyCardPage() {
               display: "grid",
               gridTemplateColumns: "1fr 120px",
               gap: 1.5,
-              mb: 5,
+              mb: 2,
             }}
           >
             <Box>
               <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
-                Free Reward{" "}
+                Second Reward{" "}
                 <Box component="span" sx={{ color: "red" }}>
                   *
                 </Box>
@@ -705,7 +750,7 @@ export default function AdminLoyaltyCardPage() {
                 onChange={(e) => setTenStickerReward(e.target.value)}
                 sx={{ bgcolor: "#fff" }}
               >
-                <MenuItem value="100% Off">100% Off</MenuItem>
+                {rewardOptions.map((option) => <MenuItem key={option.id} value={option.name}>{option.name}</MenuItem>)}
               </TextField>
             </Box>
 
@@ -731,6 +776,7 @@ export default function AdminLoyaltyCardPage() {
             </Box>
           </Box>
 
+          <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}><Button onClick={() => setAddRewardOpen(true)} sx={{ color: "#111", textTransform: "none", fontWeight: 800 }}>+ Add Reward</Button></Box>
           <Box sx={{ display: "flex", justifyContent: "center" }}>
             <Button
               onClick={saveSettings}
@@ -746,6 +792,15 @@ export default function AdminLoyaltyCardPage() {
               Save
             </Button>
           </Box>
+        </Box>
+      </Dialog>
+
+      <Dialog open={addRewardOpen} onClose={() => setAddRewardOpen(false)} maxWidth="xs" fullWidth>
+        <Box sx={{ p: 3, bgcolor: "#f3f3f3" }}>
+          <Typography sx={{ fontSize: 22, fontWeight: 900, mb: 2 }}>Add Reward</Typography>
+          <TextField fullWidth label="Reward Name" value={rewardName} onChange={(e) => setRewardName(e.target.value)} sx={{ mb: 2, bgcolor: "#fff" }} />
+          <TextField fullWidth type="number" label="Discount / Reward Value" value={rewardValue} onChange={(e) => setRewardValue(e.target.value)} slotProps={{ htmlInput: { min: 1, max: 100 } }} sx={{ mb: 2, bgcolor: "#fff" }} />
+          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}><Button onClick={() => setAddRewardOpen(false)}>Cancel</Button><Button onClick={addReward} sx={{ bgcolor: "#000", color: "#ffc400" }}>Add</Button></Box>
         </Box>
       </Dialog>
     </Box>
