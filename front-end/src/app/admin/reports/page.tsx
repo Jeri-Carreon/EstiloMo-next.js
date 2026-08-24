@@ -1,6 +1,7 @@
 "use client";
 
 import AIUsageDashboard from "@/components/admin/AIUsageDashboard";
+import { exportReportToCsv } from "@/lib/exportReportToCsv";
 import { exportReportToPdf } from "@/lib/exportReportToPdf";
 import { createClient } from "@/lib/supabase/client";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -84,6 +85,14 @@ type ReportData = {
   reportType: ReportType;
   reportTitle: string;
   dateRange: string;
+  reportPeriod?: {
+    dateFrom: string;
+    dateTo: string;
+    days: number;
+    comparisonDateFrom: string;
+    comparisonDateTo: string;
+    granularity: string;
+  };
   hasData: boolean;
   metrics: ReportMetric[];
   charts: ReportChart[];
@@ -391,17 +400,6 @@ function buildReportPdfFilename(reportRequest: ReportRequest | null): string {
   const period = reportRequest?.from && reportRequest?.to ? `${reportRequest.from}_to_${reportRequest.to}` : toISO(new Date());
   const reportType = REPORT_OPTIONS.find((item) => item.value === reportRequest?.reportType)?.label ?? "Report";
   return `${sanitizeFilename(`EstiloMo_${reportType}_${period}`)}.pdf`;
-}
-
-function csvEscape(value: string | number | null) {
-  const str = String(value ?? "");
-  return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-}
-
-function toCSV(data: ReportData): string {
-  const lines = [data.csv.columns.map(csvEscape).join(",")];
-  for (const row of data.csv.rows) lines.push(row.map(csvEscape).join(","));
-  return "\uFEFF" + lines.join("\r\n");
 }
 
 function mergeAI(report: ReportData, ai: AiInsightsPayload): ReportData {
@@ -1933,7 +1931,8 @@ export default function ReportsPage() {
 
   const handleExportCSV = () => {
     if (!reportData) return;
-    const blob = new Blob([toCSV(reportData)], { type: "text/csv;charset=utf-8;" });
+    const generatedAtLabel = formatManilaDateTime(reportGeneratedAt ?? new Date());
+    const blob = new Blob([exportReportToCsv(reportData, generatedAtLabel)], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
