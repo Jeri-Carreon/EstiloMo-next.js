@@ -11,6 +11,8 @@ const LOYALTY_SETTINGS_SELECT = {
   stickersPerTransaction: true,
   fiveStickerReward: true,
   tenStickerReward: true,
+  fiftyPercentStickerThreshold: true,
+  freeStickerThreshold: true,
   createdAt: true,
   updatedAt: true,
 };
@@ -146,7 +148,7 @@ function buildAppointmentFromSale(sale: LoyaltySale, activity?: LoyaltyActivity)
       ? `${minutesToTime(appointment.startMinutes)} - ${minutesToTime(
           appointment.endMinutes
         )}`
-      : "—",
+      : "â€”",
 
     barber:
       appointment?.barber ||
@@ -320,7 +322,7 @@ export async function GET() {
         customerId: customer.id,
         customerCode: customer.customerCode,
         customerName,
-        stars: Math.min(loyaltyCard.stars, FREE_STICKER_THRESHOLD),
+        stars: Math.min(loyaltyCard.stars, settings.freeStickerThreshold),
         status: loyaltyCard.status,
         fiveRewardRedeemed: loyaltyCard.fiveRewardRedeemed,
       },
@@ -329,8 +331,8 @@ export async function GET() {
         stickersPerTransaction: settings.stickersPerTransaction,
         fiveStickerReward: settings.fiveStickerReward,
         tenStickerReward: settings.tenStickerReward,
-        fiftyPercentStickerThreshold: FIFTY_PERCENT_THRESHOLD,
-        freeStickerThreshold: FREE_STICKER_THRESHOLD,
+        fiftyPercentStickerThreshold: settings.fiftyPercentStickerThreshold,
+        freeStickerThreshold: settings.freeStickerThreshold,
       },
 
       appointments,
