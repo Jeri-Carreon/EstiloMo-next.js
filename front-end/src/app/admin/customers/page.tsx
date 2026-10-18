@@ -45,6 +45,7 @@ interface Customer {
 }
 
 type CustomerStatus = "AVAILABLE" | "UNAVAILABLE";
+type CustomerSortOrder = "asc" | "desc" | "totalSpent" | "totalAppointments" | "";
 
 export default function CustomersPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -83,7 +84,7 @@ export default function CustomersPage() {
   const [typeFilter, setTypeFilter] = useState<"ALL" | "CASUAL" | "REGULAR">(
     "ALL",
   );
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc" | "">("");
+  const [sortOrder, setSortOrder] = useState<CustomerSortOrder>("");
   const [page, setPage] = useState(1);
 
   const itemsPerPage = 5;
@@ -286,6 +287,9 @@ export default function CustomersPage() {
     .sort((a, b) => {
       if (sortOrder === "asc") return a.name.localeCompare(b.name);
       if (sortOrder === "desc") return b.name.localeCompare(a.name);
+      if (sortOrder === "totalSpent") return b.totalSpent - a.totalSpent;
+      if (sortOrder === "totalAppointments")
+        return b.totalAppointments - a.totalAppointments;
       return 0;
     });
 
@@ -369,7 +373,7 @@ export default function CustomersPage() {
           size="small"
           value={sortOrder}
           onChange={(e) => {
-            setSortOrder(e.target.value as "asc" | "desc" | "");
+            setSortOrder(e.target.value as CustomerSortOrder);
             setPage(1);
           }}
           sx={{ width: 200, bgcolor: "#fff" }}
@@ -377,6 +381,8 @@ export default function CustomersPage() {
             select: {
               displayEmpty: true,
               renderValue: (value) => {
+                if (value === "totalSpent") return "Highest Spent";
+                if (value === "totalAppointments") return "Most Appointments";
                 if (value === "")
                   return (
                     <span style={{ color: "#000000" }}>Default Order</span>
@@ -388,6 +394,8 @@ export default function CustomersPage() {
           }}
         >
           <MenuItem value="">Default Order</MenuItem>
+          <MenuItem value="totalSpent">Highest Spent</MenuItem>
+          <MenuItem value="totalAppointments">Most Appointments</MenuItem>
           <MenuItem value="asc">Name (A → Z)</MenuItem>
           <MenuItem value="desc">Name (Z → A)</MenuItem>
         </TextField>
