@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { cleanupDormantAppointments } from "@/lib/cleanupDormantAppointments";
 import { createClient } from "@/lib/supabase/server";
 
 import { parsePHDateOnly } from "@/lib/dateUtils";
@@ -40,73 +41,6 @@ function getCreateCheckoutUrl() {
   return "";
 }
 
-async function cleanupExpiredBookings() {
-  const expireAfterMinutes = await getPendingCheckoutExpirationMinutes();
-  const cutoff = new Date(Date.now() - expireAfterMinutes * 60 * 1000);
-
-  const expiredPayments = await db.payment.findMany({
-    where: {
-      status: "PENDING",
-      paymongoCheckoutSessionId: {
-        not: null,
-      },
-      createdAt: {
-        lt: cutoff,
-      },
-      saleId: {
-        not: null,
-      },
-    },
-    select: {
-      id: true,
-      saleId: true,
-    },
-  });
-
-  const saleIds = expiredPayments
-    .map((payment) => payment.saleId)
-    .filter(Boolean) as string[];
-
-  if (saleIds.length === 0) return;
-
-  await db.$transaction([
-    db.payment.updateMany({
-      where: {
-        id: {
-          in: expiredPayments.map((payment) => payment.id),
-        },
-      },
-      data: {
-        status: "REJECTED",
-      },
-    }),
-
-    db.sale.updateMany({
-      where: {
-        id: {
-          in: saleIds,
-        },
-      },
-      data: {
-        status: "CANCELLED",
-        downPaymentStatus: "EXPIRED",
-        cancelReason: "PayMongo checkout expired",
-      },
-    }),
-
-    db.appointment.updateMany({
-      where: {
-        saleId: {
-          in: saleIds,
-        },
-        status: "PENDING",
-      },
-      data: {
-        status: "REJECTED",
-      },
-    }),
-  ]);
-}
 
 async function createPayMongoCheckout(params: {
   checkoutEndpoint: string;
@@ -277,7 +211,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await cleanupExpiredBookings();
+    await cleanupDormantAppointments();
 
     const result = await db.$transaction(async (tx) => {
       const firstItem = cartItems[0];

@@ -1,84 +1,16 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { getPendingCheckoutExpirationMinutes } from "@/lib/appointmentSettings";
+import { cleanupDormantAppointments } from "@/lib/cleanupDormantAppointments";
 
 export async function POST() {
   try {
-    const expireAfterMinutes = await getPendingCheckoutExpirationMinutes();
-    const cutoff = new Date(Date.now() - expireAfterMinutes * 60 * 1000);
-
-    const expiredPayments = await db.payment.findMany({
-      where: {
-        status: "PENDING",
-        paymongoCheckoutSessionId: {
-          not: null,
-        },
-        createdAt: {
-          lt: cutoff,
-        },
-        saleId: {
-          not: null,
-        },
-      },
-      select: {
-        id: true,
-        saleId: true,
-      },
-    });
-
-    const saleIds = expiredPayments
-      .map((payment) => payment.saleId)
-      .filter(Boolean) as string[];
-
-    if (saleIds.length === 0) {
-      return NextResponse.json({
-        ok: true,
-        expired: 0,
-      });
+    const result = await cleanupDormantAppointments();
+    if (result.issues.length > 0) {
+      console.warn("DORMANT BOOKING CLEANUP ISSUES:", result.issues);
     }
-
-    await db.$transaction([
-      db.payment.updateMany({
-        where: {
-          id: {
-            in: expiredPayments.map((payment) => payment.id),
-          },
-        },
-        data: {
-          status: "REJECTED",
-        },
-      }),
-
-      db.sale.updateMany({
-        where: {
-          id: {
-            in: saleIds,
-          },
-        },
-        data: {
-          status: "CANCELLED",
-          downPaymentStatus: "EXPIRED",
-          cancelReason: "PayMongo checkout expired",
-        },
-      }),
-
-      db.appointment.updateMany({
-        where: {
-          saleId: {
-            in: saleIds,
-          },
-          status: "PENDING",
-        },
-        data: {
-          status: "REJECTED",
-        },
-      }),
-    ]);
-
     return NextResponse.json({
       ok: true,
-      expired: saleIds.length,
-      saleIds,
+      expired: result.cancelledSales,
+      saleIds: [...new Set(result.appointments.map((appointment) => appointment.saleId))],
     });
   } catch (error) {
     console.error("expire-pending error:", error);
