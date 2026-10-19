@@ -1292,7 +1292,7 @@ export default function MyAppointmentsPage() {
               mb: 3,
             }}
           >
-            Appointment Succesfully Booked
+            Appointment Successfully Booked
           </Typography>
 
           <Button
