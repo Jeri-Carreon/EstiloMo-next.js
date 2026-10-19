@@ -1,76 +1,22 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { getPendingCheckoutExpirationMinutes } from "@/lib/appointmentSettings";
+import { cleanupDormantAppointments } from "@/lib/cleanupDormantAppointments";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const expirationMinutes = await getPendingCheckoutExpirationMinutes();
-  const cutoff = new Date(Date.now() - expirationMinutes * 60 * 1000);
-
-  const result = await db.$transaction(async (tx) => {
-    const paymentUpdate = await tx.payment.updateMany({
-      where: {
-        status: "PENDING",
-        createdAt: {
-          lt: cutoff,
-        },
-      },
-      data: {
-        status: "REJECTED",
-      },
-    });
-
-    const saleUpdate = await tx.sale.updateMany({
-      where: {
-        status: "PENDING",
-        payment: {
-          is: {
-            status: "REJECTED",
-            createdAt: {
-              lt: cutoff,
-            },
-          },
-        },
-      },
-      data: {
-        status: "CANCELLED",
-      },
-    });
-
-    const appointmentUpdate = await tx.appointment.updateMany({
-      where: {
-        status: "PENDING",
-        sale: {
-          is: {
-            payment: {
-              is: {
-                status: "REJECTED",
-                createdAt: { lt: cutoff },
-              },
-            },
-          },
-        },
-      },
-      data: { status: "REJECTED" },
-    });
-
-    return {
-      cancelledPayments: paymentUpdate.count,
-      cancelledSales: saleUpdate.count,
-      cancelledAppointments: appointmentUpdate.count,
-    };
-  });
-
-  return NextResponse.json({
-    ok: true,
-    cutoff: cutoff.toISOString(),
-    expirationMinutes,
-    ...result,
-  });
+  try {
+    const result = await cleanupDormantAppointments();
+    if (result.issues.length > 0) {
+      console.warn("DORMANT BOOKING CLEANUP ISSUES:", result.issues);
+    }
+    return NextResponse.json({ ok: true, ...result });
+  } catch (error) {
+    console.error("DORMANT BOOKING CLEANUP ERROR:", error);
+    return NextResponse.json({ error: "Failed to clean up dormant bookings" }, { status: 500 });
+  }
 }
