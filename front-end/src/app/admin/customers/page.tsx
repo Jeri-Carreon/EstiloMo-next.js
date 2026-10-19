@@ -318,7 +318,7 @@ export default function CustomersPage() {
       c.mobileNumber,
       c.email,
       c.totalAppointments,
-      c.totalSpent,
+      c.totalSpent.toFixed(2),
     ]);
 
     const csv = [headers, ...rows].map((row) => row.join(",")).join("\n");
@@ -470,7 +470,7 @@ export default function CustomersPage() {
                     <TableCell>{customer.mobileNumber}</TableCell>
                     <TableCell>{customer.email}</TableCell>
                     <TableCell>{customer.totalAppointments}</TableCell>
-                    <TableCell>₱ {customer.totalSpent}</TableCell>
+                    <TableCell>₱ {customer.totalSpent.toFixed(2)}</TableCell>
                     <TableCell>
                       <IconButton
                         size="small"
