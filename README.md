@@ -6,7 +6,7 @@ EstiloMo is a barbershop appointment management system developed for The Barbs B
 
 The current version of EstiloMo can be accessed at:
 
-https://estilomo.codeegoh.com/
+https://estilomo.com
 
 ## Features
 
