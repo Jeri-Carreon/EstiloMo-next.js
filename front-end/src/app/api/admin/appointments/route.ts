@@ -6,7 +6,12 @@ import {
   ensureSingleAppointmentSetting,
   MAX_PENDING_CHECKOUT_EXPIRATION_MINUTES,
 } from "@/lib/appointmentSettings";
-import { getAppointmentPricing } from "@/lib/appointmentPricing";
+import {
+  getAppointmentPricing,
+  getAppointmentVatBreakdown,
+  isVatExempt,
+  roundMoney,
+} from "@/lib/appointmentPricing";
 import { createUniqueCode } from "@/lib/createCode";
 import {
   AppointmentAvailabilityError,
@@ -63,14 +68,21 @@ export async function GET() {
         (total, item) => total + Number(item.price || 0) * Number(item.quantity || 0),
         0
       ) ?? 0;
-      const grossTotal = grossFromItems || Number(a.sale?.totalAmount ?? a.service?.price ?? payment?.amount ?? 0);
-      const vatExempt = Boolean(payment?.vatExempt ?? a.sale?.vatExempt ?? false);
-      const saleVatRate = Number(a.sale?.vatRate ?? settings.vatRate);
-      const pricing = getAppointmentPricing(grossTotal, saleVatRate);
+      // Sale.totalAmount is the final VAT-inclusive amount after discounts.
+      // Item prices remain a fallback for legacy appointments without a sale.
+      const finalTotal = roundMoney(Number(
+        a.sale?.totalAmount ?? (grossFromItems || a.service?.price || payment?.amount || 0)
+      ));
+      const vatExempt = isVatExempt(a.sale, payment);
+      const storedVatRate = Number(a.sale?.vatRate);
+      const saleVatRate = Number.isFinite(storedVatRate) && storedVatRate >= 0
+        ? storedVatRate
+        : Number(settings.vatRate);
+      const vat = getAppointmentVatBreakdown(finalTotal, saleVatRate, vatExempt);
       const downPayment = Number(payment?.downPayment ?? 0);
       const remainingAmount = a.sale?.source === "BOOKING"
-        ? Math.max(grossTotal - downPayment, 0)
-        : Number(payment?.amount ?? a.sale?.totalAmount ?? grossTotal);
+        ? roundMoney(Math.max(finalTotal - downPayment, 0))
+        : Number(payment?.amount ?? finalTotal);
 
       return {
         id: a.id,
@@ -128,18 +140,21 @@ export async function GET() {
         payment: {
           id: payment?.id ?? null,
           amount: remainingAmount,
-          saleAmount: grossTotal,
-          grossTotal,
+          saleAmount: finalTotal,
+          grossTotal: finalTotal,
+          totalAmount: finalTotal,
           remainingAmount,
-          subtotal: vatExempt ? Number(a.sale?.subtotal ?? 0) : pricing.subtotal,
+          subtotal: vat.vatableSales,
+          vatableSales: vat.vatableSales,
+          vatExemptSales: vat.vatExemptSales,
           downPayment,
           discount: Number(payment?.discount ?? a.sale?.discount ?? 0),
-          pwdDiscount: payment?.pwdDiscount ?? a.sale?.pwdDiscount ?? false,
+          pwdDiscount: Boolean(payment?.pwdDiscount || a.sale?.pwdDiscount),
           pwdId: payment?.pwdId ?? a.sale?.pwdId ?? null,
           specialDiscountType:
             payment?.specialDiscountType ?? a.sale?.specialDiscountType ?? null,
           vatExempt,
-          vatAmount: Number(a.sale?.vatAmount ?? payment?.vatAmount ?? pricing.vatAmount),
+          vatAmount: vat.vatAmount,
           vatRate: saleVatRate,
           method: payment?.method ?? "GCASH",
           status: payment?.status ?? "PENDING",
