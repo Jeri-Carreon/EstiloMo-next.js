@@ -56,7 +56,10 @@ interface Appointment {
   barberName: string;
   totalAmount: number | string | null;
   subtotal?: number;
+  vatableSales?: number;
+  vatExemptSales?: number;
   downPayment?: number;
+  remainingAmount?: number;
   isBooking?: boolean;
   discount?: number;
   pwdDiscount?: boolean;
@@ -64,6 +67,7 @@ interface Appointment {
   specialDiscountType?: 'PWD' | 'SENIOR' | null;
   vatExempt?: boolean;
   vatAmount?: number;
+  vatRate?: number;
   status: string;
   paymentScreenshotUrl?: string | null;
   afterServicePhotoUrl?: string | null;
@@ -226,6 +230,16 @@ export default function AppointmentsPage() {
   const [successMessage, setSuccessMessage] = useState('');
 
   const servicePrice = Number(selectedAddService?.price || 0);
+  const finalTotal = servicePrice;
+  const currentVatRate = Number(vatRate || 0);
+  const vatableSales =
+    currentVatRate > 0
+      ? finalTotal / (1 + currentVatRate)
+      : finalTotal;
+  const vatAmount =
+    currentVatRate > 0
+      ? finalTotal - vatableSales
+      : 0;
 
   const openImageViewer = (title: string, photos: string[], startIndex = 0) => {
     const validPhotos = photos.filter(Boolean);
@@ -314,8 +328,8 @@ export default function AppointmentsPage() {
     return `₱ ${parsed.toFixed(2)}`;
   };
 
-  const getVatIndicatorLabel = (vatExempt?: boolean) =>
-    vatExempt ? 'VAT Exempt' : `VAT ${vatRate * 100}%`;
+  const getVatIndicatorLabel = (vatExempt?: boolean, savedVatRate?: number) =>
+    vatExempt ? 'VAT Exempt' : `VAT ${(savedVatRate ?? vatRate) * 100}%`;
 
   const formatVatValue = (vatExempt: boolean | undefined, vatAmount: number) =>
     vatExempt ? 'VAT Exempt' : formatAmount(vatAmount);
@@ -397,13 +411,12 @@ export default function AppointmentsPage() {
           '',
         serviceId: appointment.serviceId,
         serviceName: appointment.service?.name || '',
-        totalAmount:
-          appointment.payment?.amount !== undefined &&
-          appointment.payment?.amount !== null
-            ? appointment.payment.amount
-            : null,
+        totalAmount: Number(appointment.payment?.totalAmount ?? appointment.payment?.grossTotal ?? appointment.payment?.amount ?? 0),
         subtotal: Number(appointment.payment?.subtotal ?? 0),
+        vatableSales: Number(appointment.payment?.vatableSales ?? appointment.payment?.subtotal ?? 0),
+        vatExemptSales: Number(appointment.payment?.vatExemptSales ?? 0),
         downPayment: Number(appointment.payment?.downPayment ?? 0),
+        remainingAmount: Number(appointment.payment?.remainingAmount ?? appointment.payment?.amount ?? 0),
         isBooking: Boolean(appointment.payment?.grossTotal && appointment.payment?.downPayment),
         discount: Number(appointment.payment?.discount || 0),
         pwdDiscount: Boolean(appointment.payment?.pwdDiscount),
@@ -413,6 +426,7 @@ export default function AppointmentsPage() {
           (appointment.payment?.pwdDiscount ? 'PWD' : null),
         vatExempt: Boolean(appointment.payment?.vatExempt),
         vatAmount: Number(appointment.payment?.vatAmount || 0),
+        vatRate: Number(appointment.payment?.vatRate ?? data.settings?.vatRate ?? 0.12),
         status: appointment.status || '',
         paymentScreenshotUrl: appointment.payment?.screenshotUrl || null,
         afterServicePhotos: appointment.afterServicePhotos || [],
@@ -1743,7 +1757,22 @@ export default function AppointmentsPage() {
               <Box sx={{ bgcolor: '#fff', p: 2 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                   <Typography sx={{ fontWeight: 900 }}>Subtotal</Typography>
-                  <Typography>₱ {servicePrice.toFixed(2)}</Typography>
+                  <Typography>₱ {finalTotal.toFixed(2)}</Typography>
+                </Box>
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography sx={{ fontWeight: 900 }}>Vatable Sales</Typography>
+                  <Typography>₱ {vatableSales.toFixed(2)}</Typography>
+                </Box>
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography sx={{ fontWeight: 900 }}>VAT Rate</Typography>
+                  <Typography>{(currentVatRate * 100).toFixed(2)}%</Typography>
+                </Box>
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography sx={{ fontWeight: 900 }}>VAT Amount</Typography>
+                  <Typography>₱ {vatAmount.toFixed(2)}</Typography>
                 </Box>
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
@@ -1753,7 +1782,7 @@ export default function AppointmentsPage() {
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography sx={{ fontWeight: 900 }}>Total</Typography>
-                  <Typography>₱ {servicePrice.toFixed(2)}</Typography>
+                  <Typography>₱ {finalTotal.toFixed(2)}</Typography>
                 </Box>
               </Box>
 
@@ -1828,8 +1857,23 @@ export default function AppointmentsPage() {
                 </Box>
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
+                  <Typography sx={{ fontWeight: 900 }}>Subtotal</Typography>
+                  <Typography>₱ {finalTotal.toFixed(2)}</Typography>
+                </Box>
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography sx={{ fontWeight: 900 }}>Vatable Sales</Typography>
-                  <Typography>₱ {servicePrice.toFixed(2)}</Typography>
+                  <Typography>₱ {vatableSales.toFixed(2)}</Typography>
+                </Box>
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontWeight: 900 }}>VAT Rate</Typography>
+                  <Typography>{(currentVatRate * 100).toFixed(2)}%</Typography>
+                </Box>
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontWeight: 900 }}>VAT Amount</Typography>
+                  <Typography>₱ {vatAmount.toFixed(2)}</Typography>
                 </Box>
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1841,7 +1885,7 @@ export default function AppointmentsPage() {
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography sx={{ fontWeight: 900 }}>Total</Typography>
-                  <Typography>₱ {servicePrice.toFixed(2)}</Typography>
+                  <Typography>₱ {finalTotal.toFixed(2)}</Typography>
                 </Box>
               </Box>
             </>
@@ -2111,20 +2155,29 @@ export default function AppointmentsPage() {
                 </Typography>
                 <Box sx={{ display: 'grid', gap: 0.7 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                    <Typography sx={{ fontSize: 12, color: '#666' }}>Subtotal</Typography>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>
+                      {selectedAppointment.vatExempt ? 'VAT-Exempt Sales' : 'Vatable Sales'}
+                    </Typography>
                     <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
-                      {formatAmount(selectedAppointment.subtotal || 0)}
+                      {formatAmount(
+                        selectedAppointment.vatExempt
+                          ? selectedAppointment.vatExemptSales || 0
+                          : selectedAppointment.vatableSales || 0
+                      )}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>VAT Rate</Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                      {(selectedAppointment.vatRate ?? vatRate) * 100}%
                     </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
                     <Typography sx={{ fontSize: 12, color: '#666' }}>
-                      {getVatIndicatorLabel(selectedAppointment.vatExempt)}
+                      {getVatIndicatorLabel(selectedAppointment.vatExempt, selectedAppointment.vatRate)}
                     </Typography>
                     <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
-                      {formatVatValue(
-                        selectedAppointment.vatExempt,
-                        selectedAppointment.vatAmount || 0
-                      )}
+                      {formatVatValue(selectedAppointment.vatExempt, selectedAppointment.vatAmount || 0)}
                     </Typography>
                   </Box>
                   {selectedAppointment.pwdDiscount && (
@@ -2174,11 +2227,17 @@ export default function AppointmentsPage() {
                     </Box>
                   ) : null}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                    <Typography sx={{ fontSize: 12, color: '#666' }}>
-                      {selectedAppointment.isBooking ? 'Remaining Payment' : 'Total Payment'}
-                    </Typography>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>Total Appointment Amount</Typography>
                     <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
                       {formatAmount(selectedAppointment.totalAmount)}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>
+                      Remaining Balance
+                    </Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                      {formatAmount(selectedAppointment.remainingAmount ?? selectedAppointment.totalAmount)}
                     </Typography>
                   </Box>
                 </Box>
@@ -2891,20 +2950,29 @@ export default function AppointmentsPage() {
                 </Typography>
                 <Box sx={{ display: 'grid', gap: 0.7 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                    <Typography sx={{ fontSize: 12, color: '#666' }}>Subtotal</Typography>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>
+                      {selectedAppointment.vatExempt ? 'VAT-Exempt Sales' : 'Vatable Sales'}
+                    </Typography>
                     <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
-                      {formatAmount(selectedAppointment.subtotal || 0)}
+                      {formatAmount(
+                        selectedAppointment.vatExempt
+                          ? selectedAppointment.vatExemptSales || 0
+                          : selectedAppointment.vatableSales || 0
+                      )}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>VAT Rate</Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                      {(selectedAppointment.vatRate ?? vatRate) * 100}%
                     </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
                     <Typography sx={{ fontSize: 12, color: '#666' }}>
-                      {getVatIndicatorLabel(selectedAppointment.vatExempt)}
+                      {getVatIndicatorLabel(selectedAppointment.vatExempt, selectedAppointment.vatRate)}
                     </Typography>
                     <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
-                      {formatVatValue(
-                        selectedAppointment.vatExempt,
-                        selectedAppointment.vatAmount || 0
-                      )}
+                      {formatVatValue(selectedAppointment.vatExempt, selectedAppointment.vatAmount || 0)}
                     </Typography>
                   </Box>
                   {selectedAppointment.pwdDiscount && (
@@ -2954,11 +3022,17 @@ export default function AppointmentsPage() {
                     </Box>
                   ) : null}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                    <Typography sx={{ fontSize: 12, color: '#666' }}>
-                      {selectedAppointment.isBooking ? 'Remaining Payment' : 'Total Payment'}
-                    </Typography>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>Total Appointment Amount</Typography>
                     <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
                       {formatAmount(selectedAppointment.totalAmount)}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                    <Typography sx={{ fontSize: 12, color: '#666' }}>
+                      Remaining Balance
+                    </Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                      {formatAmount(selectedAppointment.remainingAmount ?? selectedAppointment.totalAmount)}
                     </Typography>
                   </Box>
                 </Box>
