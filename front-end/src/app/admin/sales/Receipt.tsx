@@ -139,6 +139,27 @@ export default function Receipt({
       ? roundMoney(Math.max(finalSaleTotal - downPayment, 0))
       : finalSaleTotal;
 
+  // Service prices are stored VAT-inclusive. Booking item subtotals are the
+  // VAT-exclusive base, so allocate the final charged amount across lines.
+  const itemGrossTotal = sale.items.reduce(
+    (total, item) => total + Number(item.price || 0) * Number(item.quantity || 0),
+    0
+  );
+  const serviceLineTotals = sale.items.map((item, index) => {
+    const scale = itemGrossTotal > 0 ? finalSaleTotal / itemGrossTotal : 0;
+
+    if (index === sale.items.length - 1) {
+      const priorTotals = sale.items.slice(0, index).reduce(
+        (total, priorItem) =>
+          total + roundMoney(Number(priorItem.price || 0) * Number(priorItem.quantity || 0) * scale),
+        0
+      );
+      return roundMoney(finalSaleTotal - priorTotals);
+    }
+
+    return roundMoney(Number(item.price || 0) * Number(item.quantity || 0) * scale);
+  });
+
   return (
     <>
       <style>{receiptPrintStyles}</style>
@@ -235,7 +256,7 @@ export default function Receipt({
         <ReceiptDivider />
 
         <section>
-          {sale.items.map((item) => {
+          {sale.items.map((item, index) => {
             const barber =
               getAppointmentBarberName(
                 sale,
@@ -260,7 +281,7 @@ export default function Receipt({
                   <div>{formatPeso(item.price)} each</div>
                 ) : null}
 
-                <div>{formatPeso(item.subtotal)}</div>
+                <div>{formatPeso(serviceLineTotals[index])}</div>
               </div>
             );
           })}

@@ -272,6 +272,14 @@ export async function POST(req: Request) {
       const settings = await ensureSingleAppointmentSetting();
       const appointmentVatRate = Number(settings.vatRate);
       const pricing = getAppointmentPricing(Number(service.price), appointmentVatRate);
+      const totalAmount = pricing.totalPayment;
+      const downPaymentAmount = Number(downPayment || 0);
+      const paymentStatus =
+        downPaymentAmount <= 0
+          ? "PENDING"
+          : downPaymentAmount >= totalAmount
+            ? "PAID"
+            : "PARTIAL";
 
       const appointment = await tx.appointment.create({
         data: {
@@ -293,7 +301,7 @@ export async function POST(req: Request) {
           customerId,
           barberId,
           source: "BOOKING",
-          status: "PENDING",
+          status: paymentStatus,
           subtotal: pricing.subtotal,
           discount: 0,
           vatRate: appointmentVatRate,
@@ -322,10 +330,10 @@ export async function POST(req: Request) {
           saleId: sale.id,
           paymentCode: await createUniqueCode("PAY"),
           amount: pricing.totalPayment,
-          downPayment: Number(downPayment || 0),
+          downPayment: downPaymentAmount,
           vatAmount: pricing.vatAmount,
           method: "GCASH",
-          status: "PENDING",
+          status: paymentStatus,
           screenshotUrl: paymentScreenshotUrl ?? null,
         },
       });
