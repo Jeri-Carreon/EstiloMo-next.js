@@ -2939,7 +2939,7 @@ export default function SalesPage() {
                 </Box>
 
                 <Typography sx={{ fontWeight: 800, textAlign: "right" }}>
-                  {formatPeso(item.subtotal)}
+                  {formatPeso(Number(item.price || 0) * Number(item.quantity || 0))}
                 </Typography>
               </Box>
             ))}
