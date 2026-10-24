@@ -1595,7 +1595,6 @@ export default function SalesPage() {
           }}
         >
           <MenuItem value="ALL">All Status</MenuItem>
-          <MenuItem value="PENDING">Unpaid</MenuItem>
           <MenuItem value="PAID">Paid</MenuItem>
           <MenuItem value="PARTIAL">Partial</MenuItem>
           <MenuItem value="CANCELLED">Cancelled</MenuItem>
