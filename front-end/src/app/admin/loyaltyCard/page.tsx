@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -64,6 +64,8 @@ export default function AdminLoyaltyCardPage() {
   const [processedSearch, setProcessedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [activityFilter, setActivityFilter] = useState("ALL");
+  const [activityPage, setActivityPage] = useState(1);
+  const [cardPage, setCardPage] = useState(1);
 
   const [editOpen, setEditOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -136,6 +138,20 @@ export default function AdminLoyaltyCardPage() {
   const settings = loyaltyData?.settings || null;
   const rewardOptions = loyaltyData?.rewardOptions || [];
 
+  const activitiesPerPage = 5;
+  const totalActivityPages = Math.max(1, Math.ceil(activities.length / activitiesPerPage));
+  const currentActivityPage = Math.min(activityPage, totalActivityPages);
+  const paginatedActivities = activities.slice(
+    (currentActivityPage - 1) * activitiesPerPage,
+    currentActivityPage * activitiesPerPage
+  );
+  const activityStart = activities.length === 0 ? 0 : (currentActivityPage - 1) * activitiesPerPage + 1;
+  const activityEnd = Math.min(currentActivityPage * activitiesPerPage, activities.length);
+
+  useEffect(() => {
+    setActivityPage(1);
+  }, [activityFilter, activities]);
+
   const filteredCards = useMemo(() => {
     return cards.filter((card) => {
       const value = processedSearch.toLowerCase();
@@ -152,6 +168,34 @@ export default function AdminLoyaltyCardPage() {
       return matchesSearch && matchesStatus;
     });
   }, [cards, processedSearch, statusFilter]);
+
+  const cardsPerPage = 8;
+
+const totalCardPages = Math.max(
+  1,
+  Math.ceil(filteredCards.length / cardsPerPage)
+);
+
+const currentCardPage = Math.min(cardPage, totalCardPages);
+
+const paginatedCards = filteredCards.slice(
+  (currentCardPage - 1) * cardsPerPage,
+  currentCardPage * cardsPerPage
+);
+
+const cardStart =
+  filteredCards.length === 0
+    ? 0
+    : (currentCardPage - 1) * cardsPerPage + 1;
+
+const cardEnd = Math.min(
+  currentCardPage * cardsPerPage,
+  filteredCards.length
+);
+
+useEffect(() => {
+  setCardPage(1);
+}, [processedSearch, statusFilter]);
 
   const openEdit = (card: LoyaltyCard) => {
     setSelectedCard(card);
@@ -370,7 +414,7 @@ export default function AdminLoyaltyCardPage() {
               </Typography>
             </Box>
           ) : (
-            filteredCards.map((card) => (
+            paginatedCards.map((card) => (
               <Box
                 key={card.id}
                 sx={{
@@ -444,12 +488,18 @@ export default function AdminLoyaltyCardPage() {
             }}
           >
             <Typography>
-              Showing 1 to {filteredCards.length} of {filteredCards.length}{" "}
-              Entries
+              Showing {cardStart} to {cardEnd} of {filteredCards.length} Entries
             </Typography>
 
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <IconButton size="small" sx={{ bgcolor: "#ddd" }}>
+              <IconButton
+                size="small"
+                disabled={currentCardPage === 1}
+                onClick={() =>
+                  setCardPage((page) => Math.max(1, page - 1))
+                }
+                sx={{ bgcolor: "#ddd" }}
+              >
                 <ChevronLeftIcon />
               </IconButton>
 
@@ -465,10 +515,19 @@ export default function AdminLoyaltyCardPage() {
                   fontWeight: 900,
                 }}
               >
-                1
+                {currentCardPage}
               </Box>
 
-              <IconButton size="small" sx={{ bgcolor: "#ddd" }}>
+              <IconButton
+                size="small"
+                disabled={currentCardPage === totalCardPages}
+                onClick={() =>
+                  setCardPage((page) =>
+                    Math.min(totalCardPages, page + 1)
+                  )
+                }
+                sx={{ bgcolor: "#ddd" }}
+              >
                 <ChevronRightIcon />
               </IconButton>
             </Box>
@@ -481,9 +540,11 @@ export default function AdminLoyaltyCardPage() {
             border: "1px solid #ddd",
             borderRadius: 2,
             p: 2.5,
-            minHeight: 520,
+            height: 550,
             width: "100%",
-            overflowY: "auto",
+            overflow: "visible",
+            display: "flex",
+            flexDirection: "column",
           }}
         >
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}><Typography sx={{ fontWeight: 900 }}>Recent Activity</Typography><TextField select size="small" value={activityFilter} onChange={(e) => setActivityFilter(e.target.value)} sx={{ width: 150, bgcolor: "#fff" }}><MenuItem value="ALL">All Activity</MenuItem><MenuItem value="EARNED">Earned Stickers</MenuItem><MenuItem value="REDEEMED">Redeemed Stickers</MenuItem></TextField></Box>
@@ -493,7 +554,7 @@ export default function AdminLoyaltyCardPage() {
               No recent activity.
             </Typography>
           ) : (
-            activities.map((activity) => (
+            paginatedActivities.map((activity) => (
               <Box
                 key={activity.id}
                 sx={{
@@ -533,6 +594,57 @@ export default function AdminLoyaltyCardPage() {
               </Box>
             ))
           )}
+
+          <Box sx={{ flex: 1 }} />
+
+          <Box
+            sx={{
+              pt: 2,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              borderTop: "1px solid #eee",
+            }}
+          >
+            <Typography>
+              Showing {activityStart} to {activityEnd} of {activities.length} Entries
+            </Typography>
+
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <IconButton
+                size="small"
+                disabled={currentActivityPage === 1}
+                onClick={() => setActivityPage((page) => Math.max(1, page - 1))}
+                sx={{ bgcolor: "#ddd" }}
+              >
+                <ChevronLeftIcon />
+              </IconButton>
+
+              <Box
+                sx={{
+                  bgcolor: "#ffc400",
+                  width: 28,
+                  height: 28,
+                  borderRadius: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 900,
+                }}
+              >
+                {currentActivityPage}
+              </Box>
+
+              <IconButton
+                size="small"
+                disabled={currentActivityPage === totalActivityPages}
+                onClick={() => setActivityPage((page) => Math.min(totalActivityPages, page + 1))}
+                sx={{ bgcolor: "#ddd" }}
+              >
+                <ChevronRightIcon />
+              </IconButton>
+            </Box>
+          </Box>
         </Paper>
       </Box>
 
